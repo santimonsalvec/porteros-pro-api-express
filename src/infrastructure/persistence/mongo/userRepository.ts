@@ -5,6 +5,18 @@ import { User } from '../../../domain/users/user.js';
 import { MongoRepository } from './mongoRepository.js';
 import { stripNulls } from './stripNulls.js';
 
+/**
+ * Accounts migrated from the legacy .NET backend still store `createdAt` as that
+ * driver's default `DateTimeOffset` shape (`{ DateTime, Ticks, Offset }`) rather than
+ * a plain BSON date, since migrated documents were never rewritten by this backend.
+ */
+function parseCreatedAt(raw: unknown): Date {
+  if (raw && typeof raw === 'object' && 'DateTime' in raw) {
+    return new Date((raw as { DateTime: string | Date }).DateTime);
+  }
+  return new Date(raw as string | Date);
+}
+
 export class UserRepository extends MongoRepository<User, string> implements IUserRepository {
   constructor(db: Db) {
     super(db.collection('users'));
@@ -51,7 +63,7 @@ export class UserRepository extends MongoRepository<User, string> implements IUs
       displayName: (doc.displayName as string | undefined) ?? null,
       isAdmin: Boolean(doc.isAdmin),
       externalIdentities: rawIdentities.map((i) => new ExternalIdentity(i.provider, i.subject, i.email)),
-      createdAt: new Date(doc.createdAt as string | Date),
+      createdAt: parseCreatedAt(doc.createdAt),
       firstName: (doc.firstName as string | undefined) ?? null,
       lastName: (doc.lastName as string | undefined) ?? null,
       countryCallingCode: (doc.countryCallingCode as string | undefined) ?? null,
