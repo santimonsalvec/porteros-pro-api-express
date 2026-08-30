@@ -13,6 +13,12 @@ import { UpdateClientProfileCommand } from '../application/features/clients/comm
 import { UpdateClientProfileCommandHandler } from '../application/features/clients/commands/updateClientProfile/updateClientProfileCommandHandler.js';
 import { GetCountriesQuery } from '../application/features/locations/queries/getCountries/getCountriesQuery.js';
 import { GetCountriesQueryHandler } from '../application/features/locations/queries/getCountries/getCountriesQueryHandler.js';
+import { StoreImageCommand } from '../application/features/images/commands/storeImage/storeImageCommand.js';
+import { StoreImageCommandHandler } from '../application/features/images/commands/storeImage/storeImageCommandHandler.js';
+import { ResolveImageQuery } from '../application/features/images/queries/resolveImage/resolveImageQuery.js';
+import { ResolveImageQueryHandler } from '../application/features/images/queries/resolveImage/resolveImageQueryHandler.js';
+import { DeleteImageCommand } from '../application/features/images/commands/deleteImage/deleteImageCommand.js';
+import { DeleteImageCommandHandler } from '../application/features/images/commands/deleteImage/deleteImageCommandHandler.js';
 import type { AppDependencies } from '../appDependencies.js';
 import { config } from './config.js';
 import { MongoConnectionProvider } from './persistence/mongo/mongoConnectionProvider.js';
@@ -20,6 +26,7 @@ import { UserRepository } from './persistence/mongo/userRepository.js';
 import { RefreshTokenRepository } from './persistence/mongo/refreshTokenRepository.js';
 import { TermsAcceptanceRepository } from './persistence/mongo/termsAcceptanceRepository.js';
 import { CountryRepository } from './persistence/mongo/countryRepository.js';
+import { ImageRepository } from './persistence/mongo/imageRepository.js';
 import { GoogleIdTokenValidator } from './auth/googleIdTokenValidator.js';
 import { JwtInternalTokenIssuer } from './auth/jwtInternalTokenIssuer.js';
 import { GoogleSsoProviderCatalog } from './auth/googleSsoProviderCatalog.js';
@@ -27,6 +34,7 @@ import { DEFAULT_GOOGLE_SCOPES } from './auth/googleSsoOptions.js';
 import { PinoAuditLogger } from './observability/pinoAuditLogger.js';
 import { UuidIdGenerator } from './uuidIdGenerator.js';
 import { MongoHealthCheck } from './healthChecks/mongoHealthCheck.js';
+import { CloudinaryImageStorageProvider } from './images/cloudinaryImageStorageProvider.js';
 
 export interface CompositionRoot {
   dependencies: AppDependencies;
@@ -48,6 +56,11 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   const refreshTokenRepository = new RefreshTokenRepository(db);
   const termsAcceptanceRepository = new TermsAcceptanceRepository(db);
   const countryRepository = new CountryRepository(db);
+  const imageRepository = new ImageRepository(db);
+
+  const imageStorageProvider = new CloudinaryImageStorageProvider({
+    cloudinaryUrl: config.images.cloudinaryUrl,
+  });
 
   const googleValidator = new GoogleIdTokenValidator({
     mobile: config.google.clientIdMobile,
@@ -110,6 +123,15 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       handler: new UpdateClientProfileCommandHandler(userRepository, countryRepository),
     },
     { requestType: GetCountriesQuery, handler: new GetCountriesQueryHandler(countryRepository) },
+    {
+      requestType: StoreImageCommand,
+      handler: new StoreImageCommandHandler(imageStorageProvider, imageRepository, idGenerator),
+    },
+    { requestType: ResolveImageQuery, handler: new ResolveImageQueryHandler(imageRepository) },
+    {
+      requestType: DeleteImageCommand,
+      handler: new DeleteImageCommandHandler(imageStorageProvider, imageRepository),
+    },
   ]);
 
   return {

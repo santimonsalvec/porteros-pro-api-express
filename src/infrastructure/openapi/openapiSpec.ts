@@ -72,6 +72,19 @@ export const openapiSpec = {
           createdAt: { type: 'string', format: 'date-time' },
         },
       },
+      StoredImageResponse: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          url: { type: 'string' },
+          format: { type: 'string' },
+          bytes: { type: 'integer' },
+          width: { type: 'integer' },
+          height: { type: 'integer' },
+          createdAt: { type: 'string', format: 'date-time' },
+        },
+        required: ['id', 'url', 'format', 'bytes', 'width', 'height', 'createdAt'],
+      },
       CountriesResponse: {
         type: 'object',
         properties: {
@@ -297,6 +310,85 @@ export const openapiSpec = {
           '403': { description: 'Caller is an administrator, or profile is not complete' },
           '404': { description: 'Account no longer exists' },
           '409': { description: 'Duplicate phone number, or profile not complete (defense-in-depth)' },
+        },
+      },
+    },
+    '/api/images': {
+      post: {
+        summary: 'Upload and store an optimized image',
+        tags: ['Images'],
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'multipart/form-data': {
+              schema: {
+                type: 'object',
+                properties: { image: { type: 'string', format: 'binary' } },
+                required: ['image'],
+              },
+            },
+          },
+        },
+        responses: {
+          '201': {
+            description: 'Stored, provider-optimized image',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/StoredImageResponse' } } },
+          },
+          '400': {
+            description: 'Missing file, or content is not a supported image',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+          '401': { description: 'Not signed in' },
+          '413': {
+            description: 'File exceeds the maximum allowed size',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+          '502': {
+            description: 'Storage provider failure',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+        },
+      },
+    },
+    '/api/images/{id}': {
+      get: {
+        summary: 'Resolve a stored image to its accessible location',
+        tags: ['Images'],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          '200': {
+            description: 'The stored image',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/StoredImageResponse' } } },
+          },
+          '401': { description: 'Not signed in' },
+          '403': {
+            description: 'Caller did not upload this image',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+          '404': {
+            description: 'Image does not exist',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+        },
+      },
+      delete: {
+        summary: 'Permanently delete a stored image',
+        tags: ['Images'],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          '204': { description: 'Deleted' },
+          '401': { description: 'Not signed in' },
+          '403': {
+            description: 'Caller did not upload this image',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+          '404': {
+            description: 'Image does not exist, or was already deleted',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
         },
       },
     },

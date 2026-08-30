@@ -24,7 +24,15 @@ import { UpdateClientProfileCommand } from '../../src/application/features/clien
 import { UpdateClientProfileCommandHandler } from '../../src/application/features/clients/commands/updateClientProfile/updateClientProfileCommandHandler.js';
 import { GetCountriesQuery } from '../../src/application/features/locations/queries/getCountries/getCountriesQuery.js';
 import { GetCountriesQueryHandler } from '../../src/application/features/locations/queries/getCountries/getCountriesQueryHandler.js';
+import { StoreImageCommand } from '../../src/application/features/images/commands/storeImage/storeImageCommand.js';
+import { StoreImageCommandHandler } from '../../src/application/features/images/commands/storeImage/storeImageCommandHandler.js';
+import { ResolveImageQuery } from '../../src/application/features/images/queries/resolveImage/resolveImageQuery.js';
+import { ResolveImageQueryHandler } from '../../src/application/features/images/queries/resolveImage/resolveImageQueryHandler.js';
+import { DeleteImageCommand } from '../../src/application/features/images/commands/deleteImage/deleteImageCommand.js';
+import { DeleteImageCommandHandler } from '../../src/application/features/images/commands/deleteImage/deleteImageCommandHandler.js';
 import type { HealthReportResponse } from '../../src/infrastructure/healthChecks/healthReport.js';
+import { FakeImageStorageProvider } from '../fakes/fakeImageStorageProvider.js';
+import { FakeImageRepository } from '../fakes/fakeImageRepository.js';
 
 export interface TestAppContext {
   app: Express;
@@ -34,6 +42,8 @@ export interface TestAppContext {
   tokenIssuer: FakeInternalTokenIssuer;
   countryRepository: FakeCountryRepository;
   termsAcceptanceRepository: FakeTermsAcceptanceRepository;
+  imageStorageProvider: FakeImageStorageProvider;
+  imageRepository: FakeImageRepository;
   /** Mutate `.status` before a request to simulate an unhealthy dependency. */
   health: HealthReportResponse;
 }
@@ -52,6 +62,8 @@ export function buildTestApp(): TestAppContext {
   const countryRepository = new FakeCountryRepository();
   countryRepository.seed(new Country({ id: 'c1', name: 'Colombia', dialCode: '+57', countryCode: 'CO' }));
   const termsAcceptanceRepository = new FakeTermsAcceptanceRepository();
+  const imageStorageProvider = new FakeImageStorageProvider();
+  const imageRepository = new FakeImageRepository();
 
   const ssoCatalog: ISsoProviderCatalog = {
     getProviders: (platform) =>
@@ -100,6 +112,15 @@ export function buildTestApp(): TestAppContext {
       handler: new UpdateClientProfileCommandHandler(userRepository, countryRepository),
     },
     { requestType: GetCountriesQuery, handler: new GetCountriesQueryHandler(countryRepository) },
+    {
+      requestType: StoreImageCommand,
+      handler: new StoreImageCommandHandler(imageStorageProvider, imageRepository, idGenerator),
+    },
+    { requestType: ResolveImageQuery, handler: new ResolveImageQueryHandler(imageRepository) },
+    {
+      requestType: DeleteImageCommand,
+      handler: new DeleteImageCommandHandler(imageStorageProvider, imageRepository),
+    },
   ]);
 
   const health: HealthReportResponse = { status: 'Healthy', checks: [{ name: 'mongodb', status: 'Healthy' }] };
@@ -118,6 +139,8 @@ export function buildTestApp(): TestAppContext {
     tokenIssuer,
     countryRepository,
     termsAcceptanceRepository,
+    imageStorageProvider,
+    imageRepository,
     health,
   };
 }
