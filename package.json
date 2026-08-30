@@ -1,20 +1,53 @@
 {
   "name": "porteros-pro-api",
   "version": "1.0.0",
-  "description": "",
+  "description": "PorterosPRO backend — Express + TypeScript port of SMC.PorterosPRO.Backend",
   "license": "ISC",
   "author": "",
   "type": "module",
-  "main": "index.js",
+  "main": "dist/server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/server.js",
+    "lint": "eslint .",
+    "test": "vitest run --project unit",
+    "test:watch": "vitest --project unit",
+    "test:http": "vitest run --project http",
+    "test:architecture": "vitest run --project architecture",
+    "test:all": "vitest run"
   },
   "dependencies": {
-    "express": "^5.2.1"
+    "@opentelemetry/exporter-trace-otlp-http": "^0.55.0",
+    "@opentelemetry/instrumentation-express": "^0.47.0",
+    "@opentelemetry/instrumentation-http": "^0.55.0",
+    "@opentelemetry/sdk-node": "^0.55.0",
+    "@opentelemetry/sdk-trace-base": "^1.28.0",
+    "@opentelemetry/sdk-trace-node": "^1.28.0",
+    "dotenv": "^16.4.5",
+    "express": "^5.2.1",
+    "google-auth-library": "^11.0.2",
+    "jose": "^5.9.6",
+    "mongodb": "^7.6.0",
+    "pino": "^9.5.0",
+    "pino-http": "^10.3.0",
+    "swagger-ui-express": "^5.0.1",
+    "uuid": "^11.0.3",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
-    "@types/node": "^26.4.0",
-    "typescript": "^7.0.2"
+    "@types/node": "^22.10.1",
+    "@types/supertest": "^6.0.2",
+    "@types/swagger-ui-express": "^4.1.8",
+    "@types/uuid": "^10.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.18.0",
+    "@typescript-eslint/parser": "^8.18.0",
+    "eslint": "^9.16.0",
+    "prettier": "^3.4.1",
+    "supertest": "^7.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^6.0.0",
+    "vitest": "^4.1.11"
   }
 }
