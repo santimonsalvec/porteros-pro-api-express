@@ -41,4 +41,11 @@ export const config = {
   otel: {
     otlpEndpoint: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
   },
+  images: {
+    maxUploadSizeBytes: Number(optionalEnv('IMAGE_MAX_UPLOAD_SIZE_BYTES', String(10 * 1024 * 1024))),
+    // `cloudinary://<api_key>:<api_secret>@<cloud_name>` — the Cloudinary SDK parses this
+    // itself (see cloudinaryImageStorageProvider.ts); this getter only fail-fasts with a
+    // clear error when it's missing, consistent with every other lazily-read secret above.
+    cloudinaryUrl: (): string => requireEnv('CLOUDINARY_URL'),
+  },
 };
