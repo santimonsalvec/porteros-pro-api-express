@@ -52,9 +52,10 @@ cp .env.example .env
 | `LEGAL_TERMS_VERSION` | No (default `1.0`) | Versión de términos y condiciones registrada al aceptar |
 | `LEGAL_PRIVACY_POLICY_VERSION` | No (default `1.0`) | Versión de política de privacidad registrada al aceptar |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | No | Endpoint OTLP para trazas; sin valor, exporta a consola |
+| `OTEL_EXPORTER_OTLP_HEADERS` | No | Cabeceras `clave=valor` (ej. `Authorization=Basic ...`) para el endpoint OTLP, requeridas por proveedores como Grafana Cloud. Leída automáticamente por el SDK de OpenTelemetry, no necesita cableado propio |
 | `PORT` | No (default `3000`) | Puerto HTTP |
 
-En producción (`NODE_ENV=production`) las variables se leen únicamente del entorno real, nunca de un archivo `.env`.
+En producción (`NODE_ENV=production`) las variables se leen únicamente del entorno real, nunca de un archivo `.env`. En local no se necesita crear el `.env` a mano: pídele a alguien del equipo con acceso a Firebase Console los valores reales de `MONGODB_CONNECTION_STRING`, `JWT_SIGNING_KEY` y `GOOGLE_CLIENT_ID_MOBILE` (App Hosting → Environment variables), ya que el entorno local por defecto apunta a la misma base de datos de desarrollo que usa el backend desplegado.
 
 ## Uso
 
@@ -87,3 +88,11 @@ npm run lint
 ## Despliegue
 
 El backend se despliega en **Firebase App Hosting**, con build y deploy automáticos al hacer push a `main`. La configuración de runtime (CPU, memoria, instancias) vive en `apphosting.yaml`; las variables de entorno sensibles se gestionan desde la consola de Firebase (App Hosting → Environment variables), no desde el repositorio.
+
+## Troubleshooting
+
+**El contenedor no abre el puerto y el deploy expira ("container failed to start and listen...")**
+
+El servidor solo llama a `app.listen()` después de conectarse a MongoDB y correr `ensureIndexes()` (`src/infrastructure/di.ts`). Si ese paso lanza una excepción, el proceso termina antes de escuchar el puerto y Cloud Run/App Hosting reporta timeout de arranque en vez de un error de conexión. Revisa siempre los logs de **runtime** de la revisión (no los de build) para ver la causa real.
+
+Causa más común: `MongoServerError: Index already exists with a different name` (código 85, `IndexOptionsConflict`) en la colección `users`. Ocurre cuando un índice ya existe en Atlas con un nombre autogenerado distinto al que `userRepository.ts` pide crear (`externalIdentities_provider_subject_unique`, `normalizedPhoneNumber_unique_sparse`). Se resuelve borrando el índice conflictivo en Atlas (`db.collection('users').dropIndex(<nombre_actual>)`); el código lo recrea con el nombre correcto en el siguiente arranque, sin pérdida de datos.
