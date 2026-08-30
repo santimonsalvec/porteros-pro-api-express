@@ -9,7 +9,7 @@ async function main(): Promise<void> {
   const { dependencies, close } = await buildDependencies();
   const app = createApp(dependencies);
 
-  const server = app.listen(config.port, () => {
+  const server = app.listen(config.port, '0.0.0.0', () => {
     logger.info({ port: config.port }, 'PorterosPRO API listening');
   });
 
