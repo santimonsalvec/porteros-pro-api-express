@@ -19,6 +19,24 @@ import { ResolveImageQuery } from '../application/features/images/queries/resolv
 import { ResolveImageQueryHandler } from '../application/features/images/queries/resolveImage/resolveImageQueryHandler.js';
 import { DeleteImageCommand } from '../application/features/images/commands/deleteImage/deleteImageCommand.js';
 import { DeleteImageCommandHandler } from '../application/features/images/commands/deleteImage/deleteImageCommandHandler.js';
+import { GetPorteroRegistrationQuery } from '../application/features/porteros/queries/getPorteroRegistration/getPorteroRegistrationQuery.js';
+import { GetPorteroRegistrationQueryHandler } from '../application/features/porteros/queries/getPorteroRegistration/getPorteroRegistrationQueryHandler.js';
+import { GetDocumentTypesQuery } from '../application/features/porteros/queries/getDocumentTypes/getDocumentTypesQuery.js';
+import { GetDocumentTypesQueryHandler } from '../application/features/porteros/queries/getDocumentTypes/getDocumentTypesQueryHandler.js';
+import { SaveIdentificationSectionCommand } from '../application/features/porteros/commands/saveIdentificationSection/saveIdentificationSectionCommand.js';
+import { SaveIdentificationSectionCommandHandler } from '../application/features/porteros/commands/saveIdentificationSection/saveIdentificationSectionCommandHandler.js';
+import { SavePhysicalDataSectionCommand } from '../application/features/porteros/commands/savePhysicalDataSection/savePhysicalDataSectionCommand.js';
+import { SavePhysicalDataSectionCommandHandler } from '../application/features/porteros/commands/savePhysicalDataSection/savePhysicalDataSectionCommandHandler.js';
+import { SaveLocationSectionCommand } from '../application/features/porteros/commands/saveLocationSection/saveLocationSectionCommand.js';
+import { SaveLocationSectionCommandHandler } from '../application/features/porteros/commands/saveLocationSection/saveLocationSectionCommandHandler.js';
+import { SaveAvailabilitySectionCommand } from '../application/features/porteros/commands/saveAvailabilitySection/saveAvailabilitySectionCommand.js';
+import { SaveAvailabilitySectionCommandHandler } from '../application/features/porteros/commands/saveAvailabilitySection/saveAvailabilitySectionCommandHandler.js';
+import { SaveDocumentPhotoCommand } from '../application/features/porteros/commands/saveDocumentPhoto/saveDocumentPhotoCommand.js';
+import { SaveDocumentPhotoCommandHandler } from '../application/features/porteros/commands/saveDocumentPhoto/saveDocumentPhotoCommandHandler.js';
+import { ActivatePorteroCommand } from '../application/features/porteros/commands/activatePortero/activatePorteroCommand.js';
+import { ActivatePorteroCommandHandler } from '../application/features/porteros/commands/activatePortero/activatePorteroCommandHandler.js';
+import { CancelPorteroRegistrationCommand } from '../application/features/porteros/commands/cancelPorteroRegistration/cancelPorteroRegistrationCommand.js';
+import { CancelPorteroRegistrationCommandHandler } from '../application/features/porteros/commands/cancelPorteroRegistration/cancelPorteroRegistrationCommandHandler.js';
 import type { AppDependencies } from '../appDependencies.js';
 import { config } from './config.js';
 import { MongoConnectionProvider } from './persistence/mongo/mongoConnectionProvider.js';
@@ -35,6 +53,9 @@ import { PinoAuditLogger } from './observability/pinoAuditLogger.js';
 import { UuidIdGenerator } from './uuidIdGenerator.js';
 import { MongoHealthCheck } from './healthChecks/mongoHealthCheck.js';
 import { CloudinaryImageStorageProvider } from './images/cloudinaryImageStorageProvider.js';
+import { PorteroRegistrationRepository } from './persistence/mongo/porteroRegistrationRepository.js';
+import { DocumentTypeRepository } from './persistence/mongo/documentTypeRepository.js';
+import { PorteroProfileRepository } from './persistence/mongo/porteroProfileRepository.js';
 
 export interface CompositionRoot {
   dependencies: AppDependencies;
@@ -57,6 +78,11 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   const termsAcceptanceRepository = new TermsAcceptanceRepository(db);
   const countryRepository = new CountryRepository(db);
   const imageRepository = new ImageRepository(db);
+  const porteroRegistrationRepository = new PorteroRegistrationRepository(db);
+  await porteroRegistrationRepository.ensureIndexes();
+  const documentTypeRepository = new DocumentTypeRepository(db);
+  const porteroProfileRepository = new PorteroProfileRepository(db);
+  await porteroProfileRepository.ensureIndexes();
 
   const imageStorageProvider = new CloudinaryImageStorageProvider({
     cloudinaryUrl: config.images.cloudinaryUrl,
@@ -131,6 +157,39 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     {
       requestType: DeleteImageCommand,
       handler: new DeleteImageCommandHandler(imageStorageProvider, imageRepository),
+    },
+    {
+      requestType: GetPorteroRegistrationQuery,
+      handler: new GetPorteroRegistrationQueryHandler(porteroRegistrationRepository),
+    },
+    { requestType: GetDocumentTypesQuery, handler: new GetDocumentTypesQueryHandler(documentTypeRepository) },
+    {
+      requestType: SaveIdentificationSectionCommand,
+      handler: new SaveIdentificationSectionCommandHandler(porteroRegistrationRepository, documentTypeRepository, idGenerator),
+    },
+    {
+      requestType: SavePhysicalDataSectionCommand,
+      handler: new SavePhysicalDataSectionCommandHandler(porteroRegistrationRepository, idGenerator),
+    },
+    {
+      requestType: SaveLocationSectionCommand,
+      handler: new SaveLocationSectionCommandHandler(porteroRegistrationRepository, idGenerator),
+    },
+    {
+      requestType: SaveAvailabilitySectionCommand,
+      handler: new SaveAvailabilitySectionCommandHandler(porteroRegistrationRepository, idGenerator),
+    },
+    {
+      requestType: SaveDocumentPhotoCommand,
+      handler: new SaveDocumentPhotoCommandHandler(mediator, porteroRegistrationRepository, idGenerator),
+    },
+    {
+      requestType: ActivatePorteroCommand,
+      handler: new ActivatePorteroCommandHandler(porteroRegistrationRepository, porteroProfileRepository, idGenerator),
+    },
+    {
+      requestType: CancelPorteroRegistrationCommand,
+      handler: new CancelPorteroRegistrationCommandHandler(mediator, porteroRegistrationRepository),
     },
   ]);
 
