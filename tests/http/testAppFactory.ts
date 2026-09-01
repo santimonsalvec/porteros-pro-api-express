@@ -33,6 +33,28 @@ import { DeleteImageCommandHandler } from '../../src/application/features/images
 import type { HealthReportResponse } from '../../src/infrastructure/healthChecks/healthReport.js';
 import { FakeImageStorageProvider } from '../fakes/fakeImageStorageProvider.js';
 import { FakeImageRepository } from '../fakes/fakeImageRepository.js';
+import { GetPorteroRegistrationQuery } from '../../src/application/features/porteros/queries/getPorteroRegistration/getPorteroRegistrationQuery.js';
+import { GetPorteroRegistrationQueryHandler } from '../../src/application/features/porteros/queries/getPorteroRegistration/getPorteroRegistrationQueryHandler.js';
+import { GetDocumentTypesQuery } from '../../src/application/features/porteros/queries/getDocumentTypes/getDocumentTypesQuery.js';
+import { GetDocumentTypesQueryHandler } from '../../src/application/features/porteros/queries/getDocumentTypes/getDocumentTypesQueryHandler.js';
+import { DocumentType } from '../../src/domain/porteros/documentType.js';
+import { FakePorteroRegistrationRepository } from '../fakes/fakePorteroRegistrationRepository.js';
+import { FakeDocumentTypeRepository } from '../fakes/fakeDocumentTypeRepository.js';
+import { SaveIdentificationSectionCommand } from '../../src/application/features/porteros/commands/saveIdentificationSection/saveIdentificationSectionCommand.js';
+import { SaveIdentificationSectionCommandHandler } from '../../src/application/features/porteros/commands/saveIdentificationSection/saveIdentificationSectionCommandHandler.js';
+import { SavePhysicalDataSectionCommand } from '../../src/application/features/porteros/commands/savePhysicalDataSection/savePhysicalDataSectionCommand.js';
+import { SavePhysicalDataSectionCommandHandler } from '../../src/application/features/porteros/commands/savePhysicalDataSection/savePhysicalDataSectionCommandHandler.js';
+import { SaveLocationSectionCommand } from '../../src/application/features/porteros/commands/saveLocationSection/saveLocationSectionCommand.js';
+import { SaveLocationSectionCommandHandler } from '../../src/application/features/porteros/commands/saveLocationSection/saveLocationSectionCommandHandler.js';
+import { SaveAvailabilitySectionCommand } from '../../src/application/features/porteros/commands/saveAvailabilitySection/saveAvailabilitySectionCommand.js';
+import { SaveAvailabilitySectionCommandHandler } from '../../src/application/features/porteros/commands/saveAvailabilitySection/saveAvailabilitySectionCommandHandler.js';
+import { SaveDocumentPhotoCommand } from '../../src/application/features/porteros/commands/saveDocumentPhoto/saveDocumentPhotoCommand.js';
+import { SaveDocumentPhotoCommandHandler } from '../../src/application/features/porteros/commands/saveDocumentPhoto/saveDocumentPhotoCommandHandler.js';
+import { ActivatePorteroCommand } from '../../src/application/features/porteros/commands/activatePortero/activatePorteroCommand.js';
+import { ActivatePorteroCommandHandler } from '../../src/application/features/porteros/commands/activatePortero/activatePorteroCommandHandler.js';
+import { FakePorteroProfileRepository } from '../fakes/fakePorteroProfileRepository.js';
+import { CancelPorteroRegistrationCommand } from '../../src/application/features/porteros/commands/cancelPorteroRegistration/cancelPorteroRegistrationCommand.js';
+import { CancelPorteroRegistrationCommandHandler } from '../../src/application/features/porteros/commands/cancelPorteroRegistration/cancelPorteroRegistrationCommandHandler.js';
 
 export interface TestAppContext {
   app: Express;
@@ -44,6 +66,9 @@ export interface TestAppContext {
   termsAcceptanceRepository: FakeTermsAcceptanceRepository;
   imageStorageProvider: FakeImageStorageProvider;
   imageRepository: FakeImageRepository;
+  porteroRegistrationRepository: FakePorteroRegistrationRepository;
+  documentTypeRepository: FakeDocumentTypeRepository;
+  porteroProfileRepository: FakePorteroProfileRepository;
   /** Mutate `.status` before a request to simulate an unhealthy dependency. */
   health: HealthReportResponse;
 }
@@ -64,6 +89,12 @@ export function buildTestApp(): TestAppContext {
   const termsAcceptanceRepository = new FakeTermsAcceptanceRepository();
   const imageStorageProvider = new FakeImageStorageProvider();
   const imageRepository = new FakeImageRepository();
+  const porteroRegistrationRepository = new FakePorteroRegistrationRepository();
+  const documentTypeRepository = new FakeDocumentTypeRepository();
+  documentTypeRepository.seed(new DocumentType({ id: 'dt1', code: 'cedula_ciudadania', name: 'Cédula de ciudadanía' }));
+  documentTypeRepository.seed(new DocumentType({ id: 'dt2', code: 'cedula_extranjeria', name: 'Cédula de extranjería' }));
+  documentTypeRepository.seed(new DocumentType({ id: 'dt3', code: 'pasaporte', name: 'Pasaporte' }));
+  const porteroProfileRepository = new FakePorteroProfileRepository();
 
   const ssoCatalog: ISsoProviderCatalog = {
     getProviders: (platform) =>
@@ -121,6 +152,39 @@ export function buildTestApp(): TestAppContext {
       requestType: DeleteImageCommand,
       handler: new DeleteImageCommandHandler(imageStorageProvider, imageRepository),
     },
+    {
+      requestType: GetPorteroRegistrationQuery,
+      handler: new GetPorteroRegistrationQueryHandler(porteroRegistrationRepository),
+    },
+    { requestType: GetDocumentTypesQuery, handler: new GetDocumentTypesQueryHandler(documentTypeRepository) },
+    {
+      requestType: SaveIdentificationSectionCommand,
+      handler: new SaveIdentificationSectionCommandHandler(porteroRegistrationRepository, documentTypeRepository, idGenerator),
+    },
+    {
+      requestType: SavePhysicalDataSectionCommand,
+      handler: new SavePhysicalDataSectionCommandHandler(porteroRegistrationRepository, idGenerator),
+    },
+    {
+      requestType: SaveLocationSectionCommand,
+      handler: new SaveLocationSectionCommandHandler(porteroRegistrationRepository, idGenerator),
+    },
+    {
+      requestType: SaveAvailabilitySectionCommand,
+      handler: new SaveAvailabilitySectionCommandHandler(porteroRegistrationRepository, idGenerator),
+    },
+    {
+      requestType: SaveDocumentPhotoCommand,
+      handler: new SaveDocumentPhotoCommandHandler(mediator, porteroRegistrationRepository, idGenerator),
+    },
+    {
+      requestType: ActivatePorteroCommand,
+      handler: new ActivatePorteroCommandHandler(porteroRegistrationRepository, porteroProfileRepository, idGenerator),
+    },
+    {
+      requestType: CancelPorteroRegistrationCommand,
+      handler: new CancelPorteroRegistrationCommandHandler(mediator, porteroRegistrationRepository),
+    },
   ]);
 
   const health: HealthReportResponse = { status: 'Healthy', checks: [{ name: 'mongodb', status: 'Healthy' }] };
@@ -141,6 +205,9 @@ export function buildTestApp(): TestAppContext {
     termsAcceptanceRepository,
     imageStorageProvider,
     imageRepository,
+    porteroRegistrationRepository,
+    documentTypeRepository,
+    porteroProfileRepository,
     health,
   };
 }

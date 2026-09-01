@@ -101,6 +101,48 @@ export const openapiSpec = {
           },
         },
       },
+      PorteroRegistrationResponse: {
+        type: 'object',
+        properties: {
+          status: { type: 'string', enum: ['not_started', 'in_progress', 'active'] },
+          sections: {
+            type: 'object',
+            properties: {
+              identification: { type: 'object', properties: { complete: { type: 'boolean' } } },
+              physicalData: { type: 'object', properties: { complete: { type: 'boolean' } } },
+              location: { type: 'object', properties: { complete: { type: 'boolean' } } },
+              availability: { type: 'object', properties: { complete: { type: 'boolean' } } },
+            },
+          },
+          documentType: { type: 'string', nullable: true },
+          documentNumber: { type: 'string', nullable: true },
+          issueDate: { type: 'string', format: 'date', nullable: true },
+          birthDate: { type: 'string', format: 'date', nullable: true },
+          documentPhotoASubmitted: { type: 'boolean' },
+          documentPhotoBSubmitted: { type: 'boolean' },
+          heightCm: { type: 'number', nullable: true },
+          weightKg: { type: 'number', nullable: true },
+          latitude: { type: 'number', nullable: true },
+          longitude: { type: 'number', nullable: true },
+          city: { type: 'string', nullable: true },
+          state: { type: 'string', nullable: true },
+          country: { type: 'string', nullable: true },
+          neighborhood: { type: 'string', nullable: true },
+          radiusKm: { type: 'number', nullable: true },
+        },
+      },
+      DocumentTypesResponse: {
+        type: 'object',
+        properties: {
+          documentTypes: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: { code: { type: 'string' }, name: { type: 'string' } },
+            },
+          },
+        },
+      },
       HealthReportResponse: {
         type: 'object',
         properties: {
@@ -400,6 +442,257 @@ export const openapiSpec = {
           '200': {
             description: 'Full country catalog',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/CountriesResponse' } } },
+          },
+        },
+      },
+    },
+    '/api/porteros/document-types': {
+      get: {
+        summary: 'List valid identification document types',
+        tags: ['Porteros'],
+        responses: {
+          '200': {
+            description: 'Fixed, manually seeded reference catalog',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/DocumentTypesResponse' } } },
+          },
+        },
+      },
+    },
+    '/api/porteros/me': {
+      get: {
+        summary: "Get the caller's current portero registration status",
+        tags: ['Porteros'],
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': {
+            description: 'Current registration state (not_started/in_progress/active)',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/PorteroRegistrationResponse' } } },
+          },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'Caller is an administrator, or client profile is not complete' },
+        },
+      },
+    },
+    '/api/porteros/me/identification': {
+      patch: {
+        summary: 'Save (partially) the identification section',
+        tags: ['Porteros'],
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  documentType: { type: 'string' },
+                  documentNumber: { type: 'string' },
+                  issueDate: { type: 'string', format: 'date' },
+                  birthDate: { type: 'string', format: 'date' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Updated registration',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/PorteroRegistrationResponse' } } },
+          },
+          '400': {
+            description: 'Validation failed, or unrecognized document type',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } },
+          },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'Caller is an administrator, or client profile is not complete' },
+          '409': {
+            description: 'Duplicate document, or registration already active',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+        },
+      },
+    },
+    '/api/porteros/me/physical-data': {
+      patch: {
+        summary: 'Save (partially) the physical data section',
+        tags: ['Porteros'],
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: { heightCm: { type: 'number' }, weightKg: { type: 'number' } },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Updated registration',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/PorteroRegistrationResponse' } } },
+          },
+          '400': {
+            description: 'Validation failed',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } },
+          },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'Caller is an administrator, or client profile is not complete' },
+          '409': {
+            description: 'Registration already active',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+        },
+      },
+    },
+    '/api/porteros/me/location': {
+      patch: {
+        summary: 'Save (partially) the location section',
+        tags: ['Porteros'],
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  latitude: { type: 'number' },
+                  longitude: { type: 'number' },
+                  city: { type: 'string' },
+                  state: { type: 'string' },
+                  country: { type: 'string' },
+                  neighborhood: { type: 'string' },
+                  formattedAddress: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Updated registration',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/PorteroRegistrationResponse' } } },
+          },
+          '400': {
+            description: 'Validation failed',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } },
+          },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'Caller is an administrator, or client profile is not complete' },
+          '409': {
+            description: 'Registration already active',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+        },
+      },
+    },
+    '/api/porteros/me/availability': {
+      patch: {
+        summary: 'Save the availability section',
+        tags: ['Porteros'],
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { type: 'object', properties: { radiusKm: { type: 'integer' } } } },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Updated registration',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/PorteroRegistrationResponse' } } },
+          },
+          '400': {
+            description: 'Validation failed',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } },
+          },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'Caller is an administrator, or client profile is not complete' },
+          '409': {
+            description: 'Registration already active',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+        },
+      },
+    },
+    '/api/porteros/me/document-photo': {
+      post: {
+        summary: 'Upload one or both identification document photos',
+        tags: ['Porteros'],
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'multipart/form-data': {
+              schema: {
+                type: 'object',
+                properties: {
+                  sideA: { type: 'string', format: 'binary' },
+                  sideB: { type: 'string', format: 'binary' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Updated registration (documentPhotoASubmitted/documentPhotoBSubmitted reflect the upload)',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/PorteroRegistrationResponse' } } },
+          },
+          '400': {
+            description: 'No file provided, or content is not a supported image',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'Caller is an administrator, or client profile is not complete' },
+          '409': {
+            description: 'Registration already active',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+          '413': {
+            description: 'File exceeds the maximum allowed size',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+          '502': {
+            description: 'Storage provider failure',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+        },
+      },
+    },
+    '/api/porteros/me/activate': {
+      post: {
+        summary: 'Activate the portero profile once all sections are complete',
+        tags: ['Porteros'],
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': {
+            description: 'Now active',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/PorteroRegistrationResponse' } } },
+          },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'Caller is an administrator, or client profile is not complete' },
+          '409': { description: 'One or more sections incomplete (missingSections), or already active' },
+        },
+      },
+    },
+    '/api/porteros/me/cancel': {
+      post: {
+        summary: 'Cancel an in-progress registration, discarding all saved data and photos',
+        tags: ['Porteros'],
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': {
+            description: 'Reset to not_started',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/PorteroRegistrationResponse' } } },
+          },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'Caller is an administrator, or client profile is not complete' },
+          '409': {
+            description: 'Registration already active',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
           },
         },
       },
