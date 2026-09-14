@@ -11,7 +11,7 @@ describe('MongoConnectionProvider', () => {
   });
 
   it('exposes the same shared Db instance across calls (singleton) without connecting', () => {
-    const provider = new MongoConnectionProvider('mongodb://localhost:27017/porterospro');
+    const provider = new MongoConnectionProvider('mongodb://localhost:27017/goalkeeperspro');
 
     const dbA = provider.getDb();
     const dbB = provider.getDb();

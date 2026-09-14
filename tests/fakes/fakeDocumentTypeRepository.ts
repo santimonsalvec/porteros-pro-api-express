@@ -1,5 +1,5 @@
-import type { IDocumentTypeRepository } from '../../src/application/features/porteros/common/ports.js';
-import { DocumentType } from '../../src/domain/porteros/documentType.js';
+import type { IDocumentTypeRepository } from '../../src/application/features/goalkeepers/common/ports.js';
+import { DocumentType } from '../../src/domain/goalkeepers/documentType.js';
 
 export class FakeDocumentTypeRepository implements IDocumentTypeRepository {
   private readonly documentTypes = new Map<string, DocumentType>();

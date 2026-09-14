@@ -101,7 +101,7 @@ export const openapiSpec = {
           },
         },
       },
-      PorteroRegistrationResponse: {
+      GoalkeeperRegistrationResponse: {
         type: 'object',
         properties: {
           status: { type: 'string', enum: ['not_started', 'in_progress', 'active'] },
@@ -446,10 +446,10 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/porteros/document-types': {
+    '/api/goalkeepers/document-types': {
       get: {
         summary: 'List valid identification document types',
-        tags: ['Porteros'],
+        tags: ['Goalkeepers'],
         responses: {
           '200': {
             description: 'Fixed, manually seeded reference catalog',
@@ -458,25 +458,25 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/porteros/me': {
+    '/api/goalkeepers/me': {
       get: {
-        summary: "Get the caller's current portero registration status",
-        tags: ['Porteros'],
+        summary: "Get the caller's current goalkeeper registration status",
+        tags: ['Goalkeepers'],
         security: [{ bearerAuth: [] }],
         responses: {
           '200': {
             description: 'Current registration state (not_started/in_progress/active)',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/PorteroRegistrationResponse' } } },
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/GoalkeeperRegistrationResponse' } } },
           },
           '401': { description: 'Not signed in' },
           '403': { description: 'Caller is an administrator, or client profile is not complete' },
         },
       },
     },
-    '/api/porteros/me/identification': {
+    '/api/goalkeepers/me/identification': {
       patch: {
         summary: 'Save (partially) the identification section',
-        tags: ['Porteros'],
+        tags: ['Goalkeepers'],
         security: [{ bearerAuth: [] }],
         requestBody: {
           required: true,
@@ -497,7 +497,7 @@ export const openapiSpec = {
         responses: {
           '200': {
             description: 'Updated registration',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/PorteroRegistrationResponse' } } },
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/GoalkeeperRegistrationResponse' } } },
           },
           '400': {
             description: 'Validation failed, or unrecognized document type',
@@ -512,10 +512,10 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/porteros/me/physical-data': {
+    '/api/goalkeepers/me/physical-data': {
       patch: {
         summary: 'Save (partially) the physical data section',
-        tags: ['Porteros'],
+        tags: ['Goalkeepers'],
         security: [{ bearerAuth: [] }],
         requestBody: {
           required: true,
@@ -531,7 +531,7 @@ export const openapiSpec = {
         responses: {
           '200': {
             description: 'Updated registration',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/PorteroRegistrationResponse' } } },
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/GoalkeeperRegistrationResponse' } } },
           },
           '400': {
             description: 'Validation failed',
@@ -546,10 +546,10 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/porteros/me/location': {
+    '/api/goalkeepers/me/location': {
       patch: {
         summary: 'Save (partially) the location section',
-        tags: ['Porteros'],
+        tags: ['Goalkeepers'],
         security: [{ bearerAuth: [] }],
         requestBody: {
           required: true,
@@ -573,7 +573,7 @@ export const openapiSpec = {
         responses: {
           '200': {
             description: 'Updated registration',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/PorteroRegistrationResponse' } } },
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/GoalkeeperRegistrationResponse' } } },
           },
           '400': {
             description: 'Validation failed',
@@ -588,10 +588,10 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/porteros/me/availability': {
+    '/api/goalkeepers/me/availability': {
       patch: {
         summary: 'Save the availability section',
-        tags: ['Porteros'],
+        tags: ['Goalkeepers'],
         security: [{ bearerAuth: [] }],
         requestBody: {
           required: true,
@@ -602,7 +602,7 @@ export const openapiSpec = {
         responses: {
           '200': {
             description: 'Updated registration',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/PorteroRegistrationResponse' } } },
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/GoalkeeperRegistrationResponse' } } },
           },
           '400': {
             description: 'Validation failed',
@@ -617,10 +617,10 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/porteros/me/document-photo': {
+    '/api/goalkeepers/me/document-photo': {
       post: {
         summary: 'Upload one or both identification document photos',
-        tags: ['Porteros'],
+        tags: ['Goalkeepers'],
         security: [{ bearerAuth: [] }],
         requestBody: {
           required: true,
@@ -639,7 +639,7 @@ export const openapiSpec = {
         responses: {
           '200': {
             description: 'Updated registration (documentPhotoASubmitted/documentPhotoBSubmitted reflect the upload)',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/PorteroRegistrationResponse' } } },
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/GoalkeeperRegistrationResponse' } } },
           },
           '400': {
             description: 'No file provided, or content is not a supported image',
@@ -662,15 +662,15 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/porteros/me/activate': {
+    '/api/goalkeepers/me/activate': {
       post: {
-        summary: 'Activate the portero profile once all sections are complete',
-        tags: ['Porteros'],
+        summary: 'Activate the goalkeeper profile once all sections are complete',
+        tags: ['Goalkeepers'],
         security: [{ bearerAuth: [] }],
         responses: {
           '200': {
             description: 'Now active',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/PorteroRegistrationResponse' } } },
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/GoalkeeperRegistrationResponse' } } },
           },
           '401': { description: 'Not signed in' },
           '403': { description: 'Caller is an administrator, or client profile is not complete' },
@@ -678,15 +678,15 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/porteros/me/cancel': {
+    '/api/goalkeepers/me/cancel': {
       post: {
         summary: 'Cancel an in-progress registration, discarding all saved data and photos',
-        tags: ['Porteros'],
+        tags: ['Goalkeepers'],
         security: [{ bearerAuth: [] }],
         responses: {
           '200': {
             description: 'Reset to not_started',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/PorteroRegistrationResponse' } } },
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/GoalkeeperRegistrationResponse' } } },
           },
           '401': { description: 'Not signed in' },
           '403': { description: 'Caller is an administrator, or client profile is not complete' },

@@ -9,9 +9,9 @@
 
 ### User Story 1 - Country lookups keep working after the database rename (Priority: P1)
 
-As an API consumer of the porteros-pro platform, when I request country reference data (for example, during portero registration or profile lookups), I must keep receiving correct results after the database owner renamed the underlying collection, so that no existing flow that depends on country data breaks.
+As an API consumer of the goalkeepers-pro platform, when I request country reference data (for example, during goalkeeper registration or profile lookups), I must keep receiving correct results after the database owner renamed the underlying collection, so that no existing flow that depends on country data breaks.
 
-**Why this priority**: This is the only location-reference-data path the system currently reads from in production code. Any mismatch between the collection name the code expects and the collection name that now exists in the database causes country lookups to silently return empty results or fail, breaking every feature that depends on country data (e.g., portero registration).
+**Why this priority**: This is the only location-reference-data path the system currently reads from in production code. Any mismatch between the collection name the code expects and the collection name that now exists in the database causes country lookups to silently return empty results or fail, breaking every feature that depends on country data (e.g., goalkeeper registration).
 
 **Independent Test**: Can be fully tested by querying the system's country data (list all countries, look up a single country by id, look up a country by its dial/country code) against a database where the collection is named `countries` (lowercase) and confirming correct results are returned, with no references to the old `Countries` name remaining in the code path.
 

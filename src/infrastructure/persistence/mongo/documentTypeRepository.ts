@@ -1,6 +1,6 @@
 import type { Collection, Db, Document } from 'mongodb';
-import type { IDocumentTypeRepository } from '../../../application/features/porteros/common/ports.js';
-import { DocumentType } from '../../../domain/porteros/documentType.js';
+import type { IDocumentTypeRepository } from '../../../application/features/goalkeepers/common/ports.js';
+import { DocumentType } from '../../../domain/goalkeepers/documentType.js';
 
 /**
  * Manually seeded, read-only reference data (research.md §7) — mirrors

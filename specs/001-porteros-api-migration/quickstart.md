@@ -58,7 +58,7 @@ For `platform=admin-web`, the exchange returns `403 Forbidden` unless an account
 
 ```js
 // mongosh
-use porterospro
+use goalkeeperspro
 db.users.insertOne({
   email: "admin@example.com",
   isAdmin: true,
