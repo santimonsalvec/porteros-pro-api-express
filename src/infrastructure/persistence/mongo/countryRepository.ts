@@ -3,16 +3,16 @@ import type { ICountryRepository } from '../../../application/features/profile/c
 import { Country } from '../../../domain/countries/country.js';
 
 /**
- * Pre-existing, externally-owned collection (capitalization `Countries` preserved
- * exactly). Reads raw BSON documents rather than a typed collection, tolerating the
- * `_id` as either an `ObjectId` or a `string` since this system doesn't own or seed
- * it. Write operations are rejected — this system only ever reads country data.
+ * Pre-existing, externally-owned collection. Reads raw BSON documents rather than a
+ * typed collection, tolerating the `_id` as either an `ObjectId` or a `string` since
+ * this system doesn't own or seed it. Write operations are rejected — this system
+ * only ever reads country data.
  */
 export class CountryRepository implements ICountryRepository {
   private readonly collection: Collection<Document>;
 
   constructor(db: Db) {
-    this.collection = db.collection('Countries');
+    this.collection = db.collection('countries');
   }
 
   private fromDocument(doc: Document): Country {
