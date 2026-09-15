@@ -122,14 +122,18 @@ export function createGoalkeeperController(deps: GoalkeeperControllerDependencie
   router.patch('/me/availability', async (req, res) => {
     const body = saveAvailabilitySectionRequestSchema.parse(req.body);
     const claims = req.authClaims!;
-    const result = await deps.mediator.send(new SaveAvailabilitySectionCommand(claims.sub, body.radiusKm));
+    const result = await deps.mediator.send(new SaveAvailabilitySectionCommand(claims.sub, body.cityId, body.zoneIds));
 
     switch (result.outcome) {
       case 'success':
         res.status(200).json(result.registration);
         return;
-      case 'validation_failed':
-        throw new ApiError(400, 'validation_failed', 'One or more fields are invalid.', result.fieldErrors);
+      case 'invalid_city':
+        throw new ApiError(400, 'invalid_city', 'The provided city does not exist.');
+      case 'invalid_zones':
+        throw new ApiError(400, 'invalid_zones', 'One or more selected zones are invalid.', undefined, {
+          invalidZoneIds: result.invalidZoneIds,
+        });
       case 'already_active':
         throw new ApiError(409, 'already_active', 'Your goalkeeper profile is already active; this data can no longer be changed here.');
     }

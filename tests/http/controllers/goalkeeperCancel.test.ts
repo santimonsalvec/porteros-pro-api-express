@@ -83,7 +83,7 @@ describe('POST /api/goalkeepers/me/cancel', () => {
     await request(app)
       .patch('/api/goalkeepers/me/availability')
       .set('Authorization', `Bearer ${accessToken}`)
-      .send({ radiusKm: 25 });
+      .send({ cityId: 'city-medellin', zoneIds: ['zone-bello'] });
     await request(app)
       .post('/api/goalkeepers/me/document-photo')
       .set('Authorization', `Bearer ${accessToken}`)

@@ -27,7 +27,8 @@ const baseParams = {
   country: 'CO',
   neighborhood: null,
   formattedAddress: null,
-  radiusKm: 25,
+  cityId: 'city-envigado',
+  zoneIds: ['zone-bello', 'zone-copacabana'],
   activatedAt: new Date('2026-08-30T00:00:00.000Z'),
 };
 
@@ -40,7 +41,13 @@ describe('GoalkeeperProfileRepository (mocked driver)', () => {
     await repository.add(new GoalkeeperProfile(baseParams));
 
     const doc = collection.insertOne.mock.calls[0]![0] as Record<string, unknown>;
-    expect(doc).toMatchObject({ _id: 'profile-1', userId: 'user-1', documentNumber: '123', radiusKm: 25 });
+    expect(doc).toMatchObject({
+      _id: 'profile-1',
+      userId: 'user-1',
+      documentNumber: '123',
+      cityId: 'city-envigado',
+      zoneIds: ['zone-bello', 'zone-copacabana'],
+    });
     expect(doc.neighborhood).toBeUndefined();
   });
 
@@ -62,7 +69,8 @@ describe('GoalkeeperProfileRepository (mocked driver)', () => {
       city: 'Bogotá',
       state: 'Cundinamarca',
       country: 'CO',
-      radiusKm: 15,
+      cityId: 'city-bogota',
+      zoneIds: ['zone-chapinero'],
       activatedAt: '2026-08-30T00:00:00.000Z',
     });
     const repository = repositoryWith(collection);
@@ -71,6 +79,7 @@ describe('GoalkeeperProfileRepository (mocked driver)', () => {
 
     expect(found?.documentType).toBe('pasaporte');
     expect(found?.neighborhood).toBeNull();
-    expect(found?.radiusKm).toBe(15);
+    expect(found?.cityId).toBe('city-bogota');
+    expect(found?.zoneIds).toEqual(['zone-chapinero']);
   });
 });

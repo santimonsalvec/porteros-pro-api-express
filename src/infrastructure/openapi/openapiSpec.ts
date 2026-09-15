@@ -128,7 +128,43 @@ export const openapiSpec = {
           state: { type: 'string', nullable: true },
           country: { type: 'string', nullable: true },
           neighborhood: { type: 'string', nullable: true },
-          radiusKm: { type: 'number', nullable: true },
+          cityId: { type: 'string', nullable: true },
+          serviceZoneIds: { type: 'array', items: { type: 'string' } },
+        },
+      },
+      CitiesResponse: {
+        type: 'object',
+        properties: {
+          cities: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                name: { type: 'string' },
+                region: { type: 'string' },
+                hasZones: { type: 'boolean' },
+              },
+            },
+          },
+        },
+      },
+      ZonesResponse: {
+        type: 'object',
+        properties: {
+          zones: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                name: { type: 'string' },
+                slug: { type: 'string' },
+                displayOrder: { type: 'number' },
+                geometry: { type: 'object' },
+              },
+            },
+          },
         },
       },
       DocumentTypesResponse: {
@@ -446,6 +482,40 @@ export const openapiSpec = {
         },
       },
     },
+    '/api/locations/cities': {
+      get: {
+        summary: 'Search cities by name (typeahead), with service-zone availability per result',
+        tags: ['Locations'],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'q', in: 'query', schema: { type: 'string' } }],
+        responses: {
+          '200': {
+            description: 'Up to 15 matching cities',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/CitiesResponse' } } },
+          },
+          '401': { description: 'Not signed in' },
+        },
+      },
+    },
+    '/api/zones': {
+      get: {
+        summary: "Preview a city's active service zones (resolving a satellite city to its metro anchor)",
+        tags: ['Zones'],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'cityId', in: 'query', required: true, schema: { type: 'string' } }],
+        responses: {
+          '200': {
+            description: "The city's active service zones, sorted by display order",
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ZonesResponse' } } },
+          },
+          '401': { description: 'Not signed in' },
+          '404': {
+            description: 'city_not_found (the city does not exist) or no_zones_configured (it has no active zones yet)',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+        },
+      },
+    },
     '/api/goalkeepers/document-types': {
       get: {
         summary: 'List valid identification document types',
@@ -590,13 +660,22 @@ export const openapiSpec = {
     },
     '/api/goalkeepers/me/availability': {
       patch: {
-        summary: 'Save the availability section',
+        summary: 'Save the availability section — the chosen service city and its service zones, together',
         tags: ['Goalkeepers'],
         security: [{ bearerAuth: [] }],
         requestBody: {
           required: true,
           content: {
-            'application/json': { schema: { type: 'object', properties: { radiusKm: { type: 'integer' } } } },
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['cityId', 'zoneIds'],
+                properties: {
+                  cityId: { type: 'string' },
+                  zoneIds: { type: 'array', items: { type: 'string' }, minItems: 1 },
+                },
+              },
+            },
           },
         },
         responses: {
@@ -605,8 +684,8 @@ export const openapiSpec = {
             content: { 'application/json': { schema: { $ref: '#/components/schemas/GoalkeeperRegistrationResponse' } } },
           },
           '400': {
-            description: 'Validation failed',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } },
+            description: 'validation_failed (missing/empty fields), invalid_city, or invalid_zones (with invalidZoneIds)',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
           },
           '401': { description: 'Not signed in' },
           '403': { description: 'Caller is an administrator, or client profile is not complete' },

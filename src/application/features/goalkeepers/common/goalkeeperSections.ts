@@ -45,7 +45,7 @@ export function computeGoalkeeperSections(registration: GoalkeeperRegistration |
         location.country !== null,
     },
     availability: {
-      complete: availability.radiusKm !== null,
+      complete: availability.cityId !== null && availability.zoneIds.length > 0,
     },
   };
 }

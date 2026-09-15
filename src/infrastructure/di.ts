@@ -13,6 +13,10 @@ import { UpdateClientProfileCommand } from '../application/features/clients/comm
 import { UpdateClientProfileCommandHandler } from '../application/features/clients/commands/updateClientProfile/updateClientProfileCommandHandler.js';
 import { GetCountriesQuery } from '../application/features/locations/queries/getCountries/getCountriesQuery.js';
 import { GetCountriesQueryHandler } from '../application/features/locations/queries/getCountries/getCountriesQueryHandler.js';
+import { GetCitiesQuery } from '../application/features/locations/queries/getCities/getCitiesQuery.js';
+import { GetCitiesQueryHandler } from '../application/features/locations/queries/getCities/getCitiesQueryHandler.js';
+import { GetZonesByCityQuery } from '../application/features/zones/queries/getZonesByCity/getZonesByCityQuery.js';
+import { GetZonesByCityQueryHandler } from '../application/features/zones/queries/getZonesByCity/getZonesByCityQueryHandler.js';
 import { StoreImageCommand } from '../application/features/images/commands/storeImage/storeImageCommand.js';
 import { StoreImageCommandHandler } from '../application/features/images/commands/storeImage/storeImageCommandHandler.js';
 import { ResolveImageQuery } from '../application/features/images/queries/resolveImage/resolveImageQuery.js';
@@ -44,6 +48,9 @@ import { UserRepository } from './persistence/mongo/userRepository.js';
 import { RefreshTokenRepository } from './persistence/mongo/refreshTokenRepository.js';
 import { TermsAcceptanceRepository } from './persistence/mongo/termsAcceptanceRepository.js';
 import { CountryRepository } from './persistence/mongo/countryRepository.js';
+import { CityRepository } from './persistence/mongo/cityRepository.js';
+import { RegionRepository } from './persistence/mongo/regionRepository.js';
+import { ZoneRepository } from './persistence/mongo/zoneRepository.js';
 import { ImageRepository } from './persistence/mongo/imageRepository.js';
 import { GoogleIdTokenValidator } from './auth/googleIdTokenValidator.js';
 import { JwtInternalTokenIssuer } from './auth/jwtInternalTokenIssuer.js';
@@ -83,6 +90,11 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   const documentTypeRepository = new DocumentTypeRepository(db);
   const goalkeeperProfileRepository = new GoalkeeperProfileRepository(db);
   await goalkeeperProfileRepository.ensureIndexes();
+  const cityRepository = new CityRepository(db);
+  await cityRepository.ensureIndexes();
+  const regionRepository = new RegionRepository(db);
+  const zoneRepository = new ZoneRepository(db);
+  await zoneRepository.ensureIndexes();
 
   const imageStorageProvider = new CloudinaryImageStorageProvider({
     cloudinaryUrl: config.images.cloudinaryUrl,
@@ -150,6 +162,11 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     },
     { requestType: GetCountriesQuery, handler: new GetCountriesQueryHandler(countryRepository) },
     {
+      requestType: GetCitiesQuery,
+      handler: new GetCitiesQueryHandler(cityRepository, regionRepository, zoneRepository),
+    },
+    { requestType: GetZonesByCityQuery, handler: new GetZonesByCityQueryHandler(cityRepository, zoneRepository) },
+    {
       requestType: StoreImageCommand,
       handler: new StoreImageCommandHandler(imageStorageProvider, imageRepository, idGenerator),
     },
@@ -177,7 +194,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     },
     {
       requestType: SaveAvailabilitySectionCommand,
-      handler: new SaveAvailabilitySectionCommandHandler(goalkeeperRegistrationRepository, idGenerator),
+      handler: new SaveAvailabilitySectionCommandHandler(goalkeeperRegistrationRepository, cityRepository, zoneRepository, idGenerator),
     },
     {
       requestType: SaveDocumentPhotoCommand,

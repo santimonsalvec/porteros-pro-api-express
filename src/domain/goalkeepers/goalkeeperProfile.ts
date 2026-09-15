@@ -24,7 +24,8 @@ export class GoalkeeperProfile extends Entity<string> {
   readonly country: string;
   readonly neighborhood: string | null;
   readonly formattedAddress: string | null;
-  readonly radiusKm: number;
+  readonly cityId: string;
+  readonly zoneIds: string[];
   readonly activatedAt: Date;
 
   constructor(params: {
@@ -45,7 +46,8 @@ export class GoalkeeperProfile extends Entity<string> {
     country: string;
     neighborhood: string | null;
     formattedAddress: string | null;
-    radiusKm: number;
+    cityId: string;
+    zoneIds: string[];
     activatedAt: Date;
   }) {
     super(params.id);
@@ -65,7 +67,8 @@ export class GoalkeeperProfile extends Entity<string> {
     this.country = params.country;
     this.neighborhood = params.neighborhood;
     this.formattedAddress = params.formattedAddress;
-    this.radiusKm = params.radiusKm;
+    this.cityId = params.cityId;
+    this.zoneIds = params.zoneIds;
     this.activatedAt = params.activatedAt;
   }
 
@@ -90,7 +93,8 @@ export class GoalkeeperProfile extends Entity<string> {
       country: location.country!,
       neighborhood: location.neighborhood,
       formattedAddress: location.formattedAddress,
-      radiusKm: availability.radiusKm!,
+      cityId: availability.cityId!,
+      zoneIds: availability.zoneIds,
       activatedAt: new Date(),
     });
   }

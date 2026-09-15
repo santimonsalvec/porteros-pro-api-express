@@ -15,6 +15,7 @@ export interface FakeMongoCollection {
   deleteOne: Mock;
   updateOne: Mock;
   createIndex: Mock;
+  distinct: Mock;
 }
 
 export function createFakeCollection(): FakeMongoCollection {
@@ -26,10 +27,27 @@ export function createFakeCollection(): FakeMongoCollection {
     deleteOne: vi.fn(),
     updateOne: vi.fn(),
     createIndex: vi.fn(),
+    distinct: vi.fn(),
   };
 }
 
 /** Helper for mocking `.find(...)`, which returns a cursor-like object with `.toArray()`. */
 export function toArrayResult(docs: unknown[]) {
   return { toArray: vi.fn().mockResolvedValue(docs) };
+}
+
+/**
+ * Helper for mocking `.find(...)` when the repository also chains `.sort()`/`.limit()`
+ * before `.toArray()` — every chain method returns the same cursor so any subset or
+ * order of calls resolves to the same canned `docs`.
+ */
+export function toArrayCursor(docs: unknown[]) {
+  const cursor: { sort: Mock; limit: Mock; toArray: Mock } = {
+    sort: vi.fn(),
+    limit: vi.fn(),
+    toArray: vi.fn().mockResolvedValue(docs),
+  };
+  cursor.sort.mockReturnValue(cursor);
+  cursor.limit.mockReturnValue(cursor);
+  return cursor;
 }

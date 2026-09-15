@@ -18,7 +18,8 @@ export interface GoalkeeperRegistrationResponse {
   state: string | null;
   country: string | null;
   neighborhood: string | null;
-  radiusKm: number | null;
+  cityId: string | null;
+  serviceZoneIds: string[];
 }
 
 function toIsoDate(date: Date | null): string | null {
@@ -50,7 +51,8 @@ export function toGoalkeeperRegistrationResponse(registration: GoalkeeperRegistr
       state: null,
       country: null,
       neighborhood: null,
-      radiusKm: null,
+      cityId: null,
+      serviceZoneIds: [],
     };
   }
 
@@ -71,6 +73,7 @@ export function toGoalkeeperRegistrationResponse(registration: GoalkeeperRegistr
     state: registration.location.state,
     country: registration.location.country,
     neighborhood: registration.location.neighborhood,
-    radiusKm: registration.availability.radiusKm,
+    cityId: registration.availability.cityId,
+    serviceZoneIds: registration.availability.zoneIds,
   };
 }

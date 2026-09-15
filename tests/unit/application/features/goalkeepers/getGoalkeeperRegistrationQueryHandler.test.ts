@@ -14,7 +14,23 @@ describe('GetGoalkeeperRegistrationQueryHandler', () => {
     expect(result.registration.status).toBe('not_started');
     expect(result.registration.sections.identification.complete).toBe(false);
     expect(result.registration.heightCm).toBeNull();
+    expect(result.registration.cityId).toBeNull();
+    expect(result.registration.serviceZoneIds).toEqual([]);
     expect(await repository.getByUserId('user-1')).toBeNull();
+  });
+
+  it('round-trips a previously saved city and service zones, marking availability complete', async () => {
+    const repository = new FakeGoalkeeperRegistrationRepository();
+    const registration = GoalkeeperRegistration.createEmpty('reg-3', 'user-3');
+    registration.saveAvailability({ cityId: 'city-envigado', zoneIds: ['zone-bello', 'zone-copacabana'] });
+    repository.seed(registration);
+    const handler = new GetGoalkeeperRegistrationQueryHandler(repository);
+
+    const result = await handler.handle(new GetGoalkeeperRegistrationQuery('user-3'));
+
+    expect(result.registration.cityId).toBe('city-envigado');
+    expect(result.registration.serviceZoneIds).toEqual(['zone-bello', 'zone-copacabana']);
+    expect(result.registration.sections.availability.complete).toBe(true);
   });
 
   it('returns the stored values and computed sections for an existing registration', async () => {

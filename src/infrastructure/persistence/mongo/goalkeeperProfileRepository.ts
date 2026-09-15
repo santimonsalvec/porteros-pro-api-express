@@ -32,7 +32,8 @@ export class GoalkeeperProfileRepository extends MongoRepository<GoalkeeperProfi
       country: entity.country,
       neighborhood: entity.neighborhood,
       formattedAddress: entity.formattedAddress,
-      radiusKm: entity.radiusKm,
+      cityId: entity.cityId,
+      zoneIds: entity.zoneIds,
       activatedAt: entity.activatedAt,
     });
   }
@@ -56,7 +57,8 @@ export class GoalkeeperProfileRepository extends MongoRepository<GoalkeeperProfi
       country: doc.country as string,
       neighborhood: (doc.neighborhood as string | undefined) ?? null,
       formattedAddress: (doc.formattedAddress as string | undefined) ?? null,
-      radiusKm: doc.radiusKm as number,
+      cityId: doc.cityId as string,
+      zoneIds: (doc.zoneIds as string[] | undefined) ?? [],
       activatedAt: new Date(doc.activatedAt as string | Date),
     });
   }

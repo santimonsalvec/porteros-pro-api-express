@@ -27,7 +27,8 @@ export interface LocationSection {
 }
 
 export interface AvailabilitySection {
-  radiusKm: number | null;
+  cityId: string | null;
+  zoneIds: string[];
 }
 
 /**
@@ -98,7 +99,7 @@ export class GoalkeeperRegistration extends Entity<string> {
         neighborhood: null,
         formattedAddress: null,
       },
-      availability: { radiusKm: null },
+      availability: { cityId: null, zoneIds: [] },
       createdAt: now,
       updatedAt: now,
       activatedAt: null,

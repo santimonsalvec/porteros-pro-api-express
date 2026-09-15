@@ -57,10 +57,11 @@ describe('PATCH /api/goalkeepers/me/* section endpoints', () => {
     const response = await request(app)
       .patch('/api/goalkeepers/me/availability')
       .set('Authorization', `Bearer ${accessToken}`)
-      .send({ radiusKm: 25 });
+      .send({ cityId: 'city-envigado', zoneIds: ['zone-bello', 'zone-copacabana'] });
 
     expect(response.status).toBe(200);
-    expect(response.body.radiusKm).toBe(25);
+    expect(response.body.cityId).toBe('city-envigado');
+    expect(response.body.serviceZoneIds).toEqual(['zone-bello', 'zone-copacabana']);
   });
 
   it('saves the identification section text fields, incomplete without photos', async () => {
@@ -108,24 +109,50 @@ describe('PATCH /api/goalkeepers/me/* section endpoints', () => {
     expect(response.body.error).toBe('duplicate_document');
   });
 
-  it('rejects an out-of-range field with 400 validation_failed', async () => {
+  it('rejects an empty zoneIds array with 400 validation_failed', async () => {
     const { app, googleValidator } = buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-6');
 
     const response = await request(app)
       .patch('/api/goalkeepers/me/availability')
       .set('Authorization', `Bearer ${accessToken}`)
-      .send({ radiusKm: 5 });
+      .send({ cityId: 'city-medellin', zoneIds: [] });
 
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('validation_failed');
-    expect(response.body.fieldErrors.radiusKm).toBeTruthy();
+  });
+
+  it('rejects a nonexistent city with 400 invalid_city', async () => {
+    const { app, googleValidator } = buildTestApp();
+    const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-7');
+
+    const response = await request(app)
+      .patch('/api/goalkeepers/me/availability')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ cityId: 'does-not-exist', zoneIds: ['zone-bello'] });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('invalid_city');
+  });
+
+  it('rejects a zone that does not belong to the city with 400 invalid_zones', async () => {
+    const { app, googleValidator } = buildTestApp();
+    const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-8');
+
+    const response = await request(app)
+      .patch('/api/goalkeepers/me/availability')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ cityId: 'city-medellin', zoneIds: ['zone-does-not-exist'] });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('invalid_zones');
+    expect(response.body.invalidZoneIds).toEqual(['zone-does-not-exist']);
   });
 
   it('rejects requests with no token', async () => {
     const { app } = buildTestApp();
 
-    const response = await request(app).patch('/api/goalkeepers/me/availability').send({ radiusKm: 25 });
+    const response = await request(app).patch('/api/goalkeepers/me/availability').send({ cityId: 'city-medellin', zoneIds: ['zone-bello'] });
 
     expect(response.status).toBe(401);
   });

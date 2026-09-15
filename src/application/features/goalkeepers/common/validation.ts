@@ -2,8 +2,6 @@ export const MIN_HEIGHT_CM = 120;
 export const MAX_HEIGHT_CM = 230;
 export const MIN_WEIGHT_KG = 40;
 export const MAX_WEIGHT_KG = 150;
-export const MIN_RADIUS_KM = 10;
-export const MAX_RADIUS_KM = 50;
 export const MIN_GOALKEEPER_AGE_YEARS = 18;
 
 function calculateAge(birthDate: Date, now: Date): number {
@@ -100,15 +98,5 @@ export function validateLocation(input: {
   if (input.city !== undefined && input.city.trim() === '') errors.city = 'City is required.';
   if (input.state !== undefined && input.state.trim() === '') errors.state = 'State is required.';
   if (input.country !== undefined && input.country.trim() === '') errors.country = 'Country is required.';
-  return errors;
-}
-
-export function validateAvailability(input: { radiusKm?: number }): Record<string, string> {
-  const errors: Record<string, string> = {};
-  if (input.radiusKm !== undefined) {
-    if (!Number.isInteger(input.radiusKm) || input.radiusKm < MIN_RADIUS_KM || input.radiusKm > MAX_RADIUS_KM) {
-      errors.radiusKm = `Coverage radius must be a whole number between ${MIN_RADIUS_KM} and ${MAX_RADIUS_KM} km.`;
-    }
-  }
   return errors;
 }

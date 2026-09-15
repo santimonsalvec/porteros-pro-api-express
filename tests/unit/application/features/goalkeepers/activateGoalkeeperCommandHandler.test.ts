@@ -26,7 +26,7 @@ function completeRegistration(id: string, userId: string): GoalkeeperRegistratio
   registration.setDocumentPhoto('B', 'img-b');
   registration.savePhysicalData({ heightCm: 185, weightKg: 78 });
   registration.saveLocation({ latitude: 6.2, longitude: -75.5, city: 'Medellín', state: 'Antioquia', country: 'CO' });
-  registration.saveAvailability({ radiusKm: 25 });
+  registration.saveAvailability({ cityId: 'city-envigado', zoneIds: ['zone-bello'] });
   return registration;
 }
 

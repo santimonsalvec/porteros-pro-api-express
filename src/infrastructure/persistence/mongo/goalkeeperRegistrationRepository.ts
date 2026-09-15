@@ -38,7 +38,7 @@ export class GoalkeeperRegistrationRepository
       identification: stripNulls({ ...entity.identification }),
       physicalData: stripNulls({ ...entity.physicalData }),
       location: stripNulls({ ...entity.location }),
-      availability: stripNulls({ ...entity.availability }),
+      availability: stripNulls({ cityId: entity.availability.cityId, zoneIds: entity.availability.zoneIds }),
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
       activatedAt: entity.activatedAt,
@@ -77,7 +77,8 @@ export class GoalkeeperRegistrationRepository
         formattedAddress: (location.formattedAddress as string | undefined) ?? null,
       },
       availability: {
-        radiusKm: (availability.radiusKm as number | undefined) ?? null,
+        cityId: (availability.cityId as string | undefined) ?? null,
+        zoneIds: (availability.zoneIds as string[] | undefined) ?? [],
       },
       createdAt: new Date(doc.createdAt as string | Date),
       updatedAt: new Date(doc.updatedAt as string | Date),

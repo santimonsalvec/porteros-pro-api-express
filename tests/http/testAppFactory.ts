@@ -24,6 +24,16 @@ import { UpdateClientProfileCommand } from '../../src/application/features/clien
 import { UpdateClientProfileCommandHandler } from '../../src/application/features/clients/commands/updateClientProfile/updateClientProfileCommandHandler.js';
 import { GetCountriesQuery } from '../../src/application/features/locations/queries/getCountries/getCountriesQuery.js';
 import { GetCountriesQueryHandler } from '../../src/application/features/locations/queries/getCountries/getCountriesQueryHandler.js';
+import { GetCitiesQuery } from '../../src/application/features/locations/queries/getCities/getCitiesQuery.js';
+import { GetCitiesQueryHandler } from '../../src/application/features/locations/queries/getCities/getCitiesQueryHandler.js';
+import { GetZonesByCityQuery } from '../../src/application/features/zones/queries/getZonesByCity/getZonesByCityQuery.js';
+import { GetZonesByCityQueryHandler } from '../../src/application/features/zones/queries/getZonesByCity/getZonesByCityQueryHandler.js';
+import { City } from '../../src/domain/locations/city.js';
+import { Region } from '../../src/domain/locations/region.js';
+import { Zone } from '../../src/domain/zones/zone.js';
+import { FakeCityRepository } from '../fakes/fakeCityRepository.js';
+import { FakeRegionRepository } from '../fakes/fakeRegionRepository.js';
+import { FakeZoneRepository } from '../fakes/fakeZoneRepository.js';
 import { StoreImageCommand } from '../../src/application/features/images/commands/storeImage/storeImageCommand.js';
 import { StoreImageCommandHandler } from '../../src/application/features/images/commands/storeImage/storeImageCommandHandler.js';
 import { ResolveImageQuery } from '../../src/application/features/images/queries/resolveImage/resolveImageQuery.js';
@@ -69,6 +79,9 @@ export interface TestAppContext {
   goalkeeperRegistrationRepository: FakeGoalkeeperRegistrationRepository;
   documentTypeRepository: FakeDocumentTypeRepository;
   goalkeeperProfileRepository: FakeGoalkeeperProfileRepository;
+  cityRepository: FakeCityRepository;
+  regionRepository: FakeRegionRepository;
+  zoneRepository: FakeZoneRepository;
   /** Mutate `.status` before a request to simulate an unhealthy dependency. */
   health: HealthReportResponse;
 }
@@ -95,6 +108,30 @@ export function buildTestApp(): TestAppContext {
   documentTypeRepository.seed(new DocumentType({ id: 'dt2', code: 'cedula_extranjeria', name: 'Cédula de extranjería' }));
   documentTypeRepository.seed(new DocumentType({ id: 'dt3', code: 'pasaporte', name: 'Pasaporte' }));
   const goalkeeperProfileRepository = new FakeGoalkeeperProfileRepository();
+
+  const regionRepository = new FakeRegionRepository();
+  regionRepository.seed(new Region({ id: 'region-antioquia', name: 'Antioquia' }));
+  regionRepository.seed(new Region({ id: 'region-cundinamarca', name: 'Cundinamarca' }));
+  const cityRepository = new FakeCityRepository();
+  cityRepository.seed(new City({ id: 'city-medellin', name: 'Medellín', regionId: 'region-antioquia', zoneCityId: null }));
+  cityRepository.seed(new City({ id: 'city-envigado', name: 'Envigado', regionId: 'region-antioquia', zoneCityId: 'city-medellin' }));
+  cityRepository.seed(new City({ id: 'city-bogota', name: 'Bogotá', regionId: 'region-cundinamarca', zoneCityId: null }));
+  const zoneRepository = new FakeZoneRepository();
+  const zonePolygon = { type: 'Polygon' as const, coordinates: [[[0, 0]]] };
+  zoneRepository.seed(
+    new Zone({ id: 'zone-bello', cityId: 'city-medellin', name: 'Bello', slug: 'medellin-co-bello', geometry: zonePolygon, active: true, displayOrder: 1 }),
+  );
+  zoneRepository.seed(
+    new Zone({
+      id: 'zone-copacabana',
+      cityId: 'city-medellin',
+      name: 'Copacabana',
+      slug: 'medellin-co-copacabana',
+      geometry: zonePolygon,
+      active: true,
+      displayOrder: 2,
+    }),
+  );
 
   const ssoCatalog: ISsoProviderCatalog = {
     getProviders: (platform) =>
@@ -144,6 +181,11 @@ export function buildTestApp(): TestAppContext {
     },
     { requestType: GetCountriesQuery, handler: new GetCountriesQueryHandler(countryRepository) },
     {
+      requestType: GetCitiesQuery,
+      handler: new GetCitiesQueryHandler(cityRepository, regionRepository, zoneRepository),
+    },
+    { requestType: GetZonesByCityQuery, handler: new GetZonesByCityQueryHandler(cityRepository, zoneRepository) },
+    {
       requestType: StoreImageCommand,
       handler: new StoreImageCommandHandler(imageStorageProvider, imageRepository, idGenerator),
     },
@@ -171,7 +213,7 @@ export function buildTestApp(): TestAppContext {
     },
     {
       requestType: SaveAvailabilitySectionCommand,
-      handler: new SaveAvailabilitySectionCommandHandler(goalkeeperRegistrationRepository, idGenerator),
+      handler: new SaveAvailabilitySectionCommandHandler(goalkeeperRegistrationRepository, cityRepository, zoneRepository, idGenerator),
     },
     {
       requestType: SaveDocumentPhotoCommand,
@@ -208,6 +250,9 @@ export function buildTestApp(): TestAppContext {
     goalkeeperRegistrationRepository,
     documentTypeRepository,
     goalkeeperProfileRepository,
+    cityRepository,
+    regionRepository,
+    zoneRepository,
     health,
   };
 }
