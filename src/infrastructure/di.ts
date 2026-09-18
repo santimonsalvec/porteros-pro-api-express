@@ -31,8 +31,6 @@ import { SaveIdentificationSectionCommand } from '../application/features/goalke
 import { SaveIdentificationSectionCommandHandler } from '../application/features/goalkeepers/commands/saveIdentificationSection/saveIdentificationSectionCommandHandler.js';
 import { SavePhysicalDataSectionCommand } from '../application/features/goalkeepers/commands/savePhysicalDataSection/savePhysicalDataSectionCommand.js';
 import { SavePhysicalDataSectionCommandHandler } from '../application/features/goalkeepers/commands/savePhysicalDataSection/savePhysicalDataSectionCommandHandler.js';
-import { SaveLocationSectionCommand } from '../application/features/goalkeepers/commands/saveLocationSection/saveLocationSectionCommand.js';
-import { SaveLocationSectionCommandHandler } from '../application/features/goalkeepers/commands/saveLocationSection/saveLocationSectionCommandHandler.js';
 import { SaveAvailabilitySectionCommand } from '../application/features/goalkeepers/commands/saveAvailabilitySection/saveAvailabilitySectionCommand.js';
 import { SaveAvailabilitySectionCommandHandler } from '../application/features/goalkeepers/commands/saveAvailabilitySection/saveAvailabilitySectionCommandHandler.js';
 import { SaveDocumentPhotoCommand } from '../application/features/goalkeepers/commands/saveDocumentPhoto/saveDocumentPhotoCommand.js';
@@ -187,10 +185,6 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     {
       requestType: SavePhysicalDataSectionCommand,
       handler: new SavePhysicalDataSectionCommandHandler(goalkeeperRegistrationRepository, idGenerator),
-    },
-    {
-      requestType: SaveLocationSectionCommand,
-      handler: new SaveLocationSectionCommandHandler(goalkeeperRegistrationRepository, idGenerator),
     },
     {
       requestType: SaveAvailabilitySectionCommand,

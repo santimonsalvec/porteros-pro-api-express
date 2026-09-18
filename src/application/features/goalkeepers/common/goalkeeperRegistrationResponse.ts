@@ -12,12 +12,6 @@ export interface GoalkeeperRegistrationResponse {
   documentPhotoBSubmitted: boolean;
   heightCm: number | null;
   weightKg: number | null;
-  latitude: number | null;
-  longitude: number | null;
-  city: string | null;
-  state: string | null;
-  country: string | null;
-  neighborhood: string | null;
   cityId: string | null;
   serviceZoneIds: string[];
 }
@@ -28,9 +22,9 @@ function toIsoDate(date: Date | null): string | null {
 
 /**
  * Projects a `GoalkeeperRegistration` into the shape every `/api/goalkeepers/me` route
- * returns. `formattedAddress` and the raw document-photo ids are deliberately never
- * included (FR-018, FR-021) — only the booleans derived from the photo ids.
- * `null` synthesizes the `not_started` shape with no database write (research.md §10).
+ * returns. The raw document-photo ids are deliberately never included (FR-021) — only
+ * the booleans derived from them. `null` synthesizes the `not_started` shape with no
+ * database write (research.md §10).
  */
 export function toGoalkeeperRegistrationResponse(registration: GoalkeeperRegistration | null): GoalkeeperRegistrationResponse {
   if (!registration) {
@@ -45,12 +39,6 @@ export function toGoalkeeperRegistrationResponse(registration: GoalkeeperRegistr
       documentPhotoBSubmitted: false,
       heightCm: null,
       weightKg: null,
-      latitude: null,
-      longitude: null,
-      city: null,
-      state: null,
-      country: null,
-      neighborhood: null,
       cityId: null,
       serviceZoneIds: [],
     };
@@ -67,12 +55,6 @@ export function toGoalkeeperRegistrationResponse(registration: GoalkeeperRegistr
     documentPhotoBSubmitted: registration.identification.documentPhotoBId !== null,
     heightCm: registration.physicalData.heightCm,
     weightKg: registration.physicalData.weightKg,
-    latitude: registration.location.latitude,
-    longitude: registration.location.longitude,
-    city: registration.location.city,
-    state: registration.location.state,
-    country: registration.location.country,
-    neighborhood: registration.location.neighborhood,
     cityId: registration.availability.cityId,
     serviceZoneIds: registration.availability.zoneIds,
   };

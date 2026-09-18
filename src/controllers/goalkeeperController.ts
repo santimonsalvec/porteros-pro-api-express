@@ -6,7 +6,6 @@ import { GetGoalkeeperRegistrationQuery } from '../application/features/goalkeep
 import { GetDocumentTypesQuery } from '../application/features/goalkeepers/queries/getDocumentTypes/getDocumentTypesQuery.js';
 import { SaveIdentificationSectionCommand } from '../application/features/goalkeepers/commands/saveIdentificationSection/saveIdentificationSectionCommand.js';
 import { SavePhysicalDataSectionCommand } from '../application/features/goalkeepers/commands/savePhysicalDataSection/savePhysicalDataSectionCommand.js';
-import { SaveLocationSectionCommand } from '../application/features/goalkeepers/commands/saveLocationSection/saveLocationSectionCommand.js';
 import { SaveAvailabilitySectionCommand } from '../application/features/goalkeepers/commands/saveAvailabilitySection/saveAvailabilitySectionCommand.js';
 import { SaveDocumentPhotoCommand } from '../application/features/goalkeepers/commands/saveDocumentPhoto/saveDocumentPhotoCommand.js';
 import { ActivateGoalkeeperCommand } from '../application/features/goalkeepers/commands/activateGoalkeeper/activateGoalkeeperCommand.js';
@@ -19,7 +18,6 @@ import type { AccessTokenClaims } from '../application/features/auth/common/acce
 import { config } from '../infrastructure/config.js';
 import { saveIdentificationSectionRequestSchema } from './requests/goalkeepers/saveIdentificationSectionRequest.js';
 import { savePhysicalDataSectionRequestSchema } from './requests/goalkeepers/savePhysicalDataSectionRequest.js';
-import { saveLocationSectionRequestSchema } from './requests/goalkeepers/saveLocationSectionRequest.js';
 import { saveAvailabilitySectionRequestSchema } from './requests/goalkeepers/saveAvailabilitySectionRequest.js';
 import { ApiError } from './apiError.js';
 
@@ -80,33 +78,6 @@ export function createGoalkeeperController(deps: GoalkeeperControllerDependencie
     const body = savePhysicalDataSectionRequestSchema.parse(req.body);
     const claims = req.authClaims!;
     const result = await deps.mediator.send(new SavePhysicalDataSectionCommand(claims.sub, body.heightCm, body.weightKg));
-
-    switch (result.outcome) {
-      case 'success':
-        res.status(200).json(result.registration);
-        return;
-      case 'validation_failed':
-        throw new ApiError(400, 'validation_failed', 'One or more fields are invalid.', result.fieldErrors);
-      case 'already_active':
-        throw new ApiError(409, 'already_active', 'Your goalkeeper profile is already active; this data can no longer be changed here.');
-    }
-  });
-
-  router.patch('/me/location', async (req, res) => {
-    const body = saveLocationSectionRequestSchema.parse(req.body);
-    const claims = req.authClaims!;
-    const result = await deps.mediator.send(
-      new SaveLocationSectionCommand(
-        claims.sub,
-        body.latitude,
-        body.longitude,
-        body.city,
-        body.state,
-        body.country,
-        body.neighborhood,
-        body.formattedAddress,
-      ),
-    );
 
     switch (result.outcome) {
       case 'success':

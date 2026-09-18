@@ -110,7 +110,6 @@ export const openapiSpec = {
             properties: {
               identification: { type: 'object', properties: { complete: { type: 'boolean' } } },
               physicalData: { type: 'object', properties: { complete: { type: 'boolean' } } },
-              location: { type: 'object', properties: { complete: { type: 'boolean' } } },
               availability: { type: 'object', properties: { complete: { type: 'boolean' } } },
             },
           },
@@ -122,12 +121,6 @@ export const openapiSpec = {
           documentPhotoBSubmitted: { type: 'boolean' },
           heightCm: { type: 'number', nullable: true },
           weightKg: { type: 'number', nullable: true },
-          latitude: { type: 'number', nullable: true },
-          longitude: { type: 'number', nullable: true },
-          city: { type: 'string', nullable: true },
-          state: { type: 'string', nullable: true },
-          country: { type: 'string', nullable: true },
-          neighborhood: { type: 'string', nullable: true },
           cityId: { type: 'string', nullable: true },
           serviceZoneIds: { type: 'array', items: { type: 'string' } },
         },
@@ -594,48 +587,6 @@ export const openapiSpec = {
               schema: {
                 type: 'object',
                 properties: { heightCm: { type: 'number' }, weightKg: { type: 'number' } },
-              },
-            },
-          },
-        },
-        responses: {
-          '200': {
-            description: 'Updated registration',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/GoalkeeperRegistrationResponse' } } },
-          },
-          '400': {
-            description: 'Validation failed',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } },
-          },
-          '401': { description: 'Not signed in' },
-          '403': { description: 'Caller is an administrator, or client profile is not complete' },
-          '409': {
-            description: 'Registration already active',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
-          },
-        },
-      },
-    },
-    '/api/goalkeepers/me/location': {
-      patch: {
-        summary: 'Save (partially) the location section',
-        tags: ['Goalkeepers'],
-        security: [{ bearerAuth: [] }],
-        requestBody: {
-          required: true,
-          content: {
-            'application/json': {
-              schema: {
-                type: 'object',
-                properties: {
-                  latitude: { type: 'number' },
-                  longitude: { type: 'number' },
-                  city: { type: 'string' },
-                  state: { type: 'string' },
-                  country: { type: 'string' },
-                  neighborhood: { type: 'string' },
-                  formattedAddress: { type: 'string' },
-                },
               },
             },
           },

@@ -77,10 +77,6 @@ describe('POST /api/goalkeepers/me/cancel', () => {
       .set('Authorization', `Bearer ${accessToken}`)
       .send({ heightCm: 185, weightKg: 78 });
     await request(app)
-      .patch('/api/goalkeepers/me/location')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .send({ latitude: 6.2, longitude: -75.5, city: 'Medellín', state: 'Antioquia', country: 'CO' });
-    await request(app)
       .patch('/api/goalkeepers/me/availability')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({ cityId: 'city-medellin', zoneIds: ['zone-bello'] });

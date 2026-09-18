@@ -37,19 +37,6 @@ describe('PATCH /api/goalkeepers/me/* section endpoints', () => {
     expect(view.body.sections.identification.complete).toBe(false);
   });
 
-  it('saves the location section, treating neighborhood as optional', async () => {
-    const { app, googleValidator } = buildTestApp();
-    const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-2');
-
-    const response = await request(app)
-      .patch('/api/goalkeepers/me/location')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .send({ latitude: 6.244, longitude: -75.581, city: 'Medellín', state: 'Antioquia', country: 'CO' });
-
-    expect(response.status).toBe(200);
-    expect(response.body.sections.location.complete).toBe(true);
-  });
-
   it('saves the availability section', async () => {
     const { app, googleValidator } = buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-3');

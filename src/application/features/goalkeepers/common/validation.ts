@@ -80,23 +80,3 @@ export function validatePhysicalData(input: { heightCm?: number; weightKg?: numb
   }
   return errors;
 }
-
-export function validateLocation(input: {
-  latitude?: number;
-  longitude?: number;
-  city?: string;
-  state?: string;
-  country?: string;
-}): Record<string, string> {
-  const errors: Record<string, string> = {};
-  if (input.latitude !== undefined && (input.latitude < -90 || input.latitude > 90)) {
-    errors.latitude = 'Latitude must be between -90 and 90.';
-  }
-  if (input.longitude !== undefined && (input.longitude < -180 || input.longitude > 180)) {
-    errors.longitude = 'Longitude must be between -180 and 180.';
-  }
-  if (input.city !== undefined && input.city.trim() === '') errors.city = 'City is required.';
-  if (input.state !== undefined && input.state.trim() === '') errors.state = 'State is required.';
-  if (input.country !== undefined && input.country.trim() === '') errors.country = 'Country is required.';
-  return errors;
-}

@@ -16,16 +16,6 @@ export interface PhysicalDataSection {
   weightKg: number | null;
 }
 
-export interface LocationSection {
-  latitude: number | null;
-  longitude: number | null;
-  city: string | null;
-  state: string | null;
-  country: string | null;
-  neighborhood: string | null;
-  formattedAddress: string | null;
-}
-
 export interface AvailabilitySection {
   cityId: string | null;
   zoneIds: string[];
@@ -44,7 +34,6 @@ export class GoalkeeperRegistration extends Entity<string> {
   status: GoalkeeperRegistrationStatus;
   identification: IdentificationSection;
   physicalData: PhysicalDataSection;
-  location: LocationSection;
   availability: AvailabilitySection;
   readonly createdAt: Date;
   updatedAt: Date;
@@ -56,7 +45,6 @@ export class GoalkeeperRegistration extends Entity<string> {
     status: GoalkeeperRegistrationStatus;
     identification: IdentificationSection;
     physicalData: PhysicalDataSection;
-    location: LocationSection;
     availability: AvailabilitySection;
     createdAt: Date;
     updatedAt: Date;
@@ -67,7 +55,6 @@ export class GoalkeeperRegistration extends Entity<string> {
     this.status = params.status;
     this.identification = params.identification;
     this.physicalData = params.physicalData;
-    this.location = params.location;
     this.availability = params.availability;
     this.createdAt = params.createdAt;
     this.updatedAt = params.updatedAt;
@@ -90,15 +77,6 @@ export class GoalkeeperRegistration extends Entity<string> {
         documentPhotoBId: null,
       },
       physicalData: { heightCm: null, weightKg: null },
-      location: {
-        latitude: null,
-        longitude: null,
-        city: null,
-        state: null,
-        country: null,
-        neighborhood: null,
-        formattedAddress: null,
-      },
       availability: { cityId: null, zoneIds: [] },
       createdAt: now,
       updatedAt: now,
@@ -114,11 +92,6 @@ export class GoalkeeperRegistration extends Entity<string> {
 
   savePhysicalData(fields: Partial<PhysicalDataSection>): void {
     Object.assign(this.physicalData, fields);
-    this.updatedAt = new Date();
-  }
-
-  saveLocation(fields: Partial<LocationSection>): void {
-    Object.assign(this.location, fields);
     this.updatedAt = new Date();
   }
 

@@ -17,13 +17,6 @@ export class GoalkeeperProfile extends Entity<string> {
   readonly documentPhotoBId: string;
   readonly heightCm: number;
   readonly weightKg: number;
-  readonly latitude: number;
-  readonly longitude: number;
-  readonly city: string;
-  readonly state: string;
-  readonly country: string;
-  readonly neighborhood: string | null;
-  readonly formattedAddress: string | null;
   readonly cityId: string;
   readonly zoneIds: string[];
   readonly activatedAt: Date;
@@ -39,13 +32,6 @@ export class GoalkeeperProfile extends Entity<string> {
     documentPhotoBId: string;
     heightCm: number;
     weightKg: number;
-    latitude: number;
-    longitude: number;
-    city: string;
-    state: string;
-    country: string;
-    neighborhood: string | null;
-    formattedAddress: string | null;
     cityId: string;
     zoneIds: string[];
     activatedAt: Date;
@@ -60,13 +46,6 @@ export class GoalkeeperProfile extends Entity<string> {
     this.documentPhotoBId = params.documentPhotoBId;
     this.heightCm = params.heightCm;
     this.weightKg = params.weightKg;
-    this.latitude = params.latitude;
-    this.longitude = params.longitude;
-    this.city = params.city;
-    this.state = params.state;
-    this.country = params.country;
-    this.neighborhood = params.neighborhood;
-    this.formattedAddress = params.formattedAddress;
     this.cityId = params.cityId;
     this.zoneIds = params.zoneIds;
     this.activatedAt = params.activatedAt;
@@ -74,7 +53,7 @@ export class GoalkeeperProfile extends Entity<string> {
 
   /** The only constructor — reads every field off a registration whose completeness has already been confirmed by the caller. */
   static createFromRegistration(id: string, registration: GoalkeeperRegistration): GoalkeeperProfile {
-    const { identification, physicalData, location, availability } = registration;
+    const { identification, physicalData, availability } = registration;
     return new GoalkeeperProfile({
       id,
       userId: registration.userId,
@@ -86,13 +65,6 @@ export class GoalkeeperProfile extends Entity<string> {
       documentPhotoBId: identification.documentPhotoBId!,
       heightCm: physicalData.heightCm!,
       weightKg: physicalData.weightKg!,
-      latitude: location.latitude!,
-      longitude: location.longitude!,
-      city: location.city!,
-      state: location.state!,
-      country: location.country!,
-      neighborhood: location.neighborhood,
-      formattedAddress: location.formattedAddress,
       cityId: availability.cityId!,
       zoneIds: availability.zoneIds,
       activatedAt: new Date(),

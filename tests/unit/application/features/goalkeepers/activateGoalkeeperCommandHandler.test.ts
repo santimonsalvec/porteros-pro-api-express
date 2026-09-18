@@ -25,7 +25,6 @@ function completeRegistration(id: string, userId: string): GoalkeeperRegistratio
   registration.setDocumentPhoto('A', 'img-a');
   registration.setDocumentPhoto('B', 'img-b');
   registration.savePhysicalData({ heightCm: 185, weightKg: 78 });
-  registration.saveLocation({ latitude: 6.2, longitude: -75.5, city: 'Medellín', state: 'Antioquia', country: 'CO' });
   registration.saveAvailability({ cityId: 'city-envigado', zoneIds: ['zone-bello'] });
   return registration;
 }
@@ -38,7 +37,7 @@ describe('ActivateGoalkeeperCommandHandler', () => {
 
     expect(result.outcome).toBe('incomplete');
     expect(result.missingSections).toEqual(
-      expect.arrayContaining(['identification', 'physicalData', 'location', 'availability']),
+      expect.arrayContaining(['identification', 'physicalData', 'availability']),
     );
   });
 

@@ -20,13 +20,6 @@ const baseParams = {
   documentPhotoBId: 'img-b',
   heightCm: 185,
   weightKg: 78,
-  latitude: 6.2,
-  longitude: -75.5,
-  city: 'Medellín',
-  state: 'Antioquia',
-  country: 'CO',
-  neighborhood: null,
-  formattedAddress: null,
   cityId: 'city-envigado',
   zoneIds: ['zone-bello', 'zone-copacabana'],
   activatedAt: new Date('2026-08-30T00:00:00.000Z'),
@@ -48,7 +41,6 @@ describe('GoalkeeperProfileRepository (mocked driver)', () => {
       cityId: 'city-envigado',
       zoneIds: ['zone-bello', 'zone-copacabana'],
     });
-    expect(doc.neighborhood).toBeUndefined();
   });
 
   it('round-trips a document back into a GoalkeeperProfile', async () => {
@@ -64,11 +56,6 @@ describe('GoalkeeperProfileRepository (mocked driver)', () => {
       documentPhotoBId: 'img-d',
       heightCm: 170,
       weightKg: 65,
-      latitude: 4.6,
-      longitude: -74.0,
-      city: 'Bogotá',
-      state: 'Cundinamarca',
-      country: 'CO',
       cityId: 'city-bogota',
       zoneIds: ['zone-chapinero'],
       activatedAt: '2026-08-30T00:00:00.000Z',
@@ -78,7 +65,6 @@ describe('GoalkeeperProfileRepository (mocked driver)', () => {
     const found = await repository.getByUserId('user-2');
 
     expect(found?.documentType).toBe('pasaporte');
-    expect(found?.neighborhood).toBeNull();
     expect(found?.cityId).toBe('city-bogota');
     expect(found?.zoneIds).toEqual(['zone-chapinero']);
   });
