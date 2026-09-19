@@ -61,6 +61,10 @@ import { SaveDocumentPhotoCommandHandler } from '../../src/application/features/
 import { ActivateGoalkeeperCommand } from '../../src/application/features/goalkeepers/commands/activateGoalkeeper/activateGoalkeeperCommand.js';
 import { ActivateGoalkeeperCommandHandler } from '../../src/application/features/goalkeepers/commands/activateGoalkeeper/activateGoalkeeperCommandHandler.js';
 import { FakeGoalkeeperProfileRepository } from '../fakes/fakeGoalkeeperProfileRepository.js';
+import { UpdateGoalkeeperPhysicalDataCommand } from '../../src/application/features/goalkeepers/commands/updateGoalkeeperPhysicalData/updateGoalkeeperPhysicalDataCommand.js';
+import { UpdateGoalkeeperPhysicalDataCommandHandler } from '../../src/application/features/goalkeepers/commands/updateGoalkeeperPhysicalData/updateGoalkeeperPhysicalDataCommandHandler.js';
+import { UpdateGoalkeeperAvailabilityCommand } from '../../src/application/features/goalkeepers/commands/updateGoalkeeperAvailability/updateGoalkeeperAvailabilityCommand.js';
+import { UpdateGoalkeeperAvailabilityCommandHandler } from '../../src/application/features/goalkeepers/commands/updateGoalkeeperAvailability/updateGoalkeeperAvailabilityCommandHandler.js';
 import { CancelGoalkeeperRegistrationCommand } from '../../src/application/features/goalkeepers/commands/cancelGoalkeeperRegistration/cancelGoalkeeperRegistrationCommand.js';
 import { CancelGoalkeeperRegistrationCommandHandler } from '../../src/application/features/goalkeepers/commands/cancelGoalkeeperRegistration/cancelGoalkeeperRegistrationCommandHandler.js';
 
@@ -153,13 +157,20 @@ export function buildTestApp(): TestAppContext {
         userRepository,
         refreshTokenRepository,
         tokenIssuer,
+        goalkeeperProfileRepository,
         idGenerator,
         auditLogger,
       ),
     },
     {
       requestType: RefreshAccessTokenCommand,
-      handler: new RefreshAccessTokenCommandHandler(refreshTokenRepository, userRepository, tokenIssuer, idGenerator),
+      handler: new RefreshAccessTokenCommandHandler(
+        refreshTokenRepository,
+        userRepository,
+        tokenIssuer,
+        goalkeeperProfileRepository,
+        idGenerator,
+      ),
     },
     {
       requestType: CompleteProfileCommand,
@@ -168,6 +179,7 @@ export function buildTestApp(): TestAppContext {
         countryRepository,
         termsAcceptanceRepository,
         tokenIssuer,
+        goalkeeperProfileRepository,
         idGenerator,
         { termsVersion: '1.0', privacyPolicyVersion: '1.0' },
       ),
@@ -194,7 +206,12 @@ export function buildTestApp(): TestAppContext {
     },
     {
       requestType: GetGoalkeeperRegistrationQuery,
-      handler: new GetGoalkeeperRegistrationQueryHandler(goalkeeperRegistrationRepository),
+      handler: new GetGoalkeeperRegistrationQueryHandler(
+        goalkeeperRegistrationRepository,
+        goalkeeperProfileRepository,
+        cityRepository,
+        regionRepository,
+      ),
     },
     { requestType: GetDocumentTypesQuery, handler: new GetDocumentTypesQueryHandler(documentTypeRepository) },
     {
@@ -216,6 +233,19 @@ export function buildTestApp(): TestAppContext {
     {
       requestType: ActivateGoalkeeperCommand,
       handler: new ActivateGoalkeeperCommandHandler(goalkeeperRegistrationRepository, goalkeeperProfileRepository, idGenerator),
+    },
+    {
+      requestType: UpdateGoalkeeperPhysicalDataCommand,
+      handler: new UpdateGoalkeeperPhysicalDataCommandHandler(goalkeeperProfileRepository, goalkeeperRegistrationRepository),
+    },
+    {
+      requestType: UpdateGoalkeeperAvailabilityCommand,
+      handler: new UpdateGoalkeeperAvailabilityCommandHandler(
+        goalkeeperProfileRepository,
+        goalkeeperRegistrationRepository,
+        cityRepository,
+        zoneRepository,
+      ),
     },
     {
       requestType: CancelGoalkeeperRegistrationCommand,

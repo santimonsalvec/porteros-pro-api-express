@@ -4,6 +4,7 @@ import { CompleteProfileCommandHandler } from '../../../../../src/application/fe
 import { FakeUserRepository } from '../../../../fakes/fakeUserRepository.js';
 import { FakeCountryRepository } from '../../../../fakes/fakeCountryRepository.js';
 import { FakeTermsAcceptanceRepository } from '../../../../fakes/fakeTermsAcceptanceRepository.js';
+import { FakeGoalkeeperProfileRepository } from '../../../../fakes/fakeGoalkeeperProfileRepository.js';
 import { FakeInternalTokenIssuer } from '../../../../fakes/fakeInternalTokenIssuer.js';
 import { User } from '../../../../../src/domain/users/user.js';
 import { Country } from '../../../../../src/domain/countries/country.js';
@@ -13,6 +14,7 @@ describe('CompleteProfileCommandHandler', () => {
   let countryRepository: FakeCountryRepository;
   let termsAcceptanceRepository: FakeTermsAcceptanceRepository;
   let tokenIssuer: FakeInternalTokenIssuer;
+  let goalkeeperProfileRepository: FakeGoalkeeperProfileRepository;
   let handler: CompleteProfileCommandHandler;
   let user: User;
 
@@ -21,6 +23,7 @@ describe('CompleteProfileCommandHandler', () => {
     countryRepository = new FakeCountryRepository();
     termsAcceptanceRepository = new FakeTermsAcceptanceRepository();
     tokenIssuer = new FakeInternalTokenIssuer();
+    goalkeeperProfileRepository = new FakeGoalkeeperProfileRepository();
     countryRepository.seed(new Country({ id: 'c1', name: 'Colombia', dialCode: '+57', countryCode: 'CO' }));
 
     handler = new CompleteProfileCommandHandler(
@@ -28,6 +31,7 @@ describe('CompleteProfileCommandHandler', () => {
       countryRepository,
       termsAcceptanceRepository,
       tokenIssuer,
+      goalkeeperProfileRepository,
       { newId: () => 'terms-1' },
       { termsVersion: '1.0', privacyPolicyVersion: '1.0' },
     );

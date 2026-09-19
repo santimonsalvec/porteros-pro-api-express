@@ -4,13 +4,35 @@ import { RefreshAccessTokenCommandHandler } from '../../../../../src/application
 import { FakeUserRepository } from '../../../../fakes/fakeUserRepository.js';
 import { FakeRefreshTokenRepository } from '../../../../fakes/fakeRefreshTokenRepository.js';
 import { FakeInternalTokenIssuer } from '../../../../fakes/fakeInternalTokenIssuer.js';
+import { FakeGoalkeeperProfileRepository } from '../../../../fakes/fakeGoalkeeperProfileRepository.js';
+import { GoalkeeperProfile } from '../../../../../src/domain/goalkeepers/goalkeeperProfile.js';
 import { User } from '../../../../../src/domain/users/user.js';
 import { RefreshToken } from '../../../../../src/domain/users/refreshToken.js';
+
+
+function makeGoalkeeperProfile(userId: string): GoalkeeperProfile {
+  return new GoalkeeperProfile({
+    id: `gp-${userId}`,
+    userId,
+    documentType: 'CC',
+    documentNumber: '123',
+    issueDate: new Date('2020-01-01'),
+    birthDate: new Date('1995-01-01'),
+    documentPhotoAId: 'img-a',
+    documentPhotoBId: 'img-b',
+    heightCm: 180,
+    weightKg: 75,
+    cityId: 'city-1',
+    zoneIds: ['zone-1'],
+    activatedAt: new Date('2026-01-01'),
+  });
+}
 
 describe('RefreshAccessTokenCommandHandler', () => {
   let userRepository: FakeUserRepository;
   let refreshTokenRepository: FakeRefreshTokenRepository;
   let tokenIssuer: FakeInternalTokenIssuer;
+  let goalkeeperProfileRepository: FakeGoalkeeperProfileRepository;
   let handler: RefreshAccessTokenCommandHandler;
   let user: User;
 
@@ -18,7 +40,8 @@ describe('RefreshAccessTokenCommandHandler', () => {
     userRepository = new FakeUserRepository();
     refreshTokenRepository = new FakeRefreshTokenRepository();
     tokenIssuer = new FakeInternalTokenIssuer();
-    handler = new RefreshAccessTokenCommandHandler(refreshTokenRepository, userRepository, tokenIssuer, {
+    goalkeeperProfileRepository = new FakeGoalkeeperProfileRepository();
+    handler = new RefreshAccessTokenCommandHandler(refreshTokenRepository, userRepository, tokenIssuer, goalkeeperProfileRepository, {
       newId: () => 'new-refresh-token-id',
     });
 
@@ -41,6 +64,27 @@ describe('RefreshAccessTokenCommandHandler', () => {
     expect(result.outcome).toBe('success');
     const stored = await refreshTokenRepository.getById('rt-1');
     expect(stored?.isUsed).toBe(true);
+  });
+
+  it('omits the isGoalkeeper claim for an account without an active goalkeeper profile', async () => {
+    await refreshTokenRepository.add(RefreshToken.create('rt-1', user.id, tokenIssuer.hashRefreshToken('raw-token'), 1000 * 60));
+
+    const result = await handler.handle(new RefreshAccessTokenCommand('raw-token'));
+
+    expect(result.outcome).toBe('success');
+    const claims = await tokenIssuer.verifyAccessToken(result.tokens!.accessToken);
+    expect(claims).not.toHaveProperty('isGoalkeeper');
+  });
+
+  it('adds isGoalkeeper: "true" once the account has an active goalkeeper profile', async () => {
+    await goalkeeperProfileRepository.add(makeGoalkeeperProfile(user.id));
+    await refreshTokenRepository.add(RefreshToken.create('rt-1', user.id, tokenIssuer.hashRefreshToken('raw-token'), 1000 * 60));
+
+    const result = await handler.handle(new RefreshAccessTokenCommand('raw-token'));
+
+    expect(result.outcome).toBe('success');
+    const claims = await tokenIssuer.verifyAccessToken(result.tokens!.accessToken);
+    expect(claims?.isGoalkeeper).toBe('true');
   });
 
   it('rejects an already-used refresh token', async () => {

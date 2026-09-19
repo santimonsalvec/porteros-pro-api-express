@@ -7,6 +7,8 @@ import { GetDocumentTypesQuery } from '../application/features/goalkeepers/queri
 import { SaveIdentificationSectionCommand } from '../application/features/goalkeepers/commands/saveIdentificationSection/saveIdentificationSectionCommand.js';
 import { SavePhysicalDataSectionCommand } from '../application/features/goalkeepers/commands/savePhysicalDataSection/savePhysicalDataSectionCommand.js';
 import { SaveAvailabilitySectionCommand } from '../application/features/goalkeepers/commands/saveAvailabilitySection/saveAvailabilitySectionCommand.js';
+import { UpdateGoalkeeperPhysicalDataCommand } from '../application/features/goalkeepers/commands/updateGoalkeeperPhysicalData/updateGoalkeeperPhysicalDataCommand.js';
+import { UpdateGoalkeeperAvailabilityCommand } from '../application/features/goalkeepers/commands/updateGoalkeeperAvailability/updateGoalkeeperAvailabilityCommand.js';
 import { SaveDocumentPhotoCommand } from '../application/features/goalkeepers/commands/saveDocumentPhoto/saveDocumentPhotoCommand.js';
 import { ActivateGoalkeeperCommand } from '../application/features/goalkeepers/commands/activateGoalkeeper/activateGoalkeeperCommand.js';
 import { CancelGoalkeeperRegistrationCommand } from '../application/features/goalkeepers/commands/cancelGoalkeeperRegistration/cancelGoalkeeperRegistrationCommand.js';
@@ -19,6 +21,8 @@ import { config } from '../infrastructure/config.js';
 import { saveIdentificationSectionRequestSchema } from './requests/goalkeepers/saveIdentificationSectionRequest.js';
 import { savePhysicalDataSectionRequestSchema } from './requests/goalkeepers/savePhysicalDataSectionRequest.js';
 import { saveAvailabilitySectionRequestSchema } from './requests/goalkeepers/saveAvailabilitySectionRequest.js';
+import { updateGoalkeeperPhysicalDataRequestSchema } from './requests/goalkeepers/updateGoalkeeperPhysicalDataRequest.js';
+import { updateGoalkeeperAvailabilityRequestSchema } from './requests/goalkeepers/updateGoalkeeperAvailabilityRequest.js';
 import { ApiError } from './apiError.js';
 
 /** Same accepted formats as `/api/images` (research.md §11) — no goalkeeper-specific override. */
@@ -107,6 +111,53 @@ export function createGoalkeeperController(deps: GoalkeeperControllerDependencie
         });
       case 'already_active':
         throw new ApiError(409, 'already_active', 'Your goalkeeper profile is already active; this data can no longer be changed here.');
+    }
+  });
+
+  /*
+   * Editing an ALREADY ACTIVE goalkeeper's profile. Deliberately separate from the
+   * draft-registration section routes above (`/me/physical-data`, `/me/availability`),
+   * which stay locked with `already_active`: the registration flow and the live
+   * profile can now evolve independently. Authorized against the database (an existing
+   * GoalkeeperProfile), not the JWT's `isGoalkeeper` claim.
+   */
+  router.patch('/me/profile/physical-data', async (req, res) => {
+    const body = updateGoalkeeperPhysicalDataRequestSchema.parse(req.body);
+    const claims = req.authClaims!;
+    const result = await deps.mediator.send(new UpdateGoalkeeperPhysicalDataCommand(claims.sub, body.heightCm, body.weightKg));
+
+    switch (result.outcome) {
+      case 'success':
+        res.status(200).json(result.goalkeeper);
+        return;
+      case 'validation_failed':
+        throw new ApiError(400, 'validation_failed', 'One or more fields are invalid.', result.fieldErrors);
+      case 'not_a_goalkeeper':
+        throw new ApiError(404, 'goalkeeper_not_found', 'You have not started a goalkeeper registration.');
+      case 'not_active':
+        throw new ApiError(409, 'goalkeeper_not_active', 'Your goalkeeper profile is not active yet; finish and activate your registration first.');
+    }
+  });
+
+  router.put('/me/profile/availability', async (req, res) => {
+    const body = updateGoalkeeperAvailabilityRequestSchema.parse(req.body);
+    const claims = req.authClaims!;
+    const result = await deps.mediator.send(new UpdateGoalkeeperAvailabilityCommand(claims.sub, body.cityId, body.zoneIds));
+
+    switch (result.outcome) {
+      case 'success':
+        res.status(200).json(result.goalkeeper);
+        return;
+      case 'invalid_city':
+        throw new ApiError(400, 'invalid_city', 'The provided city does not exist.');
+      case 'invalid_zones':
+        throw new ApiError(400, 'invalid_zones', 'One or more selected zones are invalid.', undefined, {
+          invalidZoneIds: result.invalidZoneIds,
+        });
+      case 'not_a_goalkeeper':
+        throw new ApiError(404, 'goalkeeper_not_found', 'You have not started a goalkeeper registration.');
+      case 'not_active':
+        throw new ApiError(409, 'goalkeeper_not_active', 'Your goalkeeper profile is not active yet; finish and activate your registration first.');
     }
   });
 

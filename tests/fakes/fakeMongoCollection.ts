@@ -10,6 +10,7 @@ import { vi, type Mock } from 'vitest';
 export interface FakeMongoCollection {
   find: Mock;
   findOne: Mock;
+  findOneAndUpdate: Mock;
   insertOne: Mock;
   replaceOne: Mock;
   deleteOne: Mock;
@@ -22,6 +23,7 @@ export function createFakeCollection(): FakeMongoCollection {
   return {
     find: vi.fn(),
     findOne: vi.fn(),
+    findOneAndUpdate: vi.fn(),
     insertOne: vi.fn(),
     replaceOne: vi.fn(),
     deleteOne: vi.fn(),

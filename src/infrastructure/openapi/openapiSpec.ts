@@ -123,6 +123,13 @@ export const openapiSpec = {
           weightKg: { type: 'number', nullable: true },
           cityId: { type: 'string', nullable: true },
           serviceZoneIds: { type: 'array', items: { type: 'string' } },
+          city: {
+            type: 'object',
+            nullable: true,
+            description:
+              'Display data for cityId (region is the region name). Only returned by GET /api/goalkeepers/me — null when no city is saved or it no longer resolves; omitted from the write endpoints.',
+            properties: { id: { type: 'string' }, name: { type: 'string' }, region: { type: 'string' } },
+          },
         },
       },
       CitiesResponse: {
@@ -692,6 +699,94 @@ export const openapiSpec = {
         },
       },
     },
+    '/api/goalkeepers/me/profile/physical-data': {
+      patch: {
+        summary: 'Edit the physical data of an ACTIVE goalkeeper (partial: send heightCm, weightKg, or both)',
+        description:
+          'Does not change the goalkeeper’s status or require reactivation. Idempotent; last write wins. Authorized against the database (an existing goalkeeper profile), not the isGoalkeeper token claim.',
+        tags: ['Goalkeepers'],
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                minProperties: 1,
+                properties: {
+                  heightCm: { type: 'number', minimum: 120, maximum: 230 },
+                  weightKg: { type: 'number', minimum: 40, maximum: 150 },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Updated (same shape as GET /api/goalkeepers/me, without `city`)',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/GoalkeeperRegistrationResponse' } } },
+          },
+          '400': {
+            description: 'validation_failed — out-of-range value (fieldErrors), empty body, or wrong type',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } },
+          },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'Caller is an administrator, or client profile is not complete' },
+          '404': {
+            description: 'goalkeeper_not_found — the client never started a goalkeeper registration',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+          '409': {
+            description: 'goalkeeper_not_active — a draft registration exists but is not activated yet',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+        },
+      },
+    },
+    '/api/goalkeepers/me/profile/availability': {
+      put: {
+        summary: 'Replace the city and service zones of an ACTIVE goalkeeper',
+        description:
+          'City and zones are saved together, atomically. Same validations as the draft registration. Does not change the goalkeeper’s status. Idempotent; last write wins.',
+        tags: ['Goalkeepers'],
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['cityId', 'zoneIds'],
+                properties: {
+                  cityId: { type: 'string' },
+                  zoneIds: { type: 'array', minItems: 1, items: { type: 'string' } },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Updated (same shape as GET /api/goalkeepers/me, without `city`)',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/GoalkeeperRegistrationResponse' } } },
+          },
+          '400': {
+            description: 'validation_failed (missing/empty fields), invalid_city, or invalid_zones (with invalidZoneIds)',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'Caller is an administrator, or client profile is not complete' },
+          '404': {
+            description: 'goalkeeper_not_found — the client never started a goalkeeper registration',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+          '409': {
+            description: 'goalkeeper_not_active — a draft registration exists but is not activated yet',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+        },
+      },
+    },
     '/api/goalkeepers/me/activate': {
       post: {
         summary: 'Activate the goalkeeper profile once all sections are complete',
@@ -699,12 +794,13 @@ export const openapiSpec = {
         security: [{ bearerAuth: [] }],
         responses: {
           '200': {
-            description: 'Now active',
+            description:
+              'Now active. The caller’s current access token does not carry the `isGoalkeeper: "true"` claim yet — call POST /api/auth/tokens/refresh to obtain a token that does.',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/GoalkeeperRegistrationResponse' } } },
           },
           '401': { description: 'Not signed in' },
           '403': { description: 'Caller is an administrator, or client profile is not complete' },
-          '409': { description: 'One or more sections incomplete (missingSections), or already active' },
+          '409': { description: 'goalkeeper_profile_incomplete (body includes missingSections: string[] — any of "identification", "physicalData", "availability"), or already_active' },
         },
       },
     },

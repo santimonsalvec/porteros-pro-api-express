@@ -37,6 +37,10 @@ import { SaveDocumentPhotoCommand } from '../application/features/goalkeepers/co
 import { SaveDocumentPhotoCommandHandler } from '../application/features/goalkeepers/commands/saveDocumentPhoto/saveDocumentPhotoCommandHandler.js';
 import { ActivateGoalkeeperCommand } from '../application/features/goalkeepers/commands/activateGoalkeeper/activateGoalkeeperCommand.js';
 import { ActivateGoalkeeperCommandHandler } from '../application/features/goalkeepers/commands/activateGoalkeeper/activateGoalkeeperCommandHandler.js';
+import { UpdateGoalkeeperPhysicalDataCommand } from '../application/features/goalkeepers/commands/updateGoalkeeperPhysicalData/updateGoalkeeperPhysicalDataCommand.js';
+import { UpdateGoalkeeperPhysicalDataCommandHandler } from '../application/features/goalkeepers/commands/updateGoalkeeperPhysicalData/updateGoalkeeperPhysicalDataCommandHandler.js';
+import { UpdateGoalkeeperAvailabilityCommand } from '../application/features/goalkeepers/commands/updateGoalkeeperAvailability/updateGoalkeeperAvailabilityCommand.js';
+import { UpdateGoalkeeperAvailabilityCommandHandler } from '../application/features/goalkeepers/commands/updateGoalkeeperAvailability/updateGoalkeeperAvailabilityCommandHandler.js';
 import { CancelGoalkeeperRegistrationCommand } from '../application/features/goalkeepers/commands/cancelGoalkeeperRegistration/cancelGoalkeeperRegistrationCommand.js';
 import { CancelGoalkeeperRegistrationCommandHandler } from '../application/features/goalkeepers/commands/cancelGoalkeeperRegistration/cancelGoalkeeperRegistrationCommandHandler.js';
 import type { AppDependencies } from '../appDependencies.js';
@@ -127,6 +131,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         userRepository,
         refreshTokenRepository,
         tokenIssuer,
+        goalkeeperProfileRepository,
         idGenerator,
         auditLogger,
         refreshTokenLifetimeMs,
@@ -138,6 +143,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         refreshTokenRepository,
         userRepository,
         tokenIssuer,
+        goalkeeperProfileRepository,
         idGenerator,
         refreshTokenLifetimeMs,
       ),
@@ -149,6 +155,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         countryRepository,
         termsAcceptanceRepository,
         tokenIssuer,
+        goalkeeperProfileRepository,
         idGenerator,
         { termsVersion: config.legal.termsVersion, privacyPolicyVersion: config.legal.privacyPolicyVersion },
       ),
@@ -175,7 +182,12 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     },
     {
       requestType: GetGoalkeeperRegistrationQuery,
-      handler: new GetGoalkeeperRegistrationQueryHandler(goalkeeperRegistrationRepository),
+      handler: new GetGoalkeeperRegistrationQueryHandler(
+        goalkeeperRegistrationRepository,
+        goalkeeperProfileRepository,
+        cityRepository,
+        regionRepository,
+      ),
     },
     { requestType: GetDocumentTypesQuery, handler: new GetDocumentTypesQueryHandler(documentTypeRepository) },
     {
@@ -197,6 +209,19 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     {
       requestType: ActivateGoalkeeperCommand,
       handler: new ActivateGoalkeeperCommandHandler(goalkeeperRegistrationRepository, goalkeeperProfileRepository, idGenerator),
+    },
+    {
+      requestType: UpdateGoalkeeperPhysicalDataCommand,
+      handler: new UpdateGoalkeeperPhysicalDataCommandHandler(goalkeeperProfileRepository, goalkeeperRegistrationRepository),
+    },
+    {
+      requestType: UpdateGoalkeeperAvailabilityCommand,
+      handler: new UpdateGoalkeeperAvailabilityCommandHandler(
+        goalkeeperProfileRepository,
+        goalkeeperRegistrationRepository,
+        cityRepository,
+        zoneRepository,
+      ),
     },
     {
       requestType: CancelGoalkeeperRegistrationCommand,

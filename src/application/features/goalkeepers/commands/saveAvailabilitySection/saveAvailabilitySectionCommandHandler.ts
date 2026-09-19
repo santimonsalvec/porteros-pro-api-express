@@ -2,8 +2,8 @@ import type { ICommandHandler } from '../../../../common/mediator/types.js';
 import type { IIdGenerator } from '../../../auth/common/ports.js';
 import type { IGoalkeeperRegistrationRepository } from '../../common/ports.js';
 import type { ICityRepository } from '../../../locations/common/ports.js';
-import { resolveAnchorCityId } from '../../../locations/common/resolveAnchorCityId.js';
 import type { IZoneRepository } from '../../../zones/common/ports.js';
+import { validateAvailabilitySelection } from '../../common/validateAvailabilitySelection.js';
 import { toGoalkeeperRegistrationResponse } from '../../common/goalkeeperRegistrationResponse.js';
 import { GoalkeeperRegistration } from '../../../../../domain/goalkeepers/goalkeeperRegistration.js';
 import { SaveAvailabilitySectionCommand, type SaveAvailabilitySectionResult } from './saveAvailabilitySectionCommand.js';
@@ -24,22 +24,18 @@ export class SaveAvailabilitySectionCommandHandler
       return { outcome: 'already_active' };
     }
 
-    const city = await this.cityRepository.getById(command.cityId);
-    if (!city) {
-      return { outcome: 'invalid_city' };
+    const validation = await validateAvailabilitySelection(
+      this.cityRepository,
+      this.zoneRepository,
+      command.cityId,
+      command.zoneIds,
+    );
+    if (!validation.valid) {
+      return validation.outcome === 'invalid_city'
+        ? { outcome: 'invalid_city' }
+        : { outcome: 'invalid_zones', invalidZoneIds: validation.invalidZoneIds };
     }
-
-    const anchorCityId = resolveAnchorCityId(city);
-    const zoneIds = [...new Set(command.zoneIds)];
-    const zones = await this.zoneRepository.getManyByIds(zoneIds);
-    const zoneById = new Map(zones.map((zone) => [zone.id, zone]));
-    const invalidZoneIds = zoneIds.filter((zoneId) => {
-      const zone = zoneById.get(zoneId);
-      return !zone || !zone.active || zone.cityId !== anchorCityId;
-    });
-    if (invalidZoneIds.length > 0) {
-      return { outcome: 'invalid_zones', invalidZoneIds };
-    }
+    const { zoneIds } = validation;
 
     const isNew = registration === null;
     if (!registration) {

@@ -4,8 +4,10 @@ import type { GoalkeeperRegistration } from './goalkeeperRegistration.js';
 /**
  * The active, permanent record establishing a client as a discoverable goalkeeper
  * (spec Key Entities), created from a `GoalkeeperRegistration`'s completed data at the
- * moment of activation. No mutating methods — updating an active profile is out of
- * scope for this feature (spec Assumptions).
+ * moment of activation. Identification data (document, photos) is immutable. The
+ * physical data and availability (city + zones) stay editable after activation, but
+ * only through `IGoalkeeperProfileRepository`'s targeted updates (which write straight
+ * to the stored document), never by mutating this in-memory instance.
  */
 export class GoalkeeperProfile extends Entity<string> {
   readonly userId: string;

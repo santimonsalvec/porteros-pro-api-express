@@ -11,6 +11,14 @@ export interface IGoalkeeperRegistrationRepository extends IRepository<Goalkeepe
 
 export interface IGoalkeeperProfileRepository extends IRepository<GoalkeeperProfile, string> {
   getByUserId(userId: string): Promise<GoalkeeperProfile | null>;
+  /**
+   * Targeted, single-document update of only the given keys — never rewrites the whole
+   * profile, so a concurrent `updateAvailability` (or any other field) is never lost.
+   * Returns the profile as stored after the write, or `null` when the user has none.
+   */
+  updatePhysicalData(userId: string, fields: { heightCm?: number; weightKg?: number }): Promise<GoalkeeperProfile | null>;
+  /** Replaces `cityId` and `zoneIds` together in one write; same return contract as `updatePhysicalData`. */
+  updateAvailability(userId: string, cityId: string, zoneIds: string[]): Promise<GoalkeeperProfile | null>;
 }
 
 /** Minimal, read-only — mirrors `ICountryRepository`'s reference-data shape, no write capability needed. */

@@ -53,4 +53,21 @@ export class GoalkeeperProfileRepository extends MongoRepository<GoalkeeperProfi
     const doc = await this.collection.findOne({ userId });
     return doc ? this.fromDocument(doc) : null;
   }
+
+  async updatePhysicalData(userId: string, fields: { heightCm?: number; weightKg?: number }): Promise<GoalkeeperProfile | null> {
+    const changes = stripNulls({ heightCm: fields.heightCm, weightKg: fields.weightKg });
+    // `$set` with no keys is rejected by MongoDB — nothing to change means nothing to write.
+    if (Object.keys(changes).length === 0) return this.getByUserId(userId);
+    return this.setFields(userId, changes);
+  }
+
+  async updateAvailability(userId: string, cityId: string, zoneIds: string[]): Promise<GoalkeeperProfile | null> {
+    return this.setFields(userId, { cityId, zoneIds });
+  }
+
+  /** `$set`s only the given keys, so writes to different fields of the same profile never overwrite each other. */
+  private async setFields(userId: string, changes: Document): Promise<GoalkeeperProfile | null> {
+    const doc = await this.collection.findOneAndUpdate({ userId }, { $set: changes }, { returnDocument: 'after' });
+    return doc ? this.fromDocument(doc) : null;
+  }
 }
