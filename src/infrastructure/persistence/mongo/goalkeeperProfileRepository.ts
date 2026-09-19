@@ -25,14 +25,8 @@ export class GoalkeeperProfileRepository extends MongoRepository<GoalkeeperProfi
       documentPhotoBId: entity.documentPhotoBId,
       heightCm: entity.heightCm,
       weightKg: entity.weightKg,
-      latitude: entity.latitude,
-      longitude: entity.longitude,
-      city: entity.city,
-      state: entity.state,
-      country: entity.country,
-      neighborhood: entity.neighborhood,
-      formattedAddress: entity.formattedAddress,
-      radiusKm: entity.radiusKm,
+      cityId: entity.cityId,
+      zoneIds: entity.zoneIds,
       activatedAt: entity.activatedAt,
     });
   }
@@ -49,20 +43,31 @@ export class GoalkeeperProfileRepository extends MongoRepository<GoalkeeperProfi
       documentPhotoBId: doc.documentPhotoBId as string,
       heightCm: doc.heightCm as number,
       weightKg: doc.weightKg as number,
-      latitude: doc.latitude as number,
-      longitude: doc.longitude as number,
-      city: doc.city as string,
-      state: doc.state as string,
-      country: doc.country as string,
-      neighborhood: (doc.neighborhood as string | undefined) ?? null,
-      formattedAddress: (doc.formattedAddress as string | undefined) ?? null,
-      radiusKm: doc.radiusKm as number,
+      cityId: doc.cityId as string,
+      zoneIds: (doc.zoneIds as string[] | undefined) ?? [],
       activatedAt: new Date(doc.activatedAt as string | Date),
     });
   }
 
   async getByUserId(userId: string): Promise<GoalkeeperProfile | null> {
     const doc = await this.collection.findOne({ userId });
+    return doc ? this.fromDocument(doc) : null;
+  }
+
+  async updatePhysicalData(userId: string, fields: { heightCm?: number; weightKg?: number }): Promise<GoalkeeperProfile | null> {
+    const changes = stripNulls({ heightCm: fields.heightCm, weightKg: fields.weightKg });
+    // `$set` with no keys is rejected by MongoDB — nothing to change means nothing to write.
+    if (Object.keys(changes).length === 0) return this.getByUserId(userId);
+    return this.setFields(userId, changes);
+  }
+
+  async updateAvailability(userId: string, cityId: string, zoneIds: string[]): Promise<GoalkeeperProfile | null> {
+    return this.setFields(userId, { cityId, zoneIds });
+  }
+
+  /** `$set`s only the given keys, so writes to different fields of the same profile never overwrite each other. */
+  private async setFields(userId: string, changes: Document): Promise<GoalkeeperProfile | null> {
+    const doc = await this.collection.findOneAndUpdate({ userId }, { $set: changes }, { returnDocument: 'after' });
     return doc ? this.fromDocument(doc) : null;
   }
 }

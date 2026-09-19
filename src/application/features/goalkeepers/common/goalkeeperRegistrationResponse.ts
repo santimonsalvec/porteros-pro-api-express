@@ -1,5 +1,13 @@
 import type { GoalkeeperRegistration } from '../../../../domain/goalkeepers/goalkeeperRegistration.js';
+import type { GoalkeeperProfile } from '../../../../domain/goalkeepers/goalkeeperProfile.js';
 import { computeGoalkeeperSections, type GoalkeeperSectionsView } from './goalkeeperSections.js';
+
+/** Display data for the saved `cityId`; `region` is the region's name, same convention as `GET /api/locations/cities`. */
+export interface GoalkeeperCityView {
+  id: string;
+  name: string;
+  region: string;
+}
 
 export interface GoalkeeperRegistrationResponse {
   status: 'not_started' | 'in_progress' | 'active';
@@ -12,13 +20,14 @@ export interface GoalkeeperRegistrationResponse {
   documentPhotoBSubmitted: boolean;
   heightCm: number | null;
   weightKg: number | null;
-  latitude: number | null;
-  longitude: number | null;
-  city: string | null;
-  state: string | null;
-  country: string | null;
-  neighborhood: string | null;
-  radiusKm: number | null;
+  cityId: string | null;
+  serviceZoneIds: string[];
+  /**
+   * Resolved from `cityId`. Present (`null` when there is no saved city, or it no longer
+   * resolves) only on `GET /api/goalkeepers/me`; the write endpoints omit it to avoid
+   * two extra lookups on every autosave.
+   */
+  city?: GoalkeeperCityView | null;
 }
 
 function toIsoDate(date: Date | null): string | null {
@@ -27,9 +36,9 @@ function toIsoDate(date: Date | null): string | null {
 
 /**
  * Projects a `GoalkeeperRegistration` into the shape every `/api/goalkeepers/me` route
- * returns. `formattedAddress` and the raw document-photo ids are deliberately never
- * included (FR-018, FR-021) — only the booleans derived from the photo ids.
- * `null` synthesizes the `not_started` shape with no database write (research.md §10).
+ * returns. The raw document-photo ids are deliberately never included (FR-021) — only
+ * the booleans derived from them. `null` synthesizes the `not_started` shape with no
+ * database write (research.md §10).
  */
 export function toGoalkeeperRegistrationResponse(registration: GoalkeeperRegistration | null): GoalkeeperRegistrationResponse {
   if (!registration) {
@@ -44,13 +53,8 @@ export function toGoalkeeperRegistrationResponse(registration: GoalkeeperRegistr
       documentPhotoBSubmitted: false,
       heightCm: null,
       weightKg: null,
-      latitude: null,
-      longitude: null,
-      city: null,
-      state: null,
-      country: null,
-      neighborhood: null,
-      radiusKm: null,
+      cityId: null,
+      serviceZoneIds: [],
     };
   }
 
@@ -65,12 +69,34 @@ export function toGoalkeeperRegistrationResponse(registration: GoalkeeperRegistr
     documentPhotoBSubmitted: registration.identification.documentPhotoBId !== null,
     heightCm: registration.physicalData.heightCm,
     weightKg: registration.physicalData.weightKg,
-    latitude: registration.location.latitude,
-    longitude: registration.location.longitude,
-    city: registration.location.city,
-    state: registration.location.state,
-    country: registration.location.country,
-    neighborhood: registration.location.neighborhood,
-    radiusKm: registration.availability.radiusKm,
+    cityId: registration.availability.cityId,
+    serviceZoneIds: registration.availability.zoneIds,
+  };
+}
+
+/**
+ * Projects the permanent `GoalkeeperProfile` — the source of truth for an active
+ * goalkeeper, since its physical data and availability can change after activation
+ * while the locked `GoalkeeperRegistration` keeps the values as they were at activation.
+ * Every section is complete by construction (activation requires it).
+ */
+export function toActiveGoalkeeperResponse(profile: GoalkeeperProfile): GoalkeeperRegistrationResponse {
+  return {
+    status: 'active',
+    sections: {
+      identification: { complete: true },
+      physicalData: { complete: true },
+      availability: { complete: true },
+    },
+    documentType: profile.documentType,
+    documentNumber: profile.documentNumber,
+    issueDate: toIsoDate(profile.issueDate),
+    birthDate: toIsoDate(profile.birthDate),
+    documentPhotoASubmitted: true,
+    documentPhotoBSubmitted: true,
+    heightCm: profile.heightCm,
+    weightKg: profile.weightKg,
+    cityId: profile.cityId,
+    serviceZoneIds: profile.zoneIds,
   };
 }

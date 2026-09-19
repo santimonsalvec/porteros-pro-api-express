@@ -13,6 +13,10 @@ import { UpdateClientProfileCommand } from '../application/features/clients/comm
 import { UpdateClientProfileCommandHandler } from '../application/features/clients/commands/updateClientProfile/updateClientProfileCommandHandler.js';
 import { GetCountriesQuery } from '../application/features/locations/queries/getCountries/getCountriesQuery.js';
 import { GetCountriesQueryHandler } from '../application/features/locations/queries/getCountries/getCountriesQueryHandler.js';
+import { GetCitiesQuery } from '../application/features/locations/queries/getCities/getCitiesQuery.js';
+import { GetCitiesQueryHandler } from '../application/features/locations/queries/getCities/getCitiesQueryHandler.js';
+import { GetZonesByCityQuery } from '../application/features/zones/queries/getZonesByCity/getZonesByCityQuery.js';
+import { GetZonesByCityQueryHandler } from '../application/features/zones/queries/getZonesByCity/getZonesByCityQueryHandler.js';
 import { StoreImageCommand } from '../application/features/images/commands/storeImage/storeImageCommand.js';
 import { StoreImageCommandHandler } from '../application/features/images/commands/storeImage/storeImageCommandHandler.js';
 import { ResolveImageQuery } from '../application/features/images/queries/resolveImage/resolveImageQuery.js';
@@ -27,14 +31,16 @@ import { SaveIdentificationSectionCommand } from '../application/features/goalke
 import { SaveIdentificationSectionCommandHandler } from '../application/features/goalkeepers/commands/saveIdentificationSection/saveIdentificationSectionCommandHandler.js';
 import { SavePhysicalDataSectionCommand } from '../application/features/goalkeepers/commands/savePhysicalDataSection/savePhysicalDataSectionCommand.js';
 import { SavePhysicalDataSectionCommandHandler } from '../application/features/goalkeepers/commands/savePhysicalDataSection/savePhysicalDataSectionCommandHandler.js';
-import { SaveLocationSectionCommand } from '../application/features/goalkeepers/commands/saveLocationSection/saveLocationSectionCommand.js';
-import { SaveLocationSectionCommandHandler } from '../application/features/goalkeepers/commands/saveLocationSection/saveLocationSectionCommandHandler.js';
 import { SaveAvailabilitySectionCommand } from '../application/features/goalkeepers/commands/saveAvailabilitySection/saveAvailabilitySectionCommand.js';
 import { SaveAvailabilitySectionCommandHandler } from '../application/features/goalkeepers/commands/saveAvailabilitySection/saveAvailabilitySectionCommandHandler.js';
 import { SaveDocumentPhotoCommand } from '../application/features/goalkeepers/commands/saveDocumentPhoto/saveDocumentPhotoCommand.js';
 import { SaveDocumentPhotoCommandHandler } from '../application/features/goalkeepers/commands/saveDocumentPhoto/saveDocumentPhotoCommandHandler.js';
 import { ActivateGoalkeeperCommand } from '../application/features/goalkeepers/commands/activateGoalkeeper/activateGoalkeeperCommand.js';
 import { ActivateGoalkeeperCommandHandler } from '../application/features/goalkeepers/commands/activateGoalkeeper/activateGoalkeeperCommandHandler.js';
+import { UpdateGoalkeeperPhysicalDataCommand } from '../application/features/goalkeepers/commands/updateGoalkeeperPhysicalData/updateGoalkeeperPhysicalDataCommand.js';
+import { UpdateGoalkeeperPhysicalDataCommandHandler } from '../application/features/goalkeepers/commands/updateGoalkeeperPhysicalData/updateGoalkeeperPhysicalDataCommandHandler.js';
+import { UpdateGoalkeeperAvailabilityCommand } from '../application/features/goalkeepers/commands/updateGoalkeeperAvailability/updateGoalkeeperAvailabilityCommand.js';
+import { UpdateGoalkeeperAvailabilityCommandHandler } from '../application/features/goalkeepers/commands/updateGoalkeeperAvailability/updateGoalkeeperAvailabilityCommandHandler.js';
 import { CancelGoalkeeperRegistrationCommand } from '../application/features/goalkeepers/commands/cancelGoalkeeperRegistration/cancelGoalkeeperRegistrationCommand.js';
 import { CancelGoalkeeperRegistrationCommandHandler } from '../application/features/goalkeepers/commands/cancelGoalkeeperRegistration/cancelGoalkeeperRegistrationCommandHandler.js';
 import type { AppDependencies } from '../appDependencies.js';
@@ -44,6 +50,9 @@ import { UserRepository } from './persistence/mongo/userRepository.js';
 import { RefreshTokenRepository } from './persistence/mongo/refreshTokenRepository.js';
 import { TermsAcceptanceRepository } from './persistence/mongo/termsAcceptanceRepository.js';
 import { CountryRepository } from './persistence/mongo/countryRepository.js';
+import { CityRepository } from './persistence/mongo/cityRepository.js';
+import { RegionRepository } from './persistence/mongo/regionRepository.js';
+import { ZoneRepository } from './persistence/mongo/zoneRepository.js';
 import { ImageRepository } from './persistence/mongo/imageRepository.js';
 import { GoogleIdTokenValidator } from './auth/googleIdTokenValidator.js';
 import { JwtInternalTokenIssuer } from './auth/jwtInternalTokenIssuer.js';
@@ -83,6 +92,11 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   const documentTypeRepository = new DocumentTypeRepository(db);
   const goalkeeperProfileRepository = new GoalkeeperProfileRepository(db);
   await goalkeeperProfileRepository.ensureIndexes();
+  const cityRepository = new CityRepository(db);
+  await cityRepository.ensureIndexes();
+  const regionRepository = new RegionRepository(db);
+  const zoneRepository = new ZoneRepository(db);
+  await zoneRepository.ensureIndexes();
 
   const imageStorageProvider = new CloudinaryImageStorageProvider({
     cloudinaryUrl: config.images.cloudinaryUrl,
@@ -117,6 +131,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         userRepository,
         refreshTokenRepository,
         tokenIssuer,
+        goalkeeperProfileRepository,
         idGenerator,
         auditLogger,
         refreshTokenLifetimeMs,
@@ -128,6 +143,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         refreshTokenRepository,
         userRepository,
         tokenIssuer,
+        goalkeeperProfileRepository,
         idGenerator,
         refreshTokenLifetimeMs,
       ),
@@ -139,6 +155,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         countryRepository,
         termsAcceptanceRepository,
         tokenIssuer,
+        goalkeeperProfileRepository,
         idGenerator,
         { termsVersion: config.legal.termsVersion, privacyPolicyVersion: config.legal.privacyPolicyVersion },
       ),
@@ -150,6 +167,11 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     },
     { requestType: GetCountriesQuery, handler: new GetCountriesQueryHandler(countryRepository) },
     {
+      requestType: GetCitiesQuery,
+      handler: new GetCitiesQueryHandler(cityRepository, regionRepository, zoneRepository),
+    },
+    { requestType: GetZonesByCityQuery, handler: new GetZonesByCityQueryHandler(cityRepository, zoneRepository) },
+    {
       requestType: StoreImageCommand,
       handler: new StoreImageCommandHandler(imageStorageProvider, imageRepository, idGenerator),
     },
@@ -160,7 +182,12 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     },
     {
       requestType: GetGoalkeeperRegistrationQuery,
-      handler: new GetGoalkeeperRegistrationQueryHandler(goalkeeperRegistrationRepository),
+      handler: new GetGoalkeeperRegistrationQueryHandler(
+        goalkeeperRegistrationRepository,
+        goalkeeperProfileRepository,
+        cityRepository,
+        regionRepository,
+      ),
     },
     { requestType: GetDocumentTypesQuery, handler: new GetDocumentTypesQueryHandler(documentTypeRepository) },
     {
@@ -172,12 +199,8 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       handler: new SavePhysicalDataSectionCommandHandler(goalkeeperRegistrationRepository, idGenerator),
     },
     {
-      requestType: SaveLocationSectionCommand,
-      handler: new SaveLocationSectionCommandHandler(goalkeeperRegistrationRepository, idGenerator),
-    },
-    {
       requestType: SaveAvailabilitySectionCommand,
-      handler: new SaveAvailabilitySectionCommandHandler(goalkeeperRegistrationRepository, idGenerator),
+      handler: new SaveAvailabilitySectionCommandHandler(goalkeeperRegistrationRepository, cityRepository, zoneRepository, idGenerator),
     },
     {
       requestType: SaveDocumentPhotoCommand,
@@ -186,6 +209,19 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     {
       requestType: ActivateGoalkeeperCommand,
       handler: new ActivateGoalkeeperCommandHandler(goalkeeperRegistrationRepository, goalkeeperProfileRepository, idGenerator),
+    },
+    {
+      requestType: UpdateGoalkeeperPhysicalDataCommand,
+      handler: new UpdateGoalkeeperPhysicalDataCommandHandler(goalkeeperProfileRepository, goalkeeperRegistrationRepository),
+    },
+    {
+      requestType: UpdateGoalkeeperAvailabilityCommand,
+      handler: new UpdateGoalkeeperAvailabilityCommandHandler(
+        goalkeeperProfileRepository,
+        goalkeeperRegistrationRepository,
+        cityRepository,
+        zoneRepository,
+      ),
     },
     {
       requestType: CancelGoalkeeperRegistrationCommand,

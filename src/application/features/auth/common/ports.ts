@@ -15,8 +15,13 @@ export interface IGoogleIdTokenValidator {
   validate(credential: string, platform: string): Promise<ExternalIdentity | null>;
 }
 
+export interface TokenIssueOptions {
+  /** Adds the `isGoalkeeper` claim. Omitted (not `"false"`) when the account has no active goalkeeper profile. */
+  isGoalkeeper?: boolean;
+}
+
 export interface IInternalTokenIssuer {
-  issue(user: User): Promise<TokenPairResponse>;
+  issue(user: User, options?: TokenIssueOptions): Promise<TokenPairResponse>;
   verifyAccessToken(token: string): Promise<AccessTokenClaims | null>;
   /** Hashes a raw refresh token the same way `issue` does, for lookup purposes. */
   hashRefreshToken(rawRefreshToken: string): string;

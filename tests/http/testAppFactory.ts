@@ -24,6 +24,16 @@ import { UpdateClientProfileCommand } from '../../src/application/features/clien
 import { UpdateClientProfileCommandHandler } from '../../src/application/features/clients/commands/updateClientProfile/updateClientProfileCommandHandler.js';
 import { GetCountriesQuery } from '../../src/application/features/locations/queries/getCountries/getCountriesQuery.js';
 import { GetCountriesQueryHandler } from '../../src/application/features/locations/queries/getCountries/getCountriesQueryHandler.js';
+import { GetCitiesQuery } from '../../src/application/features/locations/queries/getCities/getCitiesQuery.js';
+import { GetCitiesQueryHandler } from '../../src/application/features/locations/queries/getCities/getCitiesQueryHandler.js';
+import { GetZonesByCityQuery } from '../../src/application/features/zones/queries/getZonesByCity/getZonesByCityQuery.js';
+import { GetZonesByCityQueryHandler } from '../../src/application/features/zones/queries/getZonesByCity/getZonesByCityQueryHandler.js';
+import { City } from '../../src/domain/locations/city.js';
+import { Region } from '../../src/domain/locations/region.js';
+import { Zone } from '../../src/domain/zones/zone.js';
+import { FakeCityRepository } from '../fakes/fakeCityRepository.js';
+import { FakeRegionRepository } from '../fakes/fakeRegionRepository.js';
+import { FakeZoneRepository } from '../fakes/fakeZoneRepository.js';
 import { StoreImageCommand } from '../../src/application/features/images/commands/storeImage/storeImageCommand.js';
 import { StoreImageCommandHandler } from '../../src/application/features/images/commands/storeImage/storeImageCommandHandler.js';
 import { ResolveImageQuery } from '../../src/application/features/images/queries/resolveImage/resolveImageQuery.js';
@@ -44,8 +54,6 @@ import { SaveIdentificationSectionCommand } from '../../src/application/features
 import { SaveIdentificationSectionCommandHandler } from '../../src/application/features/goalkeepers/commands/saveIdentificationSection/saveIdentificationSectionCommandHandler.js';
 import { SavePhysicalDataSectionCommand } from '../../src/application/features/goalkeepers/commands/savePhysicalDataSection/savePhysicalDataSectionCommand.js';
 import { SavePhysicalDataSectionCommandHandler } from '../../src/application/features/goalkeepers/commands/savePhysicalDataSection/savePhysicalDataSectionCommandHandler.js';
-import { SaveLocationSectionCommand } from '../../src/application/features/goalkeepers/commands/saveLocationSection/saveLocationSectionCommand.js';
-import { SaveLocationSectionCommandHandler } from '../../src/application/features/goalkeepers/commands/saveLocationSection/saveLocationSectionCommandHandler.js';
 import { SaveAvailabilitySectionCommand } from '../../src/application/features/goalkeepers/commands/saveAvailabilitySection/saveAvailabilitySectionCommand.js';
 import { SaveAvailabilitySectionCommandHandler } from '../../src/application/features/goalkeepers/commands/saveAvailabilitySection/saveAvailabilitySectionCommandHandler.js';
 import { SaveDocumentPhotoCommand } from '../../src/application/features/goalkeepers/commands/saveDocumentPhoto/saveDocumentPhotoCommand.js';
@@ -53,6 +61,10 @@ import { SaveDocumentPhotoCommandHandler } from '../../src/application/features/
 import { ActivateGoalkeeperCommand } from '../../src/application/features/goalkeepers/commands/activateGoalkeeper/activateGoalkeeperCommand.js';
 import { ActivateGoalkeeperCommandHandler } from '../../src/application/features/goalkeepers/commands/activateGoalkeeper/activateGoalkeeperCommandHandler.js';
 import { FakeGoalkeeperProfileRepository } from '../fakes/fakeGoalkeeperProfileRepository.js';
+import { UpdateGoalkeeperPhysicalDataCommand } from '../../src/application/features/goalkeepers/commands/updateGoalkeeperPhysicalData/updateGoalkeeperPhysicalDataCommand.js';
+import { UpdateGoalkeeperPhysicalDataCommandHandler } from '../../src/application/features/goalkeepers/commands/updateGoalkeeperPhysicalData/updateGoalkeeperPhysicalDataCommandHandler.js';
+import { UpdateGoalkeeperAvailabilityCommand } from '../../src/application/features/goalkeepers/commands/updateGoalkeeperAvailability/updateGoalkeeperAvailabilityCommand.js';
+import { UpdateGoalkeeperAvailabilityCommandHandler } from '../../src/application/features/goalkeepers/commands/updateGoalkeeperAvailability/updateGoalkeeperAvailabilityCommandHandler.js';
 import { CancelGoalkeeperRegistrationCommand } from '../../src/application/features/goalkeepers/commands/cancelGoalkeeperRegistration/cancelGoalkeeperRegistrationCommand.js';
 import { CancelGoalkeeperRegistrationCommandHandler } from '../../src/application/features/goalkeepers/commands/cancelGoalkeeperRegistration/cancelGoalkeeperRegistrationCommandHandler.js';
 
@@ -69,6 +81,9 @@ export interface TestAppContext {
   goalkeeperRegistrationRepository: FakeGoalkeeperRegistrationRepository;
   documentTypeRepository: FakeDocumentTypeRepository;
   goalkeeperProfileRepository: FakeGoalkeeperProfileRepository;
+  cityRepository: FakeCityRepository;
+  regionRepository: FakeRegionRepository;
+  zoneRepository: FakeZoneRepository;
   /** Mutate `.status` before a request to simulate an unhealthy dependency. */
   health: HealthReportResponse;
 }
@@ -96,6 +111,30 @@ export function buildTestApp(): TestAppContext {
   documentTypeRepository.seed(new DocumentType({ id: 'dt3', code: 'pasaporte', name: 'Pasaporte' }));
   const goalkeeperProfileRepository = new FakeGoalkeeperProfileRepository();
 
+  const regionRepository = new FakeRegionRepository();
+  regionRepository.seed(new Region({ id: 'region-antioquia', name: 'Antioquia' }));
+  regionRepository.seed(new Region({ id: 'region-cundinamarca', name: 'Cundinamarca' }));
+  const cityRepository = new FakeCityRepository();
+  cityRepository.seed(new City({ id: 'city-medellin', name: 'Medellín', regionId: 'region-antioquia', zoneCityId: null }));
+  cityRepository.seed(new City({ id: 'city-envigado', name: 'Envigado', regionId: 'region-antioquia', zoneCityId: 'city-medellin' }));
+  cityRepository.seed(new City({ id: 'city-bogota', name: 'Bogotá', regionId: 'region-cundinamarca', zoneCityId: null }));
+  const zoneRepository = new FakeZoneRepository();
+  const zonePolygon = { type: 'Polygon' as const, coordinates: [[[0, 0]]] };
+  zoneRepository.seed(
+    new Zone({ id: 'zone-bello', cityId: 'city-medellin', name: 'Bello', slug: 'medellin-co-bello', geometry: zonePolygon, active: true, displayOrder: 1 }),
+  );
+  zoneRepository.seed(
+    new Zone({
+      id: 'zone-copacabana',
+      cityId: 'city-medellin',
+      name: 'Copacabana',
+      slug: 'medellin-co-copacabana',
+      geometry: zonePolygon,
+      active: true,
+      displayOrder: 2,
+    }),
+  );
+
   const ssoCatalog: ISsoProviderCatalog = {
     getProviders: (platform) =>
       platform === 'mobile'
@@ -118,13 +157,20 @@ export function buildTestApp(): TestAppContext {
         userRepository,
         refreshTokenRepository,
         tokenIssuer,
+        goalkeeperProfileRepository,
         idGenerator,
         auditLogger,
       ),
     },
     {
       requestType: RefreshAccessTokenCommand,
-      handler: new RefreshAccessTokenCommandHandler(refreshTokenRepository, userRepository, tokenIssuer, idGenerator),
+      handler: new RefreshAccessTokenCommandHandler(
+        refreshTokenRepository,
+        userRepository,
+        tokenIssuer,
+        goalkeeperProfileRepository,
+        idGenerator,
+      ),
     },
     {
       requestType: CompleteProfileCommand,
@@ -133,6 +179,7 @@ export function buildTestApp(): TestAppContext {
         countryRepository,
         termsAcceptanceRepository,
         tokenIssuer,
+        goalkeeperProfileRepository,
         idGenerator,
         { termsVersion: '1.0', privacyPolicyVersion: '1.0' },
       ),
@@ -144,6 +191,11 @@ export function buildTestApp(): TestAppContext {
     },
     { requestType: GetCountriesQuery, handler: new GetCountriesQueryHandler(countryRepository) },
     {
+      requestType: GetCitiesQuery,
+      handler: new GetCitiesQueryHandler(cityRepository, regionRepository, zoneRepository),
+    },
+    { requestType: GetZonesByCityQuery, handler: new GetZonesByCityQueryHandler(cityRepository, zoneRepository) },
+    {
       requestType: StoreImageCommand,
       handler: new StoreImageCommandHandler(imageStorageProvider, imageRepository, idGenerator),
     },
@@ -154,7 +206,12 @@ export function buildTestApp(): TestAppContext {
     },
     {
       requestType: GetGoalkeeperRegistrationQuery,
-      handler: new GetGoalkeeperRegistrationQueryHandler(goalkeeperRegistrationRepository),
+      handler: new GetGoalkeeperRegistrationQueryHandler(
+        goalkeeperRegistrationRepository,
+        goalkeeperProfileRepository,
+        cityRepository,
+        regionRepository,
+      ),
     },
     { requestType: GetDocumentTypesQuery, handler: new GetDocumentTypesQueryHandler(documentTypeRepository) },
     {
@@ -166,12 +223,8 @@ export function buildTestApp(): TestAppContext {
       handler: new SavePhysicalDataSectionCommandHandler(goalkeeperRegistrationRepository, idGenerator),
     },
     {
-      requestType: SaveLocationSectionCommand,
-      handler: new SaveLocationSectionCommandHandler(goalkeeperRegistrationRepository, idGenerator),
-    },
-    {
       requestType: SaveAvailabilitySectionCommand,
-      handler: new SaveAvailabilitySectionCommandHandler(goalkeeperRegistrationRepository, idGenerator),
+      handler: new SaveAvailabilitySectionCommandHandler(goalkeeperRegistrationRepository, cityRepository, zoneRepository, idGenerator),
     },
     {
       requestType: SaveDocumentPhotoCommand,
@@ -180,6 +233,19 @@ export function buildTestApp(): TestAppContext {
     {
       requestType: ActivateGoalkeeperCommand,
       handler: new ActivateGoalkeeperCommandHandler(goalkeeperRegistrationRepository, goalkeeperProfileRepository, idGenerator),
+    },
+    {
+      requestType: UpdateGoalkeeperPhysicalDataCommand,
+      handler: new UpdateGoalkeeperPhysicalDataCommandHandler(goalkeeperProfileRepository, goalkeeperRegistrationRepository),
+    },
+    {
+      requestType: UpdateGoalkeeperAvailabilityCommand,
+      handler: new UpdateGoalkeeperAvailabilityCommandHandler(
+        goalkeeperProfileRepository,
+        goalkeeperRegistrationRepository,
+        cityRepository,
+        zoneRepository,
+      ),
     },
     {
       requestType: CancelGoalkeeperRegistrationCommand,
@@ -208,6 +274,9 @@ export function buildTestApp(): TestAppContext {
     goalkeeperRegistrationRepository,
     documentTypeRepository,
     goalkeeperProfileRepository,
+    cityRepository,
+    regionRepository,
+    zoneRepository,
     health,
   };
 }

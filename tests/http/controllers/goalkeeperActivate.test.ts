@@ -33,13 +33,9 @@ async function completeAllSections(app: ReturnType<typeof buildTestApp>['app'], 
     .set('Authorization', `Bearer ${accessToken}`)
     .send({ heightCm: 185, weightKg: 78 });
   await request(app)
-    .patch('/api/goalkeepers/me/location')
-    .set('Authorization', `Bearer ${accessToken}`)
-    .send({ latitude: 6.244, longitude: -75.581, city: 'Medellín', state: 'Antioquia', country: 'CO' });
-  await request(app)
     .patch('/api/goalkeepers/me/availability')
     .set('Authorization', `Bearer ${accessToken}`)
-    .send({ radiusKm: 25 });
+    .send({ cityId: 'city-medellin', zoneIds: ['zone-bello'] });
   await request(app)
     .post('/api/goalkeepers/me/document-photo')
     .set('Authorization', `Bearer ${accessToken}`)

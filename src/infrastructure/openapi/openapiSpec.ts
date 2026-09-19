@@ -110,7 +110,6 @@ export const openapiSpec = {
             properties: {
               identification: { type: 'object', properties: { complete: { type: 'boolean' } } },
               physicalData: { type: 'object', properties: { complete: { type: 'boolean' } } },
-              location: { type: 'object', properties: { complete: { type: 'boolean' } } },
               availability: { type: 'object', properties: { complete: { type: 'boolean' } } },
             },
           },
@@ -122,13 +121,50 @@ export const openapiSpec = {
           documentPhotoBSubmitted: { type: 'boolean' },
           heightCm: { type: 'number', nullable: true },
           weightKg: { type: 'number', nullable: true },
-          latitude: { type: 'number', nullable: true },
-          longitude: { type: 'number', nullable: true },
-          city: { type: 'string', nullable: true },
-          state: { type: 'string', nullable: true },
-          country: { type: 'string', nullable: true },
-          neighborhood: { type: 'string', nullable: true },
-          radiusKm: { type: 'number', nullable: true },
+          cityId: { type: 'string', nullable: true },
+          serviceZoneIds: { type: 'array', items: { type: 'string' } },
+          city: {
+            type: 'object',
+            nullable: true,
+            description:
+              'Display data for cityId (region is the region name). Only returned by GET /api/goalkeepers/me — null when no city is saved or it no longer resolves; omitted from the write endpoints.',
+            properties: { id: { type: 'string' }, name: { type: 'string' }, region: { type: 'string' } },
+          },
+        },
+      },
+      CitiesResponse: {
+        type: 'object',
+        properties: {
+          cities: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                name: { type: 'string' },
+                region: { type: 'string' },
+                hasZones: { type: 'boolean' },
+              },
+            },
+          },
+        },
+      },
+      ZonesResponse: {
+        type: 'object',
+        properties: {
+          zones: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                name: { type: 'string' },
+                slug: { type: 'string' },
+                displayOrder: { type: 'number' },
+                geometry: { type: 'object' },
+              },
+            },
+          },
         },
       },
       DocumentTypesResponse: {
@@ -446,6 +482,40 @@ export const openapiSpec = {
         },
       },
     },
+    '/api/locations/cities': {
+      get: {
+        summary: 'Search cities by name (typeahead), with service-zone availability per result',
+        tags: ['Locations'],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'q', in: 'query', schema: { type: 'string' } }],
+        responses: {
+          '200': {
+            description: 'Up to 15 matching cities',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/CitiesResponse' } } },
+          },
+          '401': { description: 'Not signed in' },
+        },
+      },
+    },
+    '/api/zones': {
+      get: {
+        summary: "Preview a city's active service zones (resolving a satellite city to its metro anchor)",
+        tags: ['Zones'],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'cityId', in: 'query', required: true, schema: { type: 'string' } }],
+        responses: {
+          '200': {
+            description: "The city's active service zones, sorted by display order",
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ZonesResponse' } } },
+          },
+          '401': { description: 'Not signed in' },
+          '404': {
+            description: 'city_not_found (the city does not exist) or no_zones_configured (it has no active zones yet)',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+        },
+      },
+    },
     '/api/goalkeepers/document-types': {
       get: {
         summary: 'List valid identification document types',
@@ -546,9 +616,9 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/goalkeepers/me/location': {
+    '/api/goalkeepers/me/availability': {
       patch: {
-        summary: 'Save (partially) the location section',
+        summary: 'Save the availability section — the chosen service city and its service zones, together',
         tags: ['Goalkeepers'],
         security: [{ bearerAuth: [] }],
         requestBody: {
@@ -557,14 +627,10 @@ export const openapiSpec = {
             'application/json': {
               schema: {
                 type: 'object',
+                required: ['cityId', 'zoneIds'],
                 properties: {
-                  latitude: { type: 'number' },
-                  longitude: { type: 'number' },
-                  city: { type: 'string' },
-                  state: { type: 'string' },
-                  country: { type: 'string' },
-                  neighborhood: { type: 'string' },
-                  formattedAddress: { type: 'string' },
+                  cityId: { type: 'string' },
+                  zoneIds: { type: 'array', items: { type: 'string' }, minItems: 1 },
                 },
               },
             },
@@ -576,37 +642,8 @@ export const openapiSpec = {
             content: { 'application/json': { schema: { $ref: '#/components/schemas/GoalkeeperRegistrationResponse' } } },
           },
           '400': {
-            description: 'Validation failed',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } },
-          },
-          '401': { description: 'Not signed in' },
-          '403': { description: 'Caller is an administrator, or client profile is not complete' },
-          '409': {
-            description: 'Registration already active',
+            description: 'validation_failed (missing/empty fields), invalid_city, or invalid_zones (with invalidZoneIds)',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
-          },
-        },
-      },
-    },
-    '/api/goalkeepers/me/availability': {
-      patch: {
-        summary: 'Save the availability section',
-        tags: ['Goalkeepers'],
-        security: [{ bearerAuth: [] }],
-        requestBody: {
-          required: true,
-          content: {
-            'application/json': { schema: { type: 'object', properties: { radiusKm: { type: 'integer' } } } },
-          },
-        },
-        responses: {
-          '200': {
-            description: 'Updated registration',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/GoalkeeperRegistrationResponse' } } },
-          },
-          '400': {
-            description: 'Validation failed',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } },
           },
           '401': { description: 'Not signed in' },
           '403': { description: 'Caller is an administrator, or client profile is not complete' },
@@ -662,6 +699,94 @@ export const openapiSpec = {
         },
       },
     },
+    '/api/goalkeepers/me/profile/physical-data': {
+      patch: {
+        summary: 'Edit the physical data of an ACTIVE goalkeeper (partial: send heightCm, weightKg, or both)',
+        description:
+          'Does not change the goalkeeper’s status or require reactivation. Idempotent; last write wins. Authorized against the database (an existing goalkeeper profile), not the isGoalkeeper token claim.',
+        tags: ['Goalkeepers'],
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                minProperties: 1,
+                properties: {
+                  heightCm: { type: 'number', minimum: 120, maximum: 230 },
+                  weightKg: { type: 'number', minimum: 40, maximum: 150 },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Updated (same shape as GET /api/goalkeepers/me, without `city`)',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/GoalkeeperRegistrationResponse' } } },
+          },
+          '400': {
+            description: 'validation_failed — out-of-range value (fieldErrors), empty body, or wrong type',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } },
+          },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'Caller is an administrator, or client profile is not complete' },
+          '404': {
+            description: 'goalkeeper_not_found — the client never started a goalkeeper registration',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+          '409': {
+            description: 'goalkeeper_not_active — a draft registration exists but is not activated yet',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+        },
+      },
+    },
+    '/api/goalkeepers/me/profile/availability': {
+      put: {
+        summary: 'Replace the city and service zones of an ACTIVE goalkeeper',
+        description:
+          'City and zones are saved together, atomically. Same validations as the draft registration. Does not change the goalkeeper’s status. Idempotent; last write wins.',
+        tags: ['Goalkeepers'],
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['cityId', 'zoneIds'],
+                properties: {
+                  cityId: { type: 'string' },
+                  zoneIds: { type: 'array', minItems: 1, items: { type: 'string' } },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Updated (same shape as GET /api/goalkeepers/me, without `city`)',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/GoalkeeperRegistrationResponse' } } },
+          },
+          '400': {
+            description: 'validation_failed (missing/empty fields), invalid_city, or invalid_zones (with invalidZoneIds)',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'Caller is an administrator, or client profile is not complete' },
+          '404': {
+            description: 'goalkeeper_not_found — the client never started a goalkeeper registration',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+          '409': {
+            description: 'goalkeeper_not_active — a draft registration exists but is not activated yet',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+        },
+      },
+    },
     '/api/goalkeepers/me/activate': {
       post: {
         summary: 'Activate the goalkeeper profile once all sections are complete',
@@ -669,12 +794,13 @@ export const openapiSpec = {
         security: [{ bearerAuth: [] }],
         responses: {
           '200': {
-            description: 'Now active',
+            description:
+              'Now active. The caller’s current access token does not carry the `isGoalkeeper: "true"` claim yet — call POST /api/auth/tokens/refresh to obtain a token that does.',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/GoalkeeperRegistrationResponse' } } },
           },
           '401': { description: 'Not signed in' },
           '403': { description: 'Caller is an administrator, or client profile is not complete' },
-          '409': { description: 'One or more sections incomplete (missingSections), or already active' },
+          '409': { description: 'goalkeeper_profile_incomplete (body includes missingSections: string[] — any of "identification", "physicalData", "availability"), or already_active' },
         },
       },
     },

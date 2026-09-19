@@ -32,8 +32,7 @@ describe('GoalkeeperRegistrationRepository (mocked driver)', () => {
       status: 'in_progress',
       identification: { documentType: 'cedula_ciudadania', documentNumber: '123' },
       physicalData: { heightCm: 185 },
-      location: {},
-      availability: {},
+      availability: { cityId: 'city-envigado', zoneIds: ['zone-bello', 'zone-copacabana'] },
       createdAt: '2026-08-30T15:04:05.000Z',
       updatedAt: '2026-08-30T15:04:05.000Z',
     });
@@ -46,7 +45,44 @@ describe('GoalkeeperRegistrationRepository (mocked driver)', () => {
     expect(found?.identification.birthDate).toBeNull();
     expect(found?.physicalData.heightCm).toBe(185);
     expect(found?.physicalData.weightKg).toBeNull();
+    expect(found?.availability.cityId).toBe('city-envigado');
+    expect(found?.availability.zoneIds).toEqual(['zone-bello', 'zone-copacabana']);
     expect(found?.activatedAt).toBeNull();
+  });
+
+  it('defaults availability.zoneIds to an empty array and cityId to null when the stored field is absent', async () => {
+    const collection = createFakeCollection();
+    collection.findOne.mockResolvedValue({
+      _id: 'reg-3',
+      userId: 'user-3',
+      status: 'in_progress',
+      identification: {},
+      physicalData: {},
+      availability: {},
+      createdAt: '2026-08-30T15:04:05.000Z',
+      updatedAt: '2026-08-30T15:04:05.000Z',
+    });
+    const repository = repositoryWith(collection);
+
+    const found = await repository.getById('reg-3');
+
+    expect(found?.availability.cityId).toBeNull();
+    expect(found?.availability.zoneIds).toEqual([]);
+  });
+
+  it('omits availability.cityId but keeps zoneIds when persisting an in-progress save', async () => {
+    const collection = createFakeCollection();
+    collection.insertOne.mockResolvedValue({ acknowledged: true, insertedId: 'reg-4' });
+    const repository = repositoryWith(collection);
+    const registration = GoalkeeperRegistration.createEmpty('reg-4', 'user-4');
+    registration.saveAvailability({ zoneIds: ['zone-bello'] });
+
+    await repository.add(registration);
+
+    const doc = collection.insertOne.mock.calls[0]![0] as Record<string, unknown>;
+    const availability = doc.availability as Record<string, unknown>;
+    expect(availability.cityId).toBeUndefined();
+    expect(availability.zoneIds).toEqual(['zone-bello']);
   });
 
   it('queries existsByDocument by the document type/number pair, excluding the caller when asked', async () => {

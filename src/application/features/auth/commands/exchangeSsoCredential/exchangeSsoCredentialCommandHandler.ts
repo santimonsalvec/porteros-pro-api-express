@@ -7,6 +7,7 @@ import type {
   IRefreshTokenRepository,
   IUserRepository,
 } from '../../common/ports.js';
+import type { IGoalkeeperProfileRepository } from '../../../goalkeepers/common/ports.js';
 import { RefreshToken } from '../../../../../domain/users/refreshToken.js';
 import { User } from '../../../../../domain/users/user.js';
 import { ExchangeSsoCredentialCommand, type ExchangeSsoCredentialResult } from './exchangeSsoCredentialCommand.js';
@@ -21,6 +22,7 @@ export class ExchangeSsoCredentialCommandHandler
     private readonly userRepository: IUserRepository,
     private readonly refreshTokenRepository: IRefreshTokenRepository,
     private readonly tokenIssuer: IInternalTokenIssuer,
+    private readonly goalkeeperProfileRepository: IGoalkeeperProfileRepository,
     private readonly idGenerator: IIdGenerator,
     private readonly auditLogger: IAuditLogger,
     private readonly refreshTokenLifetimeMs: number = REFRESH_TOKEN_LIFETIME_MS_DEFAULT,
@@ -61,7 +63,8 @@ export class ExchangeSsoCredentialCommandHandler
       await this.userRepository.add(user);
     }
 
-    const tokens = await this.tokenIssuer.issue(user);
+    const isGoalkeeper = (await this.goalkeeperProfileRepository.getByUserId(user.id)) !== null;
+    const tokens = await this.tokenIssuer.issue(user, { isGoalkeeper });
     const refreshToken = RefreshToken.create(
       this.idGenerator.newId(),
       user.id,

@@ -37,8 +37,7 @@ export class GoalkeeperRegistrationRepository
       status: entity.status,
       identification: stripNulls({ ...entity.identification }),
       physicalData: stripNulls({ ...entity.physicalData }),
-      location: stripNulls({ ...entity.location }),
-      availability: stripNulls({ ...entity.availability }),
+      availability: stripNulls({ cityId: entity.availability.cityId, zoneIds: entity.availability.zoneIds }),
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
       activatedAt: entity.activatedAt,
@@ -48,7 +47,6 @@ export class GoalkeeperRegistrationRepository
   protected fromDocument(doc: Document): GoalkeeperRegistration {
     const identification = (doc.identification as Document | undefined) ?? {};
     const physicalData = (doc.physicalData as Document | undefined) ?? {};
-    const location = (doc.location as Document | undefined) ?? {};
     const availability = (doc.availability as Document | undefined) ?? {};
 
     return new GoalkeeperRegistration({
@@ -67,17 +65,9 @@ export class GoalkeeperRegistrationRepository
         heightCm: (physicalData.heightCm as number | undefined) ?? null,
         weightKg: (physicalData.weightKg as number | undefined) ?? null,
       },
-      location: {
-        latitude: (location.latitude as number | undefined) ?? null,
-        longitude: (location.longitude as number | undefined) ?? null,
-        city: (location.city as string | undefined) ?? null,
-        state: (location.state as string | undefined) ?? null,
-        country: (location.country as string | undefined) ?? null,
-        neighborhood: (location.neighborhood as string | undefined) ?? null,
-        formattedAddress: (location.formattedAddress as string | undefined) ?? null,
-      },
       availability: {
-        radiusKm: (availability.radiusKm as number | undefined) ?? null,
+        cityId: (availability.cityId as string | undefined) ?? null,
+        zoneIds: (availability.zoneIds as string[] | undefined) ?? [],
       },
       createdAt: new Date(doc.createdAt as string | Date),
       updatedAt: new Date(doc.updatedAt as string | Date),

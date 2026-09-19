@@ -2,6 +2,7 @@ import type { ICommandHandler } from '../../../../common/mediator/types.js';
 import type { IIdGenerator, IInternalTokenIssuer } from '../../../auth/common/ports.js';
 import type { IUserRepository } from '../../../auth/common/ports.js';
 import type { ICountryRepository, ITermsAcceptanceRepository } from '../../common/ports.js';
+import type { IGoalkeeperProfileRepository } from '../../../goalkeepers/common/ports.js';
 import { validateNameAndWhatsApp } from '../../common/validation.js';
 import { TermsAcceptance } from '../../../../../domain/users/termsAcceptance.js';
 import { CompleteProfileCommand, type CompleteProfileResult } from './completeProfileCommand.js';
@@ -19,6 +20,7 @@ export class CompleteProfileCommandHandler
     private readonly countryRepository: ICountryRepository,
     private readonly termsAcceptanceRepository: ITermsAcceptanceRepository,
     private readonly tokenIssuer: IInternalTokenIssuer,
+    private readonly goalkeeperProfileRepository: IGoalkeeperProfileRepository,
     private readonly idGenerator: IIdGenerator,
     private readonly legalVersions: LegalDocumentVersions,
   ) {}
@@ -69,7 +71,8 @@ export class CompleteProfileCommandHandler
       }),
     );
 
-    const tokens = await this.tokenIssuer.issue(user);
+    const isGoalkeeper = (await this.goalkeeperProfileRepository.getByUserId(user.id)) !== null;
+    const tokens = await this.tokenIssuer.issue(user, { isGoalkeeper });
     return { outcome: 'success', tokens };
   }
 }

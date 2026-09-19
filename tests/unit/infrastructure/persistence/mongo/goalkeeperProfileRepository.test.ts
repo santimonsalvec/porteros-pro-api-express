@@ -20,14 +20,8 @@ const baseParams = {
   documentPhotoBId: 'img-b',
   heightCm: 185,
   weightKg: 78,
-  latitude: 6.2,
-  longitude: -75.5,
-  city: 'Medellín',
-  state: 'Antioquia',
-  country: 'CO',
-  neighborhood: null,
-  formattedAddress: null,
-  radiusKm: 25,
+  cityId: 'city-envigado',
+  zoneIds: ['zone-bello', 'zone-copacabana'],
   activatedAt: new Date('2026-08-30T00:00:00.000Z'),
 };
 
@@ -40,8 +34,13 @@ describe('GoalkeeperProfileRepository (mocked driver)', () => {
     await repository.add(new GoalkeeperProfile(baseParams));
 
     const doc = collection.insertOne.mock.calls[0]![0] as Record<string, unknown>;
-    expect(doc).toMatchObject({ _id: 'profile-1', userId: 'user-1', documentNumber: '123', radiusKm: 25 });
-    expect(doc.neighborhood).toBeUndefined();
+    expect(doc).toMatchObject({
+      _id: 'profile-1',
+      userId: 'user-1',
+      documentNumber: '123',
+      cityId: 'city-envigado',
+      zoneIds: ['zone-bello', 'zone-copacabana'],
+    });
   });
 
   it('round-trips a document back into a GoalkeeperProfile', async () => {
@@ -57,12 +56,8 @@ describe('GoalkeeperProfileRepository (mocked driver)', () => {
       documentPhotoBId: 'img-d',
       heightCm: 170,
       weightKg: 65,
-      latitude: 4.6,
-      longitude: -74.0,
-      city: 'Bogotá',
-      state: 'Cundinamarca',
-      country: 'CO',
-      radiusKm: 15,
+      cityId: 'city-bogota',
+      zoneIds: ['zone-chapinero'],
       activatedAt: '2026-08-30T00:00:00.000Z',
     });
     const repository = repositoryWith(collection);
@@ -70,7 +65,99 @@ describe('GoalkeeperProfileRepository (mocked driver)', () => {
     const found = await repository.getByUserId('user-2');
 
     expect(found?.documentType).toBe('pasaporte');
-    expect(found?.neighborhood).toBeNull();
-    expect(found?.radiusKm).toBe(15);
+    expect(found?.cityId).toBe('city-bogota');
+    expect(found?.zoneIds).toEqual(['zone-chapinero']);
+  });
+
+  describe('targeted updates', () => {
+    const storedDoc = {
+      _id: 'profile-1',
+      userId: 'user-1',
+      documentType: 'cedula_ciudadania',
+      documentNumber: '123',
+      issueDate: '2013-01-01T00:00:00.000Z',
+      birthDate: '1995-01-01T00:00:00.000Z',
+      documentPhotoAId: 'img-a',
+      documentPhotoBId: 'img-b',
+      heightCm: 190,
+      weightKg: 78,
+      cityId: 'city-envigado',
+      zoneIds: ['zone-bello'],
+      activatedAt: '2026-08-30T00:00:00.000Z',
+    };
+
+    it('$sets only the height when only the height is given, so a concurrent weight/availability write is not overwritten', async () => {
+      const collection = createFakeCollection();
+      collection.findOneAndUpdate.mockResolvedValue(storedDoc);
+      const repository = repositoryWith(collection);
+
+      const updated = await repository.updatePhysicalData('user-1', { heightCm: 190 });
+
+      expect(collection.findOneAndUpdate).toHaveBeenCalledWith(
+        { userId: 'user-1' },
+        { $set: { heightCm: 190 } },
+        { returnDocument: 'after' },
+      );
+      expect(collection.replaceOne).not.toHaveBeenCalled();
+      expect(updated?.heightCm).toBe(190);
+    });
+
+    it('$sets only the weight when only the weight is given', async () => {
+      const collection = createFakeCollection();
+      collection.findOneAndUpdate.mockResolvedValue({ ...storedDoc, weightKg: 82 });
+      const repository = repositoryWith(collection);
+
+      await repository.updatePhysicalData('user-1', { weightKg: 82 });
+
+      expect(collection.findOneAndUpdate.mock.calls[0]![1]).toEqual({ $set: { weightKg: 82 } });
+    });
+
+    it('$sets both physical fields when both are given', async () => {
+      const collection = createFakeCollection();
+      collection.findOneAndUpdate.mockResolvedValue(storedDoc);
+      const repository = repositoryWith(collection);
+
+      await repository.updatePhysicalData('user-1', { heightCm: 190, weightKg: 82 });
+
+      expect(collection.findOneAndUpdate.mock.calls[0]![1]).toEqual({ $set: { heightCm: 190, weightKg: 82 } });
+    });
+
+    it('does not send an empty $set (MongoDB rejects it) — it just reads the profile back', async () => {
+      const collection = createFakeCollection();
+      collection.findOne.mockResolvedValue(storedDoc);
+      const repository = repositoryWith(collection);
+
+      const result = await repository.updatePhysicalData('user-1', {});
+
+      expect(collection.findOneAndUpdate).not.toHaveBeenCalled();
+      expect(result?.userId).toBe('user-1');
+    });
+
+    it('$sets cityId and zoneIds together, in a single write, and nothing else', async () => {
+      const collection = createFakeCollection();
+      collection.findOneAndUpdate.mockResolvedValue({ ...storedDoc, cityId: 'city-medellin', zoneIds: ['zone-bello', 'zone-copacabana'] });
+      const repository = repositoryWith(collection);
+
+      const updated = await repository.updateAvailability('user-1', 'city-medellin', ['zone-bello', 'zone-copacabana']);
+
+      expect(collection.findOneAndUpdate).toHaveBeenCalledTimes(1);
+      expect(collection.findOneAndUpdate).toHaveBeenCalledWith(
+        { userId: 'user-1' },
+        { $set: { cityId: 'city-medellin', zoneIds: ['zone-bello', 'zone-copacabana'] } },
+        { returnDocument: 'after' },
+      );
+      expect(updated?.cityId).toBe('city-medellin');
+      expect(updated?.zoneIds).toEqual(['zone-bello', 'zone-copacabana']);
+    });
+
+    it('returns null, creating nothing, when the user has no profile', async () => {
+      const collection = createFakeCollection();
+      collection.findOneAndUpdate.mockResolvedValue(null);
+      const repository = repositoryWith(collection);
+
+      expect(await repository.updatePhysicalData('nobody', { heightCm: 190 })).toBeNull();
+      expect(await repository.updateAvailability('nobody', 'city-medellin', ['zone-bello'])).toBeNull();
+      expect(collection.insertOne).not.toHaveBeenCalled();
+    });
   });
 });

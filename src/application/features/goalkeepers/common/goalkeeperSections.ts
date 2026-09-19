@@ -3,14 +3,12 @@ import type { GoalkeeperRegistration } from '../../../../domain/goalkeepers/goal
 export interface GoalkeeperSectionsView {
   identification: { complete: boolean };
   physicalData: { complete: boolean };
-  location: { complete: boolean };
   availability: { complete: boolean };
 }
 
 const EMPTY_SECTIONS: GoalkeeperSectionsView = {
   identification: { complete: false },
   physicalData: { complete: false },
-  location: { complete: false },
   availability: { complete: false },
 };
 
@@ -22,7 +20,7 @@ const EMPTY_SECTIONS: GoalkeeperSectionsView = {
 export function computeGoalkeeperSections(registration: GoalkeeperRegistration | null): GoalkeeperSectionsView {
   if (!registration) return { ...EMPTY_SECTIONS };
 
-  const { identification, physicalData, location, availability } = registration;
+  const { identification, physicalData, availability } = registration;
   return {
     identification: {
       complete:
@@ -36,26 +34,18 @@ export function computeGoalkeeperSections(registration: GoalkeeperRegistration |
     physicalData: {
       complete: physicalData.heightCm !== null && physicalData.weightKg !== null,
     },
-    location: {
-      complete:
-        location.latitude !== null &&
-        location.longitude !== null &&
-        location.city !== null &&
-        location.state !== null &&
-        location.country !== null,
-    },
     availability: {
-      complete: availability.radiusKm !== null,
+      complete: availability.cityId !== null && availability.zoneIds.length > 0,
     },
   };
 }
 
 export function isGoalkeeperRegistrationComplete(registration: GoalkeeperRegistration): boolean {
   const sections = computeGoalkeeperSections(registration);
-  return sections.identification.complete && sections.physicalData.complete && sections.location.complete && sections.availability.complete;
+  return sections.identification.complete && sections.physicalData.complete && sections.availability.complete;
 }
 
-/** Names every section still incomplete — all four when `registration` is `null`. */
+/** Names every section still incomplete — all three when `registration` is `null`. */
 export function missingGoalkeeperSections(registration: GoalkeeperRegistration | null): string[] {
   const sections = computeGoalkeeperSections(registration);
   return (Object.keys(sections) as (keyof GoalkeeperSectionsView)[]).filter((key) => !sections[key].complete);

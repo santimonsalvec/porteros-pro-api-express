@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { jwtVerify, SignJWT } from 'jose';
-import type { IInternalTokenIssuer } from '../../application/features/auth/common/ports.js';
+import type { IInternalTokenIssuer, TokenIssueOptions } from '../../application/features/auth/common/ports.js';
 import type { TokenPairResponse } from '../../application/features/auth/common/dtos.js';
 import type { User } from '../../domain/users/user.js';
 import type { AccessTokenClaims } from '../../application/features/auth/common/accessTokenClaims.js';
@@ -9,7 +9,7 @@ import { JWT_AUDIENCE, JWT_ISSUER, type JwtOptions } from './jwtOptions.js';
 export class JwtInternalTokenIssuer implements IInternalTokenIssuer {
   constructor(private readonly options: JwtOptions) {}
 
-  async issue(user: User): Promise<TokenPairResponse> {
+  async issue(user: User, options: TokenIssueOptions = {}): Promise<TokenPairResponse> {
     const expiresInSeconds = this.options.accessTokenLifetimeMinutes * 60;
     const signingKey = new TextEncoder().encode(this.options.signingKey());
 
@@ -17,6 +17,7 @@ export class JwtInternalTokenIssuer implements IInternalTokenIssuer {
       email: user.email,
       isAdmin: user.isAdmin ? 'true' : 'false',
       profileComplete: user.isProfileComplete ? 'true' : 'false',
+      ...(options.isGoalkeeper ? { isGoalkeeper: 'true' } : {}),
     })
       .setProtectedHeader({ alg: 'HS256' })
       .setSubject(user.id)
@@ -41,6 +42,7 @@ export class JwtInternalTokenIssuer implements IInternalTokenIssuer {
         email: payload.email,
         isAdmin: payload.isAdmin === 'true' ? 'true' : 'false',
         profileComplete: payload.profileComplete === 'true' ? 'true' : 'false',
+        ...(payload.isGoalkeeper === 'true' ? { isGoalkeeper: 'true' as const } : {}),
       };
     } catch {
       return null;
