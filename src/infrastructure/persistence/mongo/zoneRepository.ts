@@ -45,4 +45,24 @@ export class ZoneRepository implements IZoneRepository {
     const cityIds = await this.collection.distinct('cityId', { cityId: { $in: anchorCityIds }, active: true });
     return new Set(cityIds as string[]);
   }
+
+  /**
+   * `$geoIntersects` needs no geospatial index, so this works against the unindexed
+   * collection. This class deliberately does NOT create a `2dsphere` index in
+   * `ensureIndexes()`: building one fails if any stored polygon is invalid, which would
+   * stop the API from starting over a data problem in an externally-owned collection.
+   * GeoJSON coordinates are `[longitude, latitude]`.
+   */
+  async findActiveContainingPoint(latitude: number, longitude: number): Promise<Zone | null> {
+    const docs = await this.collection
+      .find({
+        active: true,
+        geometry: { $geoIntersects: { $geometry: { type: 'Point', coordinates: [longitude, latitude] } } },
+      })
+      .sort({ displayOrder: 1, _id: 1 })
+      .limit(1)
+      .toArray();
+    const first = docs[0];
+    return first ? this.fromDocument(first) : null;
+  }
 }

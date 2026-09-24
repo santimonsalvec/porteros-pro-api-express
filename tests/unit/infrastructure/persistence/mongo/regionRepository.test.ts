@@ -29,4 +29,20 @@ describe('RegionRepository (mocked driver)', () => {
     expect(found).toEqual([]);
     expect(collection.find).not.toHaveBeenCalled();
   });
+
+  it('maps countryId when present and defaults it to null when absent', async () => {
+    const collection = createFakeCollection();
+    collection.find.mockReturnValue(
+      toArrayResult([
+        { _id: 'region-antioquia', name: 'Antioquia', countryId: 'country-co' },
+        { _id: 'region-x', name: 'X' },
+      ]),
+    );
+    const repository = repositoryWith(collection);
+
+    const found = await repository.getByIds(['region-antioquia', 'region-x']);
+
+    expect(found[0]?.countryId).toBe('country-co');
+    expect(found[1]?.countryId).toBeNull();
+  });
 });

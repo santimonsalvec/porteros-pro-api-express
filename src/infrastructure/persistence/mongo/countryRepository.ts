@@ -21,6 +21,9 @@ export class CountryRepository implements ICountryRepository {
       name: doc.name as string,
       dialCode: doc.dialCode as string,
       countryCode: doc.countryCode as string,
+      // Read as stored. A malformed value is rejected only where a currency is used (the quote
+      // handler), so a bad value can't break the profile/country endpoints that share this repository.
+      currency: (doc.currency as string | undefined | null) ?? null,
     });
   }
 

@@ -8,6 +8,11 @@ export class FakeCountryRepository implements ICountryRepository {
     this.countries.set(country.id, country);
   }
 
+  /** Removes every seeded country. */
+  clear(): void {
+    this.countries.clear();
+  }
+
   async getAll(): Promise<Country[]> {
     return [...this.countries.values()];
   }
