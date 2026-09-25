@@ -89,8 +89,9 @@ interface ServiceQuote {
   unitRate: number;
   goalkeeperCount: 1 | 2;
   subtotal: number;                  // unitRate × goalkeeperCount
-  surcharge: number;                 // from the applicable lead-time tier, else 0
-  total: number;                     // subtotal + surcharge
+  unitSurcharge: number;             // the applicable lead-time tier's amount PER GOALKEEPER, else 0
+  surcharge: number;                 // unitSurcharge × goalkeeperCount (paid once per goalkeeper)
+  total: number;                     // subtotal + surcharge = (unitRate + unitSurcharge) × goalkeeperCount
   currency: string;                  // the country's currency
   startsAt: string;                  // resolved instant, UTC ISO-8601 ('…Z')
   startsAtLocal: string;             // same instant in the city's zone, '…±HH:mm'

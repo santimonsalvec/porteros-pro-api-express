@@ -98,18 +98,19 @@ export class GetServiceQuoteQueryHandler implements IQueryHandler<GetServiceQuot
     const rate = selectUnitRate(rates);
     if (!rate) return { outcome: 'rate_not_configured', zoneId: zone.id, cityId: city.id, durationMinutes };
 
-    // (8) Lead-time surcharge, on real elapsed time.
+    // (8) Lead-time surcharge, on real elapsed time. The tier's amount is per goalkeeper.
     const leadMinutes = (startEpochMs - nowMs) / 60_000;
-    const surcharge = selectSurchargeTier(leadTimeSurcharge.tiers, leadMinutes)?.amount ?? 0;
+    const unitSurcharge = selectSurchargeTier(leadTimeSurcharge.tiers, leadMinutes)?.amount ?? 0;
 
-    // (9) Totals.
-    const { subtotal, total } = computeAmounts(rate.amount, goalkeeperCount, surcharge);
+    // (9) Totals: the rate and the surcharge are each charged once per goalkeeper.
+    const { subtotal, surcharge, total } = computeAmounts(rate.amount, goalkeeperCount, unitSurcharge);
     return {
       outcome: 'success',
       quote: {
         unitRate: rate.amount,
         goalkeeperCount,
         subtotal,
+        unitSurcharge,
         surcharge,
         total,
         currency,

@@ -35,8 +35,9 @@ All five are required; unknown extra fields are ignored. Numbers must be JSON nu
 | `unitRate` | integer | Price per goalkeeper for the requested duration (zone rate, else city rate) |
 | `goalkeeperCount` | integer | Echo of the request |
 | `subtotal` | integer | `unitRate × goalkeeperCount` |
-| `surcharge` | integer | Lead-time surcharge (`0` when none applies) |
-| `total` | integer | `subtotal + surcharge` |
+| `unitSurcharge` | integer | Lead-time surcharge **per goalkeeper** (`0` when none applies) |
+| `surcharge` | integer | Surcharge charged in total: `unitSurcharge × goalkeeperCount` (the surcharge is paid once per goalkeeper) |
+| `total` | integer | `subtotal + surcharge`, i.e. `(unitRate + unitSurcharge) × goalkeeperCount` |
 | `currency` | string | ISO 4217 code of the **country** the location is in (e.g. `COP`); every amount above is in it |
 | `startsAt` | string | Resolved start instant, UTC (`…Z`) |
 | `startsAtLocal` | string | The same instant in the city's zone (`…±HH:mm`), for display |
@@ -49,8 +50,9 @@ Amounts are integers in whole currency units.
   "unitRate": 55000,
   "goalkeeperCount": 2,
   "subtotal": 110000,
-  "surcharge": 5000,
-  "total": 115000,
+  "unitSurcharge": 5000,
+  "surcharge": 10000,
+  "total": 120000,
   "currency": "COP",
   "startsAt": "2026-09-21T20:00:00.000Z",
   "startsAtLocal": "2026-09-21T15:00:00-05:00",
@@ -96,8 +98,10 @@ No price is ever returned with an error, and a missing value is never treated as
 | Request "now" (Bogota) | `startsAt` | Count / duration | Result |
 |---|---|---|---|
 | Sep 21 13:30 | Sep 21 15:00 | 1 / 60 | lead 90 → subtotal 40.000, surcharge 5.000, total **45.000** |
+| Sep 21 13:30 | Sep 21 15:00 | 2 / 60 | lead 90 → subtotal 80.000, surcharge 10.000 (5.000 × 2), total **90.000** |
 | Sep 21 13:00 | Sep 21 15:00 | 2 / 60 | lead 120 → subtotal 80.000, surcharge 0, total **80.000** |
 | Sep 21 14:29 | Sep 21 15:00 | 1 / 60 | lead 31 → subtotal 40.000, surcharge 10.000, total **50.000** |
+| Sep 21 14:29 | Sep 21 15:00 | 2 / 60 | lead 31 → subtotal 80.000, surcharge 20.000 (10.000 × 2), total **100.000** |
 | Sep 21 14:31 | Sep 21 15:00 | 1 / 60 | lead 29 → `400 insufficient_notice` |
 | Sep 21 14:10 | Sep 21 14:30 | 1 / 60 | lead 20 → `400 insufficient_notice` (earliest valid start is 15:00) |
 | Sep 21 13:00 | Sep 21 15:15 | 1 / 60 | `400 invalid_start_time` (`not_on_slot`) |

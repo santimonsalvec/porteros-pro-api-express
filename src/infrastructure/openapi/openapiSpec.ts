@@ -72,14 +72,15 @@ export const openapiSpec = {
           unitRate: { type: 'integer', example: 55000, description: 'Price per goalkeeper (zone rate, else city rate)' },
           goalkeeperCount: { type: 'integer', enum: [1, 2] },
           subtotal: { type: 'integer', example: 110000, description: 'unitRate x goalkeeperCount' },
-          surcharge: { type: 'integer', example: 5000, description: 'Lead-time surcharge; 0 when none applies' },
-          total: { type: 'integer', example: 115000, description: 'subtotal + surcharge' },
+          unitSurcharge: { type: 'integer', example: 5000, description: 'Lead-time surcharge per goalkeeper; 0 when none applies' },
+          surcharge: { type: 'integer', example: 10000, description: 'unitSurcharge x goalkeeperCount: the surcharge is paid once per goalkeeper' },
+          total: { type: 'integer', example: 120000, description: 'subtotal + surcharge = (unitRate + unitSurcharge) x goalkeeperCount' },
           currency: { type: 'string', example: 'COP', description: 'The currency of the country the location is in; every amount above is in it' },
           startsAt: { type: 'string', example: '2026-09-21T20:00:00.000Z', description: 'Resolved start instant, UTC' },
           startsAtLocal: { type: 'string', example: '2026-09-21T15:00:00-05:00', description: 'The same instant in the city\u2019s time zone' },
           timeZone: { type: 'string', example: 'America/Bogota' },
         },
-        required: ['unitRate', 'goalkeeperCount', 'subtotal', 'surcharge', 'total', 'currency', 'startsAt', 'startsAtLocal', 'timeZone'],
+        required: ['unitRate', 'goalkeeperCount', 'subtotal', 'unitSurcharge', 'surcharge', 'total', 'currency', 'startsAt', 'startsAtLocal', 'timeZone'],
       },
       TokenPairResponse: {
         type: 'object',
@@ -604,7 +605,7 @@ export const openapiSpec = {
       post: {
         summary: 'Quote the total price of a goalkeeper booking (read-only — creates nothing)',
         description:
-          'total = (unit rate x goalkeeperCount) + lead-time surcharge. The unit rate is the zone rate for the duration, else the city rate. The booking window, minimum notice and surcharge tiers are configured per country (city overrides allowed); an area with any of them missing is refused, never assumed. Evaluation order: validation_failed, location_not_covered, time_zone_not_configured, invalid_start_time, start_time_in_past, service_not_configured, insufficient_notice, outside_booking_window, rate_not_configured. No price is ever returned with an error.',
+          'total = (unit rate + lead-time surcharge) x goalkeeperCount: both the rate and the surcharge are charged per goalkeeper, so with two goalkeepers the surcharge is paid twice. The unit rate is the zone rate for the duration, else the city rate. The booking window, minimum notice and surcharge tiers are configured per country (city overrides allowed); an area with any of them missing is refused, never assumed. Evaluation order: validation_failed, location_not_covered, time_zone_not_configured, invalid_start_time, start_time_in_past, service_not_configured, insufficient_notice, outside_booking_window, rate_not_configured. No price is ever returned with an error.',
         tags: ['Goalkeeper requests'],
         security: [{ bearerAuth: [] }],
         requestBody: {

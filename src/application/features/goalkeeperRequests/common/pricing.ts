@@ -15,12 +15,16 @@ export function selectSurchargeTier(tiers: SurchargeTier[], leadMinutes: number)
   return tiers.find((tier) => leadMinutes >= tier.fromMinutes && (tier.toMinutes === null || leadMinutes < tier.toMinutes)) ?? null;
 }
 
-/** Integer arithmetic only: subtotal = unit rate × goalkeepers, total = subtotal + surcharge. */
+/**
+ * Integer arithmetic only. Both the rate and the lead-time surcharge are charged PER GOALKEEPER:
+ * with two goalkeepers the surcharge is paid twice, so `total = (unitRate + unitSurcharge) × goalkeepers`.
+ */
 export function computeAmounts(
   unitRate: number,
   goalkeeperCount: number,
-  surcharge: number,
-): { subtotal: number; total: number } {
+  unitSurcharge: number,
+): { subtotal: number; surcharge: number; total: number } {
   const subtotal = unitRate * goalkeeperCount;
-  return { subtotal, total: subtotal + surcharge };
+  const surcharge = unitSurcharge * goalkeeperCount;
+  return { subtotal, surcharge, total: subtotal + surcharge };
 }

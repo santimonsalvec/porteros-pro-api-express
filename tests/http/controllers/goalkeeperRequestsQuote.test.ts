@@ -48,6 +48,7 @@ describe('POST /api/goalkeeper-requests/quote — Story 1: price a booking', () 
       unitRate: 40000,
       goalkeeperCount: 1,
       subtotal: 40000,
+      unitSurcharge: 0,
       surcharge: 0,
       total: 40000,
       currency: 'COP',
@@ -57,7 +58,7 @@ describe('POST /api/goalkeeper-requests/quote — Story 1: price a booking', () 
     });
   });
 
-  it('prices two goalkeepers with a lead-time surcharge (the contract worked example)', async () => {
+  it('charges the lead-time surcharge per goalkeeper (the contract worked example)', async () => {
     const context = buildTestApp();
     const token = await signInAndComplete(context, 'sub-0002');
     context.clock.set('2026-09-21T18:30:00.000Z'); // 13:30 → 90 minutes of notice
@@ -65,7 +66,14 @@ describe('POST /api/goalkeeper-requests/quote — Story 1: price a booking', () 
     const response = await post(context, token, { ...validBody, goalkeeperCount: 2, durationMinutes: 90 });
 
     expect(response.status).toBe(200);
-    expect(response.body).toMatchObject({ unitRate: 55000, subtotal: 110000, surcharge: 5000, total: 115000, currency: 'COP' });
+    expect(response.body).toMatchObject({
+      unitRate: 55000,
+      subtotal: 110000,
+      unitSurcharge: 5000,
+      surcharge: 10000, // 5.000 for each of the two goalkeepers
+      total: 120000, // (55.000 + 5.000) x 2
+      currency: 'COP',
+    });
   });
 
   it('reads an offset-less start time in the city of the location and reports that city\'s time zone', async () => {

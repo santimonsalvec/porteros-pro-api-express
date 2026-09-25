@@ -129,7 +129,7 @@ curl -s -X POST http://localhost:3000/api/goalkeeper-requests/quote \
   -d '{ "latitude": 6.2442, "longitude": -75.5812, "startsAt": "2026-09-21T15:00:00", "goalkeeperCount": 2, "durationMinutes": 90 }'
 ```
 
-Choose `startsAt` between 30 minutes and the end of the allowed window from now, on a `:00`/`:30` mark. Expected: `200` with `unitRate`, `subtotal`, `surcharge`, `total`, `currency`, `startsAt`, `startsAtLocal`, `timeZone`.
+Choose `startsAt` between 30 minutes and the end of the allowed window from now, on a `:00`/`:30` mark. Expected: `200` with `unitRate`, `subtotal`, `unitSurcharge`, `surcharge`, `total`, `currency`, `startsAt`, `startsAtLocal`, `timeZone`.
 
 Quick refusal checks (each should fail with its own `error` code):
 

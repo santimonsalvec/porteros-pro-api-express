@@ -72,6 +72,7 @@ describe('GetServiceQuoteQueryHandler — Story 1: price a booking', () => {
         unitRate: 40000,
         goalkeeperCount: 1,
         subtotal: 40000,
+        unitSurcharge: 0,
         surcharge: 0,
         total: 40000,
         currency: 'COP',
@@ -86,6 +87,49 @@ describe('GetServiceQuoteQueryHandler — Story 1: price a booking', () => {
     const result = await h.quote('2026-09-21T15:00:00', { goalkeeperCount: 2 });
 
     expect(result).toMatchObject({ outcome: 'success', quote: { unitRate: 40000, subtotal: 80000, surcharge: 0, total: 80000 } });
+  });
+
+  it('charges the lead-time surcharge once per goalkeeper: two goalkeepers pay it twice', async () => {
+    h.clock.set('2026-09-21T19:15:00.000Z'); // 14:15 → 45 minutes of notice → the 10.000 tier
+
+    const one = await h.quote('2026-09-21T15:00:00', { goalkeeperCount: 1 });
+    const two = await h.quote('2026-09-21T15:00:00', { goalkeeperCount: 2 });
+
+    expect(one).toMatchObject({ quote: { unitSurcharge: 10000, surcharge: 10000, subtotal: 40000, total: 50000 } });
+    expect(two).toMatchObject({ quote: { unitSurcharge: 10000, surcharge: 20000, subtotal: 80000, total: 100000 } });
+  });
+
+  it('applies the middle tier per goalkeeper too', async () => {
+    h.clock.set('2026-09-21T18:30:00.000Z'); // 13:30 → 90 minutes → the 5.000 tier
+
+    const result = await h.quote('2026-09-21T15:00:00', { goalkeeperCount: 2, durationMinutes: 90 });
+
+    expect(result).toMatchObject({ quote: { unitRate: 55000, unitSurcharge: 5000, surcharge: 10000, subtotal: 110000, total: 120000 } });
+  });
+
+  it('adds no surcharge for two goalkeepers when the tier is 0', async () => {
+    const result = await h.quote('2026-09-21T15:00:00', { goalkeeperCount: 2 }); // 120 minutes → tier 0
+
+    expect(result).toMatchObject({ quote: { unitSurcharge: 0, surcharge: 0, total: 80000 } });
+  });
+
+  it.each([
+    ['18:00:00', 1], ['18:00:00', 2], // 120 min → tier 0
+    ['18:30:00', 1], ['18:30:00', 2], // 90 min → middle tier
+    ['19:15:00', 1], ['19:15:00', 2], // 45 min → highest tier
+  ] as const)('keeps the invariants of a quote at %sZ with %s goalkeeper(s), for every duration', async (utc, count) => {
+    h.clock.set(`2026-09-21T${utc}.000Z`);
+
+    for (const durationMinutes of [60, 90, 120] as const) {
+      const result = await h.quote('2026-09-21T15:00:00', { goalkeeperCount: count, durationMinutes });
+      if (result.outcome !== 'success') throw new Error(`expected success, got ${result.outcome}`);
+      const q = result.quote;
+
+      expect(q.subtotal).toBe(q.unitRate * count);
+      expect(q.surcharge).toBe(q.unitSurcharge * count);
+      expect(q.total).toBe(q.subtotal + q.surcharge);
+      expect(q.total).toBe((q.unitRate + q.unitSurcharge) * count);
+    }
   });
 
   it.each([

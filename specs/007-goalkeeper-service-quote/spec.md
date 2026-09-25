@@ -13,6 +13,7 @@
 - Q: How should a start time without a time-zone offset be handled, given the service will open in cities around the world? → A: Time zone is a property of each city. The match time is the local wall-clock time at the pitch's city: an offset-less start time is read in that city's time zone, a start time with an offset is converted to the same instant, and "today", the booking window and the 30-minute marks are all evaluated in that city's local time. No single service-wide time zone exists.
 - Q: At what level are the surcharge tiers, booking window and minimum notice configured, given the service will open in other countries? → A: Per country. Cities inherit their country's configuration, and a city may define its own values, which take precedence for that city. If neither the city nor its country has the configuration, the quote cannot be given and is refused. This removes the built-in defaults (2 days, 30 minutes, COP surcharge tiers) from the original description: nothing is assumed when configuration is missing.
 - Q: Can the app read the limits it may offer (bookable days, goalkeeper counts, durations)? → A: Yes, through a read-only booking-configuration endpoint per location (`GET /api/goalkeeper-requests/config?latitude=&longitude=`), because the window and the minimum notice depend on the country/city. It reuses the quote's location and configuration resolution, so it refuses exactly where a quote would; the goalkeeper counts, durations and slot step are code constants shared with the quote's validation. See contracts/booking-config.md.
+- Q: Is the lead-time surcharge charged once per booking or once per goalkeeper? → A: Once per goalkeeper: with two goalkeepers the surcharge is paid twice. The total is therefore `(unit rate + surcharge tier amount) × number of goalkeepers`, and the quote reports both the surcharge per goalkeeper and the surcharge charged in total. This supersedes the original formula `(rate × goalkeepers) + surcharge`.
 - Q: Where is the currency stored — on every rate and surcharge tier, or once per country? → A: Once per country, as a `currency` property of the country. Within a country there is a single currency, so rates and surcharge tiers carry no currency of their own; every amount (unit rate, surcharge, subtotal, total) is in the currency of the country the location is in, found through the city's region. A country with no currency (or a city whose country cannot be determined) cannot be quoted. This supersedes the per-rate and per-tier currency, and the currency-mismatch refusal that came with it.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -28,13 +29,14 @@ A client who is planning an amateur match picks the field location, the match da
 **Acceptance Scenarios**:
 
 1. **Given** a covered zone with a 60-minute rate of 40.000 COP, **When** a client quotes 1 goalkeeper for 60 minutes starting at least 120 minutes from now, **Then** the quote shows a goalkeeper subtotal of 40.000 COP, a surcharge of 0 COP, a total of 40.000 COP and the currency COP.
-2. **Given** the same zone and duration, **When** a client quotes 2 goalkeepers, **Then** the goalkeeper subtotal is exactly twice the single-goalkeeper rate, and the total is that subtotal plus the applicable surcharge.
+2. **Given** the same zone and duration, **When** a client quotes 2 goalkeepers, **Then** the goalkeeper subtotal is exactly twice the single-goalkeeper rate, the surcharge is exactly twice the single-goalkeeper surcharge (it is charged once per goalkeeper), and the total is the subtotal plus that surcharge.
 3. **Given** a covered zone with rates of 40.000 / 55.000 / 70.000 COP for 60 / 90 / 120 minutes, **When** a client quotes each of the three durations, **Then** each quote uses the rate that corresponds to its own duration.
-4. **Given** a match starting 45 minutes from now, **When** a client requests a quote, **Then** the quote includes the highest last-minute surcharge (10.000 COP in the Colombian configuration) and the total equals the goalkeeper subtotal plus that surcharge.
-5. **Given** a match starting 90 minutes from now, **When** a client requests a quote, **Then** the quote includes the middle surcharge (5.000 COP in the Colombian configuration).
+4. **Given** a match starting 45 minutes from now, **When** a client requests a quote, **Then** the quote includes the highest last-minute surcharge (10.000 COP per goalkeeper in the Colombian configuration) and the total equals the goalkeeper subtotal plus that surcharge.
+5. **Given** a match starting 90 minutes from now, **When** a client requests a quote, **Then** the quote includes the middle surcharge (5.000 COP per goalkeeper in the Colombian configuration).
 6. **Given** a match starting exactly 120 minutes from now, **When** a client requests a quote, **Then** the surcharge is 0 COP.
 7. **Given** two covered cities in different time zones, **When** a client sends the same offset-less start time (for example 15:00 tomorrow) for a location in each, **Then** each is read as 15:00 in its own city's local time, and the minimum-notice check, the booking window and the surcharge tier reflect the real instant of each.
 8. **Given** a start time sent with an explicit offset, **When** a client requests a quote, **Then** it is converted to the same real instant, and the quote returns the resolved instant and the city's time-zone identifier so the app can show the match time in the city's local time.
+9. **Given** a match starting 45 minutes from now in the Colombian configuration (surcharge 10.000 COP per goalkeeper, rate 40.000 COP), **When** a client quotes 2 goalkeepers, **Then** the surcharge shown is 20.000 COP (10.000 for each goalkeeper), the subtotal is 80.000 COP and the total is 100.000 COP.
 
 ---
 
@@ -147,13 +149,13 @@ The business defines, per country, how many days ahead clients may book, the min
 - **FR-013**: The rate is per goalkeeper. The goalkeeper subtotal MUST equal the unit rate multiplied by the requested number of goalkeepers.
 - **FR-014**: When neither the zone nor its city has a rate for the requested duration, the system MUST refuse the request with a reason identifying that no price is configured, and MUST NOT return a price or treat the missing rate as zero.
 - **FR-015**: The system MUST compute lead time as the exact time difference between the moment the request is received and the match start time.
-- **FR-016**: The system MUST apply exactly one surcharge tier based on lead time. For example, the Colombian configuration is: less than 60 minutes → 10.000 COP; 60 up to and including 119 minutes → 5.000 COP; 120 minutes or more → 0 COP.
+- **FR-016**: The system MUST apply exactly one surcharge tier based on lead time, and the tier's amount is charged **per goalkeeper**: the surcharge of a quote is that amount multiplied by the number of goalkeepers. For example, the Colombian configuration is: less than 60 minutes → 10.000 COP per goalkeeper; 60 up to and including 119 minutes → 5.000 COP per goalkeeper; 120 minutes or more → 0 COP.
 - **FR-017**: Surcharge tiers (their lead-time ranges and their amounts, in the currency of the country) MUST be read from stored settings, resolved as defined in FR-025, so they can be changed without a software release. There is no built-in default: when neither the city nor its country defines tiers, the quote is refused (FR-025). When tiers are resolved but none matches the lead time, no surcharge is applied.
-- **FR-018**: The total MUST equal the goalkeeper subtotal plus the surcharge; every amount is in the one currency of the country.
+- **FR-018**: The total MUST equal the goalkeeper subtotal plus the surcharge, i.e. `(unit rate + surcharge per goalkeeper) × number of goalkeepers`; every amount is in the one currency of the country.
 
 **Response**
 
-- **FR-019**: A successful quote MUST return the breakdown: the unit rate per goalkeeper, the number of goalkeepers, the goalkeeper subtotal, the lead-time surcharge, the total, and the currency of the country (COP for all current pricing), together with the match start as the client should show it: the resolved instant and the city's time zone identifier.
+- **FR-019**: A successful quote MUST return the breakdown: the unit rate per goalkeeper, the number of goalkeepers, the goalkeeper subtotal, the lead-time surcharge per goalkeeper, the lead-time surcharge charged in total, the total, and the currency of the country (COP for all current pricing), together with the match start as the client should show it: the resolved instant and the city's time zone identifier.
 - **FR-020**: Requesting a quote MUST NOT create, reserve, or alter any booking, goalkeeper availability or stored data; it is a read-only calculation.
 - **FR-021**: The quote endpoint MUST be available only to authenticated clients, consistent with the rest of the booking flow.
 
@@ -175,7 +177,7 @@ The business defines, per country, how many days ahead clients may book, the min
 ### Key Entities
 
 - **Quote Request**: The five inputs a client supplies — location (latitude, longitude), match start date-and-time, number of goalkeepers (1–2), duration (60/90/120 minutes). It is transient: evaluated and answered, never stored.
-- **Quote**: The result returned to the client — unit rate, number of goalkeepers, goalkeeper subtotal, lead-time surcharge, total, currency. Also transient.
+- **Quote**: The result returned to the client — unit rate, number of goalkeepers, goalkeeper subtotal, surcharge per goalkeeper, surcharge in total (per-goalkeeper amount × goalkeepers), total, currency. Also transient.
 - **Rental Rate**: The price for one goalkeeper for one duration, defined either for a specific zone or for a city, expressed in the country's currency (a rate carries none of its own). Zone-level rates take priority over city-level rates for the same duration. Managed outside this feature (pre-seeded data); this feature only reads it.
 - **Lead-Time Surcharge Tier**: A configurable row of "from X minutes up to (but not including) Y minutes ahead → surcharge amount", in the country's currency (a tier carries none of its own). Tiers are defined per country (inherited by its cities) and may be overridden for a specific city.
 - **Country Currency**: The single currency (a 3-letter code such as `COP`) in which every price in a country is expressed, stored on the country itself. It is the source of the `currency` in every quote; rates and surcharge tiers carry none.
@@ -187,7 +189,7 @@ The business defines, per country, how many days ahead clients may book, the min
 
 ### Measurable Outcomes
 
-- **SC-001**: For a fixed test set covering every combination of duration (3), quantity (2) and surcharge tier (3), 100% of quotes match the pricing rules exactly (subtotal, surcharge and total).
+- **SC-001**: For a fixed test set covering every combination of duration (3), quantity (2) and surcharge tier (3), 100% of quotes match the pricing rules exactly (subtotal, surcharge per goalkeeper, surcharge in total — charged once per goalkeeper — and total).
 - **SC-002**: At every minimum-notice boundary (29:59, 30:00 minutes of lead time), every surcharge-tier boundary (59:59, 60:00, 119:59, 120:00) and every booking-window boundary (last allowed minute, first disallowed minute), 100% of test requests are classified correctly.
 - **SC-003**: 95% of quote requests receive their answer (price or refusal) in under 2 seconds under normal load.
 - **SC-004**: 100% of refused requests carry a reason that identifies the specific rule broken, with no request refused for an unspecified reason and no price ever returned for a refused request.

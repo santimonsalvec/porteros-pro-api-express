@@ -217,6 +217,18 @@ Single backend project (this repo is API-only): `src/` and `tests/` at the repos
 
 ---
 
+## Phase 10: Amendment — the lead-time surcharge is charged per goalkeeper (2026-09-23)
+
+**Why**: the data owner clarified that the surcharge is charged once per goalkeeper, so two goalkeepers pay it twice. The total changes from `(unitRate × goalkeepers) + surcharge` to `(unitRate + unitSurcharge) × goalkeepers`. See spec.md Clarifications (Q6), FR-016/FR-018/FR-019 and contracts/quote-service.md.
+
+- [X] T074 `computeAmounts` in `src/application/features/goalkeeperRequests/common/pricing.ts` now takes the surcharge **per goalkeeper** and returns `{ subtotal, surcharge, total }` with `surcharge = unitSurcharge × count`; `getServiceQuoteQueryHandler.ts` passes the tier's amount as the unit surcharge and the quote reports both `unitSurcharge` and `surcharge` (new `unitSurcharge` field in `ServiceQuote`)
+- [X] T075 [P] Tests: `pricing.test.ts` (`computeAmounts` charges the surcharge twice for two goalkeepers; invariants), `getServiceQuoteQueryHandler.test.ts` (two goalkeepers pay the highest and the middle tier twice; a matrix asserting `subtotal = rate × n`, `surcharge = unit × n`, `total = (rate + unit) × n` across tiers × counts × durations) and `goalkeeperRequestsQuote.test.ts` (the contract worked example now totals 120.000)
+- [X] T076 [P] Docs: spec.md (Clarifications Q6, Story 1 scenarios 2/4/5/9, FR-016/FR-018/FR-019, Key Entities, SC-001), contracts/quote-service.md (fields, example, worked examples), data-model.md, quickstart.md, plan.md and the OpenAPI schema
+
+**Checkpoint**: `npm test && npm run lint`, `npm run test:http` and `npm run test:architecture` are green.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies

@@ -66,10 +66,32 @@ describe('selectSurchargeTier', () => {
   });
 });
 
-describe('computeAmounts', () => {
-  it('multiplies the unit rate by the goalkeeper count and adds the surcharge', () => {
-    expect(computeAmounts(40000, 1, 0)).toEqual({ subtotal: 40000, total: 40000 });
-    expect(computeAmounts(40000, 2, 10000)).toEqual({ subtotal: 80000, total: 90000 });
-    expect(computeAmounts(55000, 2, 5000)).toEqual({ subtotal: 110000, total: 115000 });
+describe('computeAmounts — the rate and the surcharge are both charged per goalkeeper', () => {
+  it('charges neither more nor less than once per goalkeeper', () => {
+    expect(computeAmounts(40000, 1, 0)).toEqual({ subtotal: 40000, surcharge: 0, total: 40000 });
+    expect(computeAmounts(40000, 1, 10000)).toEqual({ subtotal: 40000, surcharge: 10000, total: 50000 });
+  });
+
+  it('charges the surcharge twice for two goalkeepers', () => {
+    expect(computeAmounts(40000, 2, 10000)).toEqual({ subtotal: 80000, surcharge: 20000, total: 100000 });
+    expect(computeAmounts(55000, 2, 5000)).toEqual({ subtotal: 110000, surcharge: 10000, total: 120000 });
+  });
+
+  it('a surcharge of 0 stays 0 whatever the count', () => {
+    expect(computeAmounts(70000, 2, 0)).toEqual({ subtotal: 140000, surcharge: 0, total: 140000 });
+  });
+
+  it.each([
+    [40000, 1, 10000],
+    [40000, 2, 10000],
+    [55000, 2, 5000],
+    [70000, 1, 0],
+    [70000, 2, 0],
+  ])('keeps total = (rate + unit surcharge) x count for %s / %s / %s', (rate, count, unit) => {
+    const { subtotal, surcharge, total } = computeAmounts(rate, count, unit);
+    expect(subtotal).toBe(rate * count);
+    expect(surcharge).toBe(unit * count);
+    expect(total).toBe((rate + unit) * count);
+    expect(total).toBe(subtotal + surcharge);
   });
 });

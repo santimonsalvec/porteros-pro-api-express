@@ -18,9 +18,11 @@ export interface ServiceQuote {
   goalkeeperCount: GoalkeeperCount;
   /** `unitRate × goalkeeperCount`. */
   subtotal: number;
-  /** From the applicable lead-time tier, else 0. */
+  /** The applicable lead-time tier's amount PER GOALKEEPER, else 0. */
+  unitSurcharge: number;
+  /** `unitSurcharge × goalkeeperCount` — the surcharge is paid once per goalkeeper. */
   surcharge: number;
-  /** `subtotal + surcharge`. */
+  /** `subtotal + surcharge`, i.e. `(unitRate + unitSurcharge) × goalkeeperCount`. */
   total: number;
   currency: string;
   /** The resolved start instant, UTC ISO-8601. */
