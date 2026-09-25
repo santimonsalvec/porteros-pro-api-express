@@ -28,6 +28,8 @@ import { GetCitiesQuery } from '../../src/application/features/locations/queries
 import { GetCitiesQueryHandler } from '../../src/application/features/locations/queries/getCities/getCitiesQueryHandler.js';
 import { GetZonesByCityQuery } from '../../src/application/features/zones/queries/getZonesByCity/getZonesByCityQuery.js';
 import { GetZonesByCityQueryHandler } from '../../src/application/features/zones/queries/getZonesByCity/getZonesByCityQueryHandler.js';
+import { GetBookingConfigQuery } from '../../src/application/features/goalkeeperRequests/queries/getBookingConfig/getBookingConfigQuery.js';
+import { GetBookingConfigQueryHandler } from '../../src/application/features/goalkeeperRequests/queries/getBookingConfig/getBookingConfigQueryHandler.js';
 import { GetServiceQuoteQuery } from '../../src/application/features/goalkeeperRequests/queries/getServiceQuote/getServiceQuoteQuery.js';
 import { GetServiceQuoteQueryHandler } from '../../src/application/features/goalkeeperRequests/queries/getServiceQuote/getServiceQuoteQueryHandler.js';
 import { City } from '../../src/domain/locations/city.js';
@@ -213,6 +215,17 @@ export function buildTestApp(): TestAppContext {
       handler: new GetCitiesQueryHandler(cityRepository, regionRepository, zoneRepository),
     },
     { requestType: GetZonesByCityQuery, handler: new GetZonesByCityQueryHandler(cityRepository, zoneRepository) },
+    {
+      requestType: GetBookingConfigQuery,
+      handler: new GetBookingConfigQueryHandler(
+        zoneRepository,
+        cityRepository,
+        regionRepository,
+        quoteCountryRepository,
+        bookingSettingsRepository,
+        clock,
+      ),
+    },
     {
       requestType: GetServiceQuoteQuery,
       handler: new GetServiceQuoteQueryHandler(

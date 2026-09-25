@@ -1,20 +1,18 @@
 import type { IClock } from '../../../../common/clock.js';
 import type { IQueryHandler } from '../../../../common/mediator/types.js';
-import { InvalidConfigurationError } from '../../../../../domain/pricing/invalidConfigurationError.js';
 import type { ICityRepository, IRegionRepository } from '../../../locations/common/ports.js';
 import type { IZoneRepository } from '../../../zones/common/ports.js';
 import type { IBookingSettingsRepository, ICountryLookup, IRentalRateRepository } from '../../common/ports.js';
 import { computeAmounts, selectSurchargeTier, selectUnitRate } from '../../common/pricing.js';
-import { resolveBookingSettings } from '../../common/resolveBookingSettings.js';
+import { SLOT_STEP_MINUTES } from '../../common/bookingLimits.js';
+import { resolveAreaSettings, resolveServiceArea } from '../../common/serviceArea.js';
 import type { ParsedStartsAt } from '../../common/startsAt.js';
-import { formatLocalIso, isValidTimeZone, localDayNumber, resolveLocalDateTime, toLocalParts } from '../../common/zonedTime.js';
+import { formatLocalIso, localDayNumber, resolveLocalDateTime, toLocalParts } from '../../common/zonedTime.js';
 import {
   GetServiceQuoteQuery,
   type GetServiceQuoteResult,
   type InvalidStartTimeReason,
 } from './getServiceQuoteQuery.js';
-
-const CURRENCY_PATTERN = /^[A-Z]{3}$/;
 
 type StartInstant = { kind: 'ok'; epochMs: number } | { kind: 'invalid'; reason: InvalidStartTimeReason };
 
@@ -50,67 +48,43 @@ export class GetServiceQuoteQueryHandler implements IQueryHandler<GetServiceQuot
     // One reading of "now" for the whole evaluation, so every rule sees the same moment.
     const nowMs = this.clock.now().getTime();
 
-    // (1) Which active zone contains the point?
-    const zone = await this.zoneRepository.findActiveContainingPoint(latitude, longitude);
-    if (!zone) return { outcome: 'location_not_covered' };
-
-    // (2) The zone's (anchor) city supplies the time zone, the rate fallback and the settings scope.
-    const city = await this.cityRepository.getById(zone.cityId);
-    if (!city) throw new Error(`Zone ${zone.id} references city ${zone.cityId}, which does not exist.`);
-    if (city.timeZone === null) return { outcome: 'time_zone_not_configured', cityId: city.id };
-    if (!isValidTimeZone(city.timeZone)) {
-      throw new InvalidConfigurationError(`cities document ${city.id}: '${city.timeZone}' is not a valid IANA time zone`);
-    }
-    const timeZone = city.timeZone;
+    // (1)(2) Which active zone contains the point, and the (anchor) city that owns it: it supplies
+    //        the time zone, the rate fallback and the settings scope.
+    const area = await resolveServiceArea(this.zoneRepository, this.cityRepository, latitude, longitude);
+    if (area.outcome !== 'ok') return area;
+    const { zone, city, timeZone } = area;
 
     // (3) The start instant, read in the city's own time zone.
     const start = resolveStartInstant(startsAt, timeZone);
     if (start.kind === 'invalid') return { outcome: 'invalid_start_time', reason: start.reason };
     const startEpochMs = start.epochMs;
 
-    // (3b) The start must sit on a local :00 or :30 — judged in the city's own time, so
+    // (3b) The start must sit on a local slot mark (:00 or :30) — judged in the city's own time, so
     //      half-hour and 45-minute offsets (India, Nepal) are handled correctly.
     const startLocal = toLocalParts(startEpochMs, timeZone);
-    if ((startLocal.minute !== 0 && startLocal.minute !== 30) || startLocal.second !== 0 || startLocal.millisecond !== 0) {
+    if (startLocal.minute % SLOT_STEP_MINUTES !== 0 || startLocal.second !== 0 || startLocal.millisecond !== 0) {
       return { outcome: 'invalid_start_time', reason: 'not_on_slot' };
     }
 
     // (3c) In the past? Needs no configuration, so it is reported even in an unconfigured area.
     if (startEpochMs < nowMs) return { outcome: 'start_time_in_past' };
 
-    // (4) The country, found through the city's region (city → region → country). A region
-    //     with no country recorded leaves it unknown, so only city-level settings can apply.
-    const countryId = (await this.regionRepository.getByIds([city.regionId]))[0]?.countryId ?? null;
-
-    // (5) Rates for this duration, the settings documents and the country (its currency), in parallel.
-    const [rates, settingsDocuments, country] = await Promise.all([
+    // (4)(5)(6) The rates for this duration, and the area's settings + currency (city → region →
+    //          country), in parallel. Every setting must be defined at the city or its country — no
+    //          built-in defaults — and the country must say which currency its prices are in.
+    const [rates, areaSettings] = await Promise.all([
       this.rentalRateRepository.findForDuration(zone.id, city.id, durationMinutes),
-      this.bookingSettingsRepository.findFor(city.id, countryId),
-      countryId === null ? Promise.resolve(null) : this.countryLookup.getById(countryId),
+      resolveAreaSettings(
+        {
+          regionRepository: this.regionRepository,
+          countryLookup: this.countryLookup,
+          bookingSettingsRepository: this.bookingSettingsRepository,
+        },
+        city,
+      ),
     ]);
-
-    // (6) Every setting must be defined at the city or its country — no built-in defaults — and
-    //     the country must say which currency its prices are in. A currency written in the wrong
-    //     form is broken configuration, not a silent skip.
-    const currency = country?.currency ?? null;
-    if (currency !== null && !CURRENCY_PATTERN.test(currency)) {
-      throw new InvalidConfigurationError(`countries document ${country?.id}: '${currency}' is not a 3-letter uppercase currency code`);
-    }
-    const settings = resolveBookingSettings(settingsDocuments);
-    const { bookingWindowDays, minNoticeMinutes, leadTimeSurcharge } = settings;
-    if (
-      settings.missing.length > 0 ||
-      currency === null ||
-      bookingWindowDays === null ||
-      minNoticeMinutes === null ||
-      leadTimeSurcharge === null
-    ) {
-      return {
-        outcome: 'service_not_configured',
-        cityId: city.id,
-        missing: currency === null ? [...settings.missing, 'currency'] : settings.missing,
-      };
-    }
+    if (!areaSettings.ok) return { outcome: 'service_not_configured', cityId: city.id, missing: areaSettings.missing };
+    const { currency, bookingWindowDays, minNoticeMinutes, leadTimeSurcharge } = areaSettings;
 
     // (6b) Minimum notice, on real elapsed time. Exactly the minimum is accepted.
     if (startEpochMs - nowMs < minNoticeMinutes * 60_000) return { outcome: 'insufficient_notice', minNoticeMinutes };

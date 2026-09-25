@@ -202,6 +202,21 @@ Single backend project (this repo is API-only): `src/` and `tests/` at the repos
 
 ---
 
+## Phase 9: Amendment — booking-configuration endpoint (2026-09-23)
+
+**Why**: the app needs to build its date/time/count/duration selectors, and until now it could only learn the booking window and the minimum notice by being refused. The window and the notice are configured per country/city, so the endpoint is **per location**: `GET /api/goalkeeper-requests/config?latitude=&longitude=`. It reuses the quote's resolution so the two can never disagree. See spec.md Clarifications (Q5), FR-026/FR-027 and contracts/booking-config.md.
+
+- [X] T068 [P] Create `src/application/features/goalkeeperRequests/common/bookingLimits.ts` — the single source of truth for the goalkeeper counts (1–2), the duration options (60/90/120) and the slot step (30), with type guards; use it in the quote request validation (`src/controllers/requests/goalkeeperRequests/getServiceQuoteRequest.ts`, error messages generated from the constants), in the quote's types and in the slot-mark check of `getServiceQuoteQueryHandler.ts`
+- [X] T069 Extract the two resolution steps the quote and the config share into `src/application/features/goalkeeperRequests/common/serviceArea.ts` (`resolveServiceArea`: point → zone → city → time zone; `resolveAreaSettings`: city → region → country, settings + currency) and refactor `getServiceQuoteQueryHandler.ts` onto them with no behavior change (the 54 existing handler tests are the safety net)
+- [X] T070 Create `GetBookingConfigQuery` and `GetBookingConfigQueryHandler` in `src/application/features/goalkeeperRequests/queries/getBookingConfig/`: time zone, local `now`, `bookingWindowDays`, `availableDates` (local dates from today), `minNoticeMinutes`, `slotStepMinutes`, `earliestStartsAt` (now + notice rounded up to the next slot mark in **local** time; `null` when outside the window), the counts, the durations and the currency; refuses like the quote (`location_not_covered`, `time_zone_not_configured`, `service_not_configured`)
+- [X] T071 Add `GET /config` to `src/controllers/goalkeeperRequestsController.ts` with the query-string schema `src/controllers/requests/goalkeeperRequests/getBookingConfigRequest.ts`; share the refusal builders with `/quote` so both answer identically; register the handler in `src/infrastructure/di.ts` and `tests/http/testAppFactory.ts`
+- [X] T072 [P] Tests: `tests/unit/application/features/goalkeeperRequests/getBookingConfigQueryHandler.test.ts` (full config, rounding at every boundary, day rollover, month boundary, window edge ⇒ `null`, overrides, other countries, +05:30 and +05:45 zones, refusals, read-only, **agreement with the quote**: the earliest start quotes successfully and one step earlier is refused, the last available date's last slot is accepted and the next date refused), `bookingLimits.test.ts` (the quote request accepts exactly the constants) and `tests/http/controllers/goalkeeperRequestsConfig.test.ts` (200, 401/403, every validation failure, 400/422 refusals, 500, operator warning, config→quote round trip)
+- [X] T073 [P] Docs: `contracts/booking-config.md` (new), OpenAPI, spec.md (Clarifications Q5, FR-026/FR-027), plan.md structure, and task 1.4 of `specs/006-find-goalkeeper/IMPLEMENTATION_PLAN.md`
+
+**Checkpoint**: `npm test && npm run lint`, `npm run test:http` and `npm run test:architecture` are green; the quote's behavior is unchanged.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies

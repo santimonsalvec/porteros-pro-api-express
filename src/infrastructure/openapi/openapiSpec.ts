@@ -27,6 +27,28 @@ export const openapiSpec = {
         },
         required: ['error', 'message', 'fieldErrors'],
       },
+      BookingConfigResponse: {
+        type: 'object',
+        description: 'What a client may pick for a pitch, so an app can build its selectors without hardcoding limits or using the phone\u2019s clock.',
+        properties: {
+          timeZone: { type: 'string', example: 'America/Bogota' },
+          now: { type: 'string', example: '2026-09-21T13:00:00-05:00', description: 'Server time in the city\u2019s local time, with its offset' },
+          bookingWindowDays: { type: 'integer', example: 2, description: 'Today plus the next N-1 local calendar days' },
+          availableDates: { type: 'array', items: { type: 'string' }, example: ['2026-09-21', '2026-09-22'], description: 'Bookable local dates (YYYY-MM-DD), starting today' },
+          minNoticeMinutes: { type: 'integer', example: 30 },
+          slotStepMinutes: { type: 'integer', example: 30, description: 'Start times sit on multiples of this many minutes (local :00 and :30)' },
+          earliestStartsAt: {
+            type: 'string',
+            nullable: true,
+            example: '2026-09-21T13:30:00-05:00',
+            description: 'The soonest start a quote accepts right now (now + minimum notice, rounded up to the next slot mark). null when nothing can be booked at the moment',
+          },
+          goalkeeperCount: { type: 'object', properties: { min: { type: 'integer', example: 1 }, max: { type: 'integer', example: 2 } } },
+          durationOptions: { type: 'array', items: { type: 'integer' }, example: [60, 90, 120] },
+          currency: { type: 'string', example: 'COP', description: 'The country\u2019s currency; every quote amount is in it' },
+        },
+        required: ['timeZone', 'now', 'bookingWindowDays', 'availableDates', 'minNoticeMinutes', 'slotStepMinutes', 'earliestStartsAt', 'goalkeeperCount', 'durationOptions', 'currency'],
+      },
       ServiceQuoteRequest: {
         type: 'object',
         properties: {
@@ -543,6 +565,36 @@ export const openapiSpec = {
           '401': { description: 'Not signed in' },
           '404': {
             description: 'city_not_found (the city does not exist) or no_zones_configured (it has no active zones yet)',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+        },
+      },
+    },
+    '/api/goalkeeper-requests/config': {
+      get: {
+        summary: 'What a client may pick for a pitch: bookable dates, minimum notice, goalkeeper counts, durations (read-only)',
+        description:
+          'Resolves the location exactly like the quote does, so it refuses exactly where a quote would refuse; a 200 here means /quote will accept a request within these limits. The window and the minimum notice are configured per country (city overrides allowed); the goalkeeper counts, durations and slot step are fixed.',
+        tags: ['Goalkeeper requests'],
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'latitude', in: 'query', required: true, schema: { type: 'number', minimum: -90, maximum: 90 } },
+          { name: 'longitude', in: 'query', required: true, schema: { type: 'number', minimum: -180, maximum: 180 } },
+        ],
+        responses: {
+          '200': {
+            description: 'The booking configuration for that location',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/BookingConfigResponse' } } },
+          },
+          '400': {
+            description: 'validation_failed (with fieldErrors naming every offending parameter) or location_not_covered',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } },
+          },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'Not a client, or the client profile is not complete' },
+          '422': {
+            description:
+              'time_zone_not_configured, or service_not_configured (missing: bookingWindowDays | minNoticeMinutes | leadTimeSurcharge | currency)',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
           },
         },

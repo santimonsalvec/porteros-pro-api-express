@@ -1,4 +1,5 @@
 import { IQuery } from '../../../../common/mediator/types.js';
+import type { DurationMinutes, GoalkeeperCount } from '../../common/bookingLimits.js';
 import type { MissingSetting } from '../../common/resolveBookingSettings.js';
 import type { ParsedStartsAt } from '../../common/startsAt.js';
 
@@ -8,13 +9,13 @@ export interface ServiceQuoteInput {
   latitude: number;
   longitude: number;
   startsAt: ParsedStartsAt;
-  goalkeeperCount: 1 | 2;
-  durationMinutes: 60 | 90 | 120;
+  goalkeeperCount: GoalkeeperCount;
+  durationMinutes: DurationMinutes;
 }
 
 export interface ServiceQuote {
   unitRate: number;
-  goalkeeperCount: 1 | 2;
+  goalkeeperCount: GoalkeeperCount;
   /** `unitRate × goalkeeperCount`. */
   subtotal: number;
   /** From the applicable lead-time tier, else 0. */

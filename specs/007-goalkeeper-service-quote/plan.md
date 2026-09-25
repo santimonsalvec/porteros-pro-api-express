@@ -65,11 +65,14 @@ src/
 │       └── goalkeeperRequests/
 │           ├── common/
 │           │   ├── ports.ts                   # NEW: IRentalRateRepository, IBookingSettingsRepository
+│           │   ├── bookingLimits.ts           # NEW (amendment 2): goalkeeper counts, durations, slot step — one source of truth for quote + config
+│           │   ├── serviceArea.ts             # NEW (amendment 2): resolveServiceArea / resolveAreaSettings, shared by the quote and the config
 │           │   ├── startsAt.ts                # NEW: parseStartsAt (pure, never uses Date.parse)
 │           │   ├── zonedTime.ts               # NEW: isValidTimeZone, zoneOffsetMinutes, resolveLocalDateTime, toLocalParts
 │           │   ├── resolveBookingSettings.ts  # NEW: city ?? country per field, reports missing[]
 │           │   └── pricing.ts                 # NEW: selectUnitRate, selectSurchargeTier, totals
 │           └── queries/
+│               ├── getBookingConfig/          # NEW (amendment 2): GET /config — query + handler
 │               └── getServiceQuote/
 │                   ├── getServiceQuoteQuery.ts         # Query + ServiceQuoteInput/ServiceQuote/Result types
 │                   └── getServiceQuoteQueryHandler.ts  # orchestrates the 10-step evaluation order (research.md §11)

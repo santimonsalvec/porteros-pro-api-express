@@ -15,6 +15,8 @@ import { GetCountriesQuery } from '../application/features/locations/queries/get
 import { GetCountriesQueryHandler } from '../application/features/locations/queries/getCountries/getCountriesQueryHandler.js';
 import { GetCitiesQuery } from '../application/features/locations/queries/getCities/getCitiesQuery.js';
 import { GetCitiesQueryHandler } from '../application/features/locations/queries/getCities/getCitiesQueryHandler.js';
+import { GetBookingConfigQuery } from '../application/features/goalkeeperRequests/queries/getBookingConfig/getBookingConfigQuery.js';
+import { GetBookingConfigQueryHandler } from '../application/features/goalkeeperRequests/queries/getBookingConfig/getBookingConfigQueryHandler.js';
 import { GetServiceQuoteQuery } from '../application/features/goalkeeperRequests/queries/getServiceQuote/getServiceQuoteQuery.js';
 import { GetServiceQuoteQueryHandler } from '../application/features/goalkeeperRequests/queries/getServiceQuote/getServiceQuoteQueryHandler.js';
 import { GetZonesByCityQuery } from '../application/features/zones/queries/getZonesByCity/getZonesByCityQuery.js';
@@ -181,6 +183,17 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       handler: new GetCitiesQueryHandler(cityRepository, regionRepository, zoneRepository),
     },
     { requestType: GetZonesByCityQuery, handler: new GetZonesByCityQueryHandler(cityRepository, zoneRepository) },
+    {
+      requestType: GetBookingConfigQuery,
+      handler: new GetBookingConfigQueryHandler(
+        zoneRepository,
+        cityRepository,
+        regionRepository,
+        countryRepository,
+        bookingSettingsRepository,
+        clock,
+      ),
+    },
     {
       requestType: GetServiceQuoteQuery,
       handler: new GetServiceQuoteQueryHandler(

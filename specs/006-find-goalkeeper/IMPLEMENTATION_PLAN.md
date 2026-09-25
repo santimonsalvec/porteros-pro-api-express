@@ -125,7 +125,7 @@ Convención: `[ ]` pendiente · `[~]` en curso · `[x]` hecha · `[!]` bloqueada
 - [ ] 1.1 Dependencia `luxon` (+ tipos) si P11 = sí
 - [ ] 1.2 Dominio `BookingRules` + repositorio/proveedor de `appSettings` (Mongo, cache 60 s) con defaults (2 días, 30 min, paso 30, [60,90,120], [1,2], TTL)
 - [ ] 1.3 Servicio puro `validateRequestWindow(now, date, time, rules)` → devuelve `startsAt` UTC o error tipado (`date_not_allowed`, `too_soon`, `slot_invalid`)
-- [ ] 1.4 Query `GetRequestConfig` + endpoint `GET /config` (con `now` del servidor)
+- [x] 1.4 ~~Query `GetRequestConfig` + endpoint `GET /config`~~ — **hecho en la feature 007** como `GET /api/goalkeeper-requests/config?latitude=&longitude=` (por ubicación: la ventana y la anticipación son por país/ciudad). Ver `specs/007-goalkeeper-service-quote/contracts/booking-config.md`
 - [ ] 1.5 Tests unitarios (bordes: 23:50→mañana, exactamente 30 min, día no habilitado, tz) + test HTTP
 
 ### Paso 2 — Lugar y resolución de zona

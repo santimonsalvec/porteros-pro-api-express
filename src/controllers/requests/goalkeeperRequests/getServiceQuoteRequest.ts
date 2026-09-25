@@ -1,5 +1,16 @@
 import { z, type ZodError } from 'zod';
+import {
+  DURATION_OPTIONS,
+  GOALKEEPER_COUNTS,
+  isDurationOption,
+  isGoalkeeperCount,
+} from '../../../application/features/goalkeeperRequests/common/bookingLimits.js';
 import { parseStartsAt } from '../../../application/features/goalkeeperRequests/common/startsAt.js';
+
+/** "60, 90 or 120" — the message is built from the constants so it can never drift from them. */
+function orList(values: readonly number[]): string {
+  return values.length < 2 ? values.join('') : `${values.slice(0, -1).join(', ')} or ${values[values.length - 1]}`;
+}
 
 /**
  * Shape and range checks only (types, latitude/longitude, the allowed count and
@@ -16,10 +27,8 @@ export const getServiceQuoteRequestSchema = z.object({
       (value) => parseStartsAt(value) !== null,
       'Must be an ISO-8601 date-time such as 2026-09-21T15:00:00 or 2026-09-21T15:00:00-05:00.',
     ),
-  goalkeeperCount: z.union([z.literal(1), z.literal(2)], { errorMap: () => ({ message: 'Must be 1 or 2.' }) }),
-  durationMinutes: z.union([z.literal(60), z.literal(90), z.literal(120)], {
-    errorMap: () => ({ message: 'Must be 60, 90 or 120.' }),
-  }),
+  goalkeeperCount: z.number().refine(isGoalkeeperCount, { message: `Must be ${orList(GOALKEEPER_COUNTS)}.` }),
+  durationMinutes: z.number().refine(isDurationOption, { message: `Must be ${orList(DURATION_OPTIONS)}.` }),
 });
 
 export type GetServiceQuoteRequest = z.infer<typeof getServiceQuoteRequestSchema>;
