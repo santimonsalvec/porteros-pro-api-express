@@ -12,6 +12,7 @@ import { createHealthController } from './controllers/healthController.js';
 import { createImagesController } from './controllers/imagesController.js';
 import { createGoalkeeperController } from './controllers/goalkeeperController.js';
 import { createZonesController } from './controllers/zonesController.js';
+import { createGoalkeeperRequestsController } from './controllers/goalkeeperRequestsController.js';
 import { openapiSpec } from './infrastructure/openapi/openapiSpec.js';
 
 /**
@@ -32,6 +33,7 @@ export function createApp(deps: AppDependencies): Express {
   app.use('/api/images', createImagesController(deps));
   app.use('/api/goalkeepers', createGoalkeeperController(deps));
   app.use('/api/zones', createZonesController(deps));
+  app.use('/api/goalkeeper-requests', createGoalkeeperRequestsController(deps));
   app.use('/health', createHealthController(deps));
 
   app.get('/openapi.json', (_req, res) => res.json(openapiSpec));

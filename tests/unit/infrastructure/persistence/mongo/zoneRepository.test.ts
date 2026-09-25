@@ -60,4 +60,40 @@ describe('ZoneRepository (mocked driver)', () => {
 
     expect(collection.createIndex).toHaveBeenCalledWith({ cityId: 1, active: 1, displayOrder: 1 }, expect.any(Object));
   });
+
+  it('finds the active zone containing a point with $geoIntersects in [longitude, latitude] order, lowest displayOrder then _id first', async () => {
+    const collection = createFakeCollection();
+    const cursor = toArrayCursor([doc]);
+    collection.find.mockReturnValue(cursor);
+    const repository = repositoryWith(collection);
+
+    const found = await repository.findActiveContainingPoint(6.2442, -75.5812);
+
+    expect(collection.find).toHaveBeenCalledWith({
+      active: true,
+      geometry: { $geoIntersects: { $geometry: { type: 'Point', coordinates: [-75.5812, 6.2442] } } },
+    });
+    expect(cursor.sort).toHaveBeenCalledWith({ displayOrder: 1, _id: 1 });
+    expect(cursor.limit).toHaveBeenCalledWith(1);
+    expect(found?.id).toBe('zone-bello');
+  });
+
+  it('returns null when no active zone contains the point', async () => {
+    const collection = createFakeCollection();
+    collection.find.mockReturnValue(toArrayCursor([]));
+    const repository = repositoryWith(collection);
+
+    expect(await repository.findActiveContainingPoint(0, 0)).toBeNull();
+  });
+
+  it('never creates a 2dsphere index from ensureIndexes (an invalid polygon would fail the build at startup)', async () => {
+    const collection = createFakeCollection();
+    const repository = repositoryWith(collection);
+
+    await repository.ensureIndexes();
+
+    for (const call of collection.createIndex.mock.calls) {
+      expect(JSON.stringify(call[0])).not.toContain('2dsphere');
+    }
+  });
 });

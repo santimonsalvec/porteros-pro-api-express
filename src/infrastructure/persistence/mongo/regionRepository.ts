@@ -11,7 +11,11 @@ export class RegionRepository implements IRegionRepository {
   }
 
   private fromDocument(doc: Document): Region {
-    return new Region({ id: String(doc._id), name: doc.name as string });
+    return new Region({
+      id: String(doc._id),
+      name: doc.name as string,
+      countryId: doc.countryId === undefined || doc.countryId === null ? null : String(doc.countryId),
+    });
   }
 
   async getByIds(ids: string[]): Promise<Region[]> {

@@ -27,6 +27,61 @@ export const openapiSpec = {
         },
         required: ['error', 'message', 'fieldErrors'],
       },
+      BookingConfigResponse: {
+        type: 'object',
+        description: 'What a client may pick for a pitch, so an app can build its selectors without hardcoding limits or using the phone\u2019s clock.',
+        properties: {
+          timeZone: { type: 'string', example: 'America/Bogota' },
+          now: { type: 'string', example: '2026-09-21T13:00:00-05:00', description: 'Server time in the city\u2019s local time, with its offset' },
+          bookingWindowDays: { type: 'integer', example: 2, description: 'Today plus the next N-1 local calendar days' },
+          availableDates: { type: 'array', items: { type: 'string' }, example: ['2026-09-21', '2026-09-22'], description: 'Bookable local dates (YYYY-MM-DD), starting today' },
+          minNoticeMinutes: { type: 'integer', example: 30 },
+          slotStepMinutes: { type: 'integer', example: 30, description: 'Start times sit on multiples of this many minutes (local :00 and :30)' },
+          earliestStartsAt: {
+            type: 'string',
+            nullable: true,
+            example: '2026-09-21T13:30:00-05:00',
+            description: 'The soonest start a quote accepts right now (now + minimum notice, rounded up to the next slot mark). null when nothing can be booked at the moment',
+          },
+          goalkeeperCount: { type: 'object', properties: { min: { type: 'integer', example: 1 }, max: { type: 'integer', example: 2 } } },
+          durationOptions: { type: 'array', items: { type: 'integer' }, example: [60, 90, 120] },
+          currency: { type: 'string', example: 'COP', description: 'The country\u2019s currency; every quote amount is in it' },
+        },
+        required: ['timeZone', 'now', 'bookingWindowDays', 'availableDates', 'minNoticeMinutes', 'slotStepMinutes', 'earliestStartsAt', 'goalkeeperCount', 'durationOptions', 'currency'],
+      },
+      ServiceQuoteRequest: {
+        type: 'object',
+        properties: {
+          latitude: { type: 'number', minimum: -90, maximum: 90, example: 3.45 },
+          longitude: { type: 'number', minimum: -180, maximum: 180, example: -76.5 },
+          startsAt: {
+            type: 'string',
+            example: '2026-09-21T15:00:00',
+            description:
+              'ISO-8601 date-time. With an offset (Z or ±HH:mm) it is converted to that instant; WITHOUT an offset it is read as local time in the city where the location is (never the caller\u2019s or the server\u2019s). Must fall exactly on a local :00 or :30 with zero seconds.',
+          },
+          goalkeeperCount: { type: 'integer', enum: [1, 2] },
+          durationMinutes: { type: 'integer', enum: [60, 90, 120] },
+        },
+        required: ['latitude', 'longitude', 'startsAt', 'goalkeeperCount', 'durationMinutes'],
+      },
+      ServiceQuoteResponse: {
+        type: 'object',
+        description: 'Amounts are integers in whole units of the country\u2019s currency.',
+        properties: {
+          unitRate: { type: 'integer', example: 55000, description: 'Price per goalkeeper (zone rate, else city rate)' },
+          goalkeeperCount: { type: 'integer', enum: [1, 2] },
+          subtotal: { type: 'integer', example: 110000, description: 'unitRate x goalkeeperCount' },
+          unitSurcharge: { type: 'integer', example: 5000, description: 'Lead-time surcharge per goalkeeper; 0 when none applies' },
+          surcharge: { type: 'integer', example: 10000, description: 'unitSurcharge x goalkeeperCount: the surcharge is paid once per goalkeeper' },
+          total: { type: 'integer', example: 120000, description: 'subtotal + surcharge = (unitRate + unitSurcharge) x goalkeeperCount' },
+          currency: { type: 'string', example: 'COP', description: 'The currency of the country the location is in; every amount above is in it' },
+          startsAt: { type: 'string', example: '2026-09-21T20:00:00.000Z', description: 'Resolved start instant, UTC' },
+          startsAtLocal: { type: 'string', example: '2026-09-21T15:00:00-05:00', description: 'The same instant in the city\u2019s time zone' },
+          timeZone: { type: 'string', example: 'America/Bogota' },
+        },
+        required: ['unitRate', 'goalkeeperCount', 'subtotal', 'unitSurcharge', 'surcharge', 'total', 'currency', 'startsAt', 'startsAtLocal', 'timeZone'],
+      },
       TokenPairResponse: {
         type: 'object',
         properties: {
@@ -511,6 +566,67 @@ export const openapiSpec = {
           '401': { description: 'Not signed in' },
           '404': {
             description: 'city_not_found (the city does not exist) or no_zones_configured (it has no active zones yet)',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+        },
+      },
+    },
+    '/api/goalkeeper-requests/config': {
+      get: {
+        summary: 'What a client may pick for a pitch: bookable dates, minimum notice, goalkeeper counts, durations (read-only)',
+        description:
+          'Resolves the location exactly like the quote does, so it refuses exactly where a quote would refuse; a 200 here means /quote will accept a request within these limits. The window and the minimum notice are configured per country (city overrides allowed); the goalkeeper counts, durations and slot step are fixed.',
+        tags: ['Goalkeeper requests'],
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'latitude', in: 'query', required: true, schema: { type: 'number', minimum: -90, maximum: 90 } },
+          { name: 'longitude', in: 'query', required: true, schema: { type: 'number', minimum: -180, maximum: 180 } },
+        ],
+        responses: {
+          '200': {
+            description: 'The booking configuration for that location',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/BookingConfigResponse' } } },
+          },
+          '400': {
+            description: 'validation_failed (with fieldErrors naming every offending parameter) or location_not_covered',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } },
+          },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'Not a client, or the client profile is not complete' },
+          '422': {
+            description:
+              'time_zone_not_configured, or service_not_configured (missing: bookingWindowDays | minNoticeMinutes | leadTimeSurcharge | currency)',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+        },
+      },
+    },
+    '/api/goalkeeper-requests/quote': {
+      post: {
+        summary: 'Quote the total price of a goalkeeper booking (read-only — creates nothing)',
+        description:
+          'total = (unit rate + lead-time surcharge) x goalkeeperCount: both the rate and the surcharge are charged per goalkeeper, so with two goalkeepers the surcharge is paid twice. The unit rate is the zone rate for the duration, else the city rate. The booking window, minimum notice and surcharge tiers are configured per country (city overrides allowed); an area with any of them missing is refused, never assumed. Evaluation order: validation_failed, location_not_covered, time_zone_not_configured, invalid_start_time, start_time_in_past, service_not_configured, insufficient_notice, outside_booking_window, rate_not_configured. No price is ever returned with an error.',
+        tags: ['Goalkeeper requests'],
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/ServiceQuoteRequest' } } },
+        },
+        responses: {
+          '200': {
+            description: 'The price breakdown',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ServiceQuoteResponse' } } },
+          },
+          '400': {
+            description:
+              'validation_failed (with fieldErrors naming every offending field), location_not_covered, invalid_start_time (reason: not_on_slot | nonexistent_local_time | ambiguous_local_time), start_time_in_past, insufficient_notice (minNoticeMinutes — there is not enough time for a goalkeeper to reach the zone), or outside_booking_window (bookingWindowDays)',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } },
+          },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'Not a client, or the client profile is not complete' },
+          '422': {
+            description:
+              'The request is well-formed but the service is not set up for that area or duration: time_zone_not_configured, service_not_configured (missing: bookingWindowDays | minNoticeMinutes | leadTimeSurcharge | currency — the country\u2019s currency) or rate_not_configured',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
           },
         },

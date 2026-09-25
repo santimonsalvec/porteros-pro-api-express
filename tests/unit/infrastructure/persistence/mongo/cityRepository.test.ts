@@ -40,4 +40,29 @@ describe('CityRepository (mocked driver)', () => {
     expect(collection.createIndex).toHaveBeenCalledWith({ name: 1 }, expect.any(Object));
     expect(collection.createIndex).toHaveBeenCalledWith({ zoneCityId: 1 }, expect.any(Object));
   });
+
+  it('maps timeZone when present', async () => {
+    const collection = createFakeCollection();
+    collection.findOne.mockResolvedValue({
+      _id: 'city-medellin',
+      name: 'Medellín',
+      regionId: 'region-antioquia',
+      timeZone: 'America/Bogota',
+    });
+    const repository = repositoryWith(collection);
+
+    const found = await repository.getById('city-medellin');
+
+    expect(found?.timeZone).toBe('America/Bogota');
+  });
+
+  it('defaults timeZone to null when absent', async () => {
+    const collection = createFakeCollection();
+    collection.findOne.mockResolvedValue({ _id: 'city-medellin', name: 'Medellín', regionId: 'region-antioquia' });
+    const repository = repositoryWith(collection);
+
+    const found = await repository.getById('city-medellin');
+
+    expect(found?.timeZone).toBeNull();
+  });
 });

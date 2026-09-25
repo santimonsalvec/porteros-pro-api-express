@@ -28,12 +28,20 @@ import { GetCitiesQuery } from '../../src/application/features/locations/queries
 import { GetCitiesQueryHandler } from '../../src/application/features/locations/queries/getCities/getCitiesQueryHandler.js';
 import { GetZonesByCityQuery } from '../../src/application/features/zones/queries/getZonesByCity/getZonesByCityQuery.js';
 import { GetZonesByCityQueryHandler } from '../../src/application/features/zones/queries/getZonesByCity/getZonesByCityQueryHandler.js';
+import { GetBookingConfigQuery } from '../../src/application/features/goalkeeperRequests/queries/getBookingConfig/getBookingConfigQuery.js';
+import { GetBookingConfigQueryHandler } from '../../src/application/features/goalkeeperRequests/queries/getBookingConfig/getBookingConfigQueryHandler.js';
+import { GetServiceQuoteQuery } from '../../src/application/features/goalkeeperRequests/queries/getServiceQuote/getServiceQuoteQuery.js';
+import { GetServiceQuoteQueryHandler } from '../../src/application/features/goalkeeperRequests/queries/getServiceQuote/getServiceQuoteQueryHandler.js';
 import { City } from '../../src/domain/locations/city.js';
 import { Region } from '../../src/domain/locations/region.js';
 import { Zone } from '../../src/domain/zones/zone.js';
 import { FakeCityRepository } from '../fakes/fakeCityRepository.js';
 import { FakeRegionRepository } from '../fakes/fakeRegionRepository.js';
 import { FakeZoneRepository } from '../fakes/fakeZoneRepository.js';
+import { FixedClock } from '../fakes/fakeClock.js';
+import { FakeRentalRateRepository } from '../fakes/fakeRentalRateRepository.js';
+import { FakeBookingSettingsRepository } from '../fakes/fakeBookingSettingsRepository.js';
+import { QUOTE_NOW, seedQuoteWorld } from '../fixtures/quoteFixtures.js';
 import { StoreImageCommand } from '../../src/application/features/images/commands/storeImage/storeImageCommand.js';
 import { StoreImageCommandHandler } from '../../src/application/features/images/commands/storeImage/storeImageCommandHandler.js';
 import { ResolveImageQuery } from '../../src/application/features/images/queries/resolveImage/resolveImageQuery.js';
@@ -84,6 +92,12 @@ export interface TestAppContext {
   cityRepository: FakeCityRepository;
   regionRepository: FakeRegionRepository;
   zoneRepository: FakeZoneRepository;
+  rentalRateRepository: FakeRentalRateRepository;
+  bookingSettingsRepository: FakeBookingSettingsRepository;
+  /** The countries (with their currency) the quote endpoint reads — separate from `countryRepository`, which the profile/locations suites assert on. */
+  quoteCountryRepository: FakeCountryRepository;
+  /** Set the reference "now" for the quote endpoint (defaults to `QUOTE_NOW`, 13:00 in Bogotá). */
+  clock: FixedClock;
   /** Mutate `.status` before a request to simulate an unhealthy dependency. */
   health: HealthReportResponse;
 }
@@ -134,6 +148,12 @@ export function buildTestApp(): TestAppContext {
       displayOrder: 2,
     }),
   );
+
+  const quoteCountryRepository = new FakeCountryRepository();
+  const rentalRateRepository = new FakeRentalRateRepository();
+  const bookingSettingsRepository = new FakeBookingSettingsRepository();
+  const clock = new FixedClock(QUOTE_NOW);
+  seedQuoteWorld({ countryRepository: quoteCountryRepository, zoneRepository, cityRepository, regionRepository, rentalRateRepository, bookingSettingsRepository });
 
   const ssoCatalog: ISsoProviderCatalog = {
     getProviders: (platform) =>
@@ -195,6 +215,29 @@ export function buildTestApp(): TestAppContext {
       handler: new GetCitiesQueryHandler(cityRepository, regionRepository, zoneRepository),
     },
     { requestType: GetZonesByCityQuery, handler: new GetZonesByCityQueryHandler(cityRepository, zoneRepository) },
+    {
+      requestType: GetBookingConfigQuery,
+      handler: new GetBookingConfigQueryHandler(
+        zoneRepository,
+        cityRepository,
+        regionRepository,
+        quoteCountryRepository,
+        bookingSettingsRepository,
+        clock,
+      ),
+    },
+    {
+      requestType: GetServiceQuoteQuery,
+      handler: new GetServiceQuoteQueryHandler(
+        zoneRepository,
+        cityRepository,
+        regionRepository,
+        quoteCountryRepository,
+        rentalRateRepository,
+        bookingSettingsRepository,
+        clock,
+      ),
+    },
     {
       requestType: StoreImageCommand,
       handler: new StoreImageCommandHandler(imageStorageProvider, imageRepository, idGenerator),
@@ -277,6 +320,10 @@ export function buildTestApp(): TestAppContext {
     cityRepository,
     regionRepository,
     zoneRepository,
+    rentalRateRepository,
+    bookingSettingsRepository,
+    quoteCountryRepository,
+    clock,
     health,
   };
 }

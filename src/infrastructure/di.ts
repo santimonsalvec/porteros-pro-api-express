@@ -15,6 +15,10 @@ import { GetCountriesQuery } from '../application/features/locations/queries/get
 import { GetCountriesQueryHandler } from '../application/features/locations/queries/getCountries/getCountriesQueryHandler.js';
 import { GetCitiesQuery } from '../application/features/locations/queries/getCities/getCitiesQuery.js';
 import { GetCitiesQueryHandler } from '../application/features/locations/queries/getCities/getCitiesQueryHandler.js';
+import { GetBookingConfigQuery } from '../application/features/goalkeeperRequests/queries/getBookingConfig/getBookingConfigQuery.js';
+import { GetBookingConfigQueryHandler } from '../application/features/goalkeeperRequests/queries/getBookingConfig/getBookingConfigQueryHandler.js';
+import { GetServiceQuoteQuery } from '../application/features/goalkeeperRequests/queries/getServiceQuote/getServiceQuoteQuery.js';
+import { GetServiceQuoteQueryHandler } from '../application/features/goalkeeperRequests/queries/getServiceQuote/getServiceQuoteQueryHandler.js';
 import { GetZonesByCityQuery } from '../application/features/zones/queries/getZonesByCity/getZonesByCityQuery.js';
 import { GetZonesByCityQueryHandler } from '../application/features/zones/queries/getZonesByCity/getZonesByCityQueryHandler.js';
 import { StoreImageCommand } from '../application/features/images/commands/storeImage/storeImageCommand.js';
@@ -60,6 +64,9 @@ import { GoogleSsoProviderCatalog } from './auth/googleSsoProviderCatalog.js';
 import { DEFAULT_GOOGLE_SCOPES } from './auth/googleSsoOptions.js';
 import { PinoAuditLogger } from './observability/pinoAuditLogger.js';
 import { UuidIdGenerator } from './uuidIdGenerator.js';
+import { SystemClock } from './systemClock.js';
+import { RentalRateRepository } from './persistence/mongo/rentalRateRepository.js';
+import { BookingSettingsRepository } from './persistence/mongo/bookingSettingsRepository.js';
 import { MongoHealthCheck } from './healthChecks/mongoHealthCheck.js';
 import { CloudinaryImageStorageProvider } from './images/cloudinaryImageStorageProvider.js';
 import { GoalkeeperRegistrationRepository } from './persistence/mongo/goalkeeperRegistrationRepository.js';
@@ -97,6 +104,10 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   const regionRepository = new RegionRepository(db);
   const zoneRepository = new ZoneRepository(db);
   await zoneRepository.ensureIndexes();
+  const rentalRateRepository = new RentalRateRepository(db);
+  await rentalRateRepository.ensureIndexes();
+  const bookingSettingsRepository = new BookingSettingsRepository(db);
+  await bookingSettingsRepository.ensureIndexes();
 
   const imageStorageProvider = new CloudinaryImageStorageProvider({
     cloudinaryUrl: config.images.cloudinaryUrl,
@@ -118,6 +129,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   });
   const auditLogger = new PinoAuditLogger();
   const idGenerator = new UuidIdGenerator();
+  const clock = new SystemClock();
   const refreshTokenLifetimeMs = config.jwt.refreshTokenLifetimeDays * 24 * 60 * 60 * 1000;
   const mongoHealthCheck = new MongoHealthCheck(db);
 
@@ -171,6 +183,29 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       handler: new GetCitiesQueryHandler(cityRepository, regionRepository, zoneRepository),
     },
     { requestType: GetZonesByCityQuery, handler: new GetZonesByCityQueryHandler(cityRepository, zoneRepository) },
+    {
+      requestType: GetBookingConfigQuery,
+      handler: new GetBookingConfigQueryHandler(
+        zoneRepository,
+        cityRepository,
+        regionRepository,
+        countryRepository,
+        bookingSettingsRepository,
+        clock,
+      ),
+    },
+    {
+      requestType: GetServiceQuoteQuery,
+      handler: new GetServiceQuoteQueryHandler(
+        zoneRepository,
+        cityRepository,
+        regionRepository,
+        countryRepository,
+        rentalRateRepository,
+        bookingSettingsRepository,
+        clock,
+      ),
+    },
     {
       requestType: StoreImageCommand,
       handler: new StoreImageCommandHandler(imageStorageProvider, imageRepository, idGenerator),

@@ -25,11 +25,15 @@ export class CityRepository implements ICityRepository {
   }
 
   private fromDocument(doc: Document): City {
+    // Read as-is: an invalid identifier is rejected only where a time zone is actually
+    // used (the quote handler), so a bad value here can't break unrelated city endpoints.
+    const timeZone = (doc.timeZone as string | undefined | null) ?? null;
     return new City({
       id: String(doc._id),
       name: doc.name as string,
       regionId: doc.regionId as string,
       zoneCityId: (doc.zoneCityId as string | undefined) ?? null,
+      timeZone,
     });
   }
 

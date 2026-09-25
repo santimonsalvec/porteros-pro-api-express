@@ -49,4 +49,28 @@ describe('CountryRepository (mocked driver)', () => {
     await expect(repository.delete()).rejects.toThrow();
     expect(collection.insertOne).not.toHaveBeenCalled();
   });
+
+  it('maps the currency when present', async () => {
+    const collection = createFakeCollection();
+    collection.findOne.mockResolvedValue({ _id: 'co', name: 'Colombia', dialCode: '+57', countryCode: 'CO', currency: 'COP' });
+    const repository = repositoryWith(collection);
+
+    expect((await repository.getById('co'))?.currency).toBe('COP');
+  });
+
+  it('defaults the currency to null when absent', async () => {
+    const collection = createFakeCollection();
+    collection.findOne.mockResolvedValue({ _id: 'co', name: 'Colombia', dialCode: '+57', countryCode: 'CO' });
+    const repository = repositoryWith(collection);
+
+    expect((await repository.getById('co'))?.currency).toBeNull();
+  });
+
+  it('reads a malformed currency as-is instead of throwing, so the profile and country endpoints keep working', async () => {
+    const collection = createFakeCollection();
+    collection.findOne.mockResolvedValue({ _id: 'co', name: 'Colombia', dialCode: '+57', countryCode: 'CO', currency: 'peso' });
+    const repository = repositoryWith(collection);
+
+    expect((await repository.getById('co'))?.currency).toBe('peso');
+  });
 });
