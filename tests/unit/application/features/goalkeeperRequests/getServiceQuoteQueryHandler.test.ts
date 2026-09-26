@@ -80,6 +80,7 @@ describe('GetServiceQuoteQueryHandler — Story 1: price a booking', () => {
         startsAtLocal: '2026-09-21T15:00:00-05:00',
         timeZone: 'America/Bogota',
       },
+      area: { zoneId: 'zone-cali-norte', cityId: 'city-cali' },
     });
   });
 
@@ -239,6 +240,12 @@ describe('GetServiceQuoteQueryHandler — Story 2: city-rate fallback', () => {
     const result = await h.quote('2026-09-21T15:00:00', { ...POINTS.caliCentro, durationMinutes: 90 });
 
     expect(result).toMatchObject({ outcome: 'success', quote: { unitRate: 56000, subtotal: 56000, currency: 'COP' } });
+  });
+
+  it('reports the zone the point fell in, not the city the rate came from', async () => {
+    const result = await h.quote('2026-09-21T15:00:00', { ...POINTS.caliCentro, durationMinutes: 90 });
+
+    expect(result).toMatchObject({ outcome: 'success', area: { zoneId: 'zone-cali-centro', cityId: 'city-cali' } });
   });
 
   it('applies the city rate per goalkeeper', async () => {

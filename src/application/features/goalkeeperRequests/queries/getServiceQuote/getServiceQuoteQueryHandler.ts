@@ -118,6 +118,7 @@ export class GetServiceQuoteQueryHandler implements IQueryHandler<GetServiceQuot
         startsAtLocal: formatLocalIso(startEpochMs, timeZone),
         timeZone,
       },
+      area: { zoneId: zone.id, cityId: city.id },
     };
   }
 }

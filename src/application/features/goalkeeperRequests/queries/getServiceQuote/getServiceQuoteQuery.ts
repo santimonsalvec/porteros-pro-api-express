@@ -36,7 +36,12 @@ export interface ServiceQuote {
 export type InvalidStartTimeReason = 'not_on_slot' | 'nonexistent_local_time' | 'ambiguous_local_time';
 
 export type GetServiceQuoteResult =
-  | { outcome: 'success'; quote: ServiceQuote }
+  | {
+      outcome: 'success';
+      quote: ServiceQuote;
+      /** Where the point was resolved. Internal: recorded on the stored quote, never serialized. */
+      area: { zoneId: string; cityId: string };
+    }
   | { outcome: 'location_not_covered' }
   | { outcome: 'time_zone_not_configured'; cityId: string }
   | { outcome: 'invalid_start_time'; reason: InvalidStartTimeReason }

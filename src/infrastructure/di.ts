@@ -19,6 +19,8 @@ import { GetBookingConfigQuery } from '../application/features/goalkeeperRequest
 import { GetBookingConfigQueryHandler } from '../application/features/goalkeeperRequests/queries/getBookingConfig/getBookingConfigQueryHandler.js';
 import { GetServiceQuoteQuery } from '../application/features/goalkeeperRequests/queries/getServiceQuote/getServiceQuoteQuery.js';
 import { GetServiceQuoteQueryHandler } from '../application/features/goalkeeperRequests/queries/getServiceQuote/getServiceQuoteQueryHandler.js';
+import { IssueServiceQuoteCommand } from '../application/features/goalkeeperRequests/commands/issueServiceQuote/issueServiceQuoteCommand.js';
+import { IssueServiceQuoteCommandHandler } from '../application/features/goalkeeperRequests/commands/issueServiceQuote/issueServiceQuoteCommandHandler.js';
 import { GetZonesByCityQuery } from '../application/features/zones/queries/getZonesByCity/getZonesByCityQuery.js';
 import { GetZonesByCityQueryHandler } from '../application/features/zones/queries/getZonesByCity/getZonesByCityQueryHandler.js';
 import { StoreImageCommand } from '../application/features/images/commands/storeImage/storeImageCommand.js';
@@ -211,6 +213,10 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         bookingSettingsRepository,
         clock,
       ),
+    },
+    {
+      requestType: IssueServiceQuoteCommand,
+      handler: new IssueServiceQuoteCommandHandler(mediator, quoteRepository, idGenerator, clock),
     },
     {
       requestType: StoreImageCommand,

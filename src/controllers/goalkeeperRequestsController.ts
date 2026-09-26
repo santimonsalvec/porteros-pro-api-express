@@ -4,7 +4,7 @@ import type { AccessTokenClaims } from '../application/features/auth/common/acce
 import type { MissingSetting } from '../application/features/goalkeeperRequests/common/resolveBookingSettings.js';
 import { parseStartsAt } from '../application/features/goalkeeperRequests/common/startsAt.js';
 import { GetBookingConfigQuery } from '../application/features/goalkeeperRequests/queries/getBookingConfig/getBookingConfigQuery.js';
-import { GetServiceQuoteQuery } from '../application/features/goalkeeperRequests/queries/getServiceQuote/getServiceQuoteQuery.js';
+import { IssueServiceQuoteCommand } from '../application/features/goalkeeperRequests/commands/issueServiceQuote/issueServiceQuoteCommand.js';
 import { logger } from '../infrastructure/observability/logger.js';
 import { requireAuth } from '../infrastructure/auth/middleware/requireAuth.js';
 import { requireClientOnly } from '../infrastructure/auth/middleware/requireClientOnly.js';
@@ -39,8 +39,8 @@ function serviceNotConfigured(source: string, cityId: string, missing: MissingSe
 }
 
 /**
- * The goalkeeper-request resource, for now read-only: `GET /config` (what a client may pick for a
- * pitch) and `POST /quote` (the price of a booking) — the pieces the find-goalkeeper flow builds on.
+ * The goalkeeper-request resource: `GET /config` (what a client may pick for a pitch) and
+ * `POST /quote` (the price of a booking, held for 3 minutes so it can be confirmed).
  * Authenticated clients with a complete profile, exactly like `/api/goalkeepers/me/*`.
  */
 export function createGoalkeeperRequestsController(deps: GoalkeeperRequestsControllerDependencies): Router {
@@ -78,7 +78,7 @@ export function createGoalkeeperRequestsController(deps: GoalkeeperRequestsContr
     const body = parsed.data;
 
     const result = await deps.mediator.send(
-      new GetServiceQuoteQuery({
+      new IssueServiceQuoteCommand(req.authClaims!.sub, {
         latitude: body.latitude,
         longitude: body.longitude,
         startsAt: parseStartsAt(body.startsAt)!,

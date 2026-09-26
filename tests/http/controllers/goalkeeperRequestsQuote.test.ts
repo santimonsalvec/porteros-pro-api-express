@@ -55,7 +55,23 @@ describe('POST /api/goalkeeper-requests/quote — Story 1: price a booking', () 
       startsAt: '2026-09-21T20:00:00.000Z',
       startsAtLocal: '2026-09-21T15:00:00-05:00',
       timeZone: 'America/Bogota',
+      quoteId: expect.any(String),
+      expiresAt: '2026-09-21T18:03:00.000Z', // the fixed clock (18:00Z) + 3 minutes
     });
+  });
+
+  it('stores the quote for the caller so it can be confirmed', async () => {
+    const context = buildTestApp();
+    const token = await signInAndComplete(context, 'sub-0010');
+
+    const response = await post(context, token, validBody);
+
+    const stored = context.quoteRepository.all();
+    expect(stored).toHaveLength(1);
+    expect(stored[0]!.id).toBe(response.body.quoteId);
+    expect(stored[0]!.expiresAt.toISOString()).toBe(response.body.expiresAt);
+    expect(stored[0]!.pricing.total).toBe(response.body.total);
+    expect(stored[0]!.match.zoneId).toBe('zone-cali-norte');
   });
 
   it('charges the lead-time surcharge per goalkeeper (the contract worked example)', async () => {
@@ -155,7 +171,7 @@ describe('POST /api/goalkeeper-requests/quote — Story 3: refusals', () => {
   }
 
   function expectNoPrice(body: Record<string, unknown>) {
-    for (const key of ['unitRate', 'subtotal', 'surcharge', 'total', 'currency']) expect(body).not.toHaveProperty(key);
+    for (const key of ['unitRate', 'subtotal', 'surcharge', 'total', 'currency', 'quoteId', 'expiresAt']) expect(body).not.toHaveProperty(key);
   }
 
   describe('400 validation_failed names every offending field', () => {
@@ -187,6 +203,16 @@ describe('POST /api/goalkeeper-requests/quote — Story 3: refusals', () => {
         ['durationMinutes', 'goalkeeperCount', 'latitude', 'longitude', 'startsAt'],
       );
     });
+  });
+
+  it('stores nothing when the quote is refused', async () => {
+    const context = buildTestApp();
+    const token = await signInAndComplete(context, 'sub-0299');
+
+    const response = await post(context, token, { ...validBody, ...POINTS.nowhere });
+
+    expect(response.status).toBe(400);
+    expect(context.quoteRepository.all()).toHaveLength(0);
   });
 
   it('400 location_not_covered', async () => {

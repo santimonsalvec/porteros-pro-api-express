@@ -79,8 +79,32 @@ export const openapiSpec = {
           startsAt: { type: 'string', example: '2026-09-21T20:00:00.000Z', description: 'Resolved start instant, UTC' },
           startsAtLocal: { type: 'string', example: '2026-09-21T15:00:00-05:00', description: 'The same instant in the city\u2019s time zone' },
           timeZone: { type: 'string', example: 'America/Bogota' },
+          quoteId: {
+            type: 'string',
+            example: '01924f6e-8c1b-7c3a-9d4e-2b7f5a1c9e00',
+            description: 'Send it to POST /api/goalkeeper-requests/bookings to book this exact price',
+          },
+          expiresAt: {
+            type: 'string',
+            format: 'date-time',
+            example: '2026-09-21T18:33:00.000Z',
+            description: 'UTC; the quote can be confirmed strictly before this instant (3 minutes after issuance)',
+          },
         },
-        required: ['unitRate', 'goalkeeperCount', 'subtotal', 'unitSurcharge', 'surcharge', 'total', 'currency', 'startsAt', 'startsAtLocal', 'timeZone'],
+        required: [
+          'unitRate',
+          'goalkeeperCount',
+          'subtotal',
+          'unitSurcharge',
+          'surcharge',
+          'total',
+          'currency',
+          'startsAt',
+          'startsAtLocal',
+          'timeZone',
+          'quoteId',
+          'expiresAt',
+        ],
       },
       TokenPairResponse: {
         type: 'object',
@@ -603,9 +627,9 @@ export const openapiSpec = {
     },
     '/api/goalkeeper-requests/quote': {
       post: {
-        summary: 'Quote the total price of a goalkeeper booking (read-only — creates nothing)',
+        summary: 'Quote the total price of a goalkeeper booking and hold it for 3 minutes',
         description:
-          'total = (unit rate + lead-time surcharge) x goalkeeperCount: both the rate and the surcharge are charged per goalkeeper, so with two goalkeepers the surcharge is paid twice. The unit rate is the zone rate for the duration, else the city rate. The booking window, minimum notice and surcharge tiers are configured per country (city overrides allowed); an area with any of them missing is refused, never assumed. Evaluation order: validation_failed, location_not_covered, time_zone_not_configured, invalid_start_time, start_time_in_past, service_not_configured, insufficient_notice, outside_booking_window, rate_not_configured. No price is ever returned with an error.',
+          'total = (unit rate + lead-time surcharge) x goalkeeperCount: both the rate and the surcharge are charged per goalkeeper, so with two goalkeepers the surcharge is paid twice. The unit rate is the zone rate for the duration, else the city rate. The booking window, minimum notice and surcharge tiers are configured per country (city overrides allowed); an area with any of them missing is refused, never assumed. Evaluation order: validation_failed, location_not_covered, time_zone_not_configured, invalid_start_time, start_time_in_past, service_not_configured, insufficient_notice, outside_booking_window, rate_not_configured. No price is ever returned with an error. A successful quote is stored for 3 minutes (refusals are never stored) and can be booked with POST /api/goalkeeper-requests/bookings; if it cannot be stored the call fails with 500 and returns no price.',
         tags: ['Goalkeeper requests'],
         security: [{ bearerAuth: [] }],
         requestBody: {
@@ -614,7 +638,7 @@ export const openapiSpec = {
         },
         responses: {
           '200': {
-            description: 'The price breakdown',
+            description: 'The price breakdown, with the id and expiry of the stored quote',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/ServiceQuoteResponse' } } },
           },
           '400': {

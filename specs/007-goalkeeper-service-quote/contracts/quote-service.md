@@ -1,5 +1,7 @@
 # Contract: `POST /api/goalkeeper-requests/quote`
 
+> **Superseded in part by feature 008** — see [`specs/008-quote-to-booking/contracts/quote-service.md`](../../008-quote-to-booking/contracts/quote-service.md). The endpoint is no longer read-only: every successful quote is stored for 3 minutes and the response adds `quoteId` and `expiresAt`. Everything else below still applies.
+
 Calculates the total price of a goalkeeper booking. **Read-only**: creates, reserves and changes nothing (FR-020).
 
 **Auth**: `Authorization: Bearer <access token>`; token must be a client token with a complete profile (`requireAuth` + `requireClientOnly` + `requireCompleteProfile`). Missing/invalid token → `401` (no body); non-client or incomplete profile → `403` (no body).

@@ -1,4 +1,5 @@
 import type { Express } from 'express';
+import { v7 as uuidv7 } from 'uuid';
 import { createApp } from '../../src/app.js';
 import type { AppDependencies } from '../../src/appDependencies.js';
 import { Mediator, registerHandlers } from '../../src/application/common/mediator/mediator.js';
@@ -26,6 +27,9 @@ import { GetCountriesQuery } from '../../src/application/features/locations/quer
 import { GetCountriesQueryHandler } from '../../src/application/features/locations/queries/getCountries/getCountriesQueryHandler.js';
 import { GetCitiesQuery } from '../../src/application/features/locations/queries/getCities/getCitiesQuery.js';
 import { GetCitiesQueryHandler } from '../../src/application/features/locations/queries/getCities/getCitiesQueryHandler.js';
+import { IssueServiceQuoteCommand } from '../../src/application/features/goalkeeperRequests/commands/issueServiceQuote/issueServiceQuoteCommand.js';
+import { IssueServiceQuoteCommandHandler } from '../../src/application/features/goalkeeperRequests/commands/issueServiceQuote/issueServiceQuoteCommandHandler.js';
+import { FakeQuoteRepository } from '../fakes/fakeQuoteRepository.js';
 import { GetZonesByCityQuery } from '../../src/application/features/zones/queries/getZonesByCity/getZonesByCityQuery.js';
 import { GetZonesByCityQueryHandler } from '../../src/application/features/zones/queries/getZonesByCity/getZonesByCityQueryHandler.js';
 import { GetBookingConfigQuery } from '../../src/application/features/goalkeeperRequests/queries/getBookingConfig/getBookingConfigQuery.js';
@@ -96,6 +100,8 @@ export interface TestAppContext {
   bookingSettingsRepository: FakeBookingSettingsRepository;
   /** The countries (with their currency) the quote endpoint reads — separate from `countryRepository`, which the profile/locations suites assert on. */
   quoteCountryRepository: FakeCountryRepository;
+  /** Quotes stored by `POST /quote`. */
+  quoteRepository: FakeQuoteRepository;
   /** Set the reference "now" for the quote endpoint (defaults to `QUOTE_NOW`, 13:00 in Bogotá). */
   clock: FixedClock;
   /** Mutate `.status` before a request to simulate an unhealthy dependency. */
@@ -153,6 +159,7 @@ export function buildTestApp(): TestAppContext {
   const rentalRateRepository = new FakeRentalRateRepository();
   const bookingSettingsRepository = new FakeBookingSettingsRepository();
   const clock = new FixedClock(QUOTE_NOW);
+  const quoteRepository = new FakeQuoteRepository();
   seedQuoteWorld({ countryRepository: quoteCountryRepository, zoneRepository, cityRepository, regionRepository, rentalRateRepository, bookingSettingsRepository });
 
   const ssoCatalog: ISsoProviderCatalog = {
@@ -167,6 +174,8 @@ export function buildTestApp(): TestAppContext {
   let idCounter = 0;
   const idGenerator = { newId: (): string => `test-id-${++idCounter}` };
   const auditLogger = { logSsoAttempt: (): void => undefined };
+  // Quote ids are real UUIDs, as in production.
+  const uuidGenerator = { newId: (): string => uuidv7() };
 
   registerHandlers(mediator, [
     { requestType: GetSsoOptionsQuery, handler: new GetSsoOptionsQueryHandler(ssoCatalog) },
@@ -237,6 +246,10 @@ export function buildTestApp(): TestAppContext {
         bookingSettingsRepository,
         clock,
       ),
+    },
+    {
+      requestType: IssueServiceQuoteCommand,
+      handler: new IssueServiceQuoteCommandHandler(mediator, quoteRepository, uuidGenerator, clock),
     },
     {
       requestType: StoreImageCommand,
@@ -323,6 +336,7 @@ export function buildTestApp(): TestAppContext {
     rentalRateRepository,
     bookingSettingsRepository,
     quoteCountryRepository,
+    quoteRepository,
     clock,
     health,
   };
