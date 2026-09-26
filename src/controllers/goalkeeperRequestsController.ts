@@ -4,12 +4,14 @@ import type { AccessTokenClaims } from '../application/features/auth/common/acce
 import type { MissingSetting } from '../application/features/goalkeeperRequests/common/resolveBookingSettings.js';
 import { parseStartsAt } from '../application/features/goalkeeperRequests/common/startsAt.js';
 import { GetBookingConfigQuery } from '../application/features/goalkeeperRequests/queries/getBookingConfig/getBookingConfigQuery.js';
+import { ConfirmBookingCommand } from '../application/features/goalkeeperRequests/commands/confirmBooking/confirmBookingCommand.js';
 import { IssueServiceQuoteCommand } from '../application/features/goalkeeperRequests/commands/issueServiceQuote/issueServiceQuoteCommand.js';
 import { logger } from '../infrastructure/observability/logger.js';
 import { requireAuth } from '../infrastructure/auth/middleware/requireAuth.js';
 import { requireClientOnly } from '../infrastructure/auth/middleware/requireClientOnly.js';
 import { requireCompleteProfile } from '../infrastructure/auth/middleware/requireCompleteProfile.js';
 import { ApiError } from './apiError.js';
+import { confirmBookingRequestSchema } from './requests/goalkeeperRequests/confirmBookingRequest.js';
 import { getBookingConfigRequestSchema } from './requests/goalkeeperRequests/getBookingConfigRequest.js';
 import { getServiceQuoteRequestSchema, zodFieldErrors } from './requests/goalkeeperRequests/getServiceQuoteRequest.js';
 
@@ -39,8 +41,8 @@ function serviceNotConfigured(source: string, cityId: string, missing: MissingSe
 }
 
 /**
- * The goalkeeper-request resource: `GET /config` (what a client may pick for a pitch) and
- * `POST /quote` (the price of a booking, held for 3 minutes so it can be confirmed).
+ * The goalkeeper-request resource: `GET /config` (what a client may pick for a pitch), `POST /quote`
+ * (the price of a booking, held for 3 minutes) and `POST /bookings` (turn that quote into a booking).
  * Authenticated clients with a complete profile, exactly like `/api/goalkeepers/me/*`.
  */
 export function createGoalkeeperRequestsController(deps: GoalkeeperRequestsControllerDependencies): Router {
@@ -130,6 +132,36 @@ export function createGoalkeeperRequestsController(deps: GoalkeeperRequestsContr
           'Quote refused: area not configured',
         );
         throw new ApiError(422, 'rate_not_configured', 'No price is configured for this duration in this area.');
+    }
+  });
+
+  router.post('/bookings', async (req, res) => {
+    const parsed = confirmBookingRequestSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
+    }
+
+    const result = await deps.mediator.send(new ConfirmBookingCommand(req.authClaims!.sub, parsed.data.quoteId));
+
+    // Exhaustive on purpose: adding an outcome without mapping it here fails compilation.
+    switch (result.outcome) {
+      case 'created':
+        res.status(201).json(result.booking);
+        return;
+      case 'replayed':
+        res.status(200).json(result.booking);
+        return;
+      case 'quote_not_found':
+        throw new ApiError(404, 'quote_not_found', 'No quote with that id exists for this client; request a new quote.');
+      case 'quote_expired':
+        throw new ApiError(410, 'quote_expired', 'The quote has expired; request a new quote.');
+      case 'duplicate_booking':
+        throw new ApiError(409, 'duplicate_booking', 'You already have a booking for this zone and start time.', undefined, {
+          bookingId: result.existingBookingId,
+        });
+      case 'confirmation_in_progress':
+        res.set('Retry-After', '1');
+        throw new ApiError(409, 'confirmation_in_progress', 'This quote is already being confirmed; retry the same request.');
     }
   });
 

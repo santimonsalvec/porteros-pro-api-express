@@ -30,6 +30,11 @@ import { GetCitiesQueryHandler } from '../../src/application/features/locations/
 import { IssueServiceQuoteCommand } from '../../src/application/features/goalkeeperRequests/commands/issueServiceQuote/issueServiceQuoteCommand.js';
 import { IssueServiceQuoteCommandHandler } from '../../src/application/features/goalkeeperRequests/commands/issueServiceQuote/issueServiceQuoteCommandHandler.js';
 import { FakeQuoteRepository } from '../fakes/fakeQuoteRepository.js';
+import { FakeBookingRepository } from '../fakes/fakeBookingRepository.js';
+import { FakeQuoteConfirmationStore } from '../fakes/fakeQuoteConfirmationStore.js';
+import { FakeBookingAuditLogger } from '../fakes/fakeBookingAuditLogger.js';
+import { ConfirmBookingCommand } from '../../src/application/features/goalkeeperRequests/commands/confirmBooking/confirmBookingCommand.js';
+import { ConfirmBookingCommandHandler } from '../../src/application/features/goalkeeperRequests/commands/confirmBooking/confirmBookingCommandHandler.js';
 import { GetZonesByCityQuery } from '../../src/application/features/zones/queries/getZonesByCity/getZonesByCityQuery.js';
 import { GetZonesByCityQueryHandler } from '../../src/application/features/zones/queries/getZonesByCity/getZonesByCityQueryHandler.js';
 import { GetBookingConfigQuery } from '../../src/application/features/goalkeeperRequests/queries/getBookingConfig/getBookingConfigQuery.js';
@@ -100,8 +105,13 @@ export interface TestAppContext {
   bookingSettingsRepository: FakeBookingSettingsRepository;
   /** The countries (with their currency) the quote endpoint reads — separate from `countryRepository`, which the profile/locations suites assert on. */
   quoteCountryRepository: FakeCountryRepository;
-  /** Quotes stored by `POST /quote`. */
+  /** Quotes stored by `POST /quote` (and confirmed by `POST /bookings`). */
   quoteRepository: FakeQuoteRepository;
+  /** Bookings created by `POST /bookings`. */
+  bookingRepository: FakeBookingRepository;
+  /** The confirmation store over `quoteRepository` + `bookingRepository`; `failNextWith` simulates concurrency. */
+  quoteConfirmationStore: FakeQuoteConfirmationStore;
+  bookingAuditLogger: FakeBookingAuditLogger;
   /** Set the reference "now" for the quote endpoint (defaults to `QUOTE_NOW`, 13:00 in Bogotá). */
   clock: FixedClock;
   /** Mutate `.status` before a request to simulate an unhealthy dependency. */
@@ -160,6 +170,9 @@ export function buildTestApp(): TestAppContext {
   const bookingSettingsRepository = new FakeBookingSettingsRepository();
   const clock = new FixedClock(QUOTE_NOW);
   const quoteRepository = new FakeQuoteRepository();
+  const bookingRepository = new FakeBookingRepository();
+  const quoteConfirmationStore = new FakeQuoteConfirmationStore(quoteRepository, bookingRepository);
+  const bookingAuditLogger = new FakeBookingAuditLogger();
   seedQuoteWorld({ countryRepository: quoteCountryRepository, zoneRepository, cityRepository, regionRepository, rentalRateRepository, bookingSettingsRepository });
 
   const ssoCatalog: ISsoProviderCatalog = {
@@ -174,7 +187,7 @@ export function buildTestApp(): TestAppContext {
   let idCounter = 0;
   const idGenerator = { newId: (): string => `test-id-${++idCounter}` };
   const auditLogger = { logSsoAttempt: (): void => undefined };
-  // Quote ids are real UUIDs, as in production.
+  // Quote and booking ids must be real UUIDs: the confirmation answers 404 to anything else.
   const uuidGenerator = { newId: (): string => uuidv7() };
 
   registerHandlers(mediator, [
@@ -250,6 +263,17 @@ export function buildTestApp(): TestAppContext {
     {
       requestType: IssueServiceQuoteCommand,
       handler: new IssueServiceQuoteCommandHandler(mediator, quoteRepository, uuidGenerator, clock),
+    },
+    {
+      requestType: ConfirmBookingCommand,
+      handler: new ConfirmBookingCommandHandler(
+        bookingRepository,
+        quoteRepository,
+        quoteConfirmationStore,
+        uuidGenerator,
+        clock,
+        bookingAuditLogger,
+      ),
     },
     {
       requestType: StoreImageCommand,
@@ -337,6 +361,9 @@ export function buildTestApp(): TestAppContext {
     bookingSettingsRepository,
     quoteCountryRepository,
     quoteRepository,
+    bookingRepository,
+    quoteConfirmationStore,
+    bookingAuditLogger,
     clock,
     health,
   };

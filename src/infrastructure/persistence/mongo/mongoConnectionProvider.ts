@@ -1,4 +1,4 @@
-import { MongoClient, type Db } from 'mongodb';
+import { MongoClient, type ClientSession, type Db } from 'mongodb';
 import { config } from '../../config.js';
 
 /**
@@ -21,6 +21,11 @@ export class MongoConnectionProvider {
 
   getDb(): Db {
     return this.db;
+  }
+
+  /** A session for multi-document transactions (requires a replica set, e.g. Atlas). */
+  startSession(): ClientSession {
+    return this.client.startSession();
   }
 
   async connect(): Promise<void> {

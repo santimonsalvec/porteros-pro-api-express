@@ -106,6 +106,59 @@ export const openapiSpec = {
           'expiresAt',
         ],
       },
+      ConfirmBookingRequest: {
+        type: 'object',
+        properties: {
+          quoteId: { type: 'string', example: '01924f6e-8c1b-7c3a-9d4e-2b7f5a1c9e00', description: 'The quoteId returned by POST /quote' },
+        },
+        required: ['quoteId'],
+      },
+      BookingResponse: {
+        type: 'object',
+        description: 'A booking: the match and price are exact copies of the confirmed quote. Amounts are integers in whole currency units.',
+        properties: {
+          bookingId: { type: 'string' },
+          quoteId: { type: 'string' },
+          status: { type: 'string', enum: ['pending_assignment'], description: 'Confirmed, awaiting goalkeeper assignment' },
+          latitude: { type: 'number' },
+          longitude: { type: 'number' },
+          zoneId: { type: 'string' },
+          cityId: { type: 'string' },
+          startsAt: { type: 'string', example: '2026-09-21T20:00:00.000Z' },
+          startsAtLocal: { type: 'string', example: '2026-09-21T15:00:00-05:00' },
+          timeZone: { type: 'string', example: 'America/Bogota' },
+          goalkeeperCount: { type: 'integer', enum: [1, 2] },
+          durationMinutes: { type: 'integer', enum: [60, 90, 120] },
+          unitRate: { type: 'integer', example: 55000 },
+          subtotal: { type: 'integer', example: 110000 },
+          unitSurcharge: { type: 'integer', example: 5000 },
+          surcharge: { type: 'integer', example: 10000 },
+          total: { type: 'integer', example: 120000 },
+          currency: { type: 'string', example: 'COP' },
+          createdAt: { type: 'string', format: 'date-time' },
+        },
+        required: [
+          'bookingId',
+          'quoteId',
+          'status',
+          'latitude',
+          'longitude',
+          'zoneId',
+          'cityId',
+          'startsAt',
+          'startsAtLocal',
+          'timeZone',
+          'goalkeeperCount',
+          'durationMinutes',
+          'unitRate',
+          'subtotal',
+          'unitSurcharge',
+          'surcharge',
+          'total',
+          'currency',
+          'createdAt',
+        ],
+      },
       TokenPairResponse: {
         type: 'object',
         properties: {
@@ -651,6 +704,50 @@ export const openapiSpec = {
           '422': {
             description:
               'The request is well-formed but the service is not set up for that area or duration: time_zone_not_configured, service_not_configured (missing: bookingWindowDays | minNoticeMinutes | leadTimeSurcharge | currency — the country\u2019s currency) or rate_not_configured',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+        },
+      },
+    },
+    '/api/goalkeeper-requests/bookings': {
+      post: {
+        summary: 'Book a quote at exactly the quoted price (idempotent per quoteId)',
+        description:
+          'Deletes the caller’s unexpired quote and creates the booking in one transaction: both happen or neither does. However many times the same quoteId is confirmed, one booking exists and every successful call returns it (201 the first time, 200 afterwards). Only quoteId is read; any other field is ignored. Refusals never create a booking and never change or delete a quote.',
+        tags: ['Goalkeeper requests'],
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/ConfirmBookingRequest' } } },
+        },
+        responses: {
+          '201': {
+            description: 'Booking created by this call',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/BookingResponse' } } },
+          },
+          '200': {
+            description: 'The booking already existed (a retry or a double tap) — the same booking, nothing created',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/BookingResponse' } } },
+          },
+          '400': {
+            description: 'validation_failed: quoteId missing or not a string',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } },
+          },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'Not a client, or the client profile is not complete' },
+          '404': {
+            description:
+              'quote_not_found: no quote or booking with that id for this client — never existed, malformed id, already removed after expiry, or another client’s (indistinguishable). Request a new quote.',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+          '409': {
+            description:
+              'duplicate_booking (bookingId of the caller’s existing booking for the same zone and start; the quote is left untouched) or confirmation_in_progress (another confirmation of this quote has not committed yet; retry after the Retry-After header, 1 second)',
+            headers: { 'Retry-After': { schema: { type: 'integer' }, description: 'Only with confirmation_in_progress' } },
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+          '410': {
+            description: 'quote_expired: the quote is past its expiry but has not been removed yet. Request a new quote (same as 404).',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
           },
         },
