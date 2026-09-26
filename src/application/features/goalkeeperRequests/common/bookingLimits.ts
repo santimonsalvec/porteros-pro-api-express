@@ -21,6 +21,10 @@ export const SLOT_STEP_MINUTES = 30;
 /** A stored quote can be confirmed for this many minutes after it is issued (FR-002). */
 export const QUOTE_VALIDITY_MINUTES = 3;
 
+/** `GET /bookings` page size when the client does not send one, and the most it may ask for (FR-005). */
+export const BOOKINGS_PAGE_SIZE_DEFAULT = 20;
+export const BOOKINGS_PAGE_SIZE_MAX = 50;
+
 export function isGoalkeeperCount(value: number): value is GoalkeeperCount {
   return (GOALKEEPER_COUNTS as readonly number[]).includes(value);
 }

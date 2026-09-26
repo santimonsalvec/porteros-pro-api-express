@@ -1,4 +1,5 @@
 import type { LeadTimeSurcharge } from '../../src/domain/pricing/bookingSettings.js';
+import { Booking } from '../../src/domain/bookings/booking.js';
 import { MatchDetails } from '../../src/domain/bookings/matchDetails.js';
 import { PricingSnapshot } from '../../src/domain/bookings/pricingSnapshot.js';
 import { Quote } from '../../src/domain/bookings/quote.js';
@@ -191,4 +192,37 @@ export function buildStoredQuote(
     new Date(overrides.issuedAt ?? QUOTE_NOW),
     overrides.validityMinutes ?? 3,
   );
+}
+
+/**
+ * A stored booking of the Cali Norte world (120.000 COP, 2 goalkeepers, 90 min) with only the
+ * fields a list cares about varied: who owns it, when it starts and where.
+ */
+export function buildBooking(
+  id: string,
+  startsAt: Date,
+  overrides: Partial<{ clientId: string; zoneId: string; cityId: string }> = {},
+): Booking {
+  return Booking.rehydrate({
+    id,
+    clientId: overrides.clientId ?? 'client-a',
+    quoteId: `quote-${id}`,
+    status: 'pending_assignment',
+    match: new MatchDetails({
+      ...POINTS.caliNorte,
+      zoneId: overrides.zoneId ?? 'zone-cali-norte',
+      cityId: overrides.cityId ?? 'city-cali',
+      startsAt,
+      startsAtLocal: '2026-09-25T13:00:00-05:00',
+      timeZone: 'America/Bogota',
+      goalkeeperCount: 2,
+      durationMinutes: 90,
+    }),
+    pricing: new PricingSnapshot(
+      { unitRate: 55000, subtotal: 110000, unitSurcharge: 5000, surcharge: 10000, total: 120000, currency: 'COP' },
+      2,
+    ),
+    quoteIssuedAt: new Date('2026-09-20T12:00:00.000Z'),
+    createdAt: new Date('2026-09-20T12:01:00.000Z'),
+  });
 }

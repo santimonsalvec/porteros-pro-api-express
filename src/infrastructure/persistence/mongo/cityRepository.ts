@@ -42,6 +42,12 @@ export class CityRepository implements ICityRepository {
     return doc ? this.fromDocument(doc) : null;
   }
 
+  async getByIds(ids: string[]): Promise<City[]> {
+    if (ids.length === 0) return [];
+    const docs = await this.collection.find({ _id: { $in: ids } } as Document).toArray();
+    return docs.map((doc) => this.fromDocument(doc));
+  }
+
   async searchByName(query: string, limit: number): Promise<City[]> {
     const docs = await this.collection
       .find({ name: { $regex: escapeRegExp(query), $options: 'i' } })

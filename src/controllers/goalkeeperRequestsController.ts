@@ -6,6 +6,7 @@ import { parseStartsAt } from '../application/features/goalkeeperRequests/common
 import { GetBookingConfigQuery } from '../application/features/goalkeeperRequests/queries/getBookingConfig/getBookingConfigQuery.js';
 import { ConfirmBookingCommand } from '../application/features/goalkeeperRequests/commands/confirmBooking/confirmBookingCommand.js';
 import { IssueServiceQuoteCommand } from '../application/features/goalkeeperRequests/commands/issueServiceQuote/issueServiceQuoteCommand.js';
+import { ListClientBookingsQuery } from '../application/features/goalkeeperRequests/queries/listClientBookings/listClientBookingsQuery.js';
 import { logger } from '../infrastructure/observability/logger.js';
 import { requireAuth } from '../infrastructure/auth/middleware/requireAuth.js';
 import { requireClientOnly } from '../infrastructure/auth/middleware/requireClientOnly.js';
@@ -13,6 +14,7 @@ import { requireCompleteProfile } from '../infrastructure/auth/middleware/requir
 import { ApiError } from './apiError.js';
 import { confirmBookingRequestSchema } from './requests/goalkeeperRequests/confirmBookingRequest.js';
 import { getBookingConfigRequestSchema } from './requests/goalkeeperRequests/getBookingConfigRequest.js';
+import { listClientBookingsRequestSchema } from './requests/goalkeeperRequests/listClientBookingsRequest.js';
 import { getServiceQuoteRequestSchema, zodFieldErrors } from './requests/goalkeeperRequests/getServiceQuoteRequest.js';
 
 export interface GoalkeeperRequestsControllerDependencies {
@@ -42,7 +44,8 @@ function serviceNotConfigured(source: string, cityId: string, missing: MissingSe
 
 /**
  * The goalkeeper-request resource: `GET /config` (what a client may pick for a pitch), `POST /quote`
- * (the price of a booking, held for 3 minutes) and `POST /bookings` (turn that quote into a booking).
+ * (the price of a booking, held for 3 minutes), `POST /bookings` (turn that quote into a booking)
+ * and `GET /bookings` (the caller's own bookings, one page at a time).
  * Authenticated clients with a complete profile, exactly like `/api/goalkeepers/me/*`.
  */
 export function createGoalkeeperRequestsController(deps: GoalkeeperRequestsControllerDependencies): Router {
@@ -163,6 +166,19 @@ export function createGoalkeeperRequestsController(deps: GoalkeeperRequestsContr
         res.set('Retry-After', '1');
         throw new ApiError(409, 'confirmation_in_progress', 'This quote is already being confirmed; retry the same request.');
     }
+  });
+
+  router.get('/bookings', async (req, res) => {
+    const parsed = listClientBookingsRequestSchema.safeParse(req.query);
+    if (!parsed.success) {
+      throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
+    }
+
+    // The client is the token's subject, never a request parameter (FR-002).
+    const result = await deps.mediator.send(
+      new ListClientBookingsQuery(req.authClaims!.sub, parsed.data.page, parsed.data.pageSize),
+    );
+    res.status(200).json(result);
   });
 
   return router;

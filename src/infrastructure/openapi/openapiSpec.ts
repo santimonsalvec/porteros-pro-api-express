@@ -159,6 +159,31 @@ export const openapiSpec = {
           'createdAt',
         ],
       },
+      ListedBookingResponse: {
+        description: 'A listed booking: exactly the POST /bookings body, plus the current zone and city names.',
+        allOf: [
+          { $ref: '#/components/schemas/BookingResponse' },
+          {
+            type: 'object',
+            properties: {
+              zoneName: { type: 'string', nullable: true, example: 'Laureles', description: 'Current name; null if the zone no longer exists' },
+              cityName: { type: 'string', nullable: true, example: 'Medellín', description: 'Current name; null if the city no longer exists' },
+            },
+            required: ['zoneName', 'cityName'],
+          },
+        ],
+      },
+      BookingsPageResponse: {
+        type: 'object',
+        properties: {
+          items: { type: 'array', items: { $ref: '#/components/schemas/ListedBookingResponse' } },
+          page: { type: 'integer', example: 1 },
+          pageSize: { type: 'integer', example: 20 },
+          totalItems: { type: 'integer', example: 45 },
+          totalPages: { type: 'integer', example: 3, description: 'ceil(totalItems / pageSize); 0 when there are no bookings' },
+        },
+        required: ['items', 'page', 'pageSize', 'totalItems', 'totalPages'],
+      },
       TokenPairResponse: {
         type: 'object',
         properties: {
@@ -710,6 +735,29 @@ export const openapiSpec = {
       },
     },
     '/api/goalkeeper-requests/bookings': {
+      get: {
+        summary: "List the caller's own bookings, one page at a time",
+        description:
+          'Upcoming matches first (start at or after the request time, soonest first), then past matches (most recent first); ties are broken by bookingId. The client is always the token’s subject: any clientId, userId or other unknown parameter is ignored. A page past the last one returns an empty list with the real totals. Amounts and match details are the stored values; zone and city names are the current ones.',
+        tags: ['Goalkeeper requests'],
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'page', in: 'query', required: false, schema: { type: 'integer', minimum: 1, default: 1 } },
+          { name: 'pageSize', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 50, default: 20 } },
+        ],
+        responses: {
+          '200': {
+            description: 'One page of the caller’s bookings (possibly empty)',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/BookingsPageResponse' } } },
+          },
+          '400': {
+            description: 'validation_failed: page or pageSize is not a whole number, is out of range (page ≥ 1, pageSize 1–50) or is repeated',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } },
+          },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'Not a client, or the client profile is not complete' },
+        },
+      },
       post: {
         summary: 'Book a quote at exactly the quoted price (idempotent per quoteId)',
         description:

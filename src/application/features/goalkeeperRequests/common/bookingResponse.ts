@@ -23,6 +23,14 @@ export interface BookingResponse {
   createdAt: string;
 }
 
+/** A `GET /bookings` item: the confirmation body plus the current zone and city names (contracts/list-bookings.md). */
+export interface ListedBookingResponse extends BookingResponse {
+  /** `null` when the zone no longer exists. */
+  zoneName: string | null;
+  /** `null` when the city no longer exists. */
+  cityName: string | null;
+}
+
 export function toBookingResponse(booking: Booking): BookingResponse {
   const { match, pricing } = booking;
   return {

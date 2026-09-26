@@ -12,6 +12,10 @@ export class FakeCityRepository implements ICityRepository {
     return this.cities.get(id) ?? null;
   }
 
+  async getByIds(ids: string[]): Promise<City[]> {
+    return ids.flatMap((id) => this.cities.get(id) ?? []);
+  }
+
   async searchByName(query: string, limit: number): Promise<City[]> {
     const q = query.toLowerCase();
     return [...this.cities.values()].filter((city) => city.name.toLowerCase().includes(q)).slice(0, limit);

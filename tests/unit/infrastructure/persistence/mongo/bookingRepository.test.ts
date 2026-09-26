@@ -5,7 +5,7 @@ import {
   BookingRepository,
   bookingToDocument,
 } from '../../../../../src/infrastructure/persistence/mongo/bookingRepository.js';
-import { createFakeCollection } from '../../../../fakes/fakeMongoCollection.js';
+import { createFakeCollection, toArrayCursor } from '../../../../fakes/fakeMongoCollection.js';
 import { buildStoredQuote, STORED_QUOTE_ID } from '../../../../fixtures/quoteFixtures.js';
 
 function repositoryWith(collection: ReturnType<typeof createFakeCollection>) {
@@ -27,6 +27,16 @@ describe('BookingRepository (mocked driver)', () => {
     expect(collection.createIndex).toHaveBeenCalledWith(
       { clientId: 1, zoneId: 1, startsAt: 1 },
       { name: 'client_zone_start_unique', unique: true },
+    );
+  });
+
+  it("creates the non-unique client_startsAt index that serves the client's list", async () => {
+    const collection = createFakeCollection();
+    await repositoryWith(collection).ensureIndexes();
+
+    expect(collection.createIndex).toHaveBeenCalledWith(
+      { clientId: 1, startsAt: 1, _id: 1 },
+      { name: 'client_startsAt' },
     );
   });
 
@@ -78,5 +88,48 @@ describe('BookingRepository (mocked driver)', () => {
       startsAt,
     });
     expect(found).toBeNull();
+  });
+
+  describe("the client's list (feature 009)", () => {
+    const now = new Date('2026-09-21T18:00:00.000Z');
+
+    it('counts both segments with the same instant', async () => {
+      const collection = createFakeCollection();
+      collection.countDocuments.mockResolvedValueOnce(3).mockResolvedValueOnce(42);
+
+      const counts = await repositoryWith(collection).countForClient('client-a', now);
+
+      expect(collection.countDocuments).toHaveBeenNthCalledWith(1, { clientId: 'client-a', startsAt: { $gte: now } });
+      expect(collection.countDocuments).toHaveBeenNthCalledWith(2, { clientId: 'client-a', startsAt: { $lt: now } });
+      expect(counts).toEqual({ upcoming: 3, past: 42 });
+    });
+
+    it('reads upcoming bookings soonest first, id as tie-breaker', async () => {
+      const collection = createFakeCollection();
+      const cursor = toArrayCursor([bookingToDocument(booking)]);
+      collection.find.mockReturnValue(cursor);
+
+      const found = await repositoryWith(collection).findUpcomingForClient('client-a', now, 20, 5);
+
+      expect(collection.find).toHaveBeenCalledWith({ clientId: 'client-a', startsAt: { $gte: now } });
+      expect(cursor.sort).toHaveBeenCalledWith({ startsAt: 1, _id: 1 });
+      expect(cursor.skip).toHaveBeenCalledWith(20);
+      expect(cursor.limit).toHaveBeenCalledWith(5);
+      expect(found).toEqual([booking]);
+    });
+
+    it('reads past bookings most recent first, id descending as tie-breaker', async () => {
+      const collection = createFakeCollection();
+      const cursor = toArrayCursor([bookingToDocument(booking)]);
+      collection.find.mockReturnValue(cursor);
+
+      const found = await repositoryWith(collection).findPastForClient('client-a', now, 17, 20);
+
+      expect(collection.find).toHaveBeenCalledWith({ clientId: 'client-a', startsAt: { $lt: now } });
+      expect(cursor.sort).toHaveBeenCalledWith({ startsAt: -1, _id: -1 });
+      expect(cursor.skip).toHaveBeenCalledWith(17);
+      expect(cursor.limit).toHaveBeenCalledWith(20);
+      expect(found).toEqual([booking]);
+    });
   });
 });

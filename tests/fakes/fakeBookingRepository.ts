@@ -33,4 +33,29 @@ export class FakeBookingRepository implements IBookingRepository {
       ) ?? null
     );
   }
+
+  async countForClient(clientId: string, now: Date): Promise<{ upcoming: number; past: number }> {
+    const own = this.all().filter((booking) => booking.clientId === clientId);
+    const upcoming = own.filter((booking) => booking.startsAt >= now).length;
+    return { upcoming, past: own.length - upcoming };
+  }
+
+  async findUpcomingForClient(clientId: string, now: Date, skip: number, limit: number): Promise<Booking[]> {
+    return this.all()
+      .filter((booking) => booking.clientId === clientId && booking.startsAt >= now)
+      .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime() || compareIds(a.id, b.id))
+      .slice(skip, skip + limit);
+  }
+
+  async findPastForClient(clientId: string, now: Date, skip: number, limit: number): Promise<Booking[]> {
+    return this.all()
+      .filter((booking) => booking.clientId === clientId && booking.startsAt < now)
+      .sort((a, b) => b.startsAt.getTime() - a.startsAt.getTime() || compareIds(b.id, a.id))
+      .slice(skip, skip + limit);
+  }
+}
+
+/** Binary string order, as MongoDB compares string `_id`s. */
+function compareIds(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
 }
