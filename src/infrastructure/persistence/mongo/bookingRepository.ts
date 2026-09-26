@@ -44,6 +44,8 @@ export function bookingFromDocument(doc: Document): Booking {
  * Bookings are written only inside the confirmation transaction (`MongoQuoteConfirmationStore`);
  * this repository reads them. The two unique indexes are the database-level guarantees that a
  * quote never yields two bookings (FR-012) and a client never books the same match twice (FR-022).
+ * `client_startsAt` serves the client's list (feature 009): both segment counts, and each segment's
+ * sort as a forward (upcoming) or backward (past) scan of the index.
  */
 export class BookingRepository implements IBookingRepository {
   private readonly collection: Collection<Document>;
@@ -58,6 +60,7 @@ export class BookingRepository implements IBookingRepository {
       { clientId: 1, zoneId: 1, startsAt: 1 },
       { name: 'client_zone_start_unique', unique: true },
     );
+    await this.collection.createIndex({ clientId: 1, startsAt: 1, _id: 1 }, { name: 'client_startsAt' });
   }
 
   async findByQuoteForClient(quoteId: string, clientId: string): Promise<Booking | null> {
@@ -72,5 +75,33 @@ export class BookingRepository implements IBookingRepository {
   ): Promise<Booking | null> {
     const doc = await this.collection.findOne({ clientId, zoneId, startsAt });
     return doc ? bookingFromDocument(doc) : null;
+  }
+
+  async countForClient(clientId: string, now: Date): Promise<{ upcoming: number; past: number }> {
+    const [upcoming, past] = await Promise.all([
+      this.collection.countDocuments({ clientId, startsAt: { $gte: now } }),
+      this.collection.countDocuments({ clientId, startsAt: { $lt: now } }),
+    ]);
+    return { upcoming, past };
+  }
+
+  async findUpcomingForClient(clientId: string, now: Date, skip: number, limit: number): Promise<Booking[]> {
+    const docs = await this.collection
+      .find({ clientId, startsAt: { $gte: now } })
+      .sort({ startsAt: 1, _id: 1 })
+      .skip(skip)
+      .limit(limit)
+      .toArray();
+    return docs.map(bookingFromDocument);
+  }
+
+  async findPastForClient(clientId: string, now: Date, skip: number, limit: number): Promise<Booking[]> {
+    const docs = await this.collection
+      .find({ clientId, startsAt: { $lt: now } })
+      .sort({ startsAt: -1, _id: -1 })
+      .skip(skip)
+      .limit(limit)
+      .toArray();
+    return docs.map(bookingFromDocument);
   }
 }

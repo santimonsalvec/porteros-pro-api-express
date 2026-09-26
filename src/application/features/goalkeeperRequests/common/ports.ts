@@ -42,6 +42,12 @@ export interface IBookingRepository {
   findByQuoteForClient(quoteId: string, clientId: string): Promise<Booking | null>;
   /** The client's booking for that zone and start instant, if any (at most one exists). */
   findByMatchForClient(clientId: string, zoneId: string, startsAt: Date): Promise<Booking | null>;
+  /** How many of the client's matches start at or after `now` (upcoming) and before it (past). */
+  countForClient(clientId: string, now: Date): Promise<{ upcoming: number; past: number }>;
+  /** The client's bookings with `startsAt >= now`, soonest first (ties: id ascending). */
+  findUpcomingForClient(clientId: string, now: Date, skip: number, limit: number): Promise<Booking[]>;
+  /** The client's bookings with `startsAt < now`, most recent first (ties: id descending). */
+  findPastForClient(clientId: string, now: Date, skip: number, limit: number): Promise<Booking[]>;
 }
 
 export type ClaimResult =

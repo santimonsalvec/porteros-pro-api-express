@@ -20,6 +20,23 @@ describe('CityRepository (mocked driver)', () => {
     expect(found?.zoneCityId).toBeNull();
   });
 
+  it('getByIds reads the given ids with $in and maps each city', async () => {
+    const collection = createFakeCollection();
+    collection.find.mockReturnValue(toArrayCursor([{ _id: 'city-medellin', name: 'Medellín', regionId: 'region-antioquia' }]));
+
+    const found = await repositoryWith(collection).getByIds(['city-medellin', 'city-missing']);
+
+    expect(collection.find).toHaveBeenCalledWith({ _id: { $in: ['city-medellin', 'city-missing'] } });
+    expect(found.map((city) => city.name)).toEqual(['Medellín']);
+  });
+
+  it('getByIds does not query for an empty list', async () => {
+    const collection = createFakeCollection();
+
+    expect(await repositoryWith(collection).getByIds([])).toEqual([]);
+    expect(collection.find).not.toHaveBeenCalled();
+  });
+
   it('searches by a case-insensitive regex on name, capped at the given limit', async () => {
     const collection = createFakeCollection();
     collection.find.mockReturnValue(toArrayCursor([{ _id: 'city-envigado', name: 'Envigado', regionId: 'region-antioquia', zoneCityId: 'city-medellin' }]));

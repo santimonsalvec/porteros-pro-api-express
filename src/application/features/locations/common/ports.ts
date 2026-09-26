@@ -7,6 +7,8 @@ import type { Region } from '../../../../domain/locations/region.js';
  */
 export interface ICityRepository {
   getById(id: string): Promise<City | null>;
+  /** Cities with those ids, in no particular order; unknown ids are simply absent. */
+  getByIds(ids: string[]): Promise<City[]>;
   searchByName(query: string, limit: number): Promise<City[]>;
 }
 
