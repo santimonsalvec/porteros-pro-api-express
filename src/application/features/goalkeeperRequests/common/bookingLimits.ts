@@ -18,6 +18,9 @@ export type DurationMinutes = (typeof DURATION_OPTIONS)[number];
 /** Start times sit on multiples of this many minutes (local :00 and :30). */
 export const SLOT_STEP_MINUTES = 30;
 
+/** A stored quote can be confirmed for this many minutes after it is issued (FR-002). */
+export const QUOTE_VALIDITY_MINUTES = 3;
+
 export function isGoalkeeperCount(value: number): value is GoalkeeperCount {
   return (GOALKEEPER_COUNTS as readonly number[]).includes(value);
 }

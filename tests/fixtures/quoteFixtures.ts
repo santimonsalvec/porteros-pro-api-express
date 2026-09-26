@@ -1,4 +1,7 @@
 import type { LeadTimeSurcharge } from '../../src/domain/pricing/bookingSettings.js';
+import { MatchDetails } from '../../src/domain/bookings/matchDetails.js';
+import { PricingSnapshot } from '../../src/domain/bookings/pricingSnapshot.js';
+import { Quote } from '../../src/domain/bookings/quote.js';
 import { BookingSettings } from '../../src/domain/pricing/bookingSettings.js';
 import { RentalRate } from '../../src/domain/pricing/rentalRate.js';
 import { Country } from '../../src/domain/countries/country.js';
@@ -152,5 +155,40 @@ export function seedQuoteWorld(repos: QuoteWorldRepositories): void {
   seedRates(rentalRateRepository, 'zone', 'zone-delhi', { 60: 500, 90: 700, 120: 900 });
   bookingSettingsRepository.seed(
     new BookingSettings({ id: 'settings-in', scope: 'country', refId: 'country-in', bookingWindowDays: 2, minNoticeMinutes: 30, leadTimeSurcharge: tiers(100, 50) }),
+  );
+}
+
+/** A well-formed quote id (UUIDv7) — the confirmation refuses anything that is not a UUID. */
+export const STORED_QUOTE_ID = '01924f6e-8c1b-7c3a-9d4e-2b7f5a1c9e00';
+
+/**
+ * The canonical stored quote: Cali Norte, 2 goalkeepers × 90 minutes at 15:00 Bogotá,
+ * issued at `QUOTE_NOW` with 90 minutes of notice → (55.000 + 5.000) × 2 = 120.000 COP.
+ */
+export function buildStoredQuote(
+  overrides: Partial<{ id: string; clientId: string; issuedAt: string; zoneId: string; startsAt: string; validityMinutes: number }> = {},
+): Quote {
+  const startsAt = overrides.startsAt ?? '2026-09-21T20:00:00.000Z';
+  const match = new MatchDetails({
+    ...POINTS.caliNorte,
+    zoneId: overrides.zoneId ?? 'zone-cali-norte',
+    cityId: 'city-cali',
+    startsAt: new Date(startsAt),
+    startsAtLocal: '2026-09-21T15:00:00-05:00',
+    timeZone: 'America/Bogota',
+    goalkeeperCount: 2,
+    durationMinutes: 90,
+  });
+  const pricing = new PricingSnapshot(
+    { unitRate: 55000, subtotal: 110000, unitSurcharge: 5000, surcharge: 10000, total: 120000, currency: 'COP' },
+    2,
+  );
+  return Quote.issue(
+    overrides.id ?? STORED_QUOTE_ID,
+    overrides.clientId ?? 'client-a',
+    match,
+    pricing,
+    new Date(overrides.issuedAt ?? QUOTE_NOW),
+    overrides.validityMinutes ?? 3,
   );
 }

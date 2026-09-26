@@ -11,6 +11,7 @@ export interface FakeMongoCollection {
   find: Mock;
   findOne: Mock;
   findOneAndUpdate: Mock;
+  findOneAndDelete: Mock;
   insertOne: Mock;
   replaceOne: Mock;
   deleteOne: Mock;
@@ -24,6 +25,7 @@ export function createFakeCollection(): FakeMongoCollection {
     find: vi.fn(),
     findOne: vi.fn(),
     findOneAndUpdate: vi.fn(),
+    findOneAndDelete: vi.fn(),
     insertOne: vi.fn(),
     replaceOne: vi.fn(),
     deleteOne: vi.fn(),

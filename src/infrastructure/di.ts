@@ -67,6 +67,8 @@ import { UuidIdGenerator } from './uuidIdGenerator.js';
 import { SystemClock } from './systemClock.js';
 import { RentalRateRepository } from './persistence/mongo/rentalRateRepository.js';
 import { BookingSettingsRepository } from './persistence/mongo/bookingSettingsRepository.js';
+import { QuoteRepository } from './persistence/mongo/quoteRepository.js';
+import { BookingRepository } from './persistence/mongo/bookingRepository.js';
 import { MongoHealthCheck } from './healthChecks/mongoHealthCheck.js';
 import { CloudinaryImageStorageProvider } from './images/cloudinaryImageStorageProvider.js';
 import { GoalkeeperRegistrationRepository } from './persistence/mongo/goalkeeperRegistrationRepository.js';
@@ -108,6 +110,10 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   await rentalRateRepository.ensureIndexes();
   const bookingSettingsRepository = new BookingSettingsRepository(db);
   await bookingSettingsRepository.ensureIndexes();
+  const quoteRepository = new QuoteRepository(db);
+  await quoteRepository.ensureIndexes();
+  const bookingRepository = new BookingRepository(db);
+  await bookingRepository.ensureIndexes();
 
   const imageStorageProvider = new CloudinaryImageStorageProvider({
     cloudinaryUrl: config.images.cloudinaryUrl,
