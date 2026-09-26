@@ -34,6 +34,8 @@ import { FakeBookingRepository } from '../fakes/fakeBookingRepository.js';
 import { FakeQuoteConfirmationStore } from '../fakes/fakeQuoteConfirmationStore.js';
 import { FakeBookingAuditLogger } from '../fakes/fakeBookingAuditLogger.js';
 import { ConfirmBookingCommand } from '../../src/application/features/goalkeeperRequests/commands/confirmBooking/confirmBookingCommand.js';
+import { ListClientBookingsQuery } from '../../src/application/features/goalkeeperRequests/queries/listClientBookings/listClientBookingsQuery.js';
+import { ListClientBookingsQueryHandler } from '../../src/application/features/goalkeeperRequests/queries/listClientBookings/listClientBookingsQueryHandler.js';
 import { ConfirmBookingCommandHandler } from '../../src/application/features/goalkeeperRequests/commands/confirmBooking/confirmBookingCommandHandler.js';
 import { GetZonesByCityQuery } from '../../src/application/features/zones/queries/getZonesByCity/getZonesByCityQuery.js';
 import { GetZonesByCityQueryHandler } from '../../src/application/features/zones/queries/getZonesByCity/getZonesByCityQueryHandler.js';
@@ -274,6 +276,10 @@ export function buildTestApp(): TestAppContext {
         clock,
         bookingAuditLogger,
       ),
+    },
+    {
+      requestType: ListClientBookingsQuery,
+      handler: new ListClientBookingsQueryHandler(bookingRepository, zoneRepository, cityRepository, clock),
     },
     {
       requestType: StoreImageCommand,

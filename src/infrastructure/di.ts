@@ -20,6 +20,8 @@ import { GetBookingConfigQueryHandler } from '../application/features/goalkeeper
 import { GetServiceQuoteQuery } from '../application/features/goalkeeperRequests/queries/getServiceQuote/getServiceQuoteQuery.js';
 import { GetServiceQuoteQueryHandler } from '../application/features/goalkeeperRequests/queries/getServiceQuote/getServiceQuoteQueryHandler.js';
 import { ConfirmBookingCommand } from '../application/features/goalkeeperRequests/commands/confirmBooking/confirmBookingCommand.js';
+import { ListClientBookingsQuery } from '../application/features/goalkeeperRequests/queries/listClientBookings/listClientBookingsQuery.js';
+import { ListClientBookingsQueryHandler } from '../application/features/goalkeeperRequests/queries/listClientBookings/listClientBookingsQueryHandler.js';
 import { ConfirmBookingCommandHandler } from '../application/features/goalkeeperRequests/commands/confirmBooking/confirmBookingCommandHandler.js';
 import { IssueServiceQuoteCommand } from '../application/features/goalkeeperRequests/commands/issueServiceQuote/issueServiceQuoteCommand.js';
 import { IssueServiceQuoteCommandHandler } from '../application/features/goalkeeperRequests/commands/issueServiceQuote/issueServiceQuoteCommandHandler.js';
@@ -232,6 +234,10 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         clock,
         auditLogger,
       ),
+    },
+    {
+      requestType: ListClientBookingsQuery,
+      handler: new ListClientBookingsQueryHandler(bookingRepository, zoneRepository, cityRepository, clock),
     },
     {
       requestType: StoreImageCommand,
