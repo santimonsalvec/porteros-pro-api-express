@@ -29,6 +29,8 @@ Auto-generated from all feature plans. Last updated: 2026-09-28
 - MongoDB. New collections `notifications` (inbox; unique partial index on offers per user+request; TTL 90 days) and `offerPushState`; new field `goalkeeperProfiles.availableForOffers` (absent = on) with index `zone_offers`; new index `bookings.status_searchEnds`. (015-notify-eligible-goalkeepers)
 - TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. Reused: 013 (sweep jobs, outbox, relay, consumers), 011 (ledger, `appendMovementInSession`), 014 and 015 (push, inbox). No new dependency. (016-booking-expiry-cancel-all)
 - MongoDB (Atlas, transactions). No new collection. New fields `bookings.endedAt/endReason/cancelledBy`, `goalkeeperRequests.cancelAllEvaluatedAt`, `notifications.dedupeKey`; new indexes `goalkeeperRequests.cancelAll_due`, `notifications.dedupe_unique`. (016-booking-expiry-cancel-all)
+- TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. Reused: 016's lifecycle store and notices, 011's refund draft, 013's relay. No new dependency. (017-client-cancel-booking)
+- MongoDB. No new collection or index. `bookings` gains `cancellationNote`; `endReason` and `cancelledBy` gain values. See [data-model.md](./data-model.md). (017-client-cancel-booking)
 
 - TypeScript ~6.x (last JavaScript-hosted compiler generation) on Node.js 24 LTS (Active LTS as of Aug 2026; Node 22 remains Maintenance LTS as a fallback). TypeScript 7.0 (Go-native compiler) is intentionally *not* adopted yet — see research.md for rationale. + Express 5.2.x (web framework); official `mongodb` driver 7.x (no ODM, mirrors the source's raw `MongoDB.Driver` usage); `google-auth-library` 11.x (`OAuth2Client.verifyIdToken`, official equivalent of `Google.Apis.Auth`); `jose` (JWT sign/verify, chosen over legacy `jsonwebtoken` — see research.md); `zod` (request DTO shape validation); `uuid` v9+ (`v7()` for entity ids, matching the source's UUIDv7 convention); `pino` (structured logging, audit-log equivalent); `@opentelemetry/sdk-node` + HTTP/Express auto-instrumentation + OTLP/console exporters (observability parity) (001-porteros-api-migration)
 
@@ -49,9 +51,9 @@ npm test && npm run lint
 TypeScript ~6.x (last JavaScript-hosted compiler generation) on Node.js 24 LTS (Active LTS as of Aug 2026; Node 22 remains Maintenance LTS as a fallback). TypeScript 7.0 (Go-native compiler) is intentionally *not* adopted yet — see research.md for rationale.: Follow standard conventions
 
 ## Recent Changes
+- 017-client-cancel-booking: Added TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. Reused: 016's lifecycle store and notices, 011's refund draft, 013's relay. No new dependency.
 - 016-booking-expiry-cancel-all: Added TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. Reused: 013 (sweep jobs, outbox, relay, consumers), 011 (ledger, `appendMovementInSession`), 014 and 015 (push, inbox). No new dependency.
 - 015-notify-eligible-goalkeepers: Added TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. The 014 push capability and the 013 events and sweep are reused. Dates are formatted with the built-in `Intl`. No new dependency.
-- 014-fcm-device-registration: Added TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. FCM HTTP v1 is called over REST with `google-auth-library` (already installed; research §1). No new dependency, and no `firebase-admin`.
 
 
 <!-- MANUAL ADDITIONS START -->
