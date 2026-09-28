@@ -1,3 +1,3 @@
 {
-  "feature_directory": "specs/012-accept-goalkeeper-booking"
+  "feature_directory": "specs/013-domain-events-outbox"
 }
