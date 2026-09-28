@@ -61,5 +61,8 @@ describe('event parsing at the edge', () => {
     };
     expect(parseEvent(cancelled)).toMatchObject({ type: 'booking.cancelled' });
     expect(parseEvent({ ...cancelled, payload: { ...cancelled.payload, reason: 'other' } })).toBeNull();
+    expect(parseEvent({ ...cancelled, payload: { ...cancelled.payload, reason: 'client_cancelled', by: 'client' } })).toMatchObject({
+      payload: { reason: 'client_cancelled', by: 'client' },
+    });
   });
 });

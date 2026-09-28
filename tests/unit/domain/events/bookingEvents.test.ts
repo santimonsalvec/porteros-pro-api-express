@@ -69,4 +69,14 @@ describe('booking events', () => {
     });
     expect(bookingCancelled('ev-3', pending, at, null).payload).toMatchObject({ goalkeeperId: null, refundedAmount: null, currency: 'COP' });
   });
+
+  it('names the client as the author of a client cancellation (feature 017)', async () => {
+    const { bookingCancelled } = await import('../../../../src/domain/events/bookingEvents.js');
+    const { buildBooking } = await import('../../../fixtures/offerFixtures.js');
+    const at = new Date('2026-10-04T19:00:00.000Z');
+
+    const event = bookingCancelled('ev-1', buildBooking(), at, null, { reason: 'client_cancelled', by: 'client' });
+
+    expect(event.payload).toMatchObject({ reason: 'client_cancelled', by: 'client', goalkeeperId: null, refundedAmount: null });
+  });
 });

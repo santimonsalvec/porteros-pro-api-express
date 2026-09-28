@@ -990,6 +990,69 @@ export const openapiSpec = {
         },
       },
     },
+    '/api/goalkeeper-requests/bookings/{requestId}/cancel': {
+      post: {
+        summary: 'Cancel the whole request (every searching and assigned booking, all or nothing)',
+        description:
+          'Searching bookings are cancelled for free. Assigned ones are cancelled with the commission refunded to their goalkeeper while the free-cancellation period is open. If any assigned booking is past it, nothing is cancelled (409).',
+        tags: ['Goalkeeper requests'],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'requestId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: false,
+          content: {
+            'application/json': {
+              schema: { type: 'object', properties: { reason: { type: 'string', minLength: 1, maxLength: 200, example: 'Un amigo cubre el arco' } } },
+            },
+          },
+        },
+        responses: {
+          '200': { description: 'Cancelled now, or already cancelled by the client (idempotent): the request as it is now', content: { 'application/json': { schema: { $ref: '#/components/schemas/RequestResponse' } } } },
+          '400': { description: 'validation_failed: reason', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } } },
+          '401': { description: 'Not signed in' },
+          '404': { description: 'request_not_found or booking_not_found (unknown, or another client\u2019s)', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '409': {
+            description:
+              'booking_not_cancellable (status: expired, cancelled by the system, completed, withdrawn) or cancellation_window_closed (bookingId, freeCancellationUntil: a goalkeeper is assigned and the free-cancellation period is over — use the goalkeeper or pay them; nothing changed)',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+          '503': { description: 'cancellation_temporarily_unavailable: the refund cannot be recorded right now (Retry-After: 60); nothing changed' },
+        },
+      },
+    },
+    '/api/goalkeeper-requests/bookings/{requestId}/bookings/{bookingId}/cancel': {
+      post: {
+        summary: 'Cancel one booking of the request (e.g. a friend covers one goal)',
+        description:
+          'Free while it is searching. Once a goalkeeper is assigned, allowed until the end of the free-cancellation period, refunding their commission and notifying them.',
+        tags: ['Goalkeeper requests'],
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'requestId', in: 'path', required: true, schema: { type: 'string' } },
+          { name: 'bookingId', in: 'path', required: true, schema: { type: 'string' } },
+        ],
+        requestBody: {
+          required: false,
+          content: {
+            'application/json': {
+              schema: { type: 'object', properties: { reason: { type: 'string', minLength: 1, maxLength: 200, example: 'Un amigo cubre el arco' } } },
+            },
+          },
+        },
+        responses: {
+          '200': { description: 'Cancelled now, or already cancelled by the client (idempotent): the request as it is now', content: { 'application/json': { schema: { $ref: '#/components/schemas/RequestResponse' } } } },
+          '400': { description: 'validation_failed: reason', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } } },
+          '401': { description: 'Not signed in' },
+          '404': { description: 'request_not_found or booking_not_found (unknown, or another client\u2019s)', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '409': {
+            description:
+              'booking_not_cancellable (status: expired, cancelled by the system, completed, withdrawn) or cancellation_window_closed (bookingId, freeCancellationUntil: a goalkeeper is assigned and the free-cancellation period is over — use the goalkeeper or pay them; nothing changed)',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+          '503': { description: 'cancellation_temporarily_unavailable: the refund cannot be recorded right now (Retry-After: 60); nothing changed' },
+        },
+      },
+    },
     '/api/goalkeeper-requests/bookings': {
       get: {
         summary: "List the caller's own requests (one per match, with their bookings), one page at a time",

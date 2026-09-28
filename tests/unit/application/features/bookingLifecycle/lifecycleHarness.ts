@@ -15,6 +15,10 @@ import { WalletLedger, type LedgerOwner } from '../../../../../src/application/f
 import { FakeCountryRepository } from '../../../../fakes/fakeCountryRepository.js';
 import { FakeRegionRepository } from '../../../../fakes/fakeRegionRepository.js';
 import { buildGoalkeeperProfile, COLOMBIA_INVOICING, seedWalletWorld } from '../../../../fixtures/walletFixtures.js';
+import { CancelBookingsByClientCommand } from '../../../../../src/application/features/bookingLifecycle/commands/cancelBookingsByClient/cancelBookingsByClientCommand.js';
+import { CancelBookingsByClientCommandHandler } from '../../../../../src/application/features/bookingLifecycle/commands/cancelBookingsByClient/cancelBookingsByClientCommandHandler.js';
+import { FakeBookingAuditLogger } from '../../../../fakes/fakeBookingAuditLogger.js';
+import { FakeUserRepository } from '../../../../fakes/fakeUserRepository.js';
 
 /**
  * 015's offer harness (requests in Bello, inbox, push) plus the lifecycle store over fakes, a
@@ -79,6 +83,23 @@ export function lifecycleHarness() {
     h.bookingRepository.seed(booking.assign(goalkeeperId, h.clock.now()));
   };
   const balanceOf = async (goalkeeperId: string) => (await wallet.findByGoalkeeperId(goalkeeperId))?.balance ?? 0;
+  // Client cancellation (feature 017).
+  const audit = new FakeBookingAuditLogger();
+  const clientCancel = new CancelBookingsByClientCommandHandler({
+    requestRepository: h.requestRepository,
+    bookingRepository: h.bookingRepository,
+    userRepository: new FakeUserRepository(),
+    store,
+    walletContext,
+    relay,
+    idGenerator,
+    clock: h.clock,
+    audit,
+    logger: h.silent,
+  });
+  /** The client (`client-a`, the owner of every `match()`) cancels a booking, or the whole request with `null`. */
+  const cancel = (requestId: string, bookingId: string | null, reason?: string, clientId = 'client-a') =>
+    clientCancel.handle(new CancelBookingsByClientCommand(clientId, requestId, bookingId, reason));
   /** Stores the booking as assigned to the goalkeeper. */
   const assign = (booking: Booking, goalkeeperId: string) => h.bookingRepository.seed(booking.assign(goalkeeperId, h.clock.now()));
   const current = (id: string) => h.bookingRepository.all().find((booking) => booking.id === id)!;
@@ -97,6 +118,9 @@ export function lifecycleHarness() {
     goalkeeperNotices,
     acceptAndPay,
     balanceOf,
+    cancel,
+    audit,
+    walletContext,
     assign,
     current,
     request,

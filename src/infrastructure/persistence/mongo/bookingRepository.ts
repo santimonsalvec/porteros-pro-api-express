@@ -36,6 +36,7 @@ export function bookingToDocument(booking: Booking): Document {
     endedAt: booking.endedAt,
     endReason: booking.endReason,
     cancelledBy: booking.cancelledBy,
+    cancellationNote: booking.cancellationNote,
   };
 }
 
@@ -64,6 +65,7 @@ export function bookingFromDocument(doc: Document): Booking {
     endedAt: (doc.endedAt as Date | null | undefined) ?? null,
     endReason: (doc.endReason as BookingEndReason | null | undefined) ?? null,
     cancelledBy: (doc.cancelledBy as BookingEndedBy | null | undefined) ?? null,
+    cancellationNote: (doc.cancellationNote as string | null | undefined) ?? null,
   });
 }
 
