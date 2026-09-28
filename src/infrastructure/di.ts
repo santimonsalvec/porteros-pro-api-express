@@ -140,6 +140,11 @@ import { MarkAllNotificationsReadCommand } from '../application/features/notific
 import { MarkAllNotificationsReadCommandHandler } from '../application/features/notifications/commands/markAllNotificationsRead/markAllNotificationsReadCommandHandler.js';
 import { DismissOfferCommand } from '../application/features/notifications/commands/dismissOffer/dismissOfferCommand.js';
 import { DismissOfferCommandHandler } from '../application/features/notifications/commands/dismissOffer/dismissOfferCommandHandler.js';
+import { BookingExpiryJob } from '../application/features/bookingLifecycle/jobs/bookingExpiryJob.js';
+import { CLIENT_OUTCOME_EVENT_TYPES, ClientOutcomeNoticeHandler } from '../application/features/bookingLifecycle/handlers/clientOutcomeNoticeHandler.js';
+import { MongoBookingLifecycleStore } from './persistence/mongo/bookingLifecycleStore.js';
+import { CancelAllJob } from '../application/features/bookingLifecycle/jobs/cancelAllJob.js';
+import { GOALKEEPER_CANCELLATION_EVENT_TYPES, GoalkeeperCancellationNoticeHandler } from '../application/features/bookingLifecycle/handlers/goalkeeperCancellationNoticeHandler.js';
 import { NotifyBookingOffersHandler, OFFER_EVENT_TYPES } from '../application/features/notifications/handlers/notifyBookingOffersHandler.js';
 import { MongoNotificationRepository } from './persistence/mongo/notificationRepository.js';
 import { MongoOfferPushStateStore } from './persistence/mongo/offerPushStateStore.js';
@@ -278,6 +283,49 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     intervalMinutes: config.offers.reminderIntervalMinutes,
   });
   const offersHandler = new NotifyBookingOffersHandler(mediator, processedEventStore, clock);
+  // Booking expiry and "cancel all" (feature 016).
+  const lifecycleStore = new MongoBookingLifecycleStore(() => connectionProvider.startSession(), db);
+  const bookingExpiryJob = new BookingExpiryJob({ bookingRepository, store: lifecycleStore, relay: eventRelay, idGenerator, logger });
+  const clientOutcomeNotices = new ClientOutcomeNoticeHandler({
+    requestRepository,
+    bookingRepository,
+    zoneRepository,
+    cityRepository,
+    notifications: notificationRepository,
+    pushNotifier,
+    processed: processedEventStore,
+    idGenerator,
+    clock,
+    logger,
+  });
+  const cancelAllJob = new CancelAllJob({
+    requestRepository,
+    bookingRepository,
+    store: lifecycleStore,
+    walletContext,
+    relay: eventRelay,
+    idGenerator: idGenerator,
+    logger: logger,
+  });
+  const goalkeeperCancellationNotices = new GoalkeeperCancellationNoticeHandler({
+    requestRepository,
+    zoneRepository,
+    cityRepository,
+    notifications: notificationRepository,
+    pushNotifier,
+    processed: processedEventStore,
+    idGenerator: idGenerator,
+    clock,
+    logger: logger,
+  });
+  registerSubscribers(
+    mediator,
+    GOALKEEPER_CANCELLATION_EVENT_TYPES.map((type) => ({ type, handler: goalkeeperCancellationNotices })),
+  );
+  registerSubscribers(
+    mediator,
+    CLIENT_OUTCOME_EVENT_TYPES.map((type) => ({ type, handler: clientOutcomeNotices })),
+  );
   registerSubscribers(
     mediator,
     OFFER_EVENT_TYPES.map((type) => ({ type, handler: offersHandler })),
@@ -506,7 +554,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         logger,
         batchLimit: config.events.sweepBatchLimit,
         pendingWarningMinutes: config.events.pendingWarningMinutes,
-        jobs: [new OfferRemindersJob({ bookingRepository, eligibility: offerEligibility, sender: offerSender, logger: logger, roundCap: config.offers.roundCap })],
+        jobs: [cancelAllJob, bookingExpiryJob, new OfferRemindersJob({ bookingRepository, eligibility: offerEligibility, sender: offerSender, logger: logger, roundCap: config.offers.roundCap })],
         jobLocks: jobLockStore,
       }),
     },

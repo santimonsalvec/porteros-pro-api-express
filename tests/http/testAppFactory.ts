@@ -142,6 +142,11 @@ import { MarkAllNotificationsReadCommand } from '../../src/application/features/
 import { MarkAllNotificationsReadCommandHandler } from '../../src/application/features/notifications/commands/markAllNotificationsRead/markAllNotificationsReadCommandHandler.js';
 import { DismissOfferCommand } from '../../src/application/features/notifications/commands/dismissOffer/dismissOfferCommand.js';
 import { DismissOfferCommandHandler } from '../../src/application/features/notifications/commands/dismissOffer/dismissOfferCommandHandler.js';
+import { BookingExpiryJob } from '../../src/application/features/bookingLifecycle/jobs/bookingExpiryJob.js';
+import { CLIENT_OUTCOME_EVENT_TYPES, ClientOutcomeNoticeHandler } from '../../src/application/features/bookingLifecycle/handlers/clientOutcomeNoticeHandler.js';
+import { FakeBookingLifecycleStore } from '../fakes/fakeBookingLifecycleStore.js';
+import { CancelAllJob } from '../../src/application/features/bookingLifecycle/jobs/cancelAllJob.js';
+import { GOALKEEPER_CANCELLATION_EVENT_TYPES, GoalkeeperCancellationNoticeHandler } from '../../src/application/features/bookingLifecycle/handlers/goalkeeperCancellationNoticeHandler.js';
 import { NotifyBookingOffersHandler, OFFER_EVENT_TYPES } from '../../src/application/features/notifications/handlers/notifyBookingOffersHandler.js';
 import { FakeNotificationRepository } from '../fakes/fakeNotificationRepository.js';
 import { FakeOfferPushState } from '../fakes/fakeOfferPushState.js';
@@ -311,7 +316,47 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     maxReminders: 3,
     intervalMinutes: 5,
   });
+  const lifecycleStore = new FakeBookingLifecycleStore(bookingRepository, requestRepository, walletStore, outboxStore);
+  const lifecycleIds = { newId: () => uuidv7() };
+  const bookingExpiryJob = new BookingExpiryJob({ bookingRepository, store: lifecycleStore, relay: eventRelay, idGenerator: lifecycleIds, logger: offersLogger });
+  const clientOutcomeNotices = new ClientOutcomeNoticeHandler({
+    requestRepository,
+    bookingRepository,
+    zoneRepository,
+    cityRepository,
+    notifications: notificationRepository,
+    pushNotifier,
+    processed: new FakeProcessedEventStore(),
+    idGenerator: lifecycleIds,
+    clock,
+    logger: offersLogger,
+  });
+  const cancelAllJob = new CancelAllJob({
+    requestRepository,
+    bookingRepository,
+    store: lifecycleStore,
+    walletContext,
+    relay: eventRelay,
+    idGenerator: lifecycleIds,
+    logger: offersLogger,
+  });
+  const goalkeeperCancellationNotices = new GoalkeeperCancellationNoticeHandler({
+    requestRepository,
+    zoneRepository,
+    cityRepository,
+    notifications: notificationRepository,
+    pushNotifier,
+    processed: new FakeProcessedEventStore(),
+    idGenerator: lifecycleIds,
+    clock,
+    logger: offersLogger,
+  });
+  registerSubscribers(
+    mediator,
+    GOALKEEPER_CANCELLATION_EVENT_TYPES.map((type) => ({ type, handler: goalkeeperCancellationNotices })),
+  );
   registerSubscribers(mediator, [
+    ...CLIENT_OUTCOME_EVENT_TYPES.map((type) => ({ type, handler: clientOutcomeNotices })),
     ...OFFER_EVENT_TYPES.map((type) => ({ type, handler: new NotifyBookingOffersHandler(mediator, new FakeProcessedEventStore(), clock) })),
   ]);
   seedQuoteWorld({ countryRepository: quoteCountryRepository, zoneRepository, cityRepository, regionRepository, rentalRateRepository, bookingSettingsRepository, commissionSettingRepository });
@@ -341,7 +386,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
         logger: eventLogger,
         batchLimit: 200,
         pendingWarningMinutes: 5,
-        jobs: [new OfferRemindersJob({ bookingRepository, eligibility: offerEligibility, sender: offerSender, logger: offersLogger, roundCap: 2000 })],
+        jobs: [cancelAllJob, bookingExpiryJob, new OfferRemindersJob({ bookingRepository, eligibility: offerEligibility, sender: offerSender, logger: offersLogger, roundCap: 2000 })],
         jobLocks: new FakeJobLockStore(),
       }),
     },

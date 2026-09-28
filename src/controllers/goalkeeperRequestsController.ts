@@ -184,6 +184,14 @@ export function createGoalkeeperRequestsController(deps: GoalkeeperRequestsContr
       case 'confirmation_in_progress':
         res.set('Retry-After', '1');
         throw new ApiError(409, 'confirmation_in_progress', 'This quote is already being confirmed; retry the same request.');
+      case 'cancel_all_not_available':
+        throw new ApiError(
+          409,
+          'cancel_all_not_available',
+          'This match starts too soon to choose "cancel all"; confirm keeping the confirmed goalkeepers.',
+          undefined,
+          { cancelAllUntil: result.cancelAllUntil },
+        );
     }
   });
 

@@ -57,6 +57,9 @@ describe('POST /api/goalkeeper-requests/quote — Story 1: price a booking', () 
       timeZone: 'America/Bogota',
       quoteId: expect.any(String),
       expiresAt: '2026-09-21T18:03:00.000Z', // the fixed clock (18:00Z) + 3 minutes
+      // Feature 016: "cancel all" can be chosen until start − 60 min.
+      cancelAllAvailable: true,
+      cancelAllUntil: '2026-09-21T19:00:00.000Z',
     });
   });
 

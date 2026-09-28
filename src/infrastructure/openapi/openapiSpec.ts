@@ -299,6 +299,15 @@ export const openapiSpec = {
             example: '2026-09-21T18:33:00.000Z',
             description: 'UTC; the quote can be confirmed strictly before this instant (3 minutes after issuance)',
           },
+          cancelAllAvailable: {
+            type: 'boolean',
+            description: 'Whether partialFulfillment "cancel_all" can be chosen when confirming. Hide the option when false',
+          },
+          cancelAllUntil: {
+            type: 'string',
+            format: 'date-time',
+            description: 'UTC: start − free-cancellation period, when a "cancel all" request is evaluated',
+          },
         },
         required: [
           'unitRate',
@@ -313,6 +322,8 @@ export const openapiSpec = {
           'timeZone',
           'quoteId',
           'expiresAt',
+          'cancelAllAvailable',
+          'cancelAllUntil',
         ],
       },
       ConfirmBookingRequest: {
@@ -360,8 +371,8 @@ export const openapiSpec = {
           quoteId: { type: 'string' },
           status: {
             type: 'string',
-            enum: ['searching', 'partially_assigned', 'assigned', 'completed', 'closed'],
-            description: 'Derived from the bookings',
+            enum: ['searching', 'partially_assigned', 'assigned', 'completed', 'cancelled', 'expired', 'closed'],
+            description: 'Derived from the bookings. cancelled: cancelled by "cancel all"; expired: no goalkeeper was found',
           },
           partialFulfillment: { type: 'string', enum: ['keep_confirmed', 'cancel_all'] },
           latitude: { type: 'number' },
@@ -1035,7 +1046,7 @@ export const openapiSpec = {
           },
           '409': {
             description:
-              'duplicate_request (requestId of the caller’s existing active request for the same zone and start; the quote is left untouched) or confirmation_in_progress (another confirmation of this quote has not committed yet; retry after the Retry-After header, 1 second)',
+              'duplicate_request (requestId of the caller’s existing active request for the same zone and start; the quote is left untouched) or confirmation_in_progress (another confirmation of this quote has not committed yet; retry after the Retry-After header, 1 second), or cancel_all_not_available (cancelAllUntil; "cancel_all" chosen once the free-cancellation period started — confirm with "keep_confirmed")',
             headers: { 'Retry-After': { schema: { type: 'integer' }, description: 'Only with confirmation_in_progress' } },
             content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
           },

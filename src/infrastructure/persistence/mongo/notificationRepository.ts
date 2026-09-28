@@ -3,6 +3,7 @@ import { validate as isUuid } from 'uuid';
 import type {
   DismissOutcome,
   INotificationRepository,
+  NewNotification,
   NewOffer,
   NotificationItem,
 } from '../../../application/features/notifications/common/ports.js';
@@ -33,6 +34,30 @@ export class MongoNotificationRepository implements INotificationRepository {
       { name: 'offer_unique', unique: true, partialFilterExpression: { type: OFFER_TYPE } },
     );
     await this.collection.createIndex({ createdAt: 1 }, { name: 'created_ttl', expireAfterSeconds: RETENTION_SECONDS });
+    await this.collection.createIndex(
+      { dedupeKey: 1 },
+      { name: 'dedupe_unique', unique: true, partialFilterExpression: { dedupeKey: { $exists: true } } },
+    );
+  }
+
+  async createIfAbsent(entry: NewNotification): Promise<boolean> {
+    try {
+      await this.collection.insertOne({
+        _id: entry.id,
+        userId: entry.userId,
+        type: entry.type,
+        title: entry.title,
+        body: entry.body,
+        data: entry.data,
+        dedupeKey: entry.dedupeKey,
+        createdAt: entry.createdAt,
+        readAt: null,
+      } as Document);
+      return true;
+    } catch (error) {
+      if ((error as { code?: unknown }).code === DUPLICATE_KEY) return false;
+      throw error;
+    }
   }
 
   async createOfferIfAbsent(offer: NewOffer): Promise<boolean> {

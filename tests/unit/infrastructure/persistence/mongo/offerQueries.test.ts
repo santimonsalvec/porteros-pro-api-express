@@ -3,6 +3,8 @@ import type { Collection, Db, Document } from 'mongodb';
 import { BookingRepository } from '../../../../../src/infrastructure/persistence/mongo/bookingRepository.js';
 import { GoalkeeperProfileRepository } from '../../../../../src/infrastructure/persistence/mongo/goalkeeperProfileRepository.js';
 import { WalletRepository } from '../../../../../src/infrastructure/persistence/mongo/walletRepository.js';
+import { GoalkeeperRequestRepository, requestToDocument } from '../../../../../src/infrastructure/persistence/mongo/goalkeeperRequestRepository.js';
+import { buildRequest } from '../../../../fixtures/quoteFixtures.js';
 import { createFakeCollection, toArrayCursor, toArrayResult } from '../../../../fakes/fakeMongoCollection.js';
 
 /** The reads feature 015 adds to existing repositories (research §2, §3, §8). */
@@ -93,5 +95,40 @@ describe('feature 015 reads on existing repositories (mocked driver)', () => {
     expect(await repository.findByGoalkeeperIds([])).toEqual([]);
     await repository.findByGoalkeeperIds(['g1']);
     expect(collection.find).toHaveBeenCalledWith({ _id: { $in: ['g1'] } });
+  });
+
+  it('reads the bookings whose search ended, oldest deadline first (feature 016)', async () => {
+    const collection = createFakeCollection();
+    const cursor = toArrayCursor([]);
+    collection.find.mockReturnValue(cursor);
+
+    await new BookingRepository(dbOf(collection)).findDueForExpiry(now, 500);
+
+    expect(collection.find).toHaveBeenCalledWith({ status: 'pending_assignment', searchEndsAt: { $lte: now } });
+    expect(cursor.sort).toHaveBeenCalledWith({ searchEndsAt: 1, _id: 1 });
+    expect(cursor.limit).toHaveBeenCalledWith(500);
+  });
+
+  it('reads the "cancel all" requests due for evaluation, each by its own free-cancellation period', async () => {
+    const collection = createFakeCollection();
+    const due = buildRequest('due', new Date('2026-10-04T18:59:00.000Z'), { partialFulfillment: 'cancel_all' });
+    const notYet = buildRequest('not-yet', new Date('2026-10-04T19:30:00.000Z'), { partialFulfillment: 'cancel_all' });
+    collection.find.mockReturnValue(toArrayCursor([requestToDocument(due), requestToDocument(notYet)]));
+
+    const found = await new GoalkeeperRequestRepository(dbOf(collection)).findDueForCancelAll(now, 10);
+
+    expect(collection.find).toHaveBeenCalledWith({
+      partialFulfillment: 'cancel_all',
+      active: true,
+      cancelAllEvaluatedAt: null,
+      startsAt: { $lte: new Date('2026-10-05T18:00:00.000Z') },
+    });
+    expect(found.map((request) => request.id)).toEqual(['due']);
+  });
+
+  it('creates the cancelAll_due index', async () => {
+    const collection = createFakeCollection();
+    await new GoalkeeperRequestRepository(dbOf(collection)).ensureIndexes();
+    expect(collection.createIndex).toHaveBeenCalledWith({ partialFulfillment: 1, cancelAllEvaluatedAt: 1, startsAt: 1 }, { name: 'cancelAll_due' });
   });
 });

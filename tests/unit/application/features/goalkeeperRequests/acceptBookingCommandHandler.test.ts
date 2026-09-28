@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { Booking } from '../../../../../src/domain/bookings/booking.js';
 import { AcceptBookingCommand } from '../../../../../src/application/features/goalkeeperRequests/commands/acceptBooking/acceptBookingCommand.js';
 import { AcceptBookingCommandHandler } from '../../../../../src/application/features/goalkeeperRequests/commands/acceptBooking/acceptBookingCommandHandler.js';
 import { requestStatusOf } from '../../../../../src/domain/bookings/requestStatus.js';
@@ -212,6 +213,16 @@ describe('AcceptBookingCommandHandler — US4: clear refusals that change nothin
     expect(await accept(other!)).toEqual({ outcome: 'not_available_for_offers' });
     expect(await h.bookings.findById(other!)).toMatchObject({ status: 'pending_assignment' });
     expect(charges()).toHaveLength(1);
+  });
+
+  it('does not count a match cancelled by "cancel all" as a clash (feature 016)', async () => {
+    const [held] = match(1, 5);
+    const [clashing] = match(2, 5.5);
+    expect(await accept(held!)).toMatchObject({ outcome: 'accepted' });
+    const assigned = (await h.bookings.findById(held!))!;
+    h.bookings.seed(Booking.rehydrate({ ...assigned, status: 'cancelled', endReason: 'cancel_all', cancelledBy: 'system', endedAt: h.clock.now() }));
+
+    expect(await accept(clashing!)).toMatchObject({ outcome: 'accepted' });
   });
 
   it("refuses a booking of the goalkeeper's own request", async () => {

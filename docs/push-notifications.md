@@ -37,6 +37,17 @@ Todo push lleva, además del título y el cuerpo, un mapa `data` de **strings**.
 
 Un `type` desconocido abre el inicio o la bandeja, y la app lo registra en sus logs.
 
+### Desenlaces de la solicitud (feature 016)
+
+| `type` | Para | Cuándo | Qué abre la app |
+|---|---|---|---|
+| `request.expired` | cliente | Ninguna reserva de la solicitud consiguió portero | La solicitud (`requestId`) |
+| `request.partially_expired` | cliente | "Quedarme con los confirmados": se consiguieron algunos porteros y el resto venció | La solicitud |
+| `request.cancelled` | cliente | "Cancelar todo" y la solicitud no estaba completa a inicio − 60 min | La solicitud |
+| `booking.cancelled` | portero | Su partido se canceló por "cancelar todo"; el texto dice cuánto se le devolvió | Su agenda (`bookingId`) |
+
+La cotización trae `cancelAllAvailable` y `cancelAllUntil`: cuando `cancelAllAvailable` es `false`, el formulario no debe ofrecer "cancelar todo" (confirmar con esa opción responde `409 cancel_all_not_available`).
+
 ### Ofertas a porteros (feature 015)
 
 | `type` | Cuándo | Qué abre la app |

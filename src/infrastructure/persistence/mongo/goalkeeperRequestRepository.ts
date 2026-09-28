@@ -4,6 +4,8 @@ import { GoalkeeperRequest, type PartialFulfillment } from '../../../domain/book
 import { matchFromDocument, matchToDocument, pricingFromDocument, pricingToDocument } from './quoteRepository.js';
 
 export const GOALKEEPER_REQUESTS_COLLECTION = 'goalkeeperRequests';
+/** Longer than any free-cancellation period: "cancel all" requests due now start within it. */
+const CANCEL_ALL_LOOKAHEAD_MS = 24 * 60 * 60 * 1000;
 
 /** `zoneId` and `startsAt` are repeated at the top level so the indexes are plain ones. */
 export function requestToDocument(request: GoalkeeperRequest): Document {
@@ -23,6 +25,7 @@ export function requestToDocument(request: GoalkeeperRequest): Document {
     active: request.active,
     quoteIssuedAt: request.quoteIssuedAt,
     createdAt: request.createdAt,
+    cancelAllEvaluatedAt: request.cancelAllEvaluatedAt,
   };
 }
 
@@ -41,6 +44,7 @@ export function requestFromDocument(doc: Document): GoalkeeperRequest {
     active: doc.active as boolean,
     quoteIssuedAt: doc.quoteIssuedAt as Date,
     createdAt: doc.createdAt as Date,
+    cancelAllEvaluatedAt: (doc.cancelAllEvaluatedAt as Date | null | undefined) ?? null,
   });
 }
 
@@ -65,6 +69,27 @@ export class GoalkeeperRequestRepository implements IGoalkeeperRequestRepository
       { name: 'client_zone_start_active_unique', unique: true, partialFilterExpression: { active: true } },
     );
     await this.collection.createIndex({ clientId: 1, startsAt: 1, _id: 1 }, { name: 'client_startsAt' });
+    await this.collection.createIndex({ partialFulfillment: 1, cancelAllEvaluatedAt: 1, startsAt: 1 }, { name: 'cancelAll_due' });
+  }
+
+  async findDueForCancelAll(now: Date, cap: number): Promise<GoalkeeperRequest[]> {
+    // Each request carries its own free-cancellation period, so the database narrows to the next
+    // day and the exact deadline is checked here. `cancelAllEvaluatedAt: null` also matches
+    // documents written before the field existed.
+    const docs = await this.collection
+      .find({
+        partialFulfillment: 'cancel_all',
+        active: true,
+        cancelAllEvaluatedAt: null,
+        startsAt: { $lte: new Date(now.getTime() + CANCEL_ALL_LOOKAHEAD_MS) },
+      })
+      .sort({ startsAt: 1, _id: 1 })
+      .limit(cap * 4)
+      .toArray();
+    return docs
+      .map(requestFromDocument)
+      .filter((request) => now.getTime() >= request.cancelAllUntil().getTime())
+      .slice(0, cap);
   }
 
   async findByQuoteForClient(quoteId: string, clientId: string): Promise<GoalkeeperRequest | null> {

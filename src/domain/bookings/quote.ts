@@ -91,6 +91,18 @@ export class Quote extends Entity<string> {
   }
 
   /** Confirmable only strictly before `expiresAt`. */
+  /**
+   * "Cancel all" can only be chosen strictly before this instant, the end of the free-cancellation
+   * period, when a "cancel all" request is evaluated (feature 016, clarification 1).
+   */
+  cancelAllUntil(): Date {
+    return new Date(this.match.startsAt.getTime() - this.freeCancellationMinutes * 60_000);
+  }
+
+  isCancelAllAvailableAt(now: Date): boolean {
+    return now.getTime() < this.cancelAllUntil().getTime();
+  }
+
   isExpiredAt(now: Date): boolean {
     return this.expiresAt.getTime() <= now.getTime();
   }

@@ -21,6 +21,8 @@ interface GoalkeeperRequestProps {
   active: boolean;
   quoteIssuedAt: Date;
   createdAt: Date;
+  /** When the "cancel all" evaluation ran (feature 016); absent on older documents. */
+  cancelAllEvaluatedAt?: Date | null;
 }
 
 /**
@@ -37,6 +39,8 @@ export class GoalkeeperRequest extends Entity<string> {
   readonly pricing: PricingSnapshot;
   readonly partialFulfillment: PartialFulfillment;
   readonly freeCancellationMinutes: number;
+  /** Set once by the "cancel all" evaluation, whatever its outcome (feature 016). */
+  readonly cancelAllEvaluatedAt: Date | null;
   /** Fixed at quote time; copied to each booking (012, clarification 1). */
   readonly commission: number;
   readonly travelBufferMinutes: number;
@@ -60,6 +64,7 @@ export class GoalkeeperRequest extends Entity<string> {
     this.active = props.active;
     this.quoteIssuedAt = new Date(props.quoteIssuedAt);
     this.createdAt = new Date(props.createdAt);
+    this.cancelAllEvaluatedAt = props.cancelAllEvaluatedAt ? new Date(props.cancelAllEvaluatedAt) : null;
   }
 
   static fromQuote(
@@ -103,6 +108,14 @@ export class GoalkeeperRequest extends Entity<string> {
   /** After this instant, assigned bookings can no longer be cancelled free of charge. */
   freeCancellationUntil(): Date {
     return new Date(this.startsAt.getTime() - this.freeCancellationMinutes * 60_000);
+  }
+
+  /**
+   * When a "cancel all" request is evaluated (feature 016): the end of the free-cancellation
+   * period. "Cancel all" can only be chosen strictly before it (clarification 1).
+   */
+  cancelAllUntil(): Date {
+    return this.freeCancellationUntil();
   }
 
   /** Inclusive: exactly at `freeCancellationUntil()` cancellation is still free. */

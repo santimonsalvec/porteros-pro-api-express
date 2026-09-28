@@ -12,6 +12,19 @@ export class FakeGoalkeeperRequestRepository implements IGoalkeeperRequestReposi
     return [...this.requests.values()];
   }
 
+  async findDueForCancelAll(now: Date, cap: number): Promise<GoalkeeperRequest[]> {
+    return this.all()
+      .filter(
+        (request) =>
+          request.partialFulfillment === 'cancel_all' &&
+          request.active &&
+          request.cancelAllEvaluatedAt === null &&
+          now.getTime() >= request.cancelAllUntil().getTime(),
+      )
+      .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime() || a.id.localeCompare(b.id))
+      .slice(0, cap);
+  }
+
   async findByQuoteForClient(quoteId: string, clientId: string): Promise<GoalkeeperRequest | null> {
     return this.all().find((request) => request.quoteId === quoteId && request.clientId === clientId) ?? null;
   }

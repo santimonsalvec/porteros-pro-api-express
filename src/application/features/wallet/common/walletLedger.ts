@@ -49,6 +49,33 @@ export function commissionChargeDraft(
 }
 
 /**
+ * The refund of one booking's commission, as a draft. Shared by `WalletLedger.refundCommission` and
+ * the "cancel all" transaction (016), so both write the same cause key and a booking is never
+ * refunded twice, whichever path runs.
+ */
+export function commissionRefundDraft(
+  owner: LedgerOwner,
+  args: { bookingId: string; requestId: string; amount: number; cancellation: CancellationDetails },
+  id: string,
+  occurredAt: Date,
+): MovementDraft {
+  return {
+    id,
+    goalkeeperId: owner.goalkeeperId,
+    type: 'commission_refund',
+    amount: args.amount,
+    currency: owner.currency,
+    occurredAt,
+    causeKey: `commission_refund:${args.bookingId}`,
+    actor: SYSTEM,
+    references: { bookingId: args.bookingId, requestId: args.requestId },
+    cancellation: args.cancellation,
+    reason: null,
+    invoicing: owner.invoicing,
+  };
+}
+
+/**
  * The only writer of wallet movements (research.md §10). Each method turns a business event into a
  * typed movement — its sign, cause key, references and actor — so no caller can record a movement
  * of the wrong shape. The same cause is recorded at most once: a known cause key is answered from
@@ -78,13 +105,11 @@ export class WalletLedger {
   ): Promise<RefundResult> {
     const charge = await this.movements.findByCauseKey(`commission:${args.bookingId}`);
     if (!charge) return { kind: 'nothing_to_refund' };
-    return this.record(owner, {
-      type: 'commission_refund',
-      amount: -charge.amount,
-      causeKey: `commission_refund:${args.bookingId}`,
-      references: { bookingId: args.bookingId, requestId: args.requestId },
-      cancellation: args.cancellation,
-    });
+    const draft = commissionRefundDraft(owner, { ...args, amount: -charge.amount }, this.idGenerator.newId(), this.clock.now());
+    const known = await this.movements.findByCauseKey(draft.causeKey);
+    if (known) return { kind: 'duplicate', movement: known };
+    assertMovementShape(draft);
+    return this.store.append(draft);
   }
 
   /** The only debit allowed to leave the balance below zero (FR-008). */
