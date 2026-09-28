@@ -53,6 +53,8 @@ export type AreaSettingsResult =
       leadTimeSurcharge: LeadTimeSurcharge;
       /** `null` when not configured: the caller applies the default (FR-014). */
       freeCancellationMinutes: number | null;
+      /** `null` when not configured: the caller applies the default (FR-010 of 012). */
+      travelBufferMinutes: number | null;
     }
   | { ok: false; missing: MissingSetting[] };
 
@@ -96,5 +98,6 @@ export async function resolveAreaSettings(deps: AreaSettingsDependencies, city: 
     minNoticeMinutes,
     leadTimeSurcharge,
     freeCancellationMinutes: settings.freeCancellationMinutes,
+    travelBufferMinutes: settings.travelBufferMinutes,
   };
 }

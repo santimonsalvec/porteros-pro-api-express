@@ -18,6 +18,8 @@ export type IssueServiceQuoteResult =
       quote: IssuedServiceQuote;
       /** True when the area has no free-cancellation period and the default was stored. Not serialized. */
       freeCancellationDefaulted: boolean;
+      /** True when the area has no travel margin and the default was stored. Not serialized. */
+      travelBufferDefaulted: boolean;
       /** The anchor city of the quote, for the warning above. Not serialized. */
       cityId: string;
     }

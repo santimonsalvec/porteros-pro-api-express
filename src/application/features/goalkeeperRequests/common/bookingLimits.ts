@@ -27,6 +27,18 @@ export const QUOTE_VALIDITY_MINUTES = 3;
  */
 export const FREE_CANCELLATION_MINUTES_DEFAULT = 60;
 
+/**
+ * Minutes a goalkeeper needs between two matches, and before a match's start when its search
+ * ends, when neither the city nor the country configures it (FR-010); a warning is logged.
+ */
+export const TRAVEL_BUFFER_MINUTES_DEFAULT = 30;
+
+/**
+ * Hard cap on the candidate bookings read to build one goalkeeper's available list before the
+ * in-memory clash filter (research.md §4); reaching it is logged.
+ */
+export const AVAILABLE_CANDIDATES_CAP = 1000;
+
 /** `GET /bookings` page size when the client does not send one, and the most it may ask for (FR-005). */
 export const BOOKINGS_PAGE_SIZE_DEFAULT = 20;
 export const BOOKINGS_PAGE_SIZE_MAX = 50;

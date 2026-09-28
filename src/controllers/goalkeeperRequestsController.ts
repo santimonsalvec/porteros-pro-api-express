@@ -104,6 +104,12 @@ export function createGoalkeeperRequestsController(deps: GoalkeeperRequestsContr
             'Quote issued with the default free-cancellation period',
           );
         }
+        if (result.travelBufferDefaulted) {
+          logger.warn(
+            { outcome: 'travel_buffer_not_configured', cityId: result.cityId },
+            'Quote issued with the default travel margin',
+          );
+        }
         res.status(200).json(result.quote);
         return;
       case 'location_not_covered':

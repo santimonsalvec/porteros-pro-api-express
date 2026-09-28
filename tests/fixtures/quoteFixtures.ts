@@ -1,5 +1,5 @@
 import type { LeadTimeSurcharge } from '../../src/domain/pricing/bookingSettings.js';
-import { FREE_CANCELLATION_MINUTES_DEFAULT } from '../../src/application/features/goalkeeperRequests/common/bookingLimits.js';
+import { FREE_CANCELLATION_MINUTES_DEFAULT, TRAVEL_BUFFER_MINUTES_DEFAULT } from '../../src/application/features/goalkeeperRequests/common/bookingLimits.js';
 import { Booking } from '../../src/domain/bookings/booking.js';
 import { GoalkeeperRequest, type PartialFulfillment } from '../../src/domain/bookings/goalkeeperRequest.js';
 import { MatchDetails } from '../../src/domain/bookings/matchDetails.js';
@@ -12,6 +12,8 @@ import { City } from '../../src/domain/locations/city.js';
 import { Region } from '../../src/domain/locations/region.js';
 import { Zone } from '../../src/domain/zones/zone.js';
 import type { FakeBookingSettingsRepository } from '../fakes/fakeBookingSettingsRepository.js';
+import type { FakeCommissionSettingRepository } from '../fakes/fakeCommissionSettingRepository.js';
+import { CommissionSetting } from '../../src/domain/wallet/commissionSetting.js';
 import type { FakeCityRepository } from '../fakes/fakeCityRepository.js';
 import type { FakeCountryRepository } from '../fakes/fakeCountryRepository.js';
 import type { FakeRegionRepository } from '../fakes/fakeRegionRepository.js';
@@ -74,7 +76,17 @@ export interface QuoteWorldRepositories {
   regionRepository: FakeRegionRepository;
   rentalRateRepository: FakeRentalRateRepository;
   bookingSettingsRepository: FakeBookingSettingsRepository;
+  /** When given, every country of the world gets a country-level commission (012: quotes need one). */
+  commissionSettingRepository?: FakeCommissionSettingRepository;
 }
+
+/** The commission of each quote-world country (Colombia's is the real initial value). */
+export const WORLD_COMMISSIONS: Record<string, number> = {
+  'country-co': 7000,
+  'country-mx': 30,
+  'country-us': 2,
+  'country-in': 150,
+};
 
 let rateSequence = 0;
 function seedRates(
@@ -92,6 +104,9 @@ function seedRates(
 }
 
 export function seedQuoteWorld(repos: QuoteWorldRepositories): void {
+  for (const [countryId, amount] of Object.entries(WORLD_COMMISSIONS)) {
+    repos.commissionSettingRepository?.seed(new CommissionSetting({ id: `commission-${countryId}`, scope: 'country', refId: countryId, amount }));
+  }
   const { countryRepository, zoneRepository, cityRepository, regionRepository, rentalRateRepository, bookingSettingsRepository } = repos;
 
   // ---- Countries: each carries the currency of every price in it
@@ -179,6 +194,8 @@ export function buildStoredQuote(
     validityMinutes: number;
     goalkeeperCount: 1 | 2;
     freeCancellationMinutes: number;
+    commission: number;
+    travelBufferMinutes: number;
   }> = {},
 ): Quote {
   const startsAt = overrides.startsAt ?? '2026-09-21T20:00:00.000Z';
@@ -212,6 +229,8 @@ export function buildStoredQuote(
     new Date(overrides.issuedAt ?? QUOTE_NOW),
     overrides.validityMinutes ?? 3,
     overrides.freeCancellationMinutes ?? FREE_CANCELLATION_MINUTES_DEFAULT,
+    overrides.commission ?? 7000,
+    overrides.travelBufferMinutes ?? TRAVEL_BUFFER_MINUTES_DEFAULT,
   );
 }
 
@@ -229,6 +248,9 @@ export function buildRequest(
     goalkeeperCount: 1 | 2;
     partialFulfillment: PartialFulfillment;
     freeCancellationMinutes: number;
+    commission: number;
+    travelBufferMinutes: number;
+    durationMinutes: 60 | 90 | 120;
     active: boolean;
   }> = {},
 ): GoalkeeperRequest {
@@ -245,7 +267,7 @@ export function buildRequest(
       startsAtLocal: '2026-09-25T13:00:00-05:00',
       timeZone: 'America/Bogota',
       goalkeeperCount,
-      durationMinutes: 90,
+      durationMinutes: overrides.durationMinutes ?? 90,
     }),
     pricing: new PricingSnapshot(
       {
@@ -260,6 +282,8 @@ export function buildRequest(
     ),
     partialFulfillment: overrides.partialFulfillment ?? 'keep_confirmed',
     freeCancellationMinutes: overrides.freeCancellationMinutes ?? FREE_CANCELLATION_MINUTES_DEFAULT,
+    commission: overrides.commission ?? 7000,
+    travelBufferMinutes: overrides.travelBufferMinutes ?? TRAVEL_BUFFER_MINUTES_DEFAULT,
     active: overrides.active ?? true,
     quoteIssuedAt: new Date('2026-09-20T12:00:00.000Z'),
     createdAt: new Date('2026-09-20T12:01:00.000Z'),

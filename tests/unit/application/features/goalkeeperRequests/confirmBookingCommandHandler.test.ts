@@ -10,6 +10,8 @@ import { FakeGoalkeeperRequestRepository } from '../../../../fakes/fakeGoalkeepe
 import { FixedClock } from '../../../../fakes/fakeClock.js';
 import { FakeQuoteConfirmationStore } from '../../../../fakes/fakeQuoteConfirmationStore.js';
 import { FakeQuoteRepository } from '../../../../fakes/fakeQuoteRepository.js';
+import { FakeUserRepository } from '../../../../fakes/fakeUserRepository.js';
+import { User } from '../../../../../src/domain/users/user.js';
 import {
   buildRequest,
   buildStoredQuote,
@@ -24,12 +26,14 @@ class Harness {
   readonly bookings = new FakeBookingRepository();
   readonly store = new FakeQuoteConfirmationStore(this.quotes, this.requests, this.bookings);
   readonly audit = new FakeBookingAuditLogger();
+  readonly users = new FakeUserRepository();
   readonly clock = new FixedClock('2026-09-21T18:01:00.000Z');
   private counter = 0;
   // Ids in creation order: the request is `id-1`, its bookings `id-2` and `id-3`.
   readonly handler = new ConfirmBookingCommandHandler(
     this.requests,
     this.bookings,
+    this.users,
     this.quotes,
     this.store,
     { newId: () => `id-${++this.counter}` },
@@ -84,6 +88,8 @@ describe('ConfirmBookingCommandHandler — Story 1: book at exactly the quoted p
           total: 60000,
           currency: 'COP',
           createdAt: '2026-09-21T18:01:00.000Z',
+          goalkeeper: null,
+          assignedAt: null,
         })),
       },
     });
@@ -258,6 +264,25 @@ describe('ConfirmBookingCommandHandler — US2: a replay shows the bookings as t
       'pending_assignment',
     ]);
     expect(h.store.calls).toBe(1);
+  });
+
+  it('shows the contact of the goalkeeper who has taken a booking since (012 US5)', async () => {
+    const user = User.createFromExternalIdentity({ id: 'gk-1', email: 'gk-1@example.com', displayName: null, provider: 'google', subject: 'gk-1' });
+    user.completeProfile('Camilo', 'Portero', '+57', '3001234567');
+    h.users.seed(user);
+    await h.confirm();
+    const [first] = h.bookings.all();
+    h.bookings.seed(first!.assign('gk-1', h.clock.now()));
+
+    const replay = await h.confirm();
+
+    expect(replay.outcome === 'replayed' && replay.request.bookings).toEqual([
+      expect.objectContaining({
+        goalkeeper: { firstName: 'Camilo', lastName: 'Portero', whatsApp: '+57 3001234567' },
+        assignedAt: h.clock.now().toISOString(),
+      }),
+      expect.objectContaining({ goalkeeper: null, assignedAt: null }),
+    ]);
   });
 });
 

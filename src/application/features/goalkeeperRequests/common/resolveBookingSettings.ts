@@ -1,6 +1,6 @@
 import type { BookingSettings, LeadTimeSurcharge } from '../../../../domain/pricing/bookingSettings.js';
 
-export type MissingSetting = 'bookingWindowDays' | 'minNoticeMinutes' | 'leadTimeSurcharge' | 'currency';
+export type MissingSetting = 'bookingWindowDays' | 'minNoticeMinutes' | 'leadTimeSurcharge' | 'currency' | 'commission';
 
 export interface ResolvedBookingSettings {
   bookingWindowDays: number | null;
@@ -8,6 +8,8 @@ export interface ResolvedBookingSettings {
   leadTimeSurcharge: LeadTimeSurcharge | null;
   /** `null` when neither level defines it — never "missing": a default applies (FR-014). */
   freeCancellationMinutes: number | null;
+  /** `null` when neither level defines it — never "missing": a default applies (FR-010 of 012). */
+  travelBufferMinutes: number | null;
   /** Names of the settings defined at neither level. Empty ⇒ the area is quotable. */
   missing: MissingSetting[];
 }
@@ -24,6 +26,7 @@ export function resolveBookingSettings(docs: {
   const bookingWindowDays = docs.city?.bookingWindowDays ?? docs.country?.bookingWindowDays ?? null;
   const minNoticeMinutes = docs.city?.minNoticeMinutes ?? docs.country?.minNoticeMinutes ?? null;
   const leadTimeSurcharge = docs.city?.leadTimeSurcharge ?? docs.country?.leadTimeSurcharge ?? null;
+  const travelBufferMinutes = docs.city?.travelBufferMinutes ?? docs.country?.travelBufferMinutes ?? null;
   const freeCancellationMinutes =
     docs.city?.freeCancellationMinutes ?? docs.country?.freeCancellationMinutes ?? null;
 
@@ -32,5 +35,5 @@ export function resolveBookingSettings(docs: {
   if (minNoticeMinutes === null) missing.push('minNoticeMinutes');
   if (leadTimeSurcharge === null) missing.push('leadTimeSurcharge');
 
-  return { bookingWindowDays, minNoticeMinutes, leadTimeSurcharge, freeCancellationMinutes, missing };
+  return { bookingWindowDays, minNoticeMinutes, leadTimeSurcharge, freeCancellationMinutes, travelBufferMinutes, missing };
 }

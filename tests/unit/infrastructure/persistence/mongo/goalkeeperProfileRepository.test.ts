@@ -160,4 +160,20 @@ describe('GoalkeeperProfileRepository (mocked driver)', () => {
       expect(collection.insertOne).not.toHaveBeenCalled();
     });
   });
+
+  it('stores and reads a suspension, and reads a profile without one as not suspended', async () => {
+    const collection = createFakeCollection();
+    collection.insertOne.mockResolvedValue({ acknowledged: true, insertedId: 'profile-1' });
+    const until = new Date('2026-10-01T00:00:00.000Z');
+
+    await repositoryWith(collection).add(new GoalkeeperProfile({ ...baseParams, suspendedUntil: until }));
+    const stored = collection.insertOne.mock.calls[0]![0] as Record<string, unknown>;
+    expect(stored.suspendedUntil).toEqual(until);
+
+    collection.findOne.mockResolvedValue({ ...stored });
+    expect((await repositoryWith(collection).getById('profile-1'))?.suspendedUntil).toEqual(until);
+
+    collection.findOne.mockResolvedValue({ ...stored, suspendedUntil: undefined });
+    expect((await repositoryWith(collection).getById('profile-1'))?.suspendedUntil).toBeNull();
+  });
 });

@@ -4,6 +4,7 @@ import { buildTestApp } from '../testAppFactory.js';
 import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js';
 import { User } from '../../../src/domain/users/user.js';
 import { buildRequest, buildRequestBookings, POINTS } from '../../fixtures/quoteFixtures.js';
+import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper } from '../walletTestHelpers.js';
 
 type TestApp = Awaited<ReturnType<typeof buildTestApp>>;
 
@@ -220,5 +221,30 @@ describe('GET /api/goalkeeper-requests/bookings — Story 3: page by page', () =
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ items: [], page: 999, pageSize: 2, totalItems: 3, totalPages: 2 });
+  });
+});
+
+describe('GET /api/goalkeeper-requests/bookings — 012 US5: the assigned goalkeeper\'s contact', () => {
+  it('shows only name and WhatsApp of the goalkeeper who accepted, and null on the open booking', async () => {
+    const context = await buildTestApp();
+    context.clock.set(MATCH_NOW);
+    const client = await signInClient(context, 'sub-0501');
+    const goalkeeper = await signInGoalkeeper(context, 'sub-0502');
+    await context.walletLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo', operationKey: 'k-gk' });
+    const created = await createRequestAsClient(context, client.token);
+    const taken = created.bookings[0]!.bookingId;
+    await request(context.app).post(`/api/goalkeepers/me/bookings/${taken}/accept`).set('Authorization', `Bearer ${goalkeeper.token}`);
+
+    const response = await request(context.app).get('/api/goalkeeper-requests/bookings').set('Authorization', `Bearer ${client.token}`);
+
+    expect(response.status).toBe(200);
+    const [item] = response.body.items;
+    expect(item.status).toBe('partially_assigned');
+    const assigned = item.bookings.find((booking: { bookingId: string }) => booking.bookingId === taken);
+    const open = item.bookings.find((booking: { bookingId: string }) => booking.bookingId !== taken);
+    expect(assigned.goalkeeper).toEqual({ firstName: 'Ana', lastName: 'Portera', whatsApp: '+57 300 000 0502' });
+    expect(assigned.assignedAt).toBe(MATCH_NOW);
+    expect(open).toMatchObject({ goalkeeper: null, assignedAt: null });
+    expect(JSON.stringify(response.body)).not.toMatch(/@|email|document/i);
   });
 });

@@ -34,4 +34,33 @@ describe('Booking.forRequest', () => {
 
     expect(() => Booking.rehydrate({ ...booking, status: 'lost' as never })).toThrow(/status/);
   });
+
+  it('copies the fixed commission and margin, and derives the end and the end of the search', () => {
+    const booking = Booking.forRequest('b-1', request, createdAt);
+
+    // The stored quote starts at 20:00Z, lasts 90 minutes, with a 30-minute margin and 7.000 commission.
+    expect(booking).toMatchObject({
+      commission: 7000,
+      travelBufferMinutes: 30,
+      endsAt: new Date('2026-09-21T21:30:00.000Z'),
+      searchEndsAt: new Date('2026-09-21T19:30:00.000Z'),
+      goalkeeperId: null,
+      assignedAt: null,
+    });
+  });
+
+  it('is takeable strictly before the end of its search', () => {
+    const booking = Booking.forRequest('b-1', request, createdAt);
+
+    expect(booking.isSearchOpenAt(new Date('2026-09-21T19:29:59.999Z'))).toBe(true);
+    expect(booking.isSearchOpenAt(new Date('2026-09-21T19:30:00.000Z'))).toBe(false);
+  });
+
+  it('can be assigned once, only while pending', () => {
+    const at = new Date('2026-09-21T18:30:00.000Z');
+    const assigned = Booking.forRequest('b-1', request, createdAt).assign('gk-1', at);
+
+    expect(assigned).toMatchObject({ status: 'assigned', goalkeeperId: 'gk-1', assignedAt: at });
+    expect(() => assigned.assign('gk-2', at)).toThrow(/not pending/);
+  });
 });

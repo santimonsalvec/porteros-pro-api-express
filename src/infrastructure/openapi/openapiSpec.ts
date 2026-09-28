@@ -85,6 +85,83 @@ export const openapiSpec = {
         },
         required: ['items', 'page', 'pageSize', 'totalItems', 'totalPages'],
       },
+      Contact: {
+        type: 'object',
+        description: 'The only personal data either side of an assigned booking sees of the other.',
+        properties: {
+          firstName: { type: 'string', nullable: true, example: 'Ana' },
+          lastName: { type: 'string', nullable: true, example: 'Portera' },
+          whatsApp: { type: 'string', nullable: true, example: '+57 300 123 4567', description: '"<country calling code> <number>"' },
+        },
+        required: ['firstName', 'lastName', 'whatsApp'],
+      },
+      AvailableBookingItem: {
+        type: 'object',
+        description: 'A booking the goalkeeper can take. No client data.',
+        properties: {
+          bookingId: { type: 'string' },
+          requestId: { type: 'string' },
+          zoneId: { type: 'string' },
+          zoneName: { type: 'string', nullable: true },
+          cityId: { type: 'string' },
+          cityName: { type: 'string', nullable: true },
+          startsAt: { type: 'string', format: 'date-time' },
+          startsAtLocal: { type: 'string', example: '2026-09-21T15:00:00-05:00' },
+          timeZone: { type: 'string', example: 'America/Bogota' },
+          durationMinutes: { type: 'integer', example: 90 },
+          goalkeeperCount: { type: 'integer', description: 'How many goalkeepers the request asked for' },
+          earnings: { type: 'integer', example: 60000, description: 'What the client pays the goalkeeper for this booking (rate + surcharge)' },
+          commission: { type: 'integer', example: 7000, description: 'The platform commission charged on acceptance, fixed when the quote was issued' },
+          currency: { type: 'string', example: 'COP' },
+        },
+        required: ['bookingId', 'requestId', 'zoneId', 'zoneName', 'cityId', 'cityName', 'startsAt', 'startsAtLocal', 'timeZone', 'durationMinutes', 'goalkeeperCount', 'earnings', 'commission', 'currency'],
+      },
+      AvailableBookingsPage: {
+        type: 'object',
+        properties: {
+          items: { type: 'array', items: { $ref: '#/components/schemas/AvailableBookingItem' } },
+          page: { type: 'integer' },
+          pageSize: { type: 'integer' },
+          totalItems: { type: 'integer' },
+          totalPages: { type: 'integer' },
+          unavailableReason: {
+            type: 'string',
+            nullable: true,
+            enum: ['insufficient_funds', 'suspended', null],
+            description: 'Why the list is empty whatever the matches; null when the goalkeeper can see offers',
+          },
+          missingAmount: { type: 'integer', nullable: true, description: 'With insufficient_funds' },
+          suspendedUntil: { type: 'string', format: 'date-time', nullable: true, description: 'With suspended' },
+        },
+        required: ['items', 'page', 'pageSize', 'totalItems', 'totalPages', 'unavailableReason', 'missingAmount', 'suspendedUntil'],
+      },
+      AgendaItem: {
+        allOf: [
+          { $ref: '#/components/schemas/AvailableBookingItem' },
+          {
+            type: 'object',
+            properties: {
+              status: { type: 'string', enum: ['assigned', 'completed', 'cancelled', 'goalkeeper_withdrew'] },
+              assignedAt: { type: 'string', format: 'date-time', nullable: true },
+              latitude: { type: 'number', description: 'The pitch' },
+              longitude: { type: 'number', description: 'The pitch' },
+              client: { allOf: [{ $ref: '#/components/schemas/Contact' }], nullable: true },
+            },
+            required: ['status', 'assignedAt', 'latitude', 'longitude', 'client'],
+          },
+        ],
+      },
+      AgendaPage: {
+        type: 'object',
+        properties: {
+          items: { type: 'array', items: { $ref: '#/components/schemas/AgendaItem' } },
+          page: { type: 'integer' },
+          pageSize: { type: 'integer' },
+          totalItems: { type: 'integer' },
+          totalPages: { type: 'integer' },
+        },
+        required: ['items', 'page', 'pageSize', 'totalItems', 'totalPages'],
+      },
       RecordWalletAdjustmentRequest: {
         type: 'object',
         properties: {
@@ -214,8 +291,14 @@ export const openapiSpec = {
           total: { type: 'integer', example: 60000, description: 'unitRate + unitSurcharge' },
           currency: { type: 'string', example: 'COP' },
           createdAt: { type: 'string', format: 'date-time' },
+          goalkeeper: {
+            allOf: [{ $ref: '#/components/schemas/Contact' }],
+            nullable: true,
+            description: 'The goalkeeper who took this booking; null while nobody has',
+          },
+          assignedAt: { type: 'string', format: 'date-time', nullable: true },
         },
-        required: ['bookingId', 'status', 'unitRate', 'unitSurcharge', 'total', 'currency', 'createdAt'],
+        required: ['bookingId', 'status', 'unitRate', 'unitSurcharge', 'total', 'currency', 'createdAt', 'goalkeeper', 'assignedAt'],
       },
       RequestResponse: {
         type: 'object',
@@ -803,7 +886,7 @@ export const openapiSpec = {
           '403': { description: 'Not a client, or the client profile is not complete' },
           '422': {
             description:
-              'time_zone_not_configured, or service_not_configured (missing: bookingWindowDays | minNoticeMinutes | leadTimeSurcharge | currency)',
+              'time_zone_not_configured, or service_not_configured (missing: bookingWindowDays | minNoticeMinutes | leadTimeSurcharge | currency | commission)',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
           },
         },
@@ -834,7 +917,7 @@ export const openapiSpec = {
           '403': { description: 'Not a client, or the client profile is not complete' },
           '422': {
             description:
-              'The request is well-formed but the service is not set up for that area or duration: time_zone_not_configured, service_not_configured (missing: bookingWindowDays | minNoticeMinutes | leadTimeSurcharge | currency — the country\u2019s currency) or rate_not_configured',
+              'The request is well-formed but the service is not set up for that area or duration: time_zone_not_configured, service_not_configured (missing: bookingWindowDays | minNoticeMinutes | leadTimeSurcharge | currency — the country\u2019s currency — | commission — the platform commission of the zone, city or country) or rate_not_configured',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
           },
         },
@@ -916,6 +999,64 @@ export const openapiSpec = {
             description: 'Fixed, manually seeded reference catalog',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/DocumentTypesResponse' } } },
           },
+        },
+      },
+    },
+    '/api/goalkeepers/me/available-bookings': {
+      get: {
+        summary: 'The bookings the goalkeeper can take now, soonest first',
+        description:
+          'Pending bookings in the goalkeeper\u2019s enabled zones whose search is still open (start \u2212 travel margin), whose commission the balance covers, that do not clash with their assigned bookings (travel margin included), that are not of a request they already hold a booking of, and that are not of their own requests. A suspended goalkeeper, or one whose balance does not cover the lowest commission of their zones, gets an empty list with unavailableReason.',
+        tags: ['Goalkeeper bookings'],
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'page', in: 'query', required: false, schema: { type: 'integer', minimum: 1, default: 1 } },
+          { name: 'pageSize', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 50, default: 20 } },
+        ],
+        responses: {
+          '200': { description: 'One page of takeable bookings', content: { 'application/json': { schema: { $ref: '#/components/schemas/AvailableBookingsPage' } } } },
+          '400': { description: 'validation_failed: invalid page or pageSize', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } } },
+          '401': { description: 'Not signed in' },
+          '404': { description: 'goalkeeper_not_found: not an active goalkeeper', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/api/goalkeepers/me/bookings/{bookingId}/accept': {
+      post: {
+        summary: 'Take a booking: assigned to the goalkeeper and the commission charged, all or nothing',
+        description:
+          'Only one goalkeeper can take a booking. Repeating the acceptance answers 200 with the same booking and charges nothing again. No body.',
+        tags: ['Goalkeeper bookings'],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'bookingId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          '201': { description: 'Accepted now; the commission was charged', content: { 'application/json': { schema: { $ref: '#/components/schemas/AgendaItem' } } } },
+          '200': { description: 'Already assigned to this goalkeeper; nothing charged again', content: { 'application/json': { schema: { $ref: '#/components/schemas/AgendaItem' } } } },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'goalkeeper_suspended (suspendedUntil)', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '404': { description: 'booking_not_available (unknown or malformed id, cancelled, expired or completed), or goalkeeper_not_found', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '409': {
+            description:
+              'booking_already_taken, search_ended (now \u2265 start \u2212 travel margin), zone_not_enabled, insufficient_funds (missingAmount), schedule_conflict (conflictingBookingId), own_request, or same_request',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+        },
+      },
+    },
+    '/api/goalkeepers/me/bookings': {
+      get: {
+        summary: "The goalkeeper's agenda: upcoming bookings soonest first, then past ones most recent first",
+        tags: ['Goalkeeper bookings'],
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'page', in: 'query', required: false, schema: { type: 'integer', minimum: 1, default: 1 } },
+          { name: 'pageSize', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 50, default: 20 } },
+        ],
+        responses: {
+          '200': { description: 'One page of the goalkeeper\u2019s bookings, with the client contact', content: { 'application/json': { schema: { $ref: '#/components/schemas/AgendaPage' } } } },
+          '400': { description: 'validation_failed: invalid page or pageSize', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } } },
+          '401': { description: 'Not signed in' },
+          '404': { description: 'goalkeeper_not_found: not an active goalkeeper', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
         },
       },
     },

@@ -35,6 +35,7 @@ describe('resolveBookingSettings', () => {
       minNoticeMinutes: 30,
       leadTimeSurcharge: cop,
       freeCancellationMinutes: null,
+      travelBufferMinutes: null,
       missing: [],
     });
   });
@@ -63,6 +64,7 @@ describe('resolveBookingSettings', () => {
       minNoticeMinutes: null,
       leadTimeSurcharge: null,
       freeCancellationMinutes: null,
+      travelBufferMinutes: null,
       missing: ['bookingWindowDays', 'minNoticeMinutes', 'leadTimeSurcharge'],
     });
   });
@@ -85,5 +87,11 @@ describe('resolveBookingSettings', () => {
     const absent = resolveBookingSettings({ city: null, country: country() });
     expect(absent.freeCancellationMinutes).toBeNull();
     expect(absent.missing).toEqual([]);
+  });
+
+  it('resolves the travel margin city first, then country, never reporting it missing', () => {
+    expect(resolveBookingSettings({ city: city({ travelBufferMinutes: 45 }), country: country({ travelBufferMinutes: 30 }) }).travelBufferMinutes).toBe(45);
+    expect(resolveBookingSettings({ city: null, country: country({ travelBufferMinutes: 30 }) }).travelBufferMinutes).toBe(30);
+    expect(resolveBookingSettings({ city: null, country: country() }).missing).toEqual([]);
   });
 });

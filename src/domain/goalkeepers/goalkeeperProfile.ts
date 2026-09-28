@@ -22,6 +22,8 @@ export class GoalkeeperProfile extends Entity<string> {
   readonly cityId: string;
   readonly zoneIds: string[];
   readonly activatedAt: Date;
+  /** While in the future, the goalkeeper sees no offers and cannot accept (read by 012, written by 018). */
+  readonly suspendedUntil: Date | null;
 
   constructor(params: {
     id: string;
@@ -37,6 +39,7 @@ export class GoalkeeperProfile extends Entity<string> {
     cityId: string;
     zoneIds: string[];
     activatedAt: Date;
+    suspendedUntil?: Date | null;
   }) {
     super(params.id);
     this.userId = params.userId;
@@ -51,6 +54,7 @@ export class GoalkeeperProfile extends Entity<string> {
     this.cityId = params.cityId;
     this.zoneIds = params.zoneIds;
     this.activatedAt = params.activatedAt;
+    this.suspendedUntil = params.suspendedUntil ?? null;
   }
 
   /** The only constructor — reads every field off a registration whose completeness has already been confirmed by the caller. */

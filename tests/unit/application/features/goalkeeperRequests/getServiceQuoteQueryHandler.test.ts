@@ -10,6 +10,8 @@ import { GetServiceQuoteQuery, type ServiceQuoteInput } from '../../../../../src
 import { GetServiceQuoteQueryHandler } from '../../../../../src/application/features/goalkeeperRequests/queries/getServiceQuote/getServiceQuoteQueryHandler.js';
 import { parseStartsAt } from '../../../../../src/application/features/goalkeeperRequests/common/startsAt.js';
 import { FakeBookingSettingsRepository } from '../../../../fakes/fakeBookingSettingsRepository.js';
+import { FakeCommissionSettingRepository } from '../../../../fakes/fakeCommissionSettingRepository.js';
+import { CommissionResolver } from '../../../../../src/application/features/wallet/common/commissionResolver.js';
 import { FakeCityRepository } from '../../../../fakes/fakeCityRepository.js';
 import { FakeCountryRepository } from '../../../../fakes/fakeCountryRepository.js';
 import { FixedClock } from '../../../../fakes/fakeClock.js';
@@ -26,6 +28,8 @@ class Harness {
   readonly regionRepository = new FakeRegionRepository();
   readonly rentalRateRepository = new FakeRentalRateRepository();
   readonly bookingSettingsRepository = new FakeBookingSettingsRepository();
+  readonly commissionSettingRepository = new FakeCommissionSettingRepository();
+  readonly commissionResolver = new CommissionResolver(this.commissionSettingRepository, this.zoneRepository, this.cityRepository, this.regionRepository);
   readonly clock = new FixedClock(QUOTE_NOW);
   readonly handler: GetServiceQuoteQueryHandler;
 
@@ -38,7 +42,7 @@ class Harness {
       this.countryRepository,
       this.rentalRateRepository,
       this.bookingSettingsRepository,
-      this.clock,
+      this.commissionResolver,      this.clock,
     );
   }
 
@@ -80,7 +84,7 @@ describe('GetServiceQuoteQueryHandler — Story 1: price a booking', () => {
         startsAtLocal: '2026-09-21T15:00:00-05:00',
         timeZone: 'America/Bogota',
       },
-      area: { zoneId: 'zone-cali-norte', cityId: 'city-cali', freeCancellationMinutes: null },
+      area: { zoneId: 'zone-cali-norte', cityId: 'city-cali', freeCancellationMinutes: null, commission: 7000, travelBufferMinutes: null },
     });
   });
 
@@ -539,11 +543,11 @@ describe('GetServiceQuoteQueryHandler — Story 4: per-country configuration wit
 
     expect(await h.quote('2026-09-21T15:00:00', orphan)).toMatchObject({
       outcome: 'service_not_configured',
-      missing: ['bookingWindowDays', 'minNoticeMinutes', 'leadTimeSurcharge', 'currency'],
+      missing: ['bookingWindowDays', 'minNoticeMinutes', 'leadTimeSurcharge', 'currency', 'commission'],
     });
 
     h.bookingSettingsRepository.seed(new BookingSettings({ id: 'orphan-city', scope: 'city', refId: 'city-orphan', bookingWindowDays: 2, minNoticeMinutes: 30, leadTimeSurcharge: COP(1, 1) }));
-    expect(await h.quote('2026-09-21T15:00:00', orphan)).toEqual({ outcome: 'service_not_configured', cityId: 'city-orphan', missing: ['currency'] });
+    expect(await h.quote('2026-09-21T15:00:00', orphan)).toEqual({ outcome: 'service_not_configured', cityId: 'city-orphan', missing: ['currency', 'commission'] });
   });
 
   it('never lets two countries share values or currencies', async () => {
@@ -651,7 +655,7 @@ describe('GetServiceQuoteQueryHandler — read-only guarantee (FR-020, SC-007)',
       watch('countries', h.countryRepository),
       watch('rates', h.rentalRateRepository),
       watch('settings', h.bookingSettingsRepository),
-      h.clock,
+      h.commissionResolver,      h.clock,
     );
     const ask = (startsAt: string, point = POINTS.caliNorte) =>
       handler.handle(new GetServiceQuoteQuery({ ...point, startsAt: parseStartsAt(startsAt)!, goalkeeperCount: 2, durationMinutes: 90 }));
@@ -681,5 +685,17 @@ describe('GetServiceQuoteQueryHandler — read-only guarantee (FR-020, SC-007)',
 
     expect(result).toMatchObject({ outcome: 'success', area: { freeCancellationMinutes: 90 } });
     expect(result.outcome === 'success' && result.quote).not.toHaveProperty('freeCancellationMinutes');
+  });
+
+  it('refuses to quote a zone with no commission configured, naming it among the missing settings', async () => {
+    h.commissionSettingRepository.clear();
+
+    expect(await h.quote('2026-09-21T15:00:00')).toEqual({ outcome: 'service_not_configured', cityId: 'city-cali', missing: ['commission'] });
+  });
+
+  it('fixes the zone commission and the travel margin for the quote', async () => {
+    h.bookingSettingsRepository.seed(new BookingSettings({ id: 'cali-margin', scope: 'city', refId: 'city-cali', travelBufferMinutes: 45 }));
+
+    expect(await h.quote('2026-09-21T15:00:00')).toMatchObject({ outcome: 'success', area: { commission: 7000, travelBufferMinutes: 45 } });
   });
 });

@@ -16,6 +16,10 @@ export class FakeGoalkeeperRequestRepository implements IGoalkeeperRequestReposi
     return this.all().find((request) => request.quoteId === quoteId && request.clientId === clientId) ?? null;
   }
 
+  async findByIds(ids: string[]): Promise<GoalkeeperRequest[]> {
+    return ids.flatMap((id) => this.requests.get(id) ?? []);
+  }
+
   async findActiveByMatchForClient(clientId: string, zoneId: string, startsAt: Date): Promise<GoalkeeperRequest | null> {
     return (
       this.all().find(

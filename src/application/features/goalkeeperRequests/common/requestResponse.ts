@@ -1,6 +1,7 @@
 import type { Booking } from '../../../../domain/bookings/booking.js';
 import type { GoalkeeperRequest } from '../../../../domain/bookings/goalkeeperRequest.js';
 import { requestStatusOf } from '../../../../domain/bookings/requestStatus.js';
+import type { Contact } from './contacts.js';
 
 /** One goalkeeper's place in a request, as the API returns it (contracts/confirm-request.md). */
 export interface BookingItemResponse {
@@ -11,6 +12,9 @@ export interface BookingItemResponse {
   total: number;
   currency: string;
   createdAt: string;
+  /** The assigned goalkeeper's contact (012 FR-013); `null` while nobody holds the booking. */
+  goalkeeper: Contact | null;
+  assignedAt: string | null;
 }
 
 /** A request with its bookings: match and quoted price flattened, bookings nested. */
@@ -47,8 +51,22 @@ export interface ListedRequestResponse extends RequestResponse {
   cityName: string | null;
 }
 
-/** `now` decides whether free cancellation is still available (FR-015). */
-export function toRequestResponse(request: GoalkeeperRequest, bookings: readonly Booking[], now: Date): RequestResponse {
+/** The goalkeepers holding these bookings, whose contacts the response needs. */
+export function assignedGoalkeeperIds(bookings: readonly Booking[]): string[] {
+  return bookings.flatMap((booking) => (booking.goalkeeperId ? [booking.goalkeeperId] : []));
+}
+
+/**
+ * `now` decides whether free cancellation is still available (FR-015). `contacts` holds the
+ * assigned goalkeepers' contacts (see `loadContacts`); an assigned booking whose goalkeeper is
+ * missing from it answers `goalkeeper: null`.
+ */
+export function toRequestResponse(
+  request: GoalkeeperRequest,
+  bookings: readonly Booking[],
+  now: Date,
+  contacts: ReadonlyMap<string, Contact> = new Map(),
+): RequestResponse {
   const { match, pricing } = request;
   const ordered = [...bookings].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   return {
@@ -84,6 +102,8 @@ export function toRequestResponse(request: GoalkeeperRequest, bookings: readonly
       total: booking.price.total,
       currency: booking.price.currency,
       createdAt: booking.createdAt.toISOString(),
+      goalkeeper: (booking.goalkeeperId && contacts.get(booking.goalkeeperId)) || null,
+      assignedAt: booking.assignedAt?.toISOString() ?? null,
     })),
   };
 }

@@ -62,6 +62,13 @@ import { TermsAcceptanceRepository } from './persistence/mongo/termsAcceptanceRe
 import { CountryRepository } from './persistence/mongo/countryRepository.js';
 import { CommissionResolver } from '../application/features/wallet/common/commissionResolver.js';
 import { WalletLedger } from '../application/features/wallet/common/walletLedger.js';
+import { ListAvailableBookingsQuery } from '../application/features/goalkeeperRequests/queries/listAvailableBookings/listAvailableBookingsQuery.js';
+import { ListGoalkeeperAgendaQuery } from '../application/features/goalkeeperRequests/queries/listGoalkeeperAgenda/listGoalkeeperAgendaQuery.js';
+import { ListGoalkeeperAgendaQueryHandler } from '../application/features/goalkeeperRequests/queries/listGoalkeeperAgenda/listGoalkeeperAgendaQueryHandler.js';
+import { AcceptBookingCommand } from '../application/features/goalkeeperRequests/commands/acceptBooking/acceptBookingCommand.js';
+import { AcceptBookingCommandHandler } from '../application/features/goalkeeperRequests/commands/acceptBooking/acceptBookingCommandHandler.js';
+import { MongoBookingAcceptanceStore } from './persistence/mongo/bookingAcceptanceStore.js';
+import { ListAvailableBookingsQueryHandler } from '../application/features/goalkeeperRequests/queries/listAvailableBookings/listAvailableBookingsQueryHandler.js';
 import { RecordWalletAdjustmentCommand } from '../application/features/wallet/commands/recordWalletAdjustment/recordWalletAdjustmentCommand.js';
 import { RecordWalletAdjustmentCommandHandler } from '../application/features/wallet/commands/recordWalletAdjustment/recordWalletAdjustmentCommandHandler.js';
 import { GetGoalkeeperWalletQuery } from '../application/features/wallet/queries/getGoalkeeperWallet/getGoalkeeperWalletQuery.js';
@@ -71,6 +78,7 @@ import { ListWalletMovementsQueryHandler } from '../application/features/wallet/
 import { CommissionSettingRepository } from './persistence/mongo/commissionSettingRepository.js';
 import { WalletMovementRepository } from './persistence/mongo/walletMovementRepository.js';
 import { WalletRepository } from './persistence/mongo/walletRepository.js';
+import { logger } from './observability/logger.js';
 import { MongoWalletStore } from './persistence/mongo/walletStore.js';
 import { CityRepository } from './persistence/mongo/cityRepository.js';
 import { RegionRepository } from './persistence/mongo/regionRepository.js';
@@ -241,6 +249,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         countryRepository,
         rentalRateRepository,
         bookingSettingsRepository,
+        commissionResolver,
         clock,
       ),
     },
@@ -253,6 +262,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       handler: new ConfirmBookingCommandHandler(
         requestRepository,
         bookingRepository,
+        userRepository,
         quoteRepository,
         quoteConfirmationStore,
         idGenerator,
@@ -262,7 +272,14 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     },
     {
       requestType: ListClientRequestsQuery,
-      handler: new ListClientRequestsQueryHandler(requestRepository, bookingRepository, zoneRepository, cityRepository, clock),
+      handler: new ListClientRequestsQueryHandler(
+        requestRepository,
+        bookingRepository,
+        zoneRepository,
+        cityRepository,
+        userRepository,
+        clock,
+      ),
     },
     {
       requestType: StoreImageCommand,
@@ -280,6 +297,49 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     {
       requestType: RecordWalletAdjustmentCommand,
       handler: new RecordWalletAdjustmentCommandHandler(walletContext, walletLedger, walletRepository),
+    },
+    {
+      requestType: AcceptBookingCommand,
+      handler: new AcceptBookingCommandHandler({
+        walletContext,
+        walletRepository: walletRepository,
+        bookingRepository,
+        requestRepository,
+        zoneRepository,
+        cityRepository,
+        userRepository,
+        store: new MongoBookingAcceptanceStore(() => connectionProvider.startSession(), db),
+        idGenerator: idGenerator,
+        clock,
+        audit: auditLogger,
+      }),
+    },
+    {
+      requestType: ListAvailableBookingsQuery,
+      handler: new ListAvailableBookingsQueryHandler({
+        goalkeeperProfileRepository,
+        walletRepository: walletRepository,
+        commissionResolver,
+        bookingRepository,
+        requestRepository: requestRepository,
+        zoneRepository,
+        cityRepository,
+        clock,
+        onCapReached: (goalkeeperId) =>
+          logger.warn({ outcome: 'available_candidates_cap_reached', goalkeeperId }, 'Available-bookings candidate cap reached'),
+      }),
+    },
+    {
+      requestType: ListGoalkeeperAgendaQuery,
+      handler: new ListGoalkeeperAgendaQueryHandler({
+        goalkeeperProfileRepository,
+        bookingRepository,
+        requestRepository,
+        zoneRepository,
+        cityRepository,
+        userRepository,
+        clock,
+      }),
     },
     {
       requestType: ListWalletMovementsQuery,

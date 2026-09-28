@@ -18,6 +18,8 @@ export function requestToDocument(request: GoalkeeperRequest): Document {
     goalkeeperCount: request.goalkeeperCount,
     partialFulfillment: request.partialFulfillment,
     freeCancellationMinutes: request.freeCancellationMinutes,
+    commission: request.commission,
+    travelBufferMinutes: request.travelBufferMinutes,
     active: request.active,
     quoteIssuedAt: request.quoteIssuedAt,
     createdAt: request.createdAt,
@@ -34,6 +36,8 @@ export function requestFromDocument(doc: Document): GoalkeeperRequest {
     pricing: pricingFromDocument(doc.pricing as Document, match.goalkeeperCount),
     partialFulfillment: doc.partialFulfillment as PartialFulfillment,
     freeCancellationMinutes: doc.freeCancellationMinutes as number,
+    commission: doc.commission as number,
+    travelBufferMinutes: doc.travelBufferMinutes as number,
     active: doc.active as boolean,
     quoteIssuedAt: doc.quoteIssuedAt as Date,
     createdAt: doc.createdAt as Date,
@@ -66,6 +70,12 @@ export class GoalkeeperRequestRepository implements IGoalkeeperRequestRepository
   async findByQuoteForClient(quoteId: string, clientId: string): Promise<GoalkeeperRequest | null> {
     const doc = await this.collection.findOne({ quoteId, clientId });
     return doc ? requestFromDocument(doc) : null;
+  }
+
+  async findByIds(ids: string[]): Promise<GoalkeeperRequest[]> {
+    if (ids.length === 0) return [];
+    const docs = await this.collection.find({ _id: { $in: ids } } as Document).toArray();
+    return docs.map(requestFromDocument);
   }
 
   async findActiveByMatchForClient(clientId: string, zoneId: string, startsAt: Date): Promise<GoalkeeperRequest | null> {

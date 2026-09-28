@@ -1,10 +1,12 @@
 import type { IClock } from '../../../../common/clock.js';
+import type { IUserRepository } from '../../../auth/common/ports.js';
 import type { IQueryHandler } from '../../../../common/mediator/types.js';
 import type { ICityRepository } from '../../../locations/common/ports.js';
 import type { IZoneRepository } from '../../../zones/common/ports.js';
 import type { Booking } from '../../../../../domain/bookings/booking.js';
 import type { GoalkeeperRequest } from '../../../../../domain/bookings/goalkeeperRequest.js';
-import { toRequestResponse, type ListedRequestResponse } from '../../common/requestResponse.js';
+import { loadContacts } from '../../common/contacts.js';
+import { assignedGoalkeeperIds, toRequestResponse, type ListedRequestResponse } from '../../common/requestResponse.js';
 import { pageWindow } from '../../common/pageWindow.js';
 import type { IBookingRepository, IGoalkeeperRequestRepository } from '../../common/ports.js';
 import { ListClientRequestsQuery, type ListClientRequestsResult } from './listClientRequestsQuery.js';
@@ -13,7 +15,7 @@ import { ListClientRequestsQuery, type ListClientRequestsResult } from './listCl
  * The caller's requests as one list — upcoming (soonest first) then past (most recent first) —
  * cut into pages (009 research §1). "Now" is read once so the counts and the reads agree on which
  * segment every request is in; the page's bookings come from one read; zone and city names are
- * the current ones, `null` when gone.
+ * the current ones, `null` when gone; the assigned goalkeepers' contacts come from one user read.
  */
 export class ListClientRequestsQueryHandler implements IQueryHandler<
   ListClientRequestsQuery,
@@ -24,6 +26,7 @@ export class ListClientRequestsQueryHandler implements IQueryHandler<
     private readonly bookingRepository: IBookingRepository,
     private readonly zoneRepository: IZoneRepository,
     private readonly cityRepository: ICityRepository,
+    private readonly userRepository: IUserRepository,
     private readonly clock: IClock,
   ) {}
 
@@ -68,11 +71,12 @@ export class ListClientRequestsQueryHandler implements IQueryHandler<
     for (const booking of bookings) {
       bookingsByRequest.set(booking.requestId, [...(bookingsByRequest.get(booking.requestId) ?? []), booking]);
     }
+    const contacts = await loadContacts(this.userRepository, assignedGoalkeeperIds(bookings));
     const zoneNames = new Map(zones.map((zone) => [zone.id, zone.name]));
     const cityNames = new Map(cities.map((city) => [city.id, city.name]));
 
     return requests.map((request) => ({
-      ...toRequestResponse(request, bookingsByRequest.get(request.id) ?? [], now),
+      ...toRequestResponse(request, bookingsByRequest.get(request.id) ?? [], now, contacts),
       zoneName: zoneNames.get(request.match.zoneId) ?? null,
       cityName: cityNames.get(request.match.cityId) ?? null,
     }));

@@ -73,6 +73,12 @@ export class UserRepository extends MongoRepository<User, string> implements IUs
     });
   }
 
+  async getByIds(ids: string[]): Promise<User[]> {
+    if (ids.length === 0) return [];
+    const docs = await this.collection.find({ _id: { $in: ids } } as Document).toArray();
+    return docs.map((doc) => this.fromDocument(doc));
+  }
+
   async findByExternalIdentity(provider: string, subject: string): Promise<User | null> {
     const doc = await this.collection.findOne({
       'externalIdentities.provider': provider,

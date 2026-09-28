@@ -16,6 +16,8 @@ interface GoalkeeperRequestProps {
   pricing: PricingSnapshot;
   partialFulfillment: PartialFulfillment;
   freeCancellationMinutes: number;
+  commission: number;
+  travelBufferMinutes: number;
   active: boolean;
   quoteIssuedAt: Date;
   createdAt: Date;
@@ -35,6 +37,9 @@ export class GoalkeeperRequest extends Entity<string> {
   readonly pricing: PricingSnapshot;
   readonly partialFulfillment: PartialFulfillment;
   readonly freeCancellationMinutes: number;
+  /** Fixed at quote time; copied to each booking (012, clarification 1). */
+  readonly commission: number;
+  readonly travelBufferMinutes: number;
   readonly active: boolean;
   readonly quoteIssuedAt: Date;
   readonly createdAt: Date;
@@ -50,6 +55,8 @@ export class GoalkeeperRequest extends Entity<string> {
     this.pricing = props.pricing;
     this.partialFulfillment = props.partialFulfillment;
     this.freeCancellationMinutes = props.freeCancellationMinutes;
+    this.commission = props.commission;
+    this.travelBufferMinutes = props.travelBufferMinutes;
     this.active = props.active;
     this.quoteIssuedAt = new Date(props.quoteIssuedAt);
     this.createdAt = new Date(props.createdAt);
@@ -69,6 +76,8 @@ export class GoalkeeperRequest extends Entity<string> {
       pricing: quote.pricing,
       partialFulfillment,
       freeCancellationMinutes: quote.freeCancellationMinutes,
+      commission: quote.commission,
+      travelBufferMinutes: quote.travelBufferMinutes,
       active: true,
       quoteIssuedAt: quote.issuedAt,
       createdAt,

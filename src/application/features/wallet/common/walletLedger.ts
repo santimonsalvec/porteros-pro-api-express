@@ -23,6 +23,32 @@ export type ReversalResult = AppendResult | { kind: 'nothing_to_reverse' };
 const SYSTEM: MovementActor = { kind: 'system', userId: null };
 
 /**
+ * The commission charge for one booking, as a draft. Shared by `WalletLedger.chargeCommission` and
+ * the booking-acceptance transaction (012), which records it inside its own session.
+ */
+export function commissionChargeDraft(
+  owner: LedgerOwner,
+  args: { bookingId: string; requestId: string; amount: number },
+  id: string,
+  occurredAt: Date,
+): MovementDraft {
+  return {
+    id,
+    goalkeeperId: owner.goalkeeperId,
+    type: 'commission_charge',
+    amount: -args.amount,
+    currency: owner.currency,
+    occurredAt,
+    causeKey: `commission:${args.bookingId}`,
+    actor: SYSTEM,
+    references: { bookingId: args.bookingId, requestId: args.requestId },
+    cancellation: null,
+    reason: null,
+    invoicing: owner.invoicing,
+  };
+}
+
+/**
  * The only writer of wallet movements (research.md §10). Each method turns a business event into a
  * typed movement — its sign, cause key, references and actor — so no caller can record a movement
  * of the wrong shape. The same cause is recorded at most once: a known cause key is answered from
@@ -37,13 +63,12 @@ export class WalletLedger {
   ) {}
 
   /** The commission for one accepted booking; refused (`insufficient_funds`) when unaffordable (FR-013). */
-  chargeCommission(owner: LedgerOwner, args: { bookingId: string; requestId: string; amount: number }): Promise<AppendResult> {
-    return this.record(owner, {
-      type: 'commission_charge',
-      amount: -args.amount,
-      causeKey: `commission:${args.bookingId}`,
-      references: { bookingId: args.bookingId, requestId: args.requestId },
-    });
+  async chargeCommission(owner: LedgerOwner, args: { bookingId: string; requestId: string; amount: number }): Promise<AppendResult> {
+    const draft = commissionChargeDraft(owner, args, this.idGenerator.newId(), this.clock.now());
+    const known = await this.movements.findByCauseKey(draft.causeKey);
+    if (known) return { kind: 'duplicate', movement: known };
+    assertMovementShape(draft);
+    return this.store.append(draft);
   }
 
   /** Gives back exactly what was charged for that booking, whatever the commission is now (FR-011). */

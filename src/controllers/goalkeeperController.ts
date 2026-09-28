@@ -24,7 +24,12 @@ import { saveAvailabilitySectionRequestSchema } from './requests/goalkeepers/sav
 import { updateGoalkeeperPhysicalDataRequestSchema } from './requests/goalkeepers/updateGoalkeeperPhysicalDataRequest.js';
 import { updateGoalkeeperAvailabilityRequestSchema } from './requests/goalkeepers/updateGoalkeeperAvailabilityRequest.js';
 import { ApiError } from './apiError.js';
-import { sendMovements, sendWallet } from './wallet/walletHttp.js';
+import { goalkeeperNotFound, sendMovements, sendWallet } from './wallet/walletHttp.js';
+import { AcceptBookingCommand } from '../application/features/goalkeeperRequests/commands/acceptBooking/acceptBookingCommand.js';
+import { ListAvailableBookingsQuery } from '../application/features/goalkeeperRequests/queries/listAvailableBookings/listAvailableBookingsQuery.js';
+import { ListGoalkeeperAgendaQuery } from '../application/features/goalkeeperRequests/queries/listGoalkeeperAgenda/listGoalkeeperAgendaQuery.js';
+import { listClientBookingsRequestSchema } from './requests/goalkeeperRequests/listClientBookingsRequest.js';
+import { zodFieldErrors } from './requests/goalkeeperRequests/getServiceQuoteRequest.js';
 
 /** Same accepted formats as `/api/images` (research.md §11) — no goalkeeper-specific override. */
 const ALLOWED_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']);
@@ -276,6 +281,94 @@ export function createGoalkeeperController(deps: GoalkeeperControllerDependencie
       res.status(200).json(Object.keys(fieldErrors).length > 0 ? { ...latestRegistration, fieldErrors } : latestRegistration);
     },
   );
+
+  // Matches the goalkeeper can take right now (feature 012).
+  router.get('/me/available-bookings', async (req, res) => {
+    const parsed = listClientBookingsRequestSchema.safeParse(req.query);
+    if (!parsed.success) {
+      throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
+    }
+    const result = await deps.mediator.send(new ListAvailableBookingsQuery(req.authClaims!.sub, parsed.data.page, parsed.data.pageSize));
+    switch (result.outcome) {
+      case 'success':
+        res.status(200).json({
+          items: result.items,
+          page: result.page,
+          pageSize: result.pageSize,
+          totalItems: result.totalItems,
+          totalPages: result.totalPages,
+          unavailableReason: result.unavailableReason,
+          missingAmount: result.missingAmount,
+          suspendedUntil: result.suspendedUntil,
+        });
+        return;
+      case 'not_a_goalkeeper':
+        throw goalkeeperNotFound();
+    }
+  });
+
+  // The goalkeeper's agenda: their bookings, upcoming then past, with the client's contact (feature 012).
+  router.get('/me/bookings', async (req, res) => {
+    const parsed = listClientBookingsRequestSchema.safeParse(req.query);
+    if (!parsed.success) {
+      throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
+    }
+    const result = await deps.mediator.send(new ListGoalkeeperAgendaQuery(req.authClaims!.sub, parsed.data.page, parsed.data.pageSize));
+    switch (result.outcome) {
+      case 'success':
+        res.status(200).json({
+          items: result.items,
+          page: result.page,
+          pageSize: result.pageSize,
+          totalItems: result.totalItems,
+          totalPages: result.totalPages,
+        });
+        return;
+      case 'not_a_goalkeeper':
+        throw goalkeeperNotFound();
+    }
+  });
+
+  // The goalkeeper takes a booking: assigned and charged in one step (feature 012).
+  router.post('/me/bookings/:bookingId/accept', async (req, res) => {
+    const result = await deps.mediator.send(new AcceptBookingCommand(req.authClaims!.sub, req.params.bookingId));
+
+    // Exhaustive on purpose: adding an outcome without mapping it here fails compilation.
+    switch (result.outcome) {
+      case 'accepted':
+        res.status(201).json(result.booking);
+        return;
+      case 'replayed':
+        res.status(200).json(result.booking);
+        return;
+      case 'already_taken':
+        throw new ApiError(409, 'booking_already_taken', 'Another goalkeeper already took this booking.');
+      case 'search_ended':
+        throw new ApiError(409, 'search_ended', 'It is too close to the start to take this booking.');
+      case 'zone_not_enabled':
+        throw new ApiError(409, 'zone_not_enabled', 'This booking is outside the zones you have enabled.');
+      case 'insufficient_funds':
+        throw new ApiError(409, 'insufficient_funds', 'Your balance does not cover the commission of this booking.', undefined, {
+          missingAmount: result.missingAmount,
+        });
+      case 'suspended':
+        throw new ApiError(403, 'goalkeeper_suspended', 'You cannot take bookings while suspended.', undefined, {
+          suspendedUntil: result.suspendedUntil,
+        });
+      case 'schedule_conflict':
+        throw new ApiError(409, 'schedule_conflict', 'This booking clashes with a match you already have.', undefined, {
+          conflictingBookingId: result.conflictingBookingId,
+        });
+      case 'own_request':
+        throw new ApiError(409, 'own_request', 'You cannot take a booking of your own request.');
+      case 'same_request':
+        throw new ApiError(409, 'same_request', 'You already have a booking of this match.');
+      case 'not_available':
+        throw new ApiError(404, 'booking_not_available', 'This booking is not available.');
+      case 'not_a_goalkeeper':
+        throw goalkeeperNotFound();
+    }
+  });
 
   // The goalkeeper's wallet (feature 011). The goalkeeper is always the token's subject.
   router.get('/me/wallet', async (req, res) => {

@@ -1,5 +1,6 @@
 import type { Booking } from '../../../../domain/bookings/booking.js';
 import type { GoalkeeperRequest } from '../../../../domain/bookings/goalkeeperRequest.js';
+import type { MovementDraft } from '../../wallet/common/ports.js';
 import type { Quote } from '../../../../domain/bookings/quote.js';
 import type { Country } from '../../../../domain/countries/country.js';
 import type { BookingSettings } from '../../../../domain/pricing/bookingSettings.js';
@@ -44,6 +45,8 @@ export interface IGoalkeeperRequestRepository {
   findByQuoteForClient(quoteId: string, clientId: string): Promise<GoalkeeperRequest | null>;
   /** The client's active request for that zone and start instant, if any (at most one exists). */
   findActiveByMatchForClient(clientId: string, zoneId: string, startsAt: Date): Promise<GoalkeeperRequest | null>;
+  /** The requests with these ids, in no particular order. */
+  findByIds(ids: string[]): Promise<GoalkeeperRequest[]>;
   /** How many of the client's matches start at or after `now` (upcoming) and before it (past). */
   countForClient(clientId: string, now: Date): Promise<{ upcoming: number; past: number }>;
   /** The client's requests with `startsAt >= now`, soonest first (ties: id ascending). */
@@ -56,6 +59,69 @@ export interface IGoalkeeperRequestRepository {
 export interface IBookingRepository {
   /** Every booking of these requests, ordered by request id, then booking id. */
   findByRequestIds(requestIds: string[]): Promise<Booking[]>;
+  findById(id: string): Promise<Booking | null>;
+  /**
+   * Pending bookings a goalkeeper could take before the clash filter: in these zones, search still
+   * open, not their own request, commission within their balance — soonest first, at most `cap`.
+   */
+  findAvailableCandidates(query: {
+    zoneIds: string[];
+    excludeClientId: string;
+    maxCommission: number;
+    now: Date;
+    cap: number;
+  }): Promise<Booking[]>;
+  /** The bookings currently assigned to the goalkeeper (the commitments the clash rule checks). */
+  findAssignedToGoalkeeper(goalkeeperId: string): Promise<Booking[]>;
+  /** The goalkeeper's agenda (any status): how many start at or after `now` and before it. */
+  countForGoalkeeper(goalkeeperId: string, now: Date): Promise<{ upcoming: number; past: number }>;
+  /** Soonest first (ties: id ascending). */
+  findUpcomingForGoalkeeper(goalkeeperId: string, now: Date, skip: number, limit: number): Promise<Booking[]>;
+  /** Most recent first (ties: id descending). */
+  findPastForGoalkeeper(goalkeeperId: string, now: Date, skip: number, limit: number): Promise<Booking[]>;
+}
+
+export type AcceptanceResult =
+  | { kind: 'accepted'; booking: Booking }
+  /** The booking was not pending, its search had ended, or it is the goalkeeper's own request. Nothing written. */
+  | { kind: 'not_claimed' }
+  /** The goalkeeper already holds another booking of the same request. Nothing written. */
+  | { kind: 'same_request' }
+  /** It clashes with a booking the goalkeeper holds. Nothing written. */
+  | { kind: 'schedule_conflict'; conflictingBookingId: string }
+  /** The wallet cannot cover the booking's commission. Nothing written. */
+  | { kind: 'insufficient_funds'; balance: number };
+
+/**
+ * The one step that must be atomic (FR-004): claim the pending booking for the goalkeeper, check
+ * it against what they already hold, and charge its commission — all or nothing.
+ */
+export interface IBookingAcceptanceStore {
+  accept(args: {
+    bookingId: string;
+    goalkeeperId: string;
+    now: Date;
+    commissionDraft: (booking: Booking) => MovementDraft;
+  }): Promise<AcceptanceResult>;
+}
+
+export type AcceptanceOutcome =
+  | 'accepted'
+  | 'replayed'
+  | 'already_taken'
+  | 'search_ended'
+  | 'zone_not_enabled'
+  | 'insufficient_funds'
+  | 'suspended'
+  | 'schedule_conflict'
+  | 'own_request'
+  | 'same_request'
+  | 'not_available'
+  | 'not_a_goalkeeper';
+
+/** Audit trail of every acceptance attempt (FR-015). */
+export interface IAcceptanceAuditLogger {
+  logAcceptance(entry: { outcome: AcceptanceOutcome; goalkeeperId: string; bookingId: string; requestId?: string }): void;
 }
 
 export type ClaimResult =

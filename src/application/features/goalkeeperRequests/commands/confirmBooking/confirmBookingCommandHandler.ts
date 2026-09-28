@@ -1,7 +1,7 @@
 import { validate as isUuid } from 'uuid';
 import type { IClock } from '../../../../common/clock.js';
 import type { ICommandHandler } from '../../../../common/mediator/types.js';
-import type { IIdGenerator } from '../../../auth/common/ports.js';
+import type { IIdGenerator, IUserRepository } from '../../../auth/common/ports.js';
 import type {
   IBookingAuditLogger,
   IBookingRepository,
@@ -9,7 +9,8 @@ import type {
   IQuoteConfirmationStore,
   IQuoteRepository,
 } from '../../common/ports.js';
-import { toRequestResponse } from '../../common/requestResponse.js';
+import { loadContacts } from '../../common/contacts.js';
+import { assignedGoalkeeperIds, toRequestResponse } from '../../common/requestResponse.js';
 import { Booking } from '../../../../../domain/bookings/booking.js';
 import { GoalkeeperRequest } from '../../../../../domain/bookings/goalkeeperRequest.js';
 import { ConfirmBookingCommand, type ConfirmBookingResult } from './confirmBookingCommand.js';
@@ -26,6 +27,7 @@ export class ConfirmBookingCommandHandler implements ICommandHandler<
   constructor(
     private readonly requestRepository: IGoalkeeperRequestRepository,
     private readonly bookingRepository: IBookingRepository,
+    private readonly userRepository: IUserRepository,
     private readonly quoteRepository: IQuoteRepository,
     private readonly store: IQuoteConfirmationStore,
     private readonly idGenerator: IIdGenerator,
@@ -75,12 +77,16 @@ export class ConfirmBookingCommandHandler implements ICommandHandler<
     }
   }
 
-  /** The existing request of this quote, with its bookings as they are now — never a stored copy. */
+  /**
+   * The existing request of this quote, with its bookings as they are now — never a stored copy —
+   * and the contacts of whoever has taken them since.
+   */
   private async replay(quoteId: string, clientId: string, now: Date): Promise<ConfirmBookingResult | null> {
     const request = await this.requestRepository.findByQuoteForClient(quoteId, clientId);
     if (!request) return null;
     const bookings = await this.bookingRepository.findByRequestIds([request.id]);
-    return { outcome: 'replayed', request: toRequestResponse(request, bookings, now) };
+    const contacts = await loadContacts(this.userRepository, assignedGoalkeeperIds(bookings));
+    return { outcome: 'replayed', request: toRequestResponse(request, bookings, now, contacts) };
   }
 
   /** (3) Nothing was claimed: find out why. Every lookup is scoped to the caller. */

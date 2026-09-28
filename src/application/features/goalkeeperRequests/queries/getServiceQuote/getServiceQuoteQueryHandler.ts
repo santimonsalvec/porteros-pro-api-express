@@ -6,6 +6,8 @@ import type { IBookingSettingsRepository, ICountryLookup, IRentalRateRepository 
 import { computeAmounts, selectSurchargeTier, selectUnitRate } from '../../common/pricing.js';
 import { SLOT_STEP_MINUTES } from '../../common/bookingLimits.js';
 import { resolveAreaSettings, resolveServiceArea } from '../../common/serviceArea.js';
+import type { MissingSetting } from '../../common/resolveBookingSettings.js';
+import type { ICommissionResolver } from '../../../wallet/common/ports.js';
 import type { ParsedStartsAt } from '../../common/startsAt.js';
 import { formatLocalIso, localDayNumber, resolveLocalDateTime, toLocalParts } from '../../common/zonedTime.js';
 import {
@@ -40,6 +42,7 @@ export class GetServiceQuoteQueryHandler implements IQueryHandler<GetServiceQuot
     private readonly countryLookup: ICountryLookup,
     private readonly rentalRateRepository: IRentalRateRepository,
     private readonly bookingSettingsRepository: IBookingSettingsRepository,
+    private readonly commissionResolver: ICommissionResolver,
     private readonly clock: IClock,
   ) {}
 
@@ -72,7 +75,9 @@ export class GetServiceQuoteQueryHandler implements IQueryHandler<GetServiceQuot
     // (4)(5)(6) The rates for this duration, and the area's settings + currency (city → region →
     //          country), in parallel. Every setting must be defined at the city or its country — no
     //          built-in defaults — and the country must say which currency its prices are in.
-    const [rates, areaSettings] = await Promise.all([
+    //          The platform commission is fixed here too, for the whole flow (012): no commission, no
+    //          quote — a booking nobody could be offered must not be sold.
+    const [rates, areaSettings, commissions] = await Promise.all([
       this.rentalRateRepository.findForDuration(zone.id, city.id, durationMinutes),
       resolveAreaSettings(
         {
@@ -82,9 +87,14 @@ export class GetServiceQuoteQueryHandler implements IQueryHandler<GetServiceQuot
         },
         city,
       ),
+      this.commissionResolver.resolveForZones([zone.id]),
     ]);
-    if (!areaSettings.ok) return { outcome: 'service_not_configured', cityId: city.id, missing: areaSettings.missing };
-    const { currency, bookingWindowDays, minNoticeMinutes, leadTimeSurcharge, freeCancellationMinutes } = areaSettings;
+    const commission = commissions.get(zone.id) ?? null;
+    if (!areaSettings.ok || commission === null) {
+      const missing: MissingSetting[] = [...(areaSettings.ok ? [] : areaSettings.missing), ...(commission === null ? ['commission' as const] : [])];
+      return { outcome: 'service_not_configured', cityId: city.id, missing };
+    }
+    const { currency, bookingWindowDays, minNoticeMinutes, leadTimeSurcharge, freeCancellationMinutes, travelBufferMinutes } = areaSettings;
 
     // (6b) Minimum notice, on real elapsed time. Exactly the minimum is accepted.
     if (startEpochMs - nowMs < minNoticeMinutes * 60_000) return { outcome: 'insufficient_notice', minNoticeMinutes };
@@ -118,7 +128,7 @@ export class GetServiceQuoteQueryHandler implements IQueryHandler<GetServiceQuot
         startsAtLocal: formatLocalIso(startEpochMs, timeZone),
         timeZone,
       },
-      area: { zoneId: zone.id, cityId: city.id, freeCancellationMinutes },
+      area: { zoneId: zone.id, cityId: city.id, freeCancellationMinutes, commission, travelBufferMinutes },
     };
   }
 }
