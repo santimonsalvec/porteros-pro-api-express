@@ -9,3 +9,6 @@ coverage/
 *.swp
 .vscode/
 .idea/
+
+# Temporary planning documents (not part of the codebase)
+_temp_*.md
