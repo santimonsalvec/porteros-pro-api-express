@@ -2,7 +2,7 @@ import type { IClock } from '../../../../common/clock.js';
 import type { ICommandHandler, ISender } from '../../../../common/mediator/types.js';
 import type { IIdGenerator } from '../../../auth/common/ports.js';
 import type { IQuoteRepository } from '../../common/ports.js';
-import { QUOTE_VALIDITY_MINUTES } from '../../common/bookingLimits.js';
+import { FREE_CANCELLATION_MINUTES_DEFAULT, QUOTE_VALIDITY_MINUTES } from '../../common/bookingLimits.js';
 import { GetServiceQuoteQuery } from '../../queries/getServiceQuote/getServiceQuoteQuery.js';
 import { MatchDetails } from '../../../../../domain/bookings/matchDetails.js';
 import { PricingSnapshot } from '../../../../../domain/bookings/pricingSnapshot.js';
@@ -64,12 +64,15 @@ export class IssueServiceQuoteCommandHandler implements ICommandHandler<
       pricing,
       issuedAt,
       QUOTE_VALIDITY_MINUTES,
+      area.freeCancellationMinutes ?? FREE_CANCELLATION_MINUTES_DEFAULT,
     );
     await this.quoteRepository.add(quote);
 
     return {
       outcome: 'success',
       quote: { ...priced, quoteId: quote.id, expiresAt: quote.expiresAt.toISOString() },
+      freeCancellationDefaulted: area.freeCancellationMinutes === null,
+      cityId: area.cityId,
     };
   }
 }

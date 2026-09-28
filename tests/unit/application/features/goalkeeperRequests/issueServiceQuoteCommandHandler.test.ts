@@ -27,7 +27,7 @@ const priced = {
 const success: GetServiceQuoteResult = {
   outcome: 'success',
   quote: priced,
-  area: { zoneId: 'zone-cali-norte', cityId: 'city-cali' },
+  area: { zoneId: 'zone-cali-norte', cityId: 'city-cali', freeCancellationMinutes: 60 },
 };
 const input: ServiceQuoteInput = {
   ...POINTS.caliNorte,
@@ -97,6 +97,8 @@ describe('IssueServiceQuoteCommandHandler — Story 3: every quote is recorded',
     expect(result).toEqual({
       outcome: 'success',
       quote: { ...priced, quoteId: 'quote-1', expiresAt: '2026-09-21T18:03:00.000Z' },
+      freeCancellationDefaulted: false,
+      cityId: 'city-cali',
     });
   });
 
@@ -143,5 +145,23 @@ describe('IssueServiceQuoteCommandHandler — Story 3: every quote is recorded',
 
     await expect(h.issue()).rejects.toThrow('db down');
     expect(h.quotes.all()).toHaveLength(0);
+  });
+
+  it("stores the area's free-cancellation period on the quote", async () => {
+    h.sender.respondWith(GetServiceQuoteQuery, { ...success, area: { ...success.area, freeCancellationMinutes: 90 } } as GetServiceQuoteResult);
+
+    const result = await h.issue();
+
+    expect(h.quotes.all()[0]!.freeCancellationMinutes).toBe(90);
+    expect(result).toMatchObject({ outcome: 'success', freeCancellationDefaulted: false });
+  });
+
+  it('stores the 60-minute default and flags it when the area has no period configured', async () => {
+    h.sender.respondWith(GetServiceQuoteQuery, { ...success, area: { ...success.area, freeCancellationMinutes: null } } as GetServiceQuoteResult);
+
+    const result = await h.issue();
+
+    expect(h.quotes.all()[0]!.freeCancellationMinutes).toBe(60);
+    expect(result).toMatchObject({ outcome: 'success', freeCancellationDefaulted: true, cityId: 'city-cali' });
   });
 });

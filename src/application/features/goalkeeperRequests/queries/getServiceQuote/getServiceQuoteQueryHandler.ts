@@ -84,7 +84,7 @@ export class GetServiceQuoteQueryHandler implements IQueryHandler<GetServiceQuot
       ),
     ]);
     if (!areaSettings.ok) return { outcome: 'service_not_configured', cityId: city.id, missing: areaSettings.missing };
-    const { currency, bookingWindowDays, minNoticeMinutes, leadTimeSurcharge } = areaSettings;
+    const { currency, bookingWindowDays, minNoticeMinutes, leadTimeSurcharge, freeCancellationMinutes } = areaSettings;
 
     // (6b) Minimum notice, on real elapsed time. Exactly the minimum is accepted.
     if (startEpochMs - nowMs < minNoticeMinutes * 60_000) return { outcome: 'insufficient_notice', minNoticeMinutes };
@@ -118,7 +118,7 @@ export class GetServiceQuoteQueryHandler implements IQueryHandler<GetServiceQuot
         startsAtLocal: formatLocalIso(startEpochMs, timeZone),
         timeZone,
       },
-      area: { zoneId: zone.id, cityId: city.id },
+      area: { zoneId: zone.id, cityId: city.id, freeCancellationMinutes },
     };
   }
 }

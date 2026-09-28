@@ -1,57 +1,37 @@
 import { describe, expect, it } from 'vitest';
 import { Booking } from '../../../../src/domain/bookings/booking.js';
-import { Quote } from '../../../../src/domain/bookings/quote.js';
-import { MatchDetails } from '../../../../src/domain/bookings/matchDetails.js';
-import { PricingSnapshot } from '../../../../src/domain/bookings/pricingSnapshot.js';
+import { GoalkeeperPrice } from '../../../../src/domain/bookings/goalkeeperPrice.js';
+import { GoalkeeperRequest } from '../../../../src/domain/bookings/goalkeeperRequest.js';
+import { buildStoredQuote } from '../../../fixtures/quoteFixtures.js';
 
-const match = new MatchDetails({
-  latitude: 3.45,
-  longitude: -76.5,
-  zoneId: 'zone-cali-norte',
-  cityId: 'city-cali',
-  startsAt: new Date('2026-09-21T20:00:00.000Z'),
-  startsAtLocal: '2026-09-21T15:00:00-05:00',
-  timeZone: 'America/Bogota',
-  goalkeeperCount: 2,
-  durationMinutes: 90,
-});
-const pricing = new PricingSnapshot(
-  {
-    unitRate: 55000,
-    subtotal: 110000,
-    unitSurcharge: 5000,
-    surcharge: 10000,
-    total: 120000,
-    currency: 'COP',
-  },
-  2,
-);
+const createdAt = new Date('2026-09-21T18:01:00.000Z');
+const request = GoalkeeperRequest.fromQuote('r-1', buildStoredQuote(), 'keep_confirmed', createdAt);
 
-describe('Booking.fromQuote', () => {
-  it("copies the quote's client, match and price and starts awaiting assignment", () => {
-    const quote = Quote.issue(
-      'q-1',
-      'client-1',
-      match,
-      pricing,
-      new Date('2026-09-21T18:00:00.000Z'),
-      3,
-    );
-    const createdAt = new Date('2026-09-21T18:01:00.000Z');
-
-    const booking = Booking.fromQuote('b-1', quote, createdAt);
+describe('Booking.forRequest', () => {
+  it("is one goalkeeper's place in the request, at the per-goalkeeper price, awaiting assignment", () => {
+    const booking = Booking.forRequest('b-1', request, createdAt);
 
     expect(booking).toMatchObject({
       id: 'b-1',
-      clientId: 'client-1',
-      quoteId: 'q-1',
+      requestId: 'r-1',
+      clientId: request.clientId,
+      zoneId: request.zoneId,
+      startsAt: request.startsAt,
       status: 'pending_assignment',
-      match,
-      pricing,
-      quoteIssuedAt: quote.issuedAt,
       createdAt,
     });
-    expect(booking.zoneId).toBe('zone-cali-norte');
-    expect(booking.startsAt).toEqual(new Date('2026-09-21T20:00:00.000Z'));
+    expect(booking.price).toEqual(new GoalkeeperPrice({ unitRate: 55000, unitSurcharge: 5000, total: 60000, currency: 'COP' }));
+  });
+
+  it('has bookings whose totals add up to the quoted total', () => {
+    const bookings = [Booking.forRequest('b-1', request, createdAt), Booking.forRequest('b-2', request, createdAt)];
+
+    expect(bookings.reduce((sum, booking) => sum + booking.price.total, 0)).toBe(request.pricing.total);
+  });
+
+  it('rejects an unknown status when rehydrated', () => {
+    const booking = Booking.forRequest('b-1', request, createdAt);
+
+    expect(() => Booking.rehydrate({ ...booking, status: 'lost' as never })).toThrow(/status/);
   });
 });

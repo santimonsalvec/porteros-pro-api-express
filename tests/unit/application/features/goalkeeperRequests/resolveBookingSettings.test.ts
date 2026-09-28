@@ -30,7 +30,13 @@ function city(fields: Partial<ConstructorParameters<typeof BookingSettings>[0]> 
 describe('resolveBookingSettings', () => {
   it('uses the country values when the city defines none', () => {
     const resolved = resolveBookingSettings({ city: null, country: country() });
-    expect(resolved).toEqual({ bookingWindowDays: 2, minNoticeMinutes: 30, leadTimeSurcharge: cop, missing: [] });
+    expect(resolved).toEqual({
+      bookingWindowDays: 2,
+      minNoticeMinutes: 30,
+      leadTimeSurcharge: cop,
+      freeCancellationMinutes: null,
+      missing: [],
+    });
   });
 
   it('lets a city value win over the country value', () => {
@@ -56,6 +62,7 @@ describe('resolveBookingSettings', () => {
       bookingWindowDays: null,
       minNoticeMinutes: null,
       leadTimeSurcharge: null,
+      freeCancellationMinutes: null,
       missing: ['bookingWindowDays', 'minNoticeMinutes', 'leadTimeSurcharge'],
     });
   });
@@ -70,5 +77,13 @@ describe('resolveBookingSettings', () => {
     const resolved = resolveBookingSettings({ city: city({ minNoticeMinutes: 0 }), country: country() });
     expect(resolved.minNoticeMinutes).toBe(0);
     expect(resolved.missing).toEqual([]);
+  });
+
+  it('resolves the free-cancellation period city first, then country, never reporting it missing', () => {
+    expect(resolveBookingSettings({ city: city({ freeCancellationMinutes: 90 }), country: country({ freeCancellationMinutes: 60 }) }).freeCancellationMinutes).toBe(90);
+    expect(resolveBookingSettings({ city: city(), country: country({ freeCancellationMinutes: 60 }) }).freeCancellationMinutes).toBe(60);
+    const absent = resolveBookingSettings({ city: null, country: country() });
+    expect(absent.freeCancellationMinutes).toBeNull();
+    expect(absent.missing).toEqual([]);
   });
 });

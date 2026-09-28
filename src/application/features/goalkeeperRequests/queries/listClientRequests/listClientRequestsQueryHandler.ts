@@ -3,47 +3,50 @@ import type { IQueryHandler } from '../../../../common/mediator/types.js';
 import type { ICityRepository } from '../../../locations/common/ports.js';
 import type { IZoneRepository } from '../../../zones/common/ports.js';
 import type { Booking } from '../../../../../domain/bookings/booking.js';
-import { toBookingResponse, type ListedBookingResponse } from '../../common/bookingResponse.js';
+import type { GoalkeeperRequest } from '../../../../../domain/bookings/goalkeeperRequest.js';
+import { toRequestResponse, type ListedRequestResponse } from '../../common/requestResponse.js';
 import { pageWindow } from '../../common/pageWindow.js';
-import type { IBookingRepository } from '../../common/ports.js';
-import { ListClientBookingsQuery, type ListClientBookingsResult } from './listClientBookingsQuery.js';
+import type { IBookingRepository, IGoalkeeperRequestRepository } from '../../common/ports.js';
+import { ListClientRequestsQuery, type ListClientRequestsResult } from './listClientRequestsQuery.js';
 
 /**
- * The caller's bookings as one list — upcoming (soonest first) then past (most recent first) —
- * cut into pages (research.md §1). "Now" is read once so the counts and the reads agree on which
- * segment every booking is in (§4); zone and city names are the current ones, `null` when gone (§5).
+ * The caller's requests as one list — upcoming (soonest first) then past (most recent first) —
+ * cut into pages (009 research §1). "Now" is read once so the counts and the reads agree on which
+ * segment every request is in; the page's bookings come from one read; zone and city names are
+ * the current ones, `null` when gone.
  */
-export class ListClientBookingsQueryHandler implements IQueryHandler<
-  ListClientBookingsQuery,
-  ListClientBookingsResult
+export class ListClientRequestsQueryHandler implements IQueryHandler<
+  ListClientRequestsQuery,
+  ListClientRequestsResult
 > {
   constructor(
+    private readonly requestRepository: IGoalkeeperRequestRepository,
     private readonly bookingRepository: IBookingRepository,
     private readonly zoneRepository: IZoneRepository,
     private readonly cityRepository: ICityRepository,
     private readonly clock: IClock,
   ) {}
 
-  async handle(query: ListClientBookingsQuery): Promise<ListClientBookingsResult> {
+  async handle(query: ListClientRequestsQuery): Promise<ListClientRequestsResult> {
     const { clientId, page, pageSize } = query;
     const now = this.clock.now();
 
-    const counts = await this.bookingRepository.countForClient(clientId, now);
+    const counts = await this.requestRepository.countForClient(clientId, now);
     const window = pageWindow((page - 1) * pageSize, pageSize, counts.upcoming, counts.past);
 
     const [upcoming, past] = await Promise.all([
       window.upcoming
-        ? this.bookingRepository.findUpcomingForClient(clientId, now, window.upcoming.skip, window.upcoming.limit)
+        ? this.requestRepository.findUpcomingForClient(clientId, now, window.upcoming.skip, window.upcoming.limit)
         : [],
       window.past
-        ? this.bookingRepository.findPastForClient(clientId, now, window.past.skip, window.past.limit)
+        ? this.requestRepository.findPastForClient(clientId, now, window.past.skip, window.past.limit)
         : [],
     ]);
-    const bookings = [...upcoming, ...past];
+    const requests = [...upcoming, ...past];
 
     const totalItems = counts.upcoming + counts.past;
     return {
-      items: await this.withNames(bookings),
+      items: await this.toItems(requests, now),
       page,
       pageSize,
       totalItems,
@@ -51,22 +54,27 @@ export class ListClientBookingsQueryHandler implements IQueryHandler<
     };
   }
 
-  private async withNames(bookings: Booking[]): Promise<ListedBookingResponse[]> {
-    if (bookings.length === 0) return [];
+  private async toItems(requests: GoalkeeperRequest[], now: Date): Promise<ListedRequestResponse[]> {
+    if (requests.length === 0) return [];
 
-    const zoneIds = [...new Set(bookings.map((booking) => booking.match.zoneId))];
-    const cityIds = [...new Set(bookings.map((booking) => booking.match.cityId))];
-    const [zones, cities] = await Promise.all([
+    const zoneIds = [...new Set(requests.map((request) => request.match.zoneId))];
+    const cityIds = [...new Set(requests.map((request) => request.match.cityId))];
+    const [bookings, zones, cities] = await Promise.all([
+      this.bookingRepository.findByRequestIds(requests.map((request) => request.id)),
       this.zoneRepository.getManyByIds(zoneIds),
       this.cityRepository.getByIds(cityIds),
     ]);
+    const bookingsByRequest = new Map<string, Booking[]>();
+    for (const booking of bookings) {
+      bookingsByRequest.set(booking.requestId, [...(bookingsByRequest.get(booking.requestId) ?? []), booking]);
+    }
     const zoneNames = new Map(zones.map((zone) => [zone.id, zone.name]));
     const cityNames = new Map(cities.map((city) => [city.id, city.name]));
 
-    return bookings.map((booking) => ({
-      ...toBookingResponse(booking),
-      zoneName: zoneNames.get(booking.match.zoneId) ?? null,
-      cityName: cityNames.get(booking.match.cityId) ?? null,
+    return requests.map((request) => ({
+      ...toRequestResponse(request, bookingsByRequest.get(request.id) ?? [], now),
+      zoneName: zoneNames.get(request.match.zoneId) ?? null,
+      cityName: cityNames.get(request.match.cityId) ?? null,
     }));
   }
 }

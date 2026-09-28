@@ -5,22 +5,26 @@ import type { IIdGenerator } from '../../../auth/common/ports.js';
 import type {
   IBookingAuditLogger,
   IBookingRepository,
+  IGoalkeeperRequestRepository,
   IQuoteConfirmationStore,
   IQuoteRepository,
 } from '../../common/ports.js';
-import { toBookingResponse } from '../../common/bookingResponse.js';
+import { toRequestResponse } from '../../common/requestResponse.js';
 import { Booking } from '../../../../../domain/bookings/booking.js';
+import { GoalkeeperRequest } from '../../../../../domain/bookings/goalkeeperRequest.js';
 import { ConfirmBookingCommand, type ConfirmBookingResult } from './confirmBookingCommand.js';
 
 /**
- * Orchestrates a confirmation (research.md §3). The only atomic step — delete the quote and insert
- * the booking — belongs to the store; every classification rule lives here.
+ * Orchestrates a confirmation (research.md §8, 008 research §3). The only atomic step — delete the
+ * quote and insert the request with its bookings — belongs to the store; every classification rule
+ * lives here.
  */
 export class ConfirmBookingCommandHandler implements ICommandHandler<
   ConfirmBookingCommand,
   ConfirmBookingResult
 > {
   constructor(
+    private readonly requestRepository: IGoalkeeperRequestRepository,
     private readonly bookingRepository: IBookingRepository,
     private readonly quoteRepository: IQuoteRepository,
     private readonly store: IQuoteConfirmationStore,
@@ -31,41 +35,38 @@ export class ConfirmBookingCommandHandler implements ICommandHandler<
 
   async handle(command: ConfirmBookingCommand): Promise<ConfirmBookingResult> {
     const { clientId, quoteId } = command;
-    // One reading of "now" for the whole confirmation: the claim and the expiry check agree.
+    // One reading of "now" for the whole confirmation: the claim, the expiry check and the
+    // free-cancellation answer agree.
     const now = this.clock.now();
 
     // A malformed id cannot name anything: answered without touching the database.
     if (!isUuid(quoteId)) return this.finish(command, { outcome: 'quote_not_found' });
 
-    // (1) A retry or double tap whose booking already exists: answer it without a transaction.
-    const existing = await this.bookingRepository.findByQuoteForClient(quoteId, clientId);
-    if (existing)
-      return this.finish(command, { outcome: 'replayed', booking: toBookingResponse(existing) });
+    // (1) A retry or double tap whose request already exists: answer it without a transaction.
+    const replay = await this.replay(quoteId, clientId, now);
+    if (replay) return this.finish(command, replay);
 
-    // (2) The atomic claim: delete the quote and insert its booking, both or neither.
-    const claim = await this.store.claimAndBook(quoteId, clientId, now, (quote) =>
-      Booking.fromQuote(this.idGenerator.newId(), quote, now),
-    );
+    // (2) The atomic claim: delete the quote and insert the request with its bookings, all or nothing.
+    const claim = await this.store.claimAndCreateRequest(quoteId, clientId, now, (quote) => {
+      const request = GoalkeeperRequest.fromQuote(this.idGenerator.newId(), quote, command.partialFulfillment, now);
+      const bookings = Array.from({ length: request.goalkeeperCount }, () =>
+        Booking.forRequest(this.idGenerator.newId(), request, now),
+      );
+      return { request, bookings };
+    });
     switch (claim.kind) {
-      case 'booked':
+      case 'created':
         return this.finish(command, {
           outcome: 'created',
-          booking: toBookingResponse(claim.booking),
+          request: toRequestResponse(claim.request, claim.bookings, now),
         });
-      case 'duplicate_booking': {
-        // The client already booked this match from another quote; this quote is left untouched.
-        const other = await this.bookingRepository.findByMatchForClient(
-          clientId,
-          claim.zoneId,
-          claim.startsAt,
-        );
-        return this.finish(command, {
-          outcome: 'duplicate_booking',
-          existingBookingId: other?.id ?? null,
-        });
+      case 'duplicate_request': {
+        // The client already has this match from another quote; this quote is left untouched.
+        const other = await this.requestRepository.findActiveByMatchForClient(clientId, claim.zoneId, claim.startsAt);
+        return this.finish(command, { outcome: 'duplicate_request', existingRequestId: other?.id ?? null });
       }
       case 'not_claimed':
-      case 'already_booked':
+      case 'already_requested':
         return this.finish(command, await this.classifyUnclaimed(quoteId, clientId, now));
       default: {
         const unreachable: never = claim;
@@ -74,15 +75,23 @@ export class ConfirmBookingCommandHandler implements ICommandHandler<
     }
   }
 
+  /** The existing request of this quote, with its bookings as they are now — never a stored copy. */
+  private async replay(quoteId: string, clientId: string, now: Date): Promise<ConfirmBookingResult | null> {
+    const request = await this.requestRepository.findByQuoteForClient(quoteId, clientId);
+    if (!request) return null;
+    const bookings = await this.bookingRepository.findByRequestIds([request.id]);
+    return { outcome: 'replayed', request: toRequestResponse(request, bookings, now) };
+  }
+
   /** (3) Nothing was claimed: find out why. Every lookup is scoped to the caller. */
   private async classifyUnclaimed(
     quoteId: string,
     clientId: string,
     now: Date,
   ): Promise<ConfirmBookingResult> {
-    // A concurrent confirmation may have just committed the booking.
-    const winner = await this.bookingRepository.findByQuoteForClient(quoteId, clientId);
-    if (winner) return { outcome: 'replayed', booking: toBookingResponse(winner) };
+    // A concurrent confirmation may have just committed the request.
+    const winner = await this.replay(quoteId, clientId, now);
+    if (winner) return winner;
 
     const quote = await this.quoteRepository.findByIdForClient(quoteId, clientId);
     // Past its expiry but not yet removed by the TTL monitor. Left as is: removal is the database's job.
@@ -102,7 +111,12 @@ export class ConfirmBookingCommandHandler implements ICommandHandler<
       outcome: result.outcome,
       clientId: command.clientId,
       quoteId: command.quoteId,
-      ...('booking' in result ? { bookingId: result.booking.bookingId } : {}),
+      ...('request' in result
+        ? {
+            requestId: result.request.requestId,
+            bookingIds: result.request.bookings.map((booking) => booking.bookingId),
+          }
+        : {}),
     });
     return result;
   }

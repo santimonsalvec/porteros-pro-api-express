@@ -20,8 +20,8 @@ import { GetBookingConfigQueryHandler } from '../application/features/goalkeeper
 import { GetServiceQuoteQuery } from '../application/features/goalkeeperRequests/queries/getServiceQuote/getServiceQuoteQuery.js';
 import { GetServiceQuoteQueryHandler } from '../application/features/goalkeeperRequests/queries/getServiceQuote/getServiceQuoteQueryHandler.js';
 import { ConfirmBookingCommand } from '../application/features/goalkeeperRequests/commands/confirmBooking/confirmBookingCommand.js';
-import { ListClientBookingsQuery } from '../application/features/goalkeeperRequests/queries/listClientBookings/listClientBookingsQuery.js';
-import { ListClientBookingsQueryHandler } from '../application/features/goalkeeperRequests/queries/listClientBookings/listClientBookingsQueryHandler.js';
+import { ListClientRequestsQuery } from '../application/features/goalkeeperRequests/queries/listClientRequests/listClientRequestsQuery.js';
+import { ListClientRequestsQueryHandler } from '../application/features/goalkeeperRequests/queries/listClientRequests/listClientRequestsQueryHandler.js';
 import { ConfirmBookingCommandHandler } from '../application/features/goalkeeperRequests/commands/confirmBooking/confirmBookingCommandHandler.js';
 import { IssueServiceQuoteCommand } from '../application/features/goalkeeperRequests/commands/issueServiceQuote/issueServiceQuoteCommand.js';
 import { IssueServiceQuoteCommandHandler } from '../application/features/goalkeeperRequests/commands/issueServiceQuote/issueServiceQuoteCommandHandler.js';
@@ -75,6 +75,7 @@ import { RentalRateRepository } from './persistence/mongo/rentalRateRepository.j
 import { BookingSettingsRepository } from './persistence/mongo/bookingSettingsRepository.js';
 import { QuoteRepository } from './persistence/mongo/quoteRepository.js';
 import { BookingRepository } from './persistence/mongo/bookingRepository.js';
+import { GoalkeeperRequestRepository } from './persistence/mongo/goalkeeperRequestRepository.js';
 import { MongoQuoteConfirmationStore } from './persistence/mongo/quoteConfirmationStore.js';
 import { MongoHealthCheck } from './healthChecks/mongoHealthCheck.js';
 import { CloudinaryImageStorageProvider } from './images/cloudinaryImageStorageProvider.js';
@@ -119,6 +120,8 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   await bookingSettingsRepository.ensureIndexes();
   const quoteRepository = new QuoteRepository(db);
   await quoteRepository.ensureIndexes();
+  const requestRepository = new GoalkeeperRequestRepository(db);
+  await requestRepository.ensureIndexes();
   const bookingRepository = new BookingRepository(db);
   await bookingRepository.ensureIndexes();
   const quoteConfirmationStore = new MongoQuoteConfirmationStore(() => connectionProvider.startSession(), db);
@@ -227,6 +230,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     {
       requestType: ConfirmBookingCommand,
       handler: new ConfirmBookingCommandHandler(
+        requestRepository,
         bookingRepository,
         quoteRepository,
         quoteConfirmationStore,
@@ -236,8 +240,8 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       ),
     },
     {
-      requestType: ListClientBookingsQuery,
-      handler: new ListClientBookingsQueryHandler(bookingRepository, zoneRepository, cityRepository, clock),
+      requestType: ListClientRequestsQuery,
+      handler: new ListClientRequestsQueryHandler(requestRepository, bookingRepository, zoneRepository, cityRepository, clock),
     },
     {
       requestType: StoreImageCommand,

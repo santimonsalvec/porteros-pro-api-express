@@ -1,14 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { toBookingResponse } from '../../../../../src/application/features/goalkeeperRequests/common/bookingResponse.js';
-import { ListClientBookingsQuery } from '../../../../../src/application/features/goalkeeperRequests/queries/listClientBookings/listClientBookingsQuery.js';
-import { ListClientBookingsQueryHandler } from '../../../../../src/application/features/goalkeeperRequests/queries/listClientBookings/listClientBookingsQueryHandler.js';
+import { toRequestResponse } from '../../../../../src/application/features/goalkeeperRequests/common/requestResponse.js';
+import { ListClientRequestsQuery } from '../../../../../src/application/features/goalkeeperRequests/queries/listClientRequests/listClientRequestsQuery.js';
+import { ListClientRequestsQueryHandler } from '../../../../../src/application/features/goalkeeperRequests/queries/listClientRequests/listClientRequestsQueryHandler.js';
+import { Booking } from '../../../../../src/domain/bookings/booking.js';
 import { City } from '../../../../../src/domain/locations/city.js';
 import { Zone } from '../../../../../src/domain/zones/zone.js';
 import { FakeBookingRepository } from '../../../../fakes/fakeBookingRepository.js';
+import { FakeGoalkeeperRequestRepository } from '../../../../fakes/fakeGoalkeeperRequestRepository.js';
 import { FakeCityRepository } from '../../../../fakes/fakeCityRepository.js';
 import { FixedClock } from '../../../../fakes/fakeClock.js';
 import { FakeZoneRepository } from '../../../../fakes/fakeZoneRepository.js';
-import { buildBooking } from '../../../../fixtures/quoteFixtures.js';
+import { buildRequest, buildRequestBookings } from '../../../../fixtures/quoteFixtures.js';
 
 const NOW = '2026-09-25T18:00:00.000Z';
 const HOUR = 60 * 60 * 1000;
@@ -17,7 +19,7 @@ const DAY = 24 * HOUR;
 /** A start instant relative to NOW. */
 const at = (offsetMs: number) => new Date(new Date(NOW).getTime() + offsetMs);
 
-const bookingAt = buildBooking;
+const requestAt = buildRequest;
 
 function zone(id: string, name: string): Zone {
   return new Zone({
@@ -31,32 +33,41 @@ function zone(id: string, name: string): Zone {
   });
 }
 
+let requests: FakeGoalkeeperRequestRepository;
 let bookings: FakeBookingRepository;
 let zones: FakeZoneRepository;
 let cities: FakeCityRepository;
 let clock: FixedClock;
-let handler: ListClientBookingsQueryHandler;
+let handler: ListClientRequestsQueryHandler;
 
 beforeEach(() => {
+  requests = new FakeGoalkeeperRequestRepository();
   bookings = new FakeBookingRepository();
   zones = new FakeZoneRepository();
   zones.seed(zone('zone-cali-norte', 'Cali Norte'));
   cities = new FakeCityRepository();
   cities.seed(new City({ id: 'city-cali', name: 'Cali', regionId: 'region-valle', zoneCityId: null }));
   clock = new FixedClock(NOW);
-  handler = new ListClientBookingsQueryHandler(bookings, zones, cities, clock);
+  handler = new ListClientRequestsQueryHandler(requests, bookings, zones, cities, clock);
 });
 
 const list = (clientId = 'client-a', page = 1, pageSize = 20) =>
-  handler.handle(new ListClientBookingsQuery(clientId, page, pageSize));
+  handler.handle(new ListClientRequestsQuery(clientId, page, pageSize));
 
-const ids = (result: Awaited<ReturnType<typeof list>>) => result.items.map((item) => item.bookingId);
+/** Stores the request and its bookings, as a confirmation would. */
+function seed(request: ReturnType<typeof requestAt>) {
+  requests.seed(request);
+  buildRequestBookings(request).forEach((booking) => bookings.seed(booking));
+  return request;
+}
 
-describe('ListClientBookingsQueryHandler — US1: the client sees their bookings', () => {
+const ids = (result: Awaited<ReturnType<typeof list>>) => result.items.map((item) => item.requestId);
+
+describe('ListClientRequestsQueryHandler — US1: the client sees their bookings', () => {
   it('lists upcoming matches soonest first, then past matches most recent first', async () => {
-    bookings.seed(bookingAt('past-5d', at(-5 * DAY)));
-    bookings.seed(bookingAt('in-10d', at(10 * DAY)));
-    bookings.seed(bookingAt('tomorrow', at(1 * DAY)));
+    seed(requestAt('past-5d', at(-5 * DAY)));
+    seed(requestAt('in-10d', at(10 * DAY)));
+    seed(requestAt('tomorrow', at(1 * DAY)));
 
     const result = await list();
 
@@ -65,8 +76,8 @@ describe('ListClientBookingsQueryHandler — US1: the client sees their bookings
   });
 
   it('lists only past matches, most recent first, when nothing is upcoming', async () => {
-    bookings.seed(bookingAt('past-20d', at(-20 * DAY)));
-    bookings.seed(bookingAt('past-3d', at(-3 * DAY)));
+    seed(requestAt('past-20d', at(-20 * DAY)));
+    seed(requestAt('past-3d', at(-3 * DAY)));
 
     expect(ids(await list())).toEqual(['past-3d', 'past-20d']);
   });
@@ -76,52 +87,55 @@ describe('ListClientBookingsQueryHandler — US1: the client sees their bookings
   });
 
   it('returns each booking exactly as stored, plus the current zone and city names', async () => {
-    const stored = bookingAt('tomorrow', at(1 * DAY));
-    bookings.seed(stored);
+    const stored = seed(requestAt('tomorrow', at(1 * DAY)));
 
     const [item] = (await list()).items;
 
-    expect(item).toEqual({ ...toBookingResponse(stored), zoneName: 'Cali Norte', cityName: 'Cali' });
+    expect(item).toEqual({
+      ...toRequestResponse(stored, buildRequestBookings(stored), new Date(NOW)),
+      zoneName: 'Cali Norte',
+      cityName: 'Cali',
+    });
     expect(item?.total).toBe(120000);
   });
 
   it('shows the current name of a renamed city', async () => {
-    bookings.seed(bookingAt('tomorrow', at(1 * DAY)));
+    seed(requestAt('tomorrow', at(1 * DAY)));
     cities.seed(new City({ id: 'city-cali', name: 'Santiago de Cali', regionId: 'region-valle', zoneCityId: null }));
 
     expect((await list()).items[0]?.cityName).toBe('Santiago de Cali');
   });
 
   it('still lists a booking whose zone or city no longer exists, with a null name', async () => {
-    bookings.seed(bookingAt('gone-zone', at(1 * DAY), { zoneId: 'zone-deleted' }));
-    bookings.seed(bookingAt('gone-city', at(2 * DAY), { cityId: 'city-deleted' }));
+    seed(requestAt('gone-zone', at(1 * DAY), { zoneId: 'zone-deleted' }));
+    seed(requestAt('gone-city', at(2 * DAY), { cityId: 'city-deleted' }));
 
     const result = await list();
 
-    expect(result.items.map(({ bookingId, zoneName, cityName }) => ({ bookingId, zoneName, cityName }))).toEqual([
-      { bookingId: 'gone-zone', zoneName: null, cityName: 'Cali' },
-      { bookingId: 'gone-city', zoneName: 'Cali Norte', cityName: null },
+    expect(result.items.map(({ requestId, zoneName, cityName }) => ({ requestId, zoneName, cityName }))).toEqual([
+      { requestId: 'gone-zone', zoneName: null, cityName: 'Cali' },
+      { requestId: 'gone-city', zoneName: 'Cali Norte', cityName: null },
     ]);
   });
 
   it('breaks ties on the same start by id: ascending if upcoming, descending if past', async () => {
-    bookings.seed(bookingAt('b-up', at(DAY), { zoneId: 'zone-b' }));
-    bookings.seed(bookingAt('a-up', at(DAY), { zoneId: 'zone-a' }));
-    bookings.seed(bookingAt('a-past', at(-DAY), { zoneId: 'zone-a' }));
-    bookings.seed(bookingAt('b-past', at(-DAY), { zoneId: 'zone-b' }));
+    seed(requestAt('b-up', at(DAY), { zoneId: 'zone-b' }));
+    seed(requestAt('a-up', at(DAY), { zoneId: 'zone-a' }));
+    seed(requestAt('a-past', at(-DAY), { zoneId: 'zone-a' }));
+    seed(requestAt('b-past', at(-DAY), { zoneId: 'zone-b' }));
 
     expect(ids(await list())).toEqual(['a-up', 'b-up', 'b-past', 'a-past']);
   });
 
   it('counts a match starting exactly now as upcoming', async () => {
-    bookings.seed(bookingAt('past', at(-HOUR)));
-    bookings.seed(bookingAt('starts-now', at(0)));
+    seed(requestAt('past', at(-HOUR)));
+    seed(requestAt('starts-now', at(0)));
 
     expect(ids(await list())).toEqual(['starts-now', 'past']);
   });
 
   it('reads the clock once, so counts and reads agree on every segment', async () => {
-    bookings.seed(bookingAt('soon', at(HOUR)));
+    seed(requestAt('soon', at(HOUR)));
     const now = vi.spyOn(clock, 'now');
 
     await list();
@@ -139,23 +153,23 @@ describe('ListClientBookingsQueryHandler — US1: the client sees their bookings
     expect(cityLookup).not.toHaveBeenCalled();
   });
 
-  it('changes nothing: the stored bookings are the same before and after listing', async () => {
-    bookings.seed(bookingAt('tomorrow', at(DAY)));
-    const before = bookings.all();
+  it('changes nothing: the stored requests and bookings are the same before and after listing', async () => {
+    seed(requestAt('tomorrow', at(DAY)));
+    const before = [requests.all(), bookings.all()];
 
     await list();
 
-    expect(bookings.all()).toEqual(before);
+    expect([requests.all(), bookings.all()]).toEqual(before);
   });
 });
 
-describe('ListClientBookingsQueryHandler — US2: never another client’s bookings', () => {
+describe('ListClientRequestsQueryHandler — US2: never another client’s bookings', () => {
   it("lists only the caller's bookings, and counts only theirs", async () => {
-    bookings.seed(bookingAt('a-1', at(DAY)));
-    bookings.seed(bookingAt('a-2', at(-DAY)));
+    seed(requestAt('a-1', at(DAY)));
+    seed(requestAt('a-2', at(-DAY)));
     for (let i = 0; i < 5; i++) {
       // Same starts as A's, so a filter on time alone would leak them.
-      bookings.seed(bookingAt(`b-${i}`, at(i % 2 === 0 ? DAY : -DAY), { clientId: 'client-b', zoneId: `zone-b-${i}` }));
+      seed(requestAt(`b-${i}`, at(i % 2 === 0 ? DAY : -DAY), { clientId: 'client-b', zoneId: `zone-b-${i}` }));
     }
 
     const result = await list('client-a');
@@ -165,8 +179,8 @@ describe('ListClientBookingsQueryHandler — US2: never another client’s booki
   });
 
   it("never shows B's bookings on any of A's pages", async () => {
-    for (let i = 0; i < 5; i++) bookings.seed(bookingAt(`a-${i}`, at((i - 2) * DAY), { zoneId: `zone-a-${i}` }));
-    for (let i = 0; i < 5; i++) bookings.seed(bookingAt(`b-${i}`, at((i - 2) * DAY), { clientId: 'client-b', zoneId: `zone-b-${i}` }));
+    for (let i = 0; i < 5; i++) seed(requestAt(`a-${i}`, at((i - 2) * DAY), { zoneId: `zone-a-${i}` }));
+    for (let i = 0; i < 5; i++) seed(requestAt(`b-${i}`, at((i - 2) * DAY), { clientId: 'client-b', zoneId: `zone-b-${i}` }));
 
     const seen: string[] = [];
     for (let page = 1; page <= 5; page++) seen.push(...ids(await list('client-a', page, 1)));
@@ -175,7 +189,7 @@ describe('ListClientBookingsQueryHandler — US2: never another client’s booki
   });
 });
 
-describe('ListClientBookingsQueryHandler — US3: page by page', () => {
+describe('ListClientRequestsQueryHandler — US3: page by page', () => {
   /** N bookings, about a third upcoming, each at a distinct start (hours apart) and zone. */
   function seedMany(count: number): string[] {
     const upcoming = Math.floor(count / 3);
@@ -183,7 +197,7 @@ describe('ListClientBookingsQueryHandler — US3: page by page', () => {
     for (let i = 0; i < count; i++) {
       const offset = i < upcoming ? (i + 1) * HOUR : -(i - upcoming + 1) * HOUR;
       const id = `bk-${String(i).padStart(3, '0')}`;
-      bookings.seed(bookingAt(id, at(offset), { zoneId: `zone-${i}` }));
+      seed(requestAt(id, at(offset), { zoneId: `zone-${i}` }));
       expected.push({ id, startsAt: at(offset) });
     }
     const up = expected.filter((b) => b.startsAt >= at(0)).sort((a, b) => +a.startsAt - +b.startsAt);
@@ -211,11 +225,11 @@ describe('ListClientBookingsQueryHandler — US3: page by page', () => {
   }
 
   it('fills a page straddling the boundary with the last upcoming, then the most recent past', async () => {
-    bookings.seed(bookingAt('up-1', at(1 * HOUR)));
-    bookings.seed(bookingAt('up-2', at(2 * HOUR)));
-    bookings.seed(bookingAt('up-3', at(3 * HOUR)));
-    bookings.seed(bookingAt('past-1', at(-1 * HOUR)));
-    bookings.seed(bookingAt('past-2', at(-2 * HOUR)));
+    seed(requestAt('up-1', at(1 * HOUR)));
+    seed(requestAt('up-2', at(2 * HOUR)));
+    seed(requestAt('up-3', at(3 * HOUR)));
+    seed(requestAt('past-1', at(-1 * HOUR)));
+    seed(requestAt('past-2', at(-2 * HOUR)));
 
     expect(ids(await list('client-a', 2, 2))).toEqual(['up-3', 'past-1']);
   });
@@ -232,4 +246,60 @@ describe('ListClientBookingsQueryHandler — US3: page by page', () => {
 
     expect(sizes).toEqual([20, 20, 5, 0]);
   });
+});
+
+describe('ListClientRequestsQueryHandler — US5: one item per match, with its bookings', () => {
+  it('returns one item per request, each with only its own bookings in id order and its derived status', async () => {
+    const tomorrow = seed(requestAt('tomorrow', at(DAY)));
+    seed(requestAt('in-10d', at(10 * DAY), { goalkeeperCount: 1 }));
+    seed(requestAt('past', at(-DAY)));
+    const [first] = buildRequestBookings(tomorrow);
+    bookings.seed(Booking.rehydrate({ ...first!, status: 'assigned' }));
+
+    const result = await list();
+
+    expect(result).toMatchObject({ totalItems: 3, totalPages: 1 });
+    expect(result.items.map((item) => [item.requestId, item.status, item.bookings.map((booking) => booking.bookingId)])).toEqual([
+      ['tomorrow', 'partially_assigned', ['tomorrow-b1', 'tomorrow-b2']],
+      ['in-10d', 'searching', ['in-10d-b1']],
+      ['past', 'searching', ['past-b1', 'past-b2']],
+    ]);
+    expect(result.items[0]!.bookings[0]).toMatchObject({ unitRate: 55000, unitSurcharge: 5000, total: 60000 });
+  });
+
+  it('loads the bookings of a page with one read, and none for an empty page', async () => {
+    const findByRequestIds = vi.spyOn(bookings, 'findByRequestIds');
+    for (let i = 0; i < 5; i++) seed(requestAt(`r-${i}`, at((i + 1) * HOUR), { zoneId: `zone-${i}` }));
+
+    await list('client-a', 1, 3);
+    await list('client-a', 9, 3);
+
+    expect(findByRequestIds).toHaveBeenCalledTimes(1);
+    expect(findByRequestIds).toHaveBeenCalledWith(['r-0', 'r-1', 'r-2']);
+  });
+
+  for (const count of [0, 1, 20, 21, 45]) {
+    it(`walks ${count} mixed 1- and 2-goalkeeper requests: each exactly once, with all its bookings`, async () => {
+      for (let i = 0; i < count; i++) {
+        const offset = i % 3 === 0 ? (i + 1) * HOUR : -(i + 1) * HOUR;
+        seed(requestAt(`req-${String(i).padStart(3, '0')}`, at(offset), { zoneId: `zone-${i}`, goalkeeperCount: i % 2 === 0 ? 1 : 2 }));
+      }
+
+      for (const size of [1, 7, 20, 50]) {
+        const seen: string[] = [];
+        let bookingCount = 0;
+        for (let page = 1; page <= Math.ceil(count / size); page++) {
+          const result = await list('client-a', page, size);
+          expect(result).toMatchObject({ totalItems: count, totalPages: Math.ceil(count / size) });
+          for (const item of result.items) {
+            seen.push(item.requestId);
+            expect(item.bookings).toHaveLength(item.goalkeeperCount);
+            bookingCount += item.bookings.length;
+          }
+        }
+        expect(new Set(seen).size).toBe(count);
+        expect(bookingCount).toBe(bookings.all().length);
+      }
+    });
+  }
 });

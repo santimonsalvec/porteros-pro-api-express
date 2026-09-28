@@ -36,4 +36,24 @@ describe('PricingSnapshot', () => {
   ])('rejects a breakdown where %s', (_label, override) => {
     expect(() => new PricingSnapshot({ ...valid, ...override }, 2)).toThrow();
   });
+
+  describe('perGoalkeeper', () => {
+    it('is the unit rate plus the unit surcharge, with the currency', () => {
+      const snapshot = new PricingSnapshot(
+        { unitRate: 55000, subtotal: 110000, unitSurcharge: 5000, surcharge: 10000, total: 120000, currency: 'COP' },
+        2,
+      );
+
+      expect(snapshot.perGoalkeeper()).toEqual({ unitRate: 55000, unitSurcharge: 5000, total: 60000, currency: 'COP' });
+    });
+
+    it.each([1, 2])('times %i goalkeepers equals the quoted total', (count) => {
+      const snapshot = new PricingSnapshot(
+        { unitRate: 40000, subtotal: 40000 * count, unitSurcharge: 3000, surcharge: 3000 * count, total: 43000 * count, currency: 'COP' },
+        count,
+      );
+
+      expect(snapshot.perGoalkeeper().total * count).toBe(snapshot.total);
+    });
+  });
 });

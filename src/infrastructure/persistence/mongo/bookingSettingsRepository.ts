@@ -25,6 +25,7 @@ export class BookingSettingsRepository implements IBookingSettingsRepository {
       refId: String(doc.refId),
       bookingWindowDays: (doc.bookingWindowDays as number | undefined | null) ?? null,
       minNoticeMinutes: (doc.minNoticeMinutes as number | undefined | null) ?? null,
+      freeCancellationMinutes: (doc.freeCancellationMinutes as number | undefined | null) ?? null,
       // Only the tiers are read: the currency is the country's. A leftover `currency` key inside
       // `leadTimeSurcharge` (from an earlier layout) is ignored.
       leadTimeSurcharge: doc.leadTimeSurcharge ? { tiers: doc.leadTimeSurcharge.tiers as SurchargeTier[] } : null,

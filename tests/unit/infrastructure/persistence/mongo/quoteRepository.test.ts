@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Collection, Db, Document } from 'mongodb';
 import {
   QuoteRepository,
+  quoteFromDocument,
   quoteToDocument,
 } from '../../../../../src/infrastructure/persistence/mongo/quoteRepository.js';
 import { createFakeCollection } from '../../../../fakes/fakeMongoCollection.js';
@@ -62,5 +63,21 @@ describe('QuoteRepository (mocked driver)', () => {
     expect(
       await repositoryWith(collection).findByIdForClient(STORED_QUOTE_ID, 'client-b'),
     ).toBeNull();
+  });
+
+  it('stores the free-cancellation period and reads it back', async () => {
+    const quote = buildStoredQuote({ freeCancellationMinutes: 45 });
+
+    const doc = quoteToDocument(quote);
+
+    expect(doc.freeCancellationMinutes).toBe(45);
+    expect(quoteFromDocument(doc).freeCancellationMinutes).toBe(45);
+  });
+
+  it('reads a quote stored without the period (issued before it existed) as the 60-minute default', () => {
+    const legacy = quoteToDocument(buildStoredQuote({ freeCancellationMinutes: 45 }));
+    delete legacy.freeCancellationMinutes;
+
+    expect(quoteFromDocument(legacy).freeCancellationMinutes).toBe(60);
   });
 });

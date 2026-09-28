@@ -1,4 +1,5 @@
 import type { Collection, Db, Document } from 'mongodb';
+import { FREE_CANCELLATION_MINUTES_DEFAULT } from '../../../application/features/goalkeeperRequests/common/bookingLimits.js';
 import type { IQuoteRepository } from '../../../application/features/goalkeeperRequests/common/ports.js';
 import { MatchDetails } from '../../../domain/bookings/matchDetails.js';
 import { PricingSnapshot } from '../../../domain/bookings/pricingSnapshot.js';
@@ -69,6 +70,7 @@ export function quoteToDocument(quote: Quote): Document {
     pricing: pricingToDocument(quote.pricing),
     issuedAt: quote.issuedAt,
     expiresAt: quote.expiresAt,
+    freeCancellationMinutes: quote.freeCancellationMinutes,
   };
 }
 
@@ -81,6 +83,8 @@ export function quoteFromDocument(doc: Document): Quote {
     pricing: pricingFromDocument(doc.pricing as Document, match.goalkeeperCount),
     issuedAt: doc.issuedAt as Date,
     expiresAt: doc.expiresAt as Date,
+    // Quotes issued before the field existed read as the default (research.md §5).
+    freeCancellationMinutes: (doc.freeCancellationMinutes as number | undefined) ?? FREE_CANCELLATION_MINUTES_DEFAULT,
   });
 }
 

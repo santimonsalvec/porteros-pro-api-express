@@ -92,4 +92,14 @@ describe('BookingSettingsRepository (mocked driver)', () => {
 
     expect(collection.createIndex).toHaveBeenCalledWith({ scope: 1, refId: 1 }, expect.objectContaining({ unique: true }));
   });
+
+  it('maps the free-cancellation period, and reads it as null when the document has none', async () => {
+    const collection = createFakeCollection();
+    collection.find.mockReturnValue(toArrayResult([{ ...countryDoc, freeCancellationMinutes: 60 }, cityDoc]));
+
+    const found = await repositoryWith(collection).findFor('city-1', 'country-co');
+
+    expect(found.country?.freeCancellationMinutes).toBe(60);
+    expect(found.city?.freeCancellationMinutes).toBeNull();
+  });
 });

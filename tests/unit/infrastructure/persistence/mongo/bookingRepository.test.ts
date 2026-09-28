@@ -1,135 +1,81 @@
 import { describe, expect, it } from 'vitest';
 import type { Collection, Db, Document } from 'mongodb';
-import { Booking } from '../../../../../src/domain/bookings/booking.js';
 import {
   BookingRepository,
+  bookingFromDocument,
   bookingToDocument,
 } from '../../../../../src/infrastructure/persistence/mongo/bookingRepository.js';
 import { createFakeCollection, toArrayCursor } from '../../../../fakes/fakeMongoCollection.js';
-import { buildStoredQuote, STORED_QUOTE_ID } from '../../../../fixtures/quoteFixtures.js';
+import { buildRequest, buildRequestBookings } from '../../../../fixtures/quoteFixtures.js';
 
 function repositoryWith(collection: ReturnType<typeof createFakeCollection>) {
   const db = { collection: () => collection as unknown as Collection<Document> } as unknown as Db;
   return new BookingRepository(db);
 }
 
-const booking = Booking.fromQuote('b-1', buildStoredQuote(), new Date('2026-09-21T18:01:00.000Z'));
+const request = buildRequest('r-1', new Date('2026-09-28T20:00:00.000Z'));
+const [booking] = buildRequestBookings(request);
 
 describe('BookingRepository (mocked driver)', () => {
-  it('creates the one-booking-per-quote and one-booking-per-match unique indexes', async () => {
+  it('drops the pre-010 indexes, then creates the requestId index', async () => {
     const collection = createFakeCollection();
     await repositoryWith(collection).ensureIndexes();
 
-    expect(collection.createIndex).toHaveBeenCalledWith(
-      { quoteId: 1 },
-      { name: 'quoteId_unique', unique: true },
-    );
-    expect(collection.createIndex).toHaveBeenCalledWith(
-      { clientId: 1, zoneId: 1, startsAt: 1 },
-      { name: 'client_zone_start_unique', unique: true },
-    );
+    expect(collection.dropIndex.mock.calls.map(([name]) => name)).toEqual([
+      'quoteId_unique',
+      'client_zone_start_unique',
+      'client_startsAt',
+    ]);
+    expect(collection.createIndex).toHaveBeenCalledWith({ requestId: 1, _id: 1 }, { name: 'requestId' });
   });
 
-  it("creates the non-unique client_startsAt index that serves the client's list", async () => {
+  it('tolerates indexes that are already gone', async () => {
     const collection = createFakeCollection();
-    await repositoryWith(collection).ensureIndexes();
+    collection.dropIndex.mockRejectedValue(Object.assign(new Error('index not found'), { code: 27 }));
 
-    expect(collection.createIndex).toHaveBeenCalledWith(
-      { clientId: 1, startsAt: 1, _id: 1 },
-      { name: 'client_startsAt' },
-    );
+    await expect(repositoryWith(collection).ensureIndexes()).resolves.toBeUndefined();
+    expect(collection.createIndex).toHaveBeenCalled();
   });
 
-  it('repeats zoneId and startsAt at the top level of the document', () => {
-    const doc = bookingToDocument(booking);
+  it('rethrows any other error while dropping an index', async () => {
+    const collection = createFakeCollection();
+    collection.dropIndex.mockRejectedValue(Object.assign(new Error('not authorized'), { code: 13 }));
 
-    expect(doc).toMatchObject({
-      _id: 'b-1',
+    await expect(repositoryWith(collection).ensureIndexes()).rejects.toThrow('not authorized');
+  });
+
+  it('stores one goalkeeper per booking with its price, and maps it back', () => {
+    const doc = bookingToDocument(booking!);
+
+    expect(doc).toEqual({
+      _id: 'r-1-b1',
+      requestId: 'r-1',
       clientId: 'client-a',
-      quoteId: STORED_QUOTE_ID,
+      zoneId: 'zone-cali-norte',
+      startsAt: new Date('2026-09-28T20:00:00.000Z'),
       status: 'pending_assignment',
-      zoneId: 'zone-cali-norte',
-      startsAt: new Date('2026-09-21T20:00:00.000Z'),
+      price: { unitRate: 55000, unitSurcharge: 5000, total: 60000, currency: 'COP' },
+      createdAt: request.createdAt,
     });
-    expect(doc.createdAt).toBeInstanceOf(Date);
-    expect(doc.quoteIssuedAt).toBeInstanceOf(Date);
+    expect(bookingFromDocument(doc)).toEqual(booking);
   });
 
-  it('finds the booking of a quote for its client and maps it back', async () => {
+  it('loads the bookings of several requests in request, then booking, order', async () => {
     const collection = createFakeCollection();
-    collection.findOne.mockResolvedValue(bookingToDocument(booking));
+    const cursor = toArrayCursor([bookingToDocument(booking!)]);
+    collection.find.mockReturnValue(cursor);
 
-    const found = await repositoryWith(collection).findByQuoteForClient(
-      STORED_QUOTE_ID,
-      'client-a',
-    );
+    const found = await repositoryWith(collection).findByRequestIds(['r-1', 'r-2']);
 
-    expect(collection.findOne).toHaveBeenCalledWith({
-      quoteId: STORED_QUOTE_ID,
-      clientId: 'client-a',
-    });
-    expect(found).toEqual(booking);
+    expect(collection.find).toHaveBeenCalledWith({ requestId: { $in: ['r-1', 'r-2'] } });
+    expect(cursor.sort).toHaveBeenCalledWith({ requestId: 1, _id: 1 });
+    expect(found).toEqual([booking]);
   });
 
-  it("finds the client's booking for a zone and start", async () => {
+  it('does not query for no requests', async () => {
     const collection = createFakeCollection();
-    collection.findOne.mockResolvedValue(null);
-    const startsAt = new Date('2026-09-21T20:00:00.000Z');
 
-    const found = await repositoryWith(collection).findByMatchForClient(
-      'client-a',
-      'zone-cali-norte',
-      startsAt,
-    );
-
-    expect(collection.findOne).toHaveBeenCalledWith({
-      clientId: 'client-a',
-      zoneId: 'zone-cali-norte',
-      startsAt,
-    });
-    expect(found).toBeNull();
-  });
-
-  describe("the client's list (feature 009)", () => {
-    const now = new Date('2026-09-21T18:00:00.000Z');
-
-    it('counts both segments with the same instant', async () => {
-      const collection = createFakeCollection();
-      collection.countDocuments.mockResolvedValueOnce(3).mockResolvedValueOnce(42);
-
-      const counts = await repositoryWith(collection).countForClient('client-a', now);
-
-      expect(collection.countDocuments).toHaveBeenNthCalledWith(1, { clientId: 'client-a', startsAt: { $gte: now } });
-      expect(collection.countDocuments).toHaveBeenNthCalledWith(2, { clientId: 'client-a', startsAt: { $lt: now } });
-      expect(counts).toEqual({ upcoming: 3, past: 42 });
-    });
-
-    it('reads upcoming bookings soonest first, id as tie-breaker', async () => {
-      const collection = createFakeCollection();
-      const cursor = toArrayCursor([bookingToDocument(booking)]);
-      collection.find.mockReturnValue(cursor);
-
-      const found = await repositoryWith(collection).findUpcomingForClient('client-a', now, 20, 5);
-
-      expect(collection.find).toHaveBeenCalledWith({ clientId: 'client-a', startsAt: { $gte: now } });
-      expect(cursor.sort).toHaveBeenCalledWith({ startsAt: 1, _id: 1 });
-      expect(cursor.skip).toHaveBeenCalledWith(20);
-      expect(cursor.limit).toHaveBeenCalledWith(5);
-      expect(found).toEqual([booking]);
-    });
-
-    it('reads past bookings most recent first, id descending as tie-breaker', async () => {
-      const collection = createFakeCollection();
-      const cursor = toArrayCursor([bookingToDocument(booking)]);
-      collection.find.mockReturnValue(cursor);
-
-      const found = await repositoryWith(collection).findPastForClient('client-a', now, 17, 20);
-
-      expect(collection.find).toHaveBeenCalledWith({ clientId: 'client-a', startsAt: { $lt: now } });
-      expect(cursor.sort).toHaveBeenCalledWith({ startsAt: -1, _id: -1 });
-      expect(cursor.skip).toHaveBeenCalledWith(17);
-      expect(cursor.limit).toHaveBeenCalledWith(20);
-      expect(found).toEqual([booking]);
-    });
+    expect(await repositoryWith(collection).findByRequestIds([])).toEqual([]);
+    expect(collection.find).not.toHaveBeenCalled();
   });
 });

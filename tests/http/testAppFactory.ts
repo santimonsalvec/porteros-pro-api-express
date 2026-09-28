@@ -31,12 +31,13 @@ import { GetCitiesQueryHandler } from '../../src/application/features/locations/
 import { IssueServiceQuoteCommand } from '../../src/application/features/goalkeeperRequests/commands/issueServiceQuote/issueServiceQuoteCommand.js';
 import { IssueServiceQuoteCommandHandler } from '../../src/application/features/goalkeeperRequests/commands/issueServiceQuote/issueServiceQuoteCommandHandler.js';
 import { FakeQuoteRepository } from '../fakes/fakeQuoteRepository.js';
+import { FakeGoalkeeperRequestRepository } from '../fakes/fakeGoalkeeperRequestRepository.js';
 import { FakeBookingRepository } from '../fakes/fakeBookingRepository.js';
 import { FakeQuoteConfirmationStore } from '../fakes/fakeQuoteConfirmationStore.js';
 import { FakeBookingAuditLogger } from '../fakes/fakeBookingAuditLogger.js';
 import { ConfirmBookingCommand } from '../../src/application/features/goalkeeperRequests/commands/confirmBooking/confirmBookingCommand.js';
-import { ListClientBookingsQuery } from '../../src/application/features/goalkeeperRequests/queries/listClientBookings/listClientBookingsQuery.js';
-import { ListClientBookingsQueryHandler } from '../../src/application/features/goalkeeperRequests/queries/listClientBookings/listClientBookingsQueryHandler.js';
+import { ListClientRequestsQuery } from '../../src/application/features/goalkeeperRequests/queries/listClientRequests/listClientRequestsQuery.js';
+import { ListClientRequestsQueryHandler } from '../../src/application/features/goalkeeperRequests/queries/listClientRequests/listClientRequestsQueryHandler.js';
 import { ConfirmBookingCommandHandler } from '../../src/application/features/goalkeeperRequests/commands/confirmBooking/confirmBookingCommandHandler.js';
 import { GetZonesByCityQuery } from '../../src/application/features/zones/queries/getZonesByCity/getZonesByCityQuery.js';
 import { GetZonesByCityQueryHandler } from '../../src/application/features/zones/queries/getZonesByCity/getZonesByCityQueryHandler.js';
@@ -111,9 +112,11 @@ export interface TestAppContext {
   quoteCountryRepository: FakeCountryRepository;
   /** Quotes stored by `POST /quote` (and confirmed by `POST /bookings`). */
   quoteRepository: FakeQuoteRepository;
-  /** Bookings created by `POST /bookings`. */
+  /** Requests created by `POST /bookings` (one per match). */
+  requestRepository: FakeGoalkeeperRequestRepository;
+  /** Bookings created by `POST /bookings` (one per goalkeeper). */
   bookingRepository: FakeBookingRepository;
-  /** The confirmation store over `quoteRepository` + `bookingRepository`; `failNextWith` simulates concurrency. */
+  /** The confirmation store over the quote, request and booking fakes; `failNextWith` simulates concurrency. */
   quoteConfirmationStore: FakeQuoteConfirmationStore;
   bookingAuditLogger: FakeBookingAuditLogger;
   /** Set the reference "now" for the quote endpoint (defaults to `QUOTE_NOW`, 13:00 in Bogotá). */
@@ -174,8 +177,9 @@ export async function buildTestApp(): Promise<TestAppContext> {
   const bookingSettingsRepository = new FakeBookingSettingsRepository();
   const clock = new FixedClock(QUOTE_NOW);
   const quoteRepository = new FakeQuoteRepository();
+  const requestRepository = new FakeGoalkeeperRequestRepository();
   const bookingRepository = new FakeBookingRepository();
-  const quoteConfirmationStore = new FakeQuoteConfirmationStore(quoteRepository, bookingRepository);
+  const quoteConfirmationStore = new FakeQuoteConfirmationStore(quoteRepository, requestRepository, bookingRepository);
   const bookingAuditLogger = new FakeBookingAuditLogger();
   seedQuoteWorld({ countryRepository: quoteCountryRepository, zoneRepository, cityRepository, regionRepository, rentalRateRepository, bookingSettingsRepository });
 
@@ -271,6 +275,7 @@ export async function buildTestApp(): Promise<TestAppContext> {
     {
       requestType: ConfirmBookingCommand,
       handler: new ConfirmBookingCommandHandler(
+        requestRepository,
         bookingRepository,
         quoteRepository,
         quoteConfirmationStore,
@@ -280,8 +285,8 @@ export async function buildTestApp(): Promise<TestAppContext> {
       ),
     },
     {
-      requestType: ListClientBookingsQuery,
-      handler: new ListClientBookingsQueryHandler(bookingRepository, zoneRepository, cityRepository, clock),
+      requestType: ListClientRequestsQuery,
+      handler: new ListClientRequestsQueryHandler(requestRepository, bookingRepository, zoneRepository, cityRepository, clock),
     },
     {
       requestType: StoreImageCommand,
@@ -369,6 +374,7 @@ export async function buildTestApp(): Promise<TestAppContext> {
     bookingSettingsRepository,
     quoteCountryRepository,
     quoteRepository,
+    requestRepository,
     bookingRepository,
     quoteConfirmationStore,
     bookingAuditLogger,

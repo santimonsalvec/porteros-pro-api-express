@@ -39,8 +39,11 @@ export type GetServiceQuoteResult =
   | {
       outcome: 'success';
       quote: ServiceQuote;
-      /** Where the point was resolved. Internal: recorded on the stored quote, never serialized. */
-      area: { zoneId: string; cityId: string };
+      /**
+       * Where the point was resolved, and the area's free-cancellation period (`null` when not
+       * configured). Internal: recorded on the stored quote, never serialized.
+       */
+      area: { zoneId: string; cityId: string; freeCancellationMinutes: number | null };
     }
   | { outcome: 'location_not_covered' }
   | { outcome: 'time_zone_not_configured'; cityId: string }
