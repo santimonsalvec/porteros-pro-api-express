@@ -54,6 +54,11 @@ export interface IGoalkeeperRequestRepository {
   findUpcomingForClient(clientId: string, now: Date, skip: number, limit: number): Promise<GoalkeeperRequest[]>;
   /** The client's requests with `startsAt < now`, most recent first (ties: id descending). */
   findPastForClient(clientId: string, now: Date, skip: number, limit: number): Promise<GoalkeeperRequest[]>;
+  /**
+   * Active "cancel all" requests not yet evaluated whose free-cancellation period has ended
+   * (feature 016), at most `cap`.
+   */
+  findDueForCancelAll(now: Date, cap: number): Promise<GoalkeeperRequest[]>;
 }
 
 /** Bookings (one per goalkeeper). */
@@ -76,6 +81,8 @@ export interface IBookingRepository {
   findAssignedToGoalkeeper(goalkeeperId: string): Promise<Booking[]>;
   /** The assigned bookings of all these goalkeepers, in one read (feature 015). */
   findAssignedToGoalkeepers(goalkeeperIds: readonly string[]): Promise<Booking[]>;
+  /** Pending bookings whose search has ended, oldest deadline first, at most `cap` (feature 016). */
+  findDueForExpiry(now: Date, cap: number): Promise<Booking[]>;
   /** Pending bookings whose search is still open, soonest first, at most `cap` (feature 015). */
   findOpenPending(now: Date, cap: number): Promise<Booking[]>;
   /** The goalkeeper's agenda (any status): how many start at or after `now` and before it. */
@@ -162,7 +169,8 @@ export type BookingConfirmationOutcome =
   | 'quote_not_found'
   | 'quote_expired'
   | 'duplicate_request'
-  | 'confirmation_in_progress';
+  | 'confirmation_in_progress'
+  | 'cancel_all_not_available';
 
 /** Audit trail of every confirmation attempt (FR-024). */
 export interface IBookingAuditLogger {

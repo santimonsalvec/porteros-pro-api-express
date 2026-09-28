@@ -38,6 +38,25 @@ const eventSchema = z.discriminatedUnion('type', [
       commission: z.number(),
     }),
   }),
+  z.object({
+    ...envelopeFields,
+    type: z.literal('booking.expired'),
+    payload: z.object({ clientId: z.string(), zoneId: z.string(), startsAt: isoDate }),
+  }),
+  z.object({
+    ...envelopeFields,
+    type: z.literal('booking.cancelled'),
+    payload: z.object({
+      clientId: z.string(),
+      zoneId: z.string(),
+      startsAt: isoDate,
+      goalkeeperId: z.string().nullable(),
+      refundedAmount: z.number().nullable(),
+      currency: z.string(),
+      reason: z.literal('cancel_all'),
+      by: z.literal('system'),
+    }),
+  }),
 ]);
 
 /**

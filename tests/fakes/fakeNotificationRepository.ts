@@ -1,6 +1,7 @@
 import type {
   DismissOutcome,
   INotificationRepository,
+  NewNotification,
   NewOffer,
   NotificationItem,
 } from '../../src/application/features/notifications/common/ports.js';
@@ -19,6 +20,20 @@ export class FakeNotificationRepository implements INotificationRepository {
       ...offer,
       type: OFFER_TYPE,
       readAt: null,
+      dismissedAt: null,
+      notifiedAt: null,
+      reminderCount: 0,
+      lastRemindedAt: null,
+    });
+    return true;
+  }
+
+  async createIfAbsent(entry: NewNotification): Promise<boolean> {
+    if ([...this.items.values()].some((item) => item.dedupeKey === entry.dedupeKey)) return false;
+    this.items.set(entry.id, {
+      ...entry,
+      readAt: null,
+      requestId: null,
       dismissedAt: null,
       notifiedAt: null,
       reminderCount: 0,

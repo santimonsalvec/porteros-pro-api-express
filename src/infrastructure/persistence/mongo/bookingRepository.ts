@@ -1,6 +1,6 @@
 import type { Collection, Db, Document } from 'mongodb';
 import type { IBookingRepository } from '../../../application/features/goalkeeperRequests/common/ports.js';
-import { Booking, type BookingStatus } from '../../../domain/bookings/booking.js';
+import { Booking, type BookingEndedBy, type BookingEndReason, type BookingStatus } from '../../../domain/bookings/booking.js';
 import { GoalkeeperPrice } from '../../../domain/bookings/goalkeeperPrice.js';
 
 export const BOOKINGS_COLLECTION = 'bookings';
@@ -33,6 +33,9 @@ export function bookingToDocument(booking: Booking): Document {
     goalkeeperId: booking.goalkeeperId,
     assignedAt: booking.assignedAt,
     createdAt: booking.createdAt,
+    endedAt: booking.endedAt,
+    endReason: booking.endReason,
+    cancelledBy: booking.cancelledBy,
   };
 }
 
@@ -58,6 +61,9 @@ export function bookingFromDocument(doc: Document): Booking {
     goalkeeperId: (doc.goalkeeperId as string | null | undefined) ?? null,
     assignedAt: (doc.assignedAt as Date | null | undefined) ?? null,
     createdAt: doc.createdAt as Date,
+    endedAt: (doc.endedAt as Date | null | undefined) ?? null,
+    endReason: (doc.endReason as BookingEndReason | null | undefined) ?? null,
+    cancelledBy: (doc.cancelledBy as BookingEndedBy | null | undefined) ?? null,
   });
 }
 
@@ -109,6 +115,15 @@ export class BookingRepository implements IBookingRepository {
       })
       .sort({ startsAt: 1, _id: 1 })
       .limit(query.cap)
+      .toArray();
+    return docs.map(bookingFromDocument);
+  }
+
+  async findDueForExpiry(now: Date, cap: number): Promise<Booking[]> {
+    const docs = await this.collection
+      .find({ status: 'pending_assignment', searchEndsAt: { $lte: now } })
+      .sort({ searchEndsAt: 1, _id: 1 })
+      .limit(cap)
       .toArray();
     return docs.map(bookingFromDocument);
   }

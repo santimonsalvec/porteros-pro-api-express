@@ -16,6 +16,11 @@ export const BOOKING_STATUSES = [
 ] as const;
 export type BookingStatus = (typeof BOOKING_STATUSES)[number];
 
+/** Why a booking ended without being played (feature 016; 017 and 018 add theirs). */
+export type BookingEndReason = 'search_ended' | 'cancel_all';
+/** Who ended it (feature 016: always the system; 017 adds the client). */
+export type BookingEndedBy = 'system';
+
 export interface BookingProps {
   id: string;
   requestId: string;
@@ -31,6 +36,10 @@ export interface BookingProps {
   goalkeeperId: string | null;
   assignedAt: Date | null;
   createdAt: Date;
+  /** When it expired or was cancelled; absent on older documents. */
+  endedAt?: Date | null;
+  endReason?: BookingEndReason | null;
+  cancelledBy?: BookingEndedBy | null;
 }
 
 /**
@@ -53,6 +62,9 @@ export class Booking extends Entity<string> {
   readonly goalkeeperId: string | null;
   readonly assignedAt: Date | null;
   readonly createdAt: Date;
+  readonly endedAt: Date | null;
+  readonly endReason: BookingEndReason | null;
+  readonly cancelledBy: BookingEndedBy | null;
 
   private constructor(props: BookingProps) {
     super(props.id);
@@ -75,6 +87,9 @@ export class Booking extends Entity<string> {
     this.goalkeeperId = props.goalkeeperId;
     this.assignedAt = props.assignedAt ? new Date(props.assignedAt) : null;
     this.createdAt = new Date(props.createdAt);
+    this.endedAt = props.endedAt ? new Date(props.endedAt) : null;
+    this.endReason = props.endReason ?? null;
+    this.cancelledBy = props.cancelledBy ?? null;
   }
 
   /** A new place for one goalkeeper, at the request's per-goalkeeper price, awaiting assignment. */

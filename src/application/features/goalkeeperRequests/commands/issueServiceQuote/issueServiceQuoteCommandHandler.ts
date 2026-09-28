@@ -72,7 +72,13 @@ export class IssueServiceQuoteCommandHandler implements ICommandHandler<
 
     return {
       outcome: 'success',
-      quote: { ...priced, quoteId: quote.id, expiresAt: quote.expiresAt.toISOString() },
+      quote: {
+        ...priced,
+        quoteId: quote.id,
+        expiresAt: quote.expiresAt.toISOString(),
+        cancelAllAvailable: quote.isCancelAllAvailableAt(issuedAt),
+        cancelAllUntil: quote.cancelAllUntil().toISOString(),
+      },
       freeCancellationDefaulted: area.freeCancellationMinutes === null,
       travelBufferDefaulted: area.travelBufferMinutes === null,
       cityId: area.cityId,

@@ -96,11 +96,26 @@ describe('IssueServiceQuoteCommandHandler — Story 3: every quote is recorded',
 
     expect(result).toEqual({
       outcome: 'success',
-      quote: { ...priced, quoteId: 'quote-1', expiresAt: '2026-09-21T18:03:00.000Z' },
+      quote: {
+        ...priced,
+        quoteId: 'quote-1',
+        expiresAt: '2026-09-21T18:03:00.000Z',
+        // Feature 016: "cancel all" until start − 60 min.
+        cancelAllAvailable: true,
+        cancelAllUntil: '2026-09-21T19:00:00.000Z',
+      },
       freeCancellationDefaulted: false,
       travelBufferDefaulted: false,
       cityId: 'city-cali',
     });
+  });
+
+  it('says "cancel all" is no longer available inside the free-cancellation period (feature 016)', async () => {
+    h.sender.respondWith(GetServiceQuoteQuery, { ...success, area: { ...success.area, freeCancellationMinutes: 150 } } as GetServiceQuoteResult);
+
+    const result = await h.issue();
+
+    expect(result).toMatchObject({ quote: { cancelAllAvailable: false, cancelAllUntil: '2026-09-21T17:30:00.000Z' } });
   });
 
   it('prices exactly the input it was given', async () => {

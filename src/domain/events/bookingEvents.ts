@@ -21,9 +21,30 @@ export interface GoalkeeperAssignedPayload {
   commission: number;
 }
 
+export interface BookingExpiredPayload {
+  clientId: string;
+  zoneId: string;
+  startsAt: Date;
+}
+
+export interface BookingCancelledPayload {
+  clientId: string;
+  zoneId: string;
+  startsAt: Date;
+  /** The goalkeeper who held it, when it was assigned. */
+  goalkeeperId: string | null;
+  /** The commission given back to that goalkeeper, when there was one. */
+  refundedAmount: number | null;
+  currency: string;
+  reason: 'cancel_all';
+  by: 'system';
+}
+
 export type BookingCreatedEvent = DomainEvent<'booking.created', BookingCreatedPayload>;
+export type BookingExpiredEvent = DomainEvent<'booking.expired', BookingExpiredPayload>;
+export type BookingCancelledEvent = DomainEvent<'booking.cancelled', BookingCancelledPayload>;
 export type GoalkeeperAssignedEvent = DomainEvent<'goalkeeper.assigned', GoalkeeperAssignedPayload>;
-export type BookingEvent = BookingCreatedEvent | GoalkeeperAssignedEvent;
+export type BookingEvent = BookingCreatedEvent | GoalkeeperAssignedEvent | BookingExpiredEvent | BookingCancelledEvent;
 
 /** One per booking created by a confirmation (spec clarification 1). */
 export function bookingCreated(id: string, booking: Booking, request: GoalkeeperRequest, at: Date): BookingCreatedEvent {
@@ -63,6 +84,50 @@ export function goalkeeperAssigned(id: string, booking: Booking, at: Date): Goal
       zoneId: booking.zoneId,
       startsAt: booking.startsAt,
       commission: booking.commission,
+    },
+  };
+}
+
+/** The search ended with nobody taking the booking (feature 016). */
+export function bookingExpired(id: string, booking: Booking, at: Date): BookingExpiredEvent {
+  return {
+    id,
+    type: 'booking.expired',
+    version: 1,
+    occurredAt: at,
+    bookingId: booking.id,
+    requestId: booking.requestId,
+    payload: { clientId: booking.clientId, zoneId: booking.zoneId, startsAt: booking.startsAt },
+  };
+}
+
+/**
+ * The system cancelled the booking because its "cancel all" request wasn't complete in time
+ * (feature 016). `booking` is as it was before the cancellation, so an assigned one names its
+ * goalkeeper; `refund` is what that goalkeeper got back.
+ */
+export function bookingCancelled(
+  id: string,
+  booking: Booking,
+  at: Date,
+  refund: { amount: number; currency: string } | null,
+): BookingCancelledEvent {
+  return {
+    id,
+    type: 'booking.cancelled',
+    version: 1,
+    occurredAt: at,
+    bookingId: booking.id,
+    requestId: booking.requestId,
+    payload: {
+      clientId: booking.clientId,
+      zoneId: booking.zoneId,
+      startsAt: booking.startsAt,
+      goalkeeperId: booking.goalkeeperId,
+      refundedAmount: refund?.amount ?? null,
+      currency: refund?.currency ?? booking.price.currency,
+      reason: 'cancel_all',
+      by: 'system',
     },
   };
 }

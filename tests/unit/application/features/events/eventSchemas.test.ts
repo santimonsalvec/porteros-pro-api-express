@@ -45,4 +45,21 @@ describe('event parsing at the edge', () => {
   ])('rejects %s', (_label, body) => {
     expect(decodePushEnvelope(body).event).toBeNull();
   });
+
+  it('parses the expiry and cancellation events of feature 016', async () => {
+    const { parseEvent } = await import('../../../../../src/application/features/events/common/eventSchemas.js');
+    const envelope = { id: 'ev-1', version: 1, occurredAt: '2026-10-04T20:31:00.000Z', bookingId: 'b-1', requestId: 'r-1' };
+
+    expect(parseEvent({ ...envelope, type: 'booking.expired', payload: { clientId: 'c', zoneId: 'z', startsAt: '2026-10-04T21:00:00.000Z' } })).toMatchObject({
+      type: 'booking.expired',
+      payload: { startsAt: new Date('2026-10-04T21:00:00.000Z') },
+    });
+    const cancelled = {
+      ...envelope,
+      type: 'booking.cancelled',
+      payload: { clientId: 'c', zoneId: 'z', startsAt: '2026-10-04T21:00:00.000Z', goalkeeperId: null, refundedAmount: null, currency: 'COP', reason: 'cancel_all', by: 'system' },
+    };
+    expect(parseEvent(cancelled)).toMatchObject({ type: 'booking.cancelled' });
+    expect(parseEvent({ ...cancelled, payload: { ...cancelled.payload, reason: 'other' } })).toBeNull();
+  });
 });

@@ -18,7 +18,11 @@ describe('requestStatusOf', () => {
     [['assigned', 'assigned'], 'assigned'],
     [['assigned', 'expired'], 'assigned'],
     [['completed', 'goalkeeper_withdrew'], 'completed'],
-    [['cancelled', 'expired'], 'closed'],
+    // Feature 016: requests that ended without a goalkeeper say how.
+    [['cancelled', 'expired'], 'cancelled'],
+    [['cancelled', 'cancelled'], 'cancelled'],
+    [['expired', 'expired'], 'expired'],
+    [['expired'], 'expired'],
     [['goalkeeper_withdrew'], 'closed'],
   ] as [BookingStatus[], string][])('%j → %s', (statuses, expected) => {
     expect(requestStatusOf(withStatuses(...statuses))).toBe(expected);

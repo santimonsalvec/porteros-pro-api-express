@@ -488,3 +488,29 @@ describe('ConfirmBookingCommandHandler — 013 US1: a confirmation records one e
     expect(events()).toHaveLength(0);
   });
 });
+
+describe('ConfirmBookingCommandHandler — feature 016: "cancel all" only while it can be applied', () => {
+  it('refuses "cancel all" once the free-cancellation period started, claiming nothing', async () => {
+    h.quotes.seed(buildStoredQuote({ freeCancellationMinutes: 150 })); // until 17:30Z; now 18:01Z
+
+    const result = await h.confirm(STORED_QUOTE_ID, 'client-a', 'cancel_all');
+
+    expect(result).toEqual({ outcome: 'cancel_all_not_available', cancelAllUntil: '2026-09-21T17:30:00.000Z' });
+    expect(h.requests.all()).toHaveLength(0);
+    expect(await h.quotes.findByIdForClient(STORED_QUOTE_ID, 'client-a')).not.toBeNull();
+    expect(h.audit.entries.at(-1)).toMatchObject({ outcome: 'cancel_all_not_available' });
+  });
+
+  it('accepts the same late quote with "keep the confirmed goalkeepers"', async () => {
+    h.quotes.seed(buildStoredQuote({ freeCancellationMinutes: 150 }));
+
+    expect(await h.confirm(STORED_QUOTE_ID, 'client-a', 'keep_confirmed')).toMatchObject({ outcome: 'created' });
+  });
+
+  it('accepts "cancel all" before the period starts, and still answers a replay afterwards', async () => {
+    expect(await h.confirm(STORED_QUOTE_ID, 'client-a', 'cancel_all')).toMatchObject({ outcome: 'created', request: { partialFulfillment: 'cancel_all' } });
+
+    h.clock.set('2026-09-21T19:30:00.000Z');
+    expect(await h.confirm(STORED_QUOTE_ID, 'client-a', 'cancel_all')).toMatchObject({ outcome: 'replayed' });
+  });
+});

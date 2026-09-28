@@ -86,11 +86,17 @@ export function offerHarness() {
   };
 
   /** A Bello request starting `hoursAhead` hours after `OFFERS_NOW`, with its bookings stored in the request repo. */
-  const match = (id: string, hoursAhead = 3, goalkeeperCount: 1 | 2 = 1): { request: GoalkeeperRequest; bookings: Booking[] } => {
+  const match = (
+    id: string,
+    hoursAhead = 3,
+    goalkeeperCount: 1 | 2 = 1,
+    partialFulfillment: 'keep_confirmed' | 'cancel_all' = 'keep_confirmed',
+  ): { request: GoalkeeperRequest; bookings: Booking[] } => {
     const request = buildRequest(id, new Date(new Date(OFFERS_NOW).getTime() + hoursAhead * 3_600_000), {
       zoneId: 'zone-bello',
       cityId: 'city-medellin',
       goalkeeperCount,
+      partialFulfillment,
     });
     requestRepository.seed(request);
     const bookings = buildRequestBookings(request);

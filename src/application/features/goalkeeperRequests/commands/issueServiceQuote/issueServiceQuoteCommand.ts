@@ -10,6 +10,10 @@ export interface IssuedServiceQuote extends ServiceQuote {
   quoteId: string;
   /** UTC ISO-8601; the quote can be confirmed strictly before this instant. */
   expiresAt: string;
+  /** Whether "cancel all" can be chosen when confirming (feature 016, clarification 1). */
+  cancelAllAvailable: boolean;
+  /** UTC ISO-8601: start − free-cancellation period, when a "cancel all" request is evaluated. */
+  cancelAllUntil: string;
 }
 
 export type IssueServiceQuoteResult =

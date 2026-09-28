@@ -120,6 +120,24 @@ describe('MongoNotificationRepository (mocked driver)', () => {
   });
 });
 
+describe('MongoNotificationRepository notices with a dedupe key (feature 016)', () => {
+  it('writes a notice once per key and indexes the key uniquely', async () => {
+    const { collection, repository } = harness();
+    collection.insertOne.mockResolvedValueOnce({}).mockRejectedValueOnce(Object.assign(new Error('E11000'), { code: 11000 }));
+    const notice = { id: ID, userId: 'c1', type: 'request.expired', title: 't', body: 'b', data: { type: 'request.expired', requestId: 'r1' }, createdAt: now, dedupeKey: 'request-outcome:r1' };
+
+    expect(await repository.createIfAbsent(notice)).toBe(true);
+    expect(collection.insertOne.mock.calls[0]![0]).toMatchObject({ _id: ID, dedupeKey: 'request-outcome:r1', readAt: null });
+    expect(await repository.createIfAbsent(notice)).toBe(false);
+
+    await repository.ensureIndexes();
+    expect(collection.createIndex).toHaveBeenCalledWith(
+      { dedupeKey: 1 },
+      { name: 'dedupe_unique', unique: true, partialFilterExpression: { dedupeKey: { $exists: true } } },
+    );
+  });
+});
+
 describe('MongoOfferPushStateStore (mocked driver)', () => {
   it('claims a goalkeeper only when the last push is older than the interval', async () => {
     const { collection, pushState } = harness();

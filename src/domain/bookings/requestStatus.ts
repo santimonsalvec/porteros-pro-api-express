@@ -1,6 +1,6 @@
 import type { Booking } from './booking.js';
 
-export type RequestStatus = 'searching' | 'partially_assigned' | 'assigned' | 'completed' | 'closed';
+export type RequestStatus = 'searching' | 'partially_assigned' | 'assigned' | 'completed' | 'cancelled' | 'expired' | 'closed';
 
 /**
  * A request's overall status, always derived from its bookings so it can never contradict them
@@ -11,5 +11,9 @@ export function requestStatusOf(bookings: readonly Booking[]): RequestStatus {
   const assigned = bookings.filter((booking) => booking.status === 'assigned').length;
   if (pending > 0) return assigned > 0 ? 'partially_assigned' : 'searching';
   if (assigned > 0) return 'assigned';
-  return bookings.some((booking) => booking.status === 'completed') ? 'completed' : 'closed';
+  if (bookings.some((booking) => booking.status === 'completed')) return 'completed';
+  // Ended without a goalkeeper (feature 016): "cancel all" wins over bookings that had expired.
+  if (bookings.some((booking) => booking.status === 'cancelled')) return 'cancelled';
+  if (bookings.some((booking) => booking.status === 'expired')) return 'expired';
+  return 'closed';
 }

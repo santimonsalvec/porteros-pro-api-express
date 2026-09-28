@@ -64,6 +64,9 @@ describe('BookingRepository (mocked driver)', () => {
       goalkeeperId: null,
       assignedAt: null,
       createdAt: request.createdAt,
+      endedAt: null,
+      endReason: null,
+      cancelledBy: null,
     });
     expect(bookingFromDocument(doc)).toEqual(booking);
   });

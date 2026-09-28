@@ -16,6 +16,8 @@ export interface NotificationItem {
   notifiedAt: Date | null;
   reminderCount: number;
   lastRemindedAt: Date | null;
+  /** Set on notices written once per key (feature 016 onwards). */
+  dedupeKey?: string;
 }
 
 /** A new offer entry: one per goalkeeper and request. */
@@ -29,11 +31,26 @@ export interface NewOffer {
   createdAt: Date;
 }
 
+/** Any inbox entry that is not an offer (feature 016 onwards). */
+export interface NewNotification {
+  id: string;
+  userId: string;
+  type: string;
+  title: string;
+  body: string;
+  data: Record<string, string>;
+  createdAt: Date;
+  /** At most one entry per key, so a notice is written once whatever the deliveries. */
+  dedupeKey: string;
+}
+
 export type DismissOutcome = 'dismissed' | 'not_found' | 'not_an_offer';
 
 export interface INotificationRepository {
   /** False when the goalkeeper already has an offer for that request (FR-005). */
   createOfferIfAbsent(offer: NewOffer): Promise<boolean>;
+  /** False when an entry with the same `dedupeKey` exists already. */
+  createIfAbsent(entry: NewNotification): Promise<boolean>;
   listForUser(userId: string, skip: number, limit: number): Promise<NotificationItem[]>;
   countForUser(userId: string): Promise<number>;
   countUnread(userId: string): Promise<number>;

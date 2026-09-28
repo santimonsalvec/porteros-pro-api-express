@@ -51,6 +51,14 @@ export class ConfirmBookingCommandHandler implements ICommandHandler<
     const replay = await this.replay(quoteId, clientId, now);
     if (replay) return this.finish(command, replay);
 
+    // "Cancel all" is only offered while it can still be applied (feature 016, clarification 1).
+    if (command.partialFulfillment === 'cancel_all') {
+      const quote = await this.quoteRepository.findByIdForClient(quoteId, clientId);
+      if (quote && !quote.isCancelAllAvailableAt(now)) {
+        return this.finish(command, { outcome: 'cancel_all_not_available', cancelAllUntil: quote.cancelAllUntil().toISOString() });
+      }
+    }
+
     // (2) The atomic claim: delete the quote and insert the request with its bookings, all or nothing.
     const claim = await this.store.claimAndCreateRequest(quoteId, clientId, now, (quote) => {
       const request = GoalkeeperRequest.fromQuote(this.idGenerator.newId(), quote, command.partialFulfillment, now);

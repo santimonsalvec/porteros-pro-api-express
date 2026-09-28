@@ -17,7 +17,9 @@ export type ConfirmBookingResult =
   /** The client already holds an active request for that zone and start (from another quote). */
   | { outcome: 'duplicate_request'; existingRequestId: string | null }
   /** A concurrent confirmation of this quote has not committed yet — safe to retry. */
-  | { outcome: 'confirmation_in_progress' };
+  | { outcome: 'confirmation_in_progress' }
+  /** "Cancel all" chosen once the free-cancellation period started (feature 016, clarification 1). */
+  | { outcome: 'cancel_all_not_available'; cancelAllUntil: string };
 
 /**
  * Turns the caller's quote into a request with one booking per goalkeeper, at exactly the quoted
