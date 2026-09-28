@@ -13,6 +13,29 @@ export const openapiSpec = {
       bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
     },
     schemas: {
+      RegisterDeviceRequest: {
+        type: 'object',
+        properties: {
+          token: { type: 'string', minLength: 1, maxLength: 4096, description: 'The FCM registration token of this device' },
+          platform: { type: 'string', enum: ['ios', 'android'] },
+        },
+        required: ['token', 'platform'],
+      },
+      UnregisterDeviceRequest: {
+        type: 'object',
+        properties: { token: { type: 'string', minLength: 1, maxLength: 4096 } },
+        required: ['token'],
+      },
+      UserPushResult: {
+        type: 'object',
+        properties: {
+          reached: { type: 'integer', example: 2, description: 'Devices the push service accepted the push for' },
+          removed: { type: 'integer', example: 0, description: 'Devices removed because the push service reported their token invalid' },
+          failed: { type: 'integer', example: 0, description: 'Devices that failed temporarily (kept)' },
+          noDevice: { type: 'boolean', example: false, description: 'The user had no registered device' },
+        },
+        required: ['reached', 'removed', 'failed', 'noDevice'],
+      },
       WalletViewResponse: {
         type: 'object',
         properties: {
@@ -1434,6 +1457,51 @@ export const openapiSpec = {
           '403': { description: 'Caller is an administrator, or client profile is not complete' },
           '409': {
             description: 'Registration already active',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+        },
+      },
+    },
+    '/api/devices': {
+      post: {
+        summary: 'Register or refresh this device for push notifications',
+        description:
+          'Call after sign-in, on every app start with a session, and on every token refresh. Any signed-in user, with or without a completed profile. A token belongs to one user: registering a token another user had moves it to the caller. Tokens travel only in the body.',
+        tags: ['Devices'],
+        security: [{ bearerAuth: [] }],
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/RegisterDeviceRequest' } } } },
+        responses: {
+          '204': { description: 'Stored (new, refreshed or moved from another user — indistinguishable on purpose)' },
+          '400': { description: 'validation_failed: token or platform', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } } },
+          '401': { description: 'Not signed in' },
+        },
+      },
+    },
+    '/api/devices/unregister': {
+      post: {
+        summary: 'Forget this device (call before signing out)',
+        description: "Removes the token only when it is the caller's. Answers 204 whatever the token was, and is idempotent.",
+        tags: ['Devices'],
+        security: [{ bearerAuth: [] }],
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/UnregisterDeviceRequest' } } } },
+        responses: {
+          '204': { description: 'Done' },
+          '400': { description: 'validation_failed: token', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } } },
+          '401': { description: 'Not signed in' },
+        },
+      },
+    },
+    '/api/devices/test-push': {
+      post: {
+        summary: "Send a test push to the caller's own devices",
+        description: 'data.type is "test". Limited per user (default 5 per minute).',
+        tags: ['Devices'],
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': { description: 'Per-device result for the caller', content: { 'application/json': { schema: { $ref: '#/components/schemas/UserPushResult' } } } },
+          '401': { description: 'Not signed in' },
+          '429': {
+            description: 'too_many_requests: body includes retryAfterSeconds; a Retry-After header is set',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
           },
         },

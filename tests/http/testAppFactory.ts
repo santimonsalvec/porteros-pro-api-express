@@ -116,6 +116,17 @@ import { UpdateGoalkeeperAvailabilityCommand } from '../../src/application/featu
 import { UpdateGoalkeeperAvailabilityCommandHandler } from '../../src/application/features/goalkeepers/commands/updateGoalkeeperAvailability/updateGoalkeeperAvailabilityCommandHandler.js';
 import { CancelGoalkeeperRegistrationCommand } from '../../src/application/features/goalkeepers/commands/cancelGoalkeeperRegistration/cancelGoalkeeperRegistrationCommand.js';
 import { CancelGoalkeeperRegistrationCommandHandler } from '../../src/application/features/goalkeepers/commands/cancelGoalkeeperRegistration/cancelGoalkeeperRegistrationCommandHandler.js';
+import { RegisterDeviceCommand } from '../../src/application/features/devices/commands/registerDevice/registerDeviceCommand.js';
+import { RegisterDeviceCommandHandler } from '../../src/application/features/devices/commands/registerDevice/registerDeviceCommandHandler.js';
+import { UnregisterDeviceCommand } from '../../src/application/features/devices/commands/unregisterDevice/unregisterDeviceCommand.js';
+import { UnregisterDeviceCommandHandler } from '../../src/application/features/devices/commands/unregisterDevice/unregisterDeviceCommandHandler.js';
+import { SendTestPushCommand } from '../../src/application/features/devices/commands/sendTestPush/sendTestPushCommand.js';
+import { SendTestPushCommandHandler } from '../../src/application/features/devices/commands/sendTestPush/sendTestPushCommandHandler.js';
+import { PushNotifier } from '../../src/application/features/devices/common/pushNotifier.js';
+import { InMemoryRateLimiter } from '../../src/infrastructure/push/inMemoryRateLimiter.js';
+import { sha256TokenFingerprint } from '../../src/infrastructure/push/tokenRef.js';
+import { FakeDeviceRepository } from '../fakes/fakeDeviceRepository.js';
+import { FakePushSender } from '../fakes/fakePushSender.js';
 
 export interface TestAppContext {
   /** The app, already listening on 127.0.0.1 (see `listenOnLoopback`); pass it to supertest's `request`. */
@@ -165,6 +176,10 @@ export interface TestAppContext {
   eventDeliveryLog: FakeEventDeliveryLog;
   /** The composition root's mediator, to send commands (e.g. the sweep) directly. */
   mediator: Mediator;
+  /** Push devices registered through `/api/devices` (feature 014). */
+  deviceRepository: FakeDeviceRepository;
+  /** What reached the push service; `setOutcome(token, 'invalid')` simulates a dead token. */
+  pushSender: FakePushSender;
 }
 
 /**
@@ -250,6 +265,10 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
   );
   const quoteConfirmationStore = new FakeQuoteConfirmationStore(quoteRepository, requestRepository, bookingRepository, outboxStore);
   const bookingAuditLogger = new FakeBookingAuditLogger();
+  const deviceRepository = new FakeDeviceRepository();
+  const pushSender = new FakePushSender();
+  const deviceLogger = { info: () => undefined, warn: () => undefined, error: () => undefined };
+  const pushNotifier = new PushNotifier({ devices: deviceRepository, sender: pushSender, logger: deviceLogger, fingerprint: sha256TokenFingerprint });
   seedQuoteWorld({ countryRepository: quoteCountryRepository, zoneRepository, cityRepository, regionRepository, rentalRateRepository, bookingSettingsRepository, commissionSettingRepository });
 
   const ssoCatalog: ISsoProviderCatalog = {
@@ -490,6 +509,24 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       requestType: CancelGoalkeeperRegistrationCommand,
       handler: new CancelGoalkeeperRegistrationCommandHandler(mediator, goalkeeperRegistrationRepository),
     },
+    {
+      requestType: RegisterDeviceCommand,
+      handler: new RegisterDeviceCommandHandler({
+        devices: deviceRepository,
+        clock,
+        logger: deviceLogger,
+        fingerprint: sha256TokenFingerprint,
+        maxDevicesPerUser: 10,
+      }),
+    },
+    {
+      requestType: UnregisterDeviceCommand,
+      handler: new UnregisterDeviceCommandHandler({ devices: deviceRepository, logger: deviceLogger, fingerprint: sha256TokenFingerprint }),
+    },
+    {
+      requestType: SendTestPushCommand,
+      handler: new SendTestPushCommandHandler({ notifier: pushNotifier, limiter: new InMemoryRateLimiter(), clock, limitPerMinute: 5 }),
+    },
   ]);
 
   const health: HealthReportResponse = { status: 'Healthy', checks: [{ name: 'mongodb', status: 'Healthy' }] };
@@ -535,5 +572,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     eventPublisher,
     eventDeliveryLog,
     mediator,
+    deviceRepository,
+    pushSender,
   };
 }

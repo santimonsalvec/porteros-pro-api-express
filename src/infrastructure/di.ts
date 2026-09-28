@@ -54,7 +54,7 @@ import { UpdateGoalkeeperAvailabilityCommandHandler } from '../application/featu
 import { CancelGoalkeeperRegistrationCommand } from '../application/features/goalkeepers/commands/cancelGoalkeeperRegistration/cancelGoalkeeperRegistrationCommand.js';
 import { CancelGoalkeeperRegistrationCommandHandler } from '../application/features/goalkeepers/commands/cancelGoalkeeperRegistration/cancelGoalkeeperRegistrationCommandHandler.js';
 import type { AppDependencies } from '../appDependencies.js';
-import { assertEventsConfig, config } from './config.js';
+import { assertEventsConfig, assertPushConfig, config } from './config.js';
 import { MongoConnectionProvider } from './persistence/mongo/mongoConnectionProvider.js';
 import { UserRepository } from './persistence/mongo/userRepository.js';
 import { RefreshTokenRepository } from './persistence/mongo/refreshTokenRepository.js';
@@ -113,6 +113,18 @@ import { InProcessEventPublisher } from './events/inProcessEventPublisher.js';
 import { EventRelay } from '../application/features/events/common/eventRelay.js';
 import { RunSweepCommand } from '../application/features/events/commands/runSweep/runSweepCommand.js';
 import { RunSweepCommandHandler } from '../application/features/events/commands/runSweep/runSweepCommandHandler.js';
+import { RegisterDeviceCommand } from '../application/features/devices/commands/registerDevice/registerDeviceCommand.js';
+import { RegisterDeviceCommandHandler } from '../application/features/devices/commands/registerDevice/registerDeviceCommandHandler.js';
+import { UnregisterDeviceCommand } from '../application/features/devices/commands/unregisterDevice/unregisterDeviceCommand.js';
+import { UnregisterDeviceCommandHandler } from '../application/features/devices/commands/unregisterDevice/unregisterDeviceCommandHandler.js';
+import { SendTestPushCommand } from '../application/features/devices/commands/sendTestPush/sendTestPushCommand.js';
+import { SendTestPushCommandHandler } from '../application/features/devices/commands/sendTestPush/sendTestPushCommandHandler.js';
+import { PushNotifier } from '../application/features/devices/common/pushNotifier.js';
+import { MongoDeviceRepository } from './persistence/mongo/deviceRepository.js';
+import { FcmPushSender } from './push/fcmPushSender.js';
+import { LoggingPushSender } from './push/loggingPushSender.js';
+import { InMemoryRateLimiter } from './push/inMemoryRateLimiter.js';
+import { sha256TokenFingerprint } from './push/tokenRef.js';
 
 export interface CompositionRoot {
   dependencies: AppDependencies;
@@ -220,6 +232,18 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   logger.info({ events_mode: config.events.mode }, 'Domain events configured');
   if (process.env.NODE_ENV === 'production' && config.events.mode === 'local') {
     logger.warn({ events_mode: 'local' }, 'Domain events run in-process in production: nothing reaches Pub/Sub');
+  }
+
+  // Push notifications (feature 014). `pushNotifier` is what 015 and 019 inject.
+  assertPushConfig();
+  const deviceRepository = new MongoDeviceRepository(db, config.push.inactivityDays);
+  await deviceRepository.ensureIndexes();
+  const pushSender =
+    config.push.mode === 'fcm' ? new FcmPushSender(config.push.firebaseProjectId()) : new LoggingPushSender(logger);
+  const pushNotifier = new PushNotifier({ devices: deviceRepository, sender: pushSender, logger, fingerprint: sha256TokenFingerprint });
+  logger.info({ push_mode: config.push.mode }, 'Push notifications configured');
+  if (process.env.NODE_ENV === 'production' && config.push.mode === 'log') {
+    logger.warn({ push_mode: 'log' }, 'Push notifications are only logged in production: nothing reaches devices');
   }
 
   registerHandlers(mediator, [
@@ -443,6 +467,29 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         pendingWarningMinutes: config.events.pendingWarningMinutes,
         jobs: [],
         jobLocks: jobLockStore,
+      }),
+    },
+    {
+      requestType: RegisterDeviceCommand,
+      handler: new RegisterDeviceCommandHandler({
+        devices: deviceRepository,
+        clock,
+        logger,
+        fingerprint: sha256TokenFingerprint,
+        maxDevicesPerUser: config.push.maxDevicesPerUser,
+      }),
+    },
+    {
+      requestType: UnregisterDeviceCommand,
+      handler: new UnregisterDeviceCommandHandler({ devices: deviceRepository, logger, fingerprint: sha256TokenFingerprint }),
+    },
+    {
+      requestType: SendTestPushCommand,
+      handler: new SendTestPushCommandHandler({
+        notifier: pushNotifier,
+        limiter: new InMemoryRateLimiter(),
+        clock,
+        limitPerMinute: config.push.testLimitPerMinute,
       }),
     },
     {

@@ -22,6 +22,8 @@ export interface FakeMongoCollection {
   dropIndex: Mock;
   insertMany: Mock;
   updateMany: Mock;
+  deleteMany: Mock;
+  listIndexes: Mock;
 }
 
 export function createFakeCollection(): FakeMongoCollection {
@@ -40,6 +42,8 @@ export function createFakeCollection(): FakeMongoCollection {
     dropIndex: vi.fn(),
     insertMany: vi.fn(),
     updateMany: vi.fn(),
+    deleteMany: vi.fn(),
+    listIndexes: vi.fn(),
   };
 }
 
