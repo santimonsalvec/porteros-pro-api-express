@@ -68,9 +68,19 @@ export const config = {
       .map((value) => value.trim())
       .filter(Boolean),
   },
+  // Push notifications (feature 014). `log` only logs what would be sent; `fcm` sends through
+  // Firebase Cloud Messaging with the service account's own credentials.
+  push: {
+    mode: optionalEnv('PUSH_MODE', 'log') as PushMode,
+    firebaseProjectId: (): string => requireEnv('FIREBASE_PROJECT_ID'),
+    inactivityDays: Number(optionalEnv('PUSH_DEVICE_INACTIVITY_DAYS', '60')),
+    maxDevicesPerUser: Number(optionalEnv('PUSH_MAX_DEVICES_PER_USER', '10')),
+    testLimitPerMinute: Number(optionalEnv('PUSH_TEST_LIMIT_PER_MINUTE', '5')),
+  },
 };
 
 export type EventsMode = 'local' | 'pubsub';
+export type PushMode = 'log' | 'fcm';
 
 /**
  * Fails fast at startup when the events configuration cannot work: an unknown mode, or
@@ -88,6 +98,28 @@ export function assertEventsConfig(): void {
     }
     if (config.internalAuth.allowedInvokers.length === 0) {
       throw new Error('Missing required environment variable: INTERNAL_ALLOWED_INVOKERS');
+    }
+  }
+}
+
+/**
+ * Fails fast at startup when the push configuration cannot work: an unknown mode, `fcm` mode
+ * without its Firebase project, or a limit that is not a positive integer.
+ */
+export function assertPushConfig(): void {
+  const { mode } = config.push;
+  if (mode !== 'log' && mode !== 'fcm') {
+    throw new Error(`PUSH_MODE must be "log" or "fcm", got "${String(mode)}"`);
+  }
+  if (mode === 'fcm') config.push.firebaseProjectId();
+  const limits: Record<string, number> = {
+    PUSH_DEVICE_INACTIVITY_DAYS: config.push.inactivityDays,
+    PUSH_MAX_DEVICES_PER_USER: config.push.maxDevicesPerUser,
+    PUSH_TEST_LIMIT_PER_MINUTE: config.push.testLimitPerMinute,
+  };
+  for (const [name, value] of Object.entries(limits)) {
+    if (!Number.isInteger(value) || value <= 0) {
+      throw new Error(`${name} must be a positive integer, got "${String(value)}"`);
     }
   }
 }
