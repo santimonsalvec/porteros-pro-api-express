@@ -45,6 +45,36 @@ describe('MongoNotificationRepository (mocked driver)', () => {
     expect(await repository.createOfferIfAbsent(offer)).toBe(false);
   });
 
+  it('reopens the offer of the request for a replacement booking, or creates it when absent (feature 018)', async () => {
+    const { collection, repository } = harness();
+    const renewal = { ...offer, id: 'new-id', data: { type: 'booking.available', bookingId: 'b-2' } };
+    collection.findOneAndUpdate.mockResolvedValueOnce({ _id: 'old-id' }).mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+    collection.insertOne.mockResolvedValueOnce({}).mockRejectedValueOnce(Object.assign(new Error('E11000'), { code: 11000 }));
+
+    expect(await repository.renewOffer(renewal)).toBe('old-id');
+    expect(collection.findOneAndUpdate).toHaveBeenCalledWith(
+      { userId: 'g1', requestId: 'r1', type: 'booking.available', 'data.bookingId': { $ne: 'b-2' } },
+      {
+        $set: {
+          title: 't',
+          body: 'b',
+          data: renewal.data,
+          createdAt: now,
+          readAt: null,
+          dismissedAt: null,
+          notifiedAt: null,
+          reminderCount: 0,
+          lastRemindedAt: null,
+        },
+      },
+      { returnDocument: 'after' },
+    );
+    // No offer yet: created with the new id.
+    expect(await repository.renewOffer(renewal)).toBe('new-id');
+    // It already offers this booking (a redelivery): nothing.
+    expect(await repository.renewOffer(renewal)).toBeNull();
+  });
+
   it('rethrows other insert errors', async () => {
     const { collection, repository } = harness();
     collection.insertOne.mockRejectedValue(new Error('network'));

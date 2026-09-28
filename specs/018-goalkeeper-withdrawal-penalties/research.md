@@ -174,7 +174,7 @@ Push is sent only when the inbox entry was written, as in 016. The texts go in a
 - **Refusals**:
   - `404 withdrawal_not_found`;
   - `404 goalkeeper_not_found`;
-  - `409 wallet_not_configured`, when a refund is asked and the owner can't be resolved;
+  - `422 wallet_not_configured` (as 011's wallet routes), when a refund is asked and the owner can't be resolved;
   - `409 missing_charge`, a data problem.
 - **Earlier penalties**: not recomputed (FR-021). Forgiveness only changes later counts.
 - **Audit**: `logPenaltyReversal`.

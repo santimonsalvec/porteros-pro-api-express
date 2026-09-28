@@ -48,6 +48,15 @@ Un `type` desconocido abre el inicio o la bandeja, y la app lo registra en sus l
 
 La cotización trae `cancelAllAvailable` y `cancelAllUntil`: cuando `cancelAllAvailable` es `false`, el formulario no debe ofrecer "cancelar todo" (confirmar con esa opción responde `409 cancel_all_not_available`).
 
+### Retiro del portero (feature 018)
+
+| `type` | Para | Cuándo | Qué abre la app |
+|---|---|---|---|
+| `booking.goalkeeper_withdrew` | cliente | Su portero se retiró. Con tiempo de búsqueda: "Ya estamos buscando otro portero." (se creó una reserva de reemplazo en la misma solicitud); sin tiempo: "No alcanzamos a buscar otro portero." | La solicitud (`requestId`) |
+| `goalkeeper.suspended` | portero | El retiro lo suspendió (con menos de 2 h de anticipación, o el 3.er retiro en 7 días); `data.suspendedUntil` trae el fin | Su historial de retiros (`GET /api/goalkeepers/me/withdrawals`) |
+
+- La reserva de reemplazo se ofrece como un partido nuevo, pero **reabre** la oferta que cada portero ya tenía de esa solicitud: vuelve a quedar sin leer, arriba en la bandeja y con un push nuevo, aunque la hubiera descartado. El portero que se retiró nunca la recibe.
+
 ### Ofertas a porteros (feature 015)
 
 | `type` | Cuándo | Qué abre la app |

@@ -148,6 +148,14 @@ import { FakeBookingLifecycleStore } from '../fakes/fakeBookingLifecycleStore.js
 import { CancelAllJob } from '../../src/application/features/bookingLifecycle/jobs/cancelAllJob.js';
 import { GOALKEEPER_CANCELLATION_EVENT_TYPES, GoalkeeperCancellationNoticeHandler } from '../../src/application/features/bookingLifecycle/handlers/goalkeeperCancellationNoticeHandler.js';
 import { CancelBookingsByClientCommand } from '../../src/application/features/bookingLifecycle/commands/cancelBookingsByClient/cancelBookingsByClientCommand.js';
+import { ListGoalkeeperWithdrawalsQuery } from '../../src/application/features/bookingLifecycle/queries/listGoalkeeperWithdrawals/listGoalkeeperWithdrawalsQuery.js';
+import { ListGoalkeeperWithdrawalsQueryHandler } from '../../src/application/features/bookingLifecycle/queries/listGoalkeeperWithdrawals/listGoalkeeperWithdrawalsQueryHandler.js';
+import { ReverseWithdrawalPenaltyCommand } from '../../src/application/features/bookingLifecycle/commands/reverseWithdrawalPenalty/reverseWithdrawalPenaltyCommand.js';
+import { ReverseWithdrawalPenaltyCommandHandler } from '../../src/application/features/bookingLifecycle/commands/reverseWithdrawalPenalty/reverseWithdrawalPenaltyCommandHandler.js';
+import { WithdrawFromBookingCommand } from '../../src/application/features/bookingLifecycle/commands/withdrawFromBooking/withdrawFromBookingCommand.js';
+import { WithdrawFromBookingCommandHandler } from '../../src/application/features/bookingLifecycle/commands/withdrawFromBooking/withdrawFromBookingCommandHandler.js';
+import { WITHDRAWAL_NOTICE_EVENT_TYPES, WithdrawalNoticeHandler } from '../../src/application/features/bookingLifecycle/handlers/withdrawalNoticeHandler.js';
+import { FakeGoalkeeperIncidentRepository } from '../fakes/fakeGoalkeeperIncidentRepository.js';
 import { CancelBookingsByClientCommandHandler } from '../../src/application/features/bookingLifecycle/commands/cancelBookingsByClient/cancelBookingsByClientCommandHandler.js';
 import { NotifyBookingOffersHandler, OFFER_EVENT_TYPES } from '../../src/application/features/notifications/handlers/notifyBookingOffersHandler.js';
 import { FakeNotificationRepository } from '../fakes/fakeNotificationRepository.js';
@@ -183,6 +191,8 @@ export interface TestAppContext {
   /** The confirmation store over the quote, request and booking fakes; `failNextWith` simulates concurrency. */
   quoteConfirmationStore: FakeQuoteConfirmationStore;
   bookingAuditLogger: FakeBookingAuditLogger;
+  lifecycleStore: FakeBookingLifecycleStore;
+  goalkeeperIncidentRepository: FakeGoalkeeperIncidentRepository;
   /** Set the reference "now" for the quote endpoint (defaults to `QUOTE_NOW`, 13:00 in Bogotá). */
   clock: FixedClock;
   /** Mutate `.status` before a request to simulate an unhealthy dependency. */
@@ -318,7 +328,8 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     maxReminders: 3,
     intervalMinutes: 5,
   });
-  const lifecycleStore = new FakeBookingLifecycleStore(bookingRepository, requestRepository, walletStore, outboxStore);
+  const lifecycleStore = new FakeBookingLifecycleStore(bookingRepository, requestRepository, walletStore, outboxStore, goalkeeperProfileRepository);
+  const goalkeeperIncidentRepository = new FakeGoalkeeperIncidentRepository(lifecycleStore);
   const lifecycleIds = { newId: () => uuidv7() };
   const bookingExpiryJob = new BookingExpiryJob({ bookingRepository, store: lifecycleStore, relay: eventRelay, idGenerator: lifecycleIds, logger: offersLogger });
   const clientOutcomeNotices = new ClientOutcomeNoticeHandler({
@@ -359,6 +370,20 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
   );
   registerSubscribers(mediator, [
     ...CLIENT_OUTCOME_EVENT_TYPES.map((type) => ({ type, handler: clientOutcomeNotices })),
+    ...WITHDRAWAL_NOTICE_EVENT_TYPES.map((type) => ({
+      type,
+      handler: new WithdrawalNoticeHandler({
+        requestRepository,
+        zoneRepository,
+        cityRepository,
+        notifications: notificationRepository,
+        pushNotifier,
+        processed: new FakeProcessedEventStore(),
+        idGenerator: lifecycleIds,
+        clock,
+        logger: offersLogger,
+      }),
+    })),
     ...OFFER_EVENT_TYPES.map((type) => ({ type, handler: new NotifyBookingOffersHandler(mediator, new FakeProcessedEventStore(), clock) })),
   ]);
   seedQuoteWorld({ countryRepository: quoteCountryRepository, zoneRepository, cityRepository, regionRepository, rentalRateRepository, bookingSettingsRepository, commissionSettingRepository });
@@ -628,6 +653,31 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       }),
     },
     {
+      requestType: ListGoalkeeperWithdrawalsQuery,
+      handler: new ListGoalkeeperWithdrawalsQueryHandler({ goalkeeperProfileRepository, incidents: goalkeeperIncidentRepository, clock }),
+    },
+    {
+      requestType: ReverseWithdrawalPenaltyCommand,
+      handler: new ReverseWithdrawalPenaltyCommandHandler({ walletContext, store: lifecycleStore, idGenerator: lifecycleIds, clock, audit: bookingAuditLogger, logger: offersLogger }),
+    },
+    {
+      requestType: WithdrawFromBookingCommand,
+      handler: new WithdrawFromBookingCommandHandler({
+        walletContext,
+        bookingSettingsRepository,
+        store: lifecycleStore,
+        bookingRepository,
+        requestRepository,
+        zoneRepository,
+        cityRepository,
+        relay: eventRelay,
+        idGenerator: lifecycleIds,
+        clock,
+        audit: bookingAuditLogger,
+        logger: offersLogger,
+      }),
+    },
+    {
       requestType: NotifyBookingOffersCommand,
       handler: new NotifyBookingOffersCommandHandler({ bookingRepository, eligibility: offerEligibility, sender: offerSender, clock, logger: offersLogger }),
     },
@@ -685,6 +735,8 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     bookingRepository,
     quoteConfirmationStore,
     bookingAuditLogger,
+    lifecycleStore,
+    goalkeeperIncidentRepository,
     clock,
     health,
     walletStore,

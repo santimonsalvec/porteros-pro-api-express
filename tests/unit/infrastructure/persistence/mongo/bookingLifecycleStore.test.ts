@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ClientSession, Collection, Db, Document } from 'mongodb';
-import { bookingCancelled, bookingExpired } from '../../../../../src/domain/events/bookingEvents.js';
+import { bookingCancelled, bookingCreated, bookingExpired, goalkeeperWithdrew } from '../../../../../src/domain/events/bookingEvents.js';
+import { DEFAULT_GOALKEEPER_PENALTIES } from '../../../../../src/domain/goalkeepers/penaltyPolicy.js';
 import { MongoBookingLifecycleStore } from '../../../../../src/infrastructure/persistence/mongo/bookingLifecycleStore.js';
 import { bookingToDocument } from '../../../../../src/infrastructure/persistence/mongo/bookingRepository.js';
 import { requestToDocument } from '../../../../../src/infrastructure/persistence/mongo/goalkeeperRequestRepository.js';
@@ -21,7 +22,17 @@ function harness() {
   const wallets = createFakeCollection();
   const movements = createFakeCollection();
   const outbox = createFakeCollection();
-  const collections: Record<string, unknown> = { bookings, goalkeeperRequests: requests, wallets, walletMovements: movements, outbox };
+  const incidents = createFakeCollection();
+  const profiles = createFakeCollection();
+  const collections: Record<string, unknown> = {
+    bookings,
+    goalkeeperRequests: requests,
+    wallets,
+    walletMovements: movements,
+    outbox,
+    goalkeeperIncidents: incidents,
+    goalkeeperProfiles: profiles,
+  };
   const db = { collection: (name: string) => collections[name] as Collection<Document> } as unknown as Db;
   const session = {
     withTransaction: vi.fn(async (fn: (s: ClientSession) => Promise<unknown>) => fn(session as unknown as ClientSession)),
@@ -44,7 +55,11 @@ function harness() {
       newId: () => `m-${++ids}`,
       buildEvent: (booking, refund) => bookingCancelled(`ev-${booking.id}`, booking, now, refund),
     });
-  return { bookings, requests, movements, outbox, session, store, cancelAll };
+  incidents.insertOne.mockResolvedValue({});
+  incidents.replaceOne.mockResolvedValue({});
+  incidents.countDocuments.mockResolvedValue(0);
+  profiles.updateOne.mockResolvedValue({});
+  return { bookings, requests, movements, outbox, incidents, profiles, session, store, cancelAll };
 }
 
 describe('MongoBookingLifecycleStore (mocked driver)', () => {
@@ -275,4 +290,250 @@ describe('MongoBookingLifecycleStore (mocked driver)', () => {
     expect(await h.cancelAll()).toEqual({ kind: 'kept' });
     expect(h.bookings.updateOne).not.toHaveBeenCalled();
   });
+
+  it('"cancel all" ignores bookings a goalkeeper withdrew from (feature 018)', async () => {
+    const h = harness();
+    h.requests.findOneAndUpdate.mockResolvedValue({ _id: 'r-1' });
+    h.bookings.find.mockReturnValue(toArrayResult([{ ...assignedDoc, _id: 'gone', status: 'goalkeeper_withdrew' }, assignedDoc]));
+
+    expect(await h.cancelAll()).toEqual({ kind: 'kept' });
+  });
+
+  describe('withdraw (feature 018)', () => {
+    // The match starts at 20:00Z; its search ends at 19:30Z.
+    const at = new Date('2026-09-28T18:30:00.000Z');
+    const config = DEFAULT_GOALKEEPER_PENALTIES;
+
+    function withdraw(h: ReturnType<typeof harness>, when = at) {
+      let ids = 0;
+      return h.store.withdraw({
+        bookingId: second!.id,
+        goalkeeperId: 'gk-1',
+        now: when,
+        note: 'Me enfermé',
+        config,
+        newId: () => `id-${++ids}`,
+        buildEvents: (withdrawn, incident, replacement, suspendedUntil) => [
+          goalkeeperWithdrew('ev-w', withdrawn, incident, suspendedUntil, when),
+          ...(replacement ? [bookingCreated('ev-c', replacement, request, when)] : []),
+        ],
+      });
+    }
+
+    it('ends the booking, creates the replacement, penalizes a late withdrawal and suspends the goalkeeper', async () => {
+      const h = harness();
+      h.bookings.findOne.mockResolvedValue(assignedDoc);
+      h.bookings.countDocuments.mockResolvedValue(1);
+      h.incidents.countDocuments.mockResolvedValue(0);
+      h.incidents.find.mockImplementation(() => toArrayResult(h.incidents.insertOne.mock.calls.map((call) => call[0])));
+
+      const result = await withdraw(h);
+
+      expect(h.bookings.updateOne).toHaveBeenCalledWith(
+        { _id: second!.id, status: 'assigned', goalkeeperId: 'gk-1' },
+        {
+          $set: {
+            status: 'goalkeeper_withdrew',
+            endedAt: at,
+            endReason: 'goalkeeper_withdrew',
+            cancelledBy: 'goalkeeper',
+            cancellationNote: 'Me enfermé',
+          },
+        },
+        { session: h.session },
+      );
+      expect(h.bookings.insertOne.mock.calls[0]![0]).toMatchObject({
+        _id: 'id-1',
+        requestId: 'r-1',
+        status: 'pending_assignment',
+        replacesBookingId: second!.id,
+        excludedGoalkeeperIds: ['gk-1'],
+        commission: second!.commission,
+        searchEndsAt: second!.searchEndsAt,
+      });
+      expect(h.incidents.countDocuments).toHaveBeenCalledWith(
+        { goalkeeperId: 'gk-1', forgivenAt: null, occurredAt: { $gt: new Date('2026-09-21T18:30:00.000Z') } },
+        { session: h.session },
+      );
+      const until = new Date('2026-10-01T18:30:00.000Z');
+      expect(h.incidents.insertOne.mock.calls[0]![0]).toMatchObject({
+        kind: 'withdrawal',
+        goalkeeperId: 'gk-1',
+        bookingId: second!.id,
+        noticeMinutes: 90,
+        late: true,
+        reason: 'Me enfermé',
+        replacementBookingId: 'id-1',
+        penalties: [{ kind: 'late', days: 3, startsAt: at, endsAt: until, reversal: null }],
+        forgivenAt: null,
+      });
+      expect(h.incidents.find).toHaveBeenCalledWith({ goalkeeperId: 'gk-1', 'penalties.endsAt': { $gt: at } }, { session: h.session });
+      expect(h.profiles.updateOne).toHaveBeenCalledWith(
+        { userId: 'gk-1' },
+        { $set: { suspendedUntil: until, penaltiesUpdatedAt: at } },
+        { session: h.session },
+      );
+      expect(h.outbox.insertMany.mock.calls[0]![0].map((entry: { type: string }) => entry.type)).toEqual(['goalkeeper.withdrew', 'booking.created']);
+      expect(result).toMatchObject({ kind: 'withdrawn', suspendedUntil: until, booking: { status: 'goalkeeper_withdrew' }, replacement: { id: 'id-1' } });
+    });
+
+    it('creates no replacement once the search is over, and always writes the profile', async () => {
+      const h = harness();
+      h.bookings.findOne.mockResolvedValue(assignedDoc);
+      h.bookings.countDocuments.mockResolvedValue(0);
+      h.incidents.find.mockReturnValue(toArrayResult([]));
+
+      const result = await withdraw(h, new Date('2026-09-28T19:40:00.000Z'));
+
+      expect(h.bookings.insertOne).not.toHaveBeenCalled();
+      expect(h.incidents.insertOne.mock.calls[0]![0]).toMatchObject({ replacementBookingId: null, late: true });
+      expect(h.profiles.updateOne).toHaveBeenCalled();
+      expect(h.requests.updateOne).toHaveBeenCalledWith({ _id: 'r-1' }, { $set: { active: false } }, { session: h.session });
+      expect(result).toMatchObject({ kind: 'withdrawn', replacement: null });
+    });
+
+    it('adds the weekly-limit penalty to the one reaching the limit', async () => {
+      const h = harness();
+      h.bookings.findOne.mockResolvedValue(assignedDoc);
+      h.bookings.countDocuments.mockResolvedValue(1);
+      h.incidents.countDocuments.mockResolvedValue(2);
+      h.incidents.find.mockReturnValue(toArrayResult([]));
+
+      await withdraw(h, new Date('2026-09-28T15:00:00.000Z'));
+
+      expect(h.incidents.insertOne.mock.calls[0]![0].penalties.map((p: { kind: string }) => p.kind)).toEqual(['weekly_limit']);
+    });
+
+    it.each([
+      ['another goalkeeper', { ...assignedDoc, goalkeeperId: 'gk-2' }, { kind: 'not_found' }],
+      ['a missing booking', null, { kind: 'not_found' }],
+      ['a pending booking', { ...assignedDoc, status: 'cancelled' }, { kind: 'not_withdrawable', status: 'cancelled' }],
+    ])('refuses %s without writing', async (_label, doc, expected) => {
+      const h = harness();
+      h.bookings.findOne.mockResolvedValue(doc);
+
+      expect(await withdraw(h)).toEqual(expected);
+      expect(h.bookings.updateOne).not.toHaveBeenCalled();
+      expect(h.incidents.insertOne).not.toHaveBeenCalled();
+      expect(h.profiles.updateOne).not.toHaveBeenCalled();
+    });
+
+    it('refuses once the match has started', async () => {
+      const h = harness();
+      h.bookings.findOne.mockResolvedValue(assignedDoc);
+
+      expect(await withdraw(h, new Date('2026-09-28T20:00:00.000Z'))).toEqual({ kind: 'match_started', startsAt: second!.startsAt });
+      expect(h.bookings.updateOne).not.toHaveBeenCalled();
+    });
+
+    it('answers a repeat from the stored withdrawal, without writing', async () => {
+      const h = harness();
+      h.bookings.findOne.mockResolvedValue({ ...assignedDoc, status: 'goalkeeper_withdrew' });
+      h.incidents.findOne.mockResolvedValue(storedIncident());
+      h.profiles.findOne.mockResolvedValue({ userId: 'gk-1', suspendedUntil: new Date('2026-10-01T18:30:00.000Z') });
+
+      expect(await withdraw(h)).toMatchObject({ kind: 'replayed', incident: { id: 'w-1' }, suspendedUntil: new Date('2026-10-01T18:30:00.000Z') });
+      expect(h.incidents.findOne).toHaveBeenCalledWith({ kind: 'withdrawal', bookingId: second!.id }, { session: h.session });
+      expect(h.bookings.updateOne).not.toHaveBeenCalled();
+      expect(h.profiles.updateOne).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('reverseWithdrawal (feature 018)', () => {
+    const at = new Date('2026-09-29T12:00:00.000Z');
+
+    function reverse(h: ReturnType<typeof harness>, what: { refund: boolean; liftSuspension: boolean }) {
+      let ids = 0;
+      return h.store.reverseWithdrawal({
+        goalkeeperId: 'gk-1',
+        withdrawalId: 'w-1',
+        adminId: 'admin-1',
+        reason: 'Incapacidad médica',
+        now: at,
+        owner,
+        newId: () => `m-${++ids}`,
+        ...what,
+      });
+    }
+
+    it('refunds the commission as the admin, lifts the penalties, forgives and recomputes the suspension', async () => {
+      const h = harness();
+      h.incidents.findOne.mockResolvedValue(storedIncident());
+      h.bookings.findOne.mockResolvedValue({ ...assignedDoc, status: 'goalkeeper_withdrew' });
+      h.movements.findOne
+        .mockResolvedValueOnce({ causeKey: `commission:${second!.id}`, amount: -7000, currency: 'COP' })
+        .mockResolvedValueOnce(null);
+      h.incidents.find.mockImplementation(() => toArrayResult(h.incidents.replaceOne.mock.calls.map((call) => call[1])));
+
+      const result = await reverse(h, { refund: true, liftSuspension: true });
+
+      expect(h.incidents.findOne).toHaveBeenCalledWith({ _id: 'w-1', goalkeeperId: 'gk-1' }, { session: h.session });
+      expect(h.movements.insertOne.mock.calls[0]![0]).toMatchObject({
+        type: 'commission_refund',
+        amount: 7000,
+        causeKey: `commission_refund:${second!.id}`,
+        actor: { kind: 'admin', userId: 'admin-1' },
+        cancellation: { by: 'admin', at, reason: 'Incapacidad médica' },
+      });
+      const replaced = h.incidents.replaceOne.mock.calls[0]![1];
+      expect(replaced).toMatchObject({
+        forgivenAt: at,
+        moneyReversal: { by: 'admin-1', at, reason: 'Incapacidad médica', amount: 7000, currency: 'COP' },
+        penalties: [{ reversal: { by: 'admin-1', at, reason: 'Incapacidad médica' } }],
+      });
+      expect(h.profiles.updateOne).toHaveBeenCalledWith(
+        { userId: 'gk-1' },
+        { $set: { suspendedUntil: null, penaltiesUpdatedAt: at } },
+        { session: h.session },
+      );
+      expect(result).toMatchObject({ kind: 'reversed', suspendedUntil: null });
+    });
+
+    it('does nothing when there is nothing left to reverse', async () => {
+      const h = harness();
+      const decision = { by: 'admin-1', at, reason: 'x' };
+      const done = storedIncident({ moneyReversal: { ...decision, amount: 7000, currency: 'COP' }, forgivenAt: at, lifted: decision });
+      h.incidents.findOne.mockResolvedValue(done);
+      h.profiles.findOne.mockResolvedValue({ userId: 'gk-1', suspendedUntil: null });
+
+      expect(await reverse(h, { refund: true, liftSuspension: true })).toMatchObject({ kind: 'replayed', suspendedUntil: null });
+      expect(h.movements.insertOne).not.toHaveBeenCalled();
+      expect(h.incidents.replaceOne).not.toHaveBeenCalled();
+      expect(h.profiles.updateOne).not.toHaveBeenCalled();
+    });
+
+    it("answers not found for another goalkeeper's withdrawal, and missing_charge without writing", async () => {
+      const h = harness();
+      h.incidents.findOne.mockResolvedValue(null);
+      expect(await reverse(h, { refund: true, liftSuspension: false })).toEqual({ kind: 'not_found' });
+
+      const other = harness();
+      other.incidents.findOne.mockResolvedValue(storedIncident());
+      other.bookings.findOne.mockResolvedValue(assignedDoc);
+      other.movements.findOne.mockResolvedValue(null);
+      expect(await reverse(other, { refund: true, liftSuspension: true })).toEqual({ kind: 'missing_charge', bookingId: second!.id });
+      expect(other.incidents.replaceOne).not.toHaveBeenCalled();
+    });
+  });
 });
+
+function storedIncident(overrides: { moneyReversal?: unknown; forgivenAt?: Date; lifted?: unknown } = {}) {
+  const at = new Date('2026-09-28T18:30:00.000Z');
+  return {
+    _id: 'w-1',
+    kind: 'withdrawal',
+    goalkeeperId: 'gk-1',
+    bookingId: second!.id,
+    requestId: 'r-1',
+    startsAt: second!.startsAt,
+    occurredAt: at,
+    noticeMinutes: 90,
+    late: true,
+    reason: null,
+    replacementBookingId: 'id-1',
+    penalties: [{ id: 'p-1', kind: 'late', days: 3, startsAt: at, endsAt: new Date('2026-10-01T18:30:00.000Z'), reversal: overrides.lifted ?? null }],
+    moneyReversal: overrides.moneyReversal ?? null,
+    forgivenAt: overrides.forgivenAt ?? null,
+  };
+}
+

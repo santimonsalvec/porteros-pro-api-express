@@ -28,6 +28,26 @@ export class FakeNotificationRepository implements INotificationRepository {
     return true;
   }
 
+  async renewOffer(offer: NewOffer): Promise<string | null> {
+    const existing = [...this.items.values()].find(
+      (item) => item.type === OFFER_TYPE && item.userId === offer.userId && item.requestId === offer.requestId,
+    );
+    if (!existing) return (await this.createOfferIfAbsent(offer)) ? offer.id : null;
+    if (existing.data.bookingId === offer.data.bookingId) return null;
+    Object.assign(existing, {
+      title: offer.title,
+      body: offer.body,
+      data: offer.data,
+      createdAt: offer.createdAt,
+      readAt: null,
+      dismissedAt: null,
+      notifiedAt: null,
+      reminderCount: 0,
+      lastRemindedAt: null,
+    });
+    return existing.id;
+  }
+
   async createIfAbsent(entry: NewNotification): Promise<boolean> {
     if ([...this.items.values()].some((item) => item.dedupeKey === entry.dedupeKey)) return false;
     this.items.set(entry.id, {

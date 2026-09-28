@@ -143,10 +143,18 @@ import { DismissOfferCommandHandler } from '../application/features/notification
 import { BookingExpiryJob } from '../application/features/bookingLifecycle/jobs/bookingExpiryJob.js';
 import { CLIENT_OUTCOME_EVENT_TYPES, ClientOutcomeNoticeHandler } from '../application/features/bookingLifecycle/handlers/clientOutcomeNoticeHandler.js';
 import { MongoBookingLifecycleStore } from './persistence/mongo/bookingLifecycleStore.js';
+import { GoalkeeperIncidentRepository } from './persistence/mongo/goalkeeperIncidentRepository.js';
 import { CancelAllJob } from '../application/features/bookingLifecycle/jobs/cancelAllJob.js';
 import { GOALKEEPER_CANCELLATION_EVENT_TYPES, GoalkeeperCancellationNoticeHandler } from '../application/features/bookingLifecycle/handlers/goalkeeperCancellationNoticeHandler.js';
 import { CancelBookingsByClientCommand } from '../application/features/bookingLifecycle/commands/cancelBookingsByClient/cancelBookingsByClientCommand.js';
 import { CancelBookingsByClientCommandHandler } from '../application/features/bookingLifecycle/commands/cancelBookingsByClient/cancelBookingsByClientCommandHandler.js';
+import { ListGoalkeeperWithdrawalsQuery } from '../application/features/bookingLifecycle/queries/listGoalkeeperWithdrawals/listGoalkeeperWithdrawalsQuery.js';
+import { ListGoalkeeperWithdrawalsQueryHandler } from '../application/features/bookingLifecycle/queries/listGoalkeeperWithdrawals/listGoalkeeperWithdrawalsQueryHandler.js';
+import { ReverseWithdrawalPenaltyCommand } from '../application/features/bookingLifecycle/commands/reverseWithdrawalPenalty/reverseWithdrawalPenaltyCommand.js';
+import { ReverseWithdrawalPenaltyCommandHandler } from '../application/features/bookingLifecycle/commands/reverseWithdrawalPenalty/reverseWithdrawalPenaltyCommandHandler.js';
+import { WithdrawFromBookingCommand } from '../application/features/bookingLifecycle/commands/withdrawFromBooking/withdrawFromBookingCommand.js';
+import { WithdrawFromBookingCommandHandler } from '../application/features/bookingLifecycle/commands/withdrawFromBooking/withdrawFromBookingCommandHandler.js';
+import { WITHDRAWAL_NOTICE_EVENT_TYPES, WithdrawalNoticeHandler } from '../application/features/bookingLifecycle/handlers/withdrawalNoticeHandler.js';
 import { NotifyBookingOffersHandler, OFFER_EVENT_TYPES } from '../application/features/notifications/handlers/notifyBookingOffersHandler.js';
 import { MongoNotificationRepository } from './persistence/mongo/notificationRepository.js';
 import { MongoOfferPushStateStore } from './persistence/mongo/offerPushStateStore.js';
@@ -192,6 +200,8 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   await requestRepository.ensureIndexes();
   const bookingRepository = new BookingRepository(db);
   await bookingRepository.ensureIndexes();
+  const goalkeeperIncidentRepository = new GoalkeeperIncidentRepository(db);
+  await goalkeeperIncidentRepository.ensureIndexes();
   const quoteConfirmationStore = new MongoQuoteConfirmationStore(() => connectionProvider.startSession(), db);
   const walletRepository = new WalletRepository(db);
   const walletMovementRepository = new WalletMovementRepository(db);
@@ -327,6 +337,22 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   registerSubscribers(
     mediator,
     CLIENT_OUTCOME_EVENT_TYPES.map((type) => ({ type, handler: clientOutcomeNotices })),
+  );
+  // Withdrawal notices to the client and the suspended goalkeeper (feature 018).
+  const withdrawalNotices = new WithdrawalNoticeHandler({
+    requestRepository,
+    zoneRepository,
+    cityRepository,
+    notifications: notificationRepository,
+    pushNotifier,
+    processed: processedEventStore,
+    idGenerator,
+    clock,
+    logger,
+  });
+  registerSubscribers(
+    mediator,
+    WITHDRAWAL_NOTICE_EVENT_TYPES.map((type) => ({ type, handler: withdrawalNotices })),
   );
   registerSubscribers(
     mediator,
@@ -584,6 +610,31 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         clock,
         audit: auditLogger,
         logger: logger,
+      }),
+    },
+    {
+      requestType: ListGoalkeeperWithdrawalsQuery,
+      handler: new ListGoalkeeperWithdrawalsQueryHandler({ goalkeeperProfileRepository, incidents: goalkeeperIncidentRepository, clock }),
+    },
+    {
+      requestType: ReverseWithdrawalPenaltyCommand,
+      handler: new ReverseWithdrawalPenaltyCommandHandler({ walletContext, store: lifecycleStore, idGenerator: idGenerator, clock, audit: auditLogger, logger: logger }),
+    },
+    {
+      requestType: WithdrawFromBookingCommand,
+      handler: new WithdrawFromBookingCommandHandler({
+        walletContext,
+        bookingSettingsRepository,
+        store: lifecycleStore,
+        bookingRepository,
+        requestRepository,
+        zoneRepository,
+        cityRepository,
+        relay: eventRelay,
+        idGenerator,
+        clock,
+        audit: auditLogger,
+        logger,
       }),
     },
     {

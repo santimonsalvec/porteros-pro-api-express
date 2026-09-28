@@ -50,6 +50,34 @@ describe('NotifyBookingOffersCommandHandler', () => {
     expect(h.pushSender.calls).toHaveLength(1);
   });
 
+  it('reopens the request offer for a replacement, even a dismissed one, but never for the goalkeeper who withdrew (feature 018)', async () => {
+    const h = harness();
+    h.goalkeeper('h');
+    h.goalkeeper('g');
+    await h.phone('h');
+    await h.phone('g');
+    const original = h.match('r1', 3).bookings[0]!;
+    await h.handler.handle(new NotifyBookingOffersCommand(original.id));
+    const hOffer = h.notifications.all().find((offer) => offer.userId === 'h')!;
+    await h.notifications.dismissOffer(hOffer.id, 'h', h.clock.now());
+    h.bookingRepository.seed(Booking.rehydrate({ ...original, status: 'goalkeeper_withdrew', goalkeeperId: 'g', assignedAt: h.clock.now() }));
+    const replacement = Booking.replacementFor(original.assign('g', h.clock.now()), 'b-replacement', 'g', h.clock.now());
+    h.bookingRepository.seed(replacement);
+    h.pushSender.calls.length = 0;
+
+    const result = await h.handler.handle(new NotifyBookingOffersCommand(replacement.id));
+
+    expect(result).toMatchObject({ outcome: 'notified', eligible: 1, report: { entriesCreated: 1, reached: 1 } });
+    expect(h.pushSender.calls.map((call) => call.userId)).toEqual(['h']);
+    const renewed = h.notifications.all().find((offer) => offer.userId === 'h')!;
+    expect(renewed).toMatchObject({ id: hOffer.id, readAt: null, dismissedAt: null, reminderCount: 0, data: { bookingId: 'b-replacement' } });
+    expect(renewed.notifiedAt).toEqual(h.clock.now());
+
+    // A redelivery reopens nothing and pushes nothing.
+    await h.handler.handle(new NotifyBookingOffersCommand(replacement.id));
+    expect(h.pushSender.calls).toHaveLength(1);
+  });
+
   it('skips a booking that is gone, taken or past its search', async () => {
     const h = harness();
     h.goalkeeper('g1');

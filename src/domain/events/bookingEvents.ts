@@ -1,5 +1,7 @@
 import type { Booking } from '../bookings/booking.js';
 import type { GoalkeeperRequest } from '../bookings/goalkeeperRequest.js';
+import type { GoalkeeperIncident } from '../goalkeepers/goalkeeperIncident.js';
+import type { PenaltyKind } from '../goalkeepers/penaltyPolicy.js';
 import type { DomainEvent } from './domainEvent.js';
 
 export interface BookingCreatedPayload {
@@ -10,6 +12,8 @@ export interface BookingCreatedPayload {
   currency: string;
   /** How many goalkeepers the whole request asked for. */
   goalkeeperCount: number;
+  /** Set when the booking replaces one a goalkeeper withdrew from (feature 018). */
+  replacesBookingId?: string;
 }
 
 export interface GoalkeeperAssignedPayload {
@@ -40,11 +44,31 @@ export interface BookingCancelledPayload {
   by: 'system' | 'client';
 }
 
+export interface GoalkeeperWithdrewPayload {
+  goalkeeperId: string;
+  clientId: string;
+  zoneId: string;
+  startsAt: Date;
+  noticeMinutes: number;
+  late: boolean;
+  /** The booking created in its place, or null when the search was already over. */
+  replacementBookingId: string | null;
+  /** The goalkeeper's suspension end, set only when this withdrawal applied a penalty. */
+  suspendedUntil: Date | null;
+  penalties: Array<{ kind: PenaltyKind; days: number; endsAt: Date }>;
+}
+
 export type BookingCreatedEvent = DomainEvent<'booking.created', BookingCreatedPayload>;
 export type BookingExpiredEvent = DomainEvent<'booking.expired', BookingExpiredPayload>;
 export type BookingCancelledEvent = DomainEvent<'booking.cancelled', BookingCancelledPayload>;
 export type GoalkeeperAssignedEvent = DomainEvent<'goalkeeper.assigned', GoalkeeperAssignedPayload>;
-export type BookingEvent = BookingCreatedEvent | GoalkeeperAssignedEvent | BookingExpiredEvent | BookingCancelledEvent;
+export type GoalkeeperWithdrewEvent = DomainEvent<'goalkeeper.withdrew', GoalkeeperWithdrewPayload>;
+export type BookingEvent =
+  | BookingCreatedEvent
+  | GoalkeeperAssignedEvent
+  | BookingExpiredEvent
+  | BookingCancelledEvent
+  | GoalkeeperWithdrewEvent;
 
 /** One per booking created by a confirmation (spec clarification 1). */
 export function bookingCreated(id: string, booking: Booking, request: GoalkeeperRequest, at: Date): BookingCreatedEvent {
@@ -62,6 +86,7 @@ export function bookingCreated(id: string, booking: Booking, request: Goalkeeper
       commission: booking.commission,
       currency: booking.price.currency,
       goalkeeperCount: request.goalkeeperCount,
+      ...(booking.replacesBookingId ? { replacesBookingId: booking.replacesBookingId } : {}),
     },
   };
 }
@@ -129,6 +154,38 @@ export function bookingCancelled(
       currency: refund?.currency ?? booking.price.currency,
       reason: author.reason,
       by: author.by,
+    },
+  };
+}
+
+/**
+ * The goalkeeper withdrew from a booking they held (feature 018). `withdrawn` is the booking as it
+ * was before (it names the goalkeeper); `suspendedUntil` is set only when a penalty was applied.
+ */
+export function goalkeeperWithdrew(
+  id: string,
+  withdrawn: Booking,
+  incident: GoalkeeperIncident,
+  suspendedUntil: Date | null,
+  at: Date,
+): GoalkeeperWithdrewEvent {
+  return {
+    id,
+    type: 'goalkeeper.withdrew',
+    version: 1,
+    occurredAt: at,
+    bookingId: withdrawn.id,
+    requestId: withdrawn.requestId,
+    payload: {
+      goalkeeperId: incident.goalkeeperId,
+      clientId: withdrawn.clientId,
+      zoneId: withdrawn.zoneId,
+      startsAt: withdrawn.startsAt,
+      noticeMinutes: incident.noticeMinutes,
+      late: incident.late,
+      replacementBookingId: incident.replacementBookingId,
+      suspendedUntil: incident.penalties.length > 0 ? suspendedUntil : null,
+      penalties: incident.penalties.map((penalty) => ({ kind: penalty.kind, days: penalty.days, endsAt: penalty.endsAt })),
     },
   };
 }

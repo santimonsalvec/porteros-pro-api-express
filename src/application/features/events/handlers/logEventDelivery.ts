@@ -5,7 +5,13 @@ import type { IEventDeliveryLog, IEventLogger, IProcessedEventStore } from '../c
 import { runOnce } from '../common/runOnce.js';
 
 /** Event types the delivery log listens to. */
-export const DELIVERY_LOG_EVENT_TYPES = ['booking.created', 'goalkeeper.assigned', 'booking.expired', 'booking.cancelled'] as const;
+export const DELIVERY_LOG_EVENT_TYPES = [
+  'booking.created',
+  'goalkeeper.assigned',
+  'booking.expired',
+  'booking.cancelled',
+  'goalkeeper.withdrew',
+] as const;
 
 /**
  * The example consumer (FR-016): records each event it receives once, proving the chain from the

@@ -58,6 +58,8 @@ export function commissionRefundDraft(
   args: { bookingId: string; requestId: string; amount: number; cancellation: CancellationDetails },
   id: string,
   occurredAt: Date,
+  /** Who records it: the system, or the administrator reversing a withdrawal (feature 018). */
+  actor: MovementActor = SYSTEM,
 ): MovementDraft {
   return {
     id,
@@ -67,7 +69,7 @@ export function commissionRefundDraft(
     currency: owner.currency,
     occurredAt,
     causeKey: `commission_refund:${args.bookingId}`,
-    actor: SYSTEM,
+    actor,
     references: { bookingId: args.bookingId, requestId: args.requestId },
     cancellation: args.cancellation,
     reason: null,

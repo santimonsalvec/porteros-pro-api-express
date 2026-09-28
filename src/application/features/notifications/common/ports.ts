@@ -49,6 +49,12 @@ export type DismissOutcome = 'dismissed' | 'not_found' | 'not_an_offer';
 export interface INotificationRepository {
   /** False when the goalkeeper already has an offer for that request (FR-005). */
   createOfferIfAbsent(offer: NewOffer): Promise<boolean>;
+  /**
+   * The offer of a replacement booking (feature 018): the goalkeeper's offer for the request is
+   * reopened in place (new text and booking, unread, never pushed) or created when there is none.
+   * Returns the id of the entry reopened or created, or null when it already offers this booking.
+   */
+  renewOffer(offer: NewOffer): Promise<string | null>;
   /** False when an entry with the same `dedupeKey` exists already. */
   createIfAbsent(entry: NewNotification): Promise<boolean>;
   listForUser(userId: string, skip: number, limit: number): Promise<NotificationItem[]>;

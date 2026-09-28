@@ -29,7 +29,8 @@ export class NotifyBookingOffersCommandHandler implements ICommandHandler<Notify
     if (booking.status !== 'pending_assignment' || !booking.isSearchOpenAt(now)) return { outcome: 'skipped', reason: 'not_open' };
 
     const eligible = await this.deps.eligibility.eligibleGoalkeepersFor([booking], now);
-    const report = await this.deps.sender.send(eligible, now, 'first');
+    // A replacement reopens the request's existing offers (feature 018).
+    const report = await this.deps.sender.send(eligible, now, booking.replacesBookingId ? 'renew' : 'first');
     this.deps.logger.info(
       { outcome: 'offers_notified', bookingId: booking.id, requestId: booking.requestId, eligible: eligible.size, ...report },
       'Offers sent for a new booking',

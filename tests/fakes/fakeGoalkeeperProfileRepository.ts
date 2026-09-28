@@ -59,6 +59,17 @@ export class FakeGoalkeeperProfileRepository implements IGoalkeeperProfileReposi
     return { previous: current.availableForOffers };
   }
 
+  /** The lifecycle store's `$set: { suspendedUntil }`, synchronous so the fake store stays atomic (018). */
+  setSuspendedUntilNow(userId: string, suspendedUntil: Date | null): void {
+    const current = [...this.profiles.values()].find((profile) => profile.userId === userId);
+    if (current) this.profiles.set(current.id, new GoalkeeperProfile({ ...current, suspendedUntil }));
+  }
+
+  /** Synchronous read for the fake store. */
+  suspendedUntilOf(userId: string): Date | null {
+    return [...this.profiles.values()].find((profile) => profile.userId === userId)?.suspendedUntil ?? null;
+  }
+
   /**
    * Like `findOneAndUpdate` + `$set`: merges only the given keys into whatever is stored
    * *right now*, and does the read and the write in one synchronous step (no `await`

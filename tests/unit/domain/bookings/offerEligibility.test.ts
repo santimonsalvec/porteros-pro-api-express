@@ -20,6 +20,7 @@ describe('isEligible', () => {
     ['booking cancelled', eligibleSnapshot(), buildBooking({ status: 'cancelled' })],
     ['search already ended', eligibleSnapshot(), buildBooking({ searchEndsAt: OFFER_NOW })],
     ['own request', eligibleSnapshot({ goalkeeperId: 'client-1' }), booking],
+    ['withdrew from the booking this one replaces', eligibleSnapshot(), buildBooking({ replacesBookingId: 'b-0', excludedGoalkeeperIds: ['goalkeeper-1'] })],
     [
       'already holds a booking of the same request',
       eligibleSnapshot({ held: [buildBooking({ id: 'booking-2', status: 'assigned', goalkeeperId: 'goalkeeper-1', assignedAt: OFFER_NOW })] }),

@@ -8,6 +8,9 @@ import { ApiError } from './apiError.js';
 import { zodFieldErrors } from './requests/goalkeeperRequests/getServiceQuoteRequest.js';
 import { recordWalletAdjustmentRequestSchema } from './requests/wallet/recordWalletAdjustmentRequest.js';
 import { goalkeeperNotFound, sendMovements, sendWallet, walletNotConfigured } from './wallet/walletHttp.js';
+import { ReverseWithdrawalPenaltyCommand } from '../application/features/bookingLifecycle/commands/reverseWithdrawalPenalty/reverseWithdrawalPenaltyCommand.js';
+import { reverseWithdrawalRequestSchema } from './requests/withdrawals/reverseWithdrawalRequest.js';
+import { sendWithdrawals } from './withdrawals/withdrawalsHttp.js';
 
 export interface AdminControllerDependencies {
   mediator: ISender;
@@ -57,6 +60,40 @@ export function createAdminController(deps: AdminControllerDependencies): Router
         throw goalkeeperNotFound();
       case 'wallet_not_configured':
         throw walletNotConfigured(result.cityId);
+    }
+  });
+
+  // A goalkeeper's withdrawals and penalties, and their reversal (feature 018).
+  router.get('/goalkeepers/:userId/withdrawals', async (req, res) => {
+    await sendWithdrawals(deps.mediator, req.params.userId, 'admin', req, res);
+  });
+
+  router.post('/goalkeepers/:userId/withdrawals/:withdrawalId/reversal', async (req, res) => {
+    const parsed = reverseWithdrawalRequestSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
+    }
+    const { refund, liftSuspension, reason } = parsed.data;
+    const result = await deps.mediator.send(
+      new ReverseWithdrawalPenaltyCommand(req.authClaims!.sub, req.params.userId, req.params.withdrawalId, refund, liftSuspension, reason),
+    );
+
+    // Exhaustive on purpose: adding an outcome without mapping it here fails compilation.
+    switch (result.outcome) {
+      case 'reversed':
+      case 'replayed':
+        res.status(200).json({ withdrawal: result.withdrawal, suspendedUntil: result.suspendedUntil });
+        return;
+      case 'invalid_request':
+        throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', result.errors);
+      case 'not_a_goalkeeper':
+        throw goalkeeperNotFound();
+      case 'withdrawal_not_found':
+        throw new ApiError(404, 'withdrawal_not_found', 'This withdrawal does not exist for this goalkeeper.');
+      case 'wallet_not_configured':
+        throw walletNotConfigured(result.cityId);
+      case 'missing_charge':
+        throw new ApiError(409, 'missing_charge', 'This booking has no commission charge to refund.', undefined, { bookingId: result.bookingId });
     }
   });
 
