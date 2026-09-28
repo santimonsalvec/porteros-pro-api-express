@@ -32,6 +32,9 @@ import { ListAvailableBookingsQuery } from '../application/features/goalkeeperRe
 import { ListGoalkeeperAgendaQuery } from '../application/features/goalkeeperRequests/queries/listGoalkeeperAgenda/listGoalkeeperAgendaQuery.js';
 import { listClientBookingsRequestSchema } from './requests/goalkeeperRequests/listClientBookingsRequest.js';
 import { zodFieldErrors } from './requests/goalkeeperRequests/getServiceQuoteRequest.js';
+import { withdrawRequestSchema } from './requests/withdrawals/withdrawRequest.js';
+import { sendWithdrawals } from './withdrawals/withdrawalsHttp.js';
+import { WithdrawFromBookingCommand } from '../application/features/bookingLifecycle/commands/withdrawFromBooking/withdrawFromBookingCommand.js';
 
 /** Same accepted formats as `/api/images` (research.md §11) — no goalkeeper-specific override. */
 const ALLOWED_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']);
@@ -386,6 +389,41 @@ export function createGoalkeeperController(deps: GoalkeeperControllerDependencie
       case 'not_a_goalkeeper':
         throw goalkeeperNotFound();
     }
+  });
+
+  // The goalkeeper withdraws from a booking they took (feature 018): no refund, a replacement is
+  // searched while there's time, and late or repeated withdrawals suspend them.
+  router.post('/me/bookings/:bookingId/withdraw', async (req, res) => {
+    const parsed = withdrawRequestSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
+    }
+    const result = await deps.mediator.send(new WithdrawFromBookingCommand(req.authClaims!.sub, req.params.bookingId, parsed.data.reason));
+
+    // Exhaustive on purpose: adding an outcome without mapping it here fails compilation.
+    switch (result.outcome) {
+      case 'withdrawn':
+      case 'replayed':
+        res.status(200).json({ ...result.booking, withdrawal: result.withdrawal });
+        return;
+      case 'not_a_goalkeeper':
+        throw goalkeeperNotFound();
+      case 'booking_not_found':
+        throw new ApiError(404, 'booking_not_found', 'This booking does not exist or is not yours.');
+      case 'not_withdrawable':
+        throw new ApiError(409, 'booking_not_withdrawable', 'You can only withdraw from a booking assigned to you.', undefined, {
+          status: result.status,
+        });
+      case 'match_started':
+        throw new ApiError(409, 'match_started', 'The match has already started.', undefined, { startsAt: result.startsAt });
+      case 'invalid_reason':
+        throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', { reason: 'reason must have at most 200 characters' });
+    }
+  });
+
+  // Their own withdrawals and penalties, newest first (feature 018).
+  router.get('/me/withdrawals', async (req, res) => {
+    await sendWithdrawals(deps.mediator, req.authClaims!.sub, 'goalkeeper', req, res);
   });
 
   // The goalkeeper's wallet (feature 011). The goalkeeper is always the token's subject.

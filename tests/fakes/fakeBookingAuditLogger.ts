@@ -14,4 +14,15 @@ export class FakeBookingAuditLogger implements IBookingAuditLogger {
   logClientCancellation(entry: { outcome: string; clientId: string; requestId: string; bookingId?: string }): void {
     this.cancellations.push(entry);
   }
+
+  readonly withdrawals: Array<{ outcome: string; goalkeeperId: string; bookingId: string; requestId?: string }> = [];
+  readonly reversals: Array<{ outcome: string; adminId: string; goalkeeperId: string; withdrawalId: string }> = [];
+
+  logWithdrawal(entry: { outcome: string; goalkeeperId: string; bookingId: string; requestId?: string }): void {
+    this.withdrawals.push(entry);
+  }
+
+  logPenaltyReversal(entry: { outcome: string; adminId: string; goalkeeperId: string; withdrawalId: string }): void {
+    this.reversals.push(entry);
+  }
 }

@@ -1,4 +1,10 @@
 /** Hand-written OpenAPI 3.0 document mirroring specs/001-porteros-api-migration/contracts/. */
+/** `page` / `pageSize` query parameters of the paged lists (1-based, 20 by default, at most 50). */
+const PAGING = [
+  { name: 'page', in: 'query', required: false, schema: { type: 'integer', minimum: 1, default: 1 } },
+  { name: 'pageSize', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 50, default: 20 } },
+];
+
 export const openapiSpec = {
   openapi: '3.0.3',
   info: {
@@ -201,6 +207,77 @@ export const openapiSpec = {
             required: ['status', 'assignedAt', 'latitude', 'longitude', 'client'],
           },
         ],
+      },
+      WithdrawalDecision: {
+        type: 'object',
+        description: "An administrator's decision. `by` (the administrator's user id) only in the admin view.",
+        properties: {
+          by: { type: 'string' },
+          at: { type: 'string', format: 'date-time' },
+          reason: { type: 'string' },
+        },
+        required: ['at', 'reason'],
+      },
+      WithdrawalPenalty: {
+        type: 'object',
+        properties: {
+          penaltyId: { type: 'string' },
+          kind: { type: 'string', enum: ['late', 'weekly_limit'] },
+          days: { type: 'integer' },
+          startsAt: { type: 'string', format: 'date-time' },
+          endsAt: { type: 'string', format: 'date-time' },
+          reversal: { allOf: [{ $ref: '#/components/schemas/WithdrawalDecision' }], nullable: true },
+        },
+        required: ['penaltyId', 'kind', 'days', 'startsAt', 'endsAt', 'reversal'],
+      },
+      WithdrawalSummary: {
+        type: 'object',
+        properties: {
+          withdrawalId: { type: 'string' },
+          occurredAt: { type: 'string', format: 'date-time' },
+          noticeMinutes: { type: 'integer', description: 'Whole minutes before the start' },
+          late: { type: 'boolean', description: 'Less notice than the country threshold (2 h in Colombia)' },
+          replacementCreated: { type: 'boolean', description: 'A replacement booking is being searched' },
+          penalties: { type: 'array', items: { $ref: '#/components/schemas/WithdrawalPenalty' } },
+          suspendedUntil: { type: 'string', format: 'date-time', nullable: true },
+        },
+        required: ['withdrawalId', 'occurredAt', 'noticeMinutes', 'late', 'replacementCreated', 'penalties', 'suspendedUntil'],
+      },
+      WithdrawalItem: {
+        type: 'object',
+        properties: {
+          withdrawalId: { type: 'string' },
+          bookingId: { type: 'string' },
+          requestId: { type: 'string' },
+          startsAt: { type: 'string', format: 'date-time' },
+          occurredAt: { type: 'string', format: 'date-time' },
+          noticeMinutes: { type: 'integer' },
+          late: { type: 'boolean' },
+          reason: { type: 'string', nullable: true },
+          replacementCreated: { type: 'boolean' },
+          penalties: { type: 'array', items: { $ref: '#/components/schemas/WithdrawalPenalty' } },
+          moneyReversal: {
+            nullable: true,
+            allOf: [
+              { $ref: '#/components/schemas/WithdrawalDecision' },
+              { type: 'object', properties: { amount: { type: 'integer' }, currency: { type: 'string' } }, required: ['amount', 'currency'] },
+            ],
+          },
+          forgiven: { type: 'boolean', description: 'Reversed in any way: no longer counts toward the weekly limit' },
+        },
+        required: ['withdrawalId', 'bookingId', 'requestId', 'startsAt', 'occurredAt', 'noticeMinutes', 'late', 'reason', 'replacementCreated', 'penalties', 'moneyReversal', 'forgiven'],
+      },
+      WithdrawalPage: {
+        type: 'object',
+        properties: {
+          items: { type: 'array', items: { $ref: '#/components/schemas/WithdrawalItem' } },
+          page: { type: 'integer' },
+          pageSize: { type: 'integer' },
+          totalItems: { type: 'integer' },
+          totalPages: { type: 'integer' },
+          suspendedUntil: { type: 'string', format: 'date-time', nullable: true, description: 'The suspension in force now' },
+        },
+        required: ['items', 'page', 'pageSize', 'totalItems', 'totalPages', 'suspendedUntil'],
       },
       AgendaPage: {
         type: 'object',
@@ -1271,6 +1348,120 @@ export const openapiSpec = {
           '404': { description: 'goalkeeper_not_found' },
           '409': { description: 'insufficient_funds: the debit would leave the balance below zero (includes balance)', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
           '422': { description: 'wallet_not_configured' },
+        },
+      },
+    },
+    '/api/goalkeepers/me/bookings/{bookingId}/withdraw': {
+      post: {
+        summary: 'Withdraw from a booking the goalkeeper took (feature 018)',
+        description:
+          'Allowed strictly before the start. The commission is not refunded. While the search is open (start − travel margin), a replacement booking with the same price is created and offered to other goalkeepers; the client is told. Less notice than the country threshold (2 h) suspends 3 days, and the 3rd withdrawal within 7 days suspends 7 days; suspensions never add up. Repeating it answers the same.',
+        tags: ['Goalkeeper bookings'],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'bookingId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: false,
+          content: { 'application/json': { schema: { type: 'object', properties: { reason: { type: 'string', maxLength: 200, example: 'Me enfermé' } } } } },
+        },
+        responses: {
+          '200': {
+            description: 'Withdrawn now or already: the agenda item (status goalkeeper_withdrew) plus `withdrawal`',
+            content: {
+              'application/json': {
+                schema: {
+                  allOf: [
+                    { $ref: '#/components/schemas/AgendaItem' },
+                    { type: 'object', properties: { withdrawal: { $ref: '#/components/schemas/WithdrawalSummary' } }, required: ['withdrawal'] },
+                  ],
+                },
+              },
+            },
+          },
+          '400': { description: 'validation_failed: reason', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } } },
+          '401': { description: 'Not signed in' },
+          '404': { description: 'goalkeeper_not_found, or booking_not_found (unknown, or never theirs)', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '409': { description: 'booking_not_withdrawable (status) or match_started (startsAt)', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/api/goalkeepers/me/withdrawals': {
+      get: {
+        summary: "The caller's withdrawals and penalties, newest first (feature 018)",
+        tags: ['Goalkeeper bookings'],
+        security: [{ bearerAuth: [] }],
+        parameters: PAGING,
+        responses: {
+          '200': { description: 'A page of withdrawals and the suspension in force', content: { 'application/json': { schema: { $ref: '#/components/schemas/WithdrawalPage' } } } },
+          '400': { description: 'validation_failed: page or pageSize' },
+          '401': { description: 'Not signed in' },
+          '404': { description: 'goalkeeper_not_found' },
+        },
+      },
+    },
+    '/api/admin/goalkeepers/{userId}/withdrawals': {
+      get: {
+        summary: "A goalkeeper's withdrawals and penalties, with who reversed what (administrators only)",
+        tags: ['Admin'],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }, ...PAGING],
+        responses: {
+          '200': { description: 'A page of withdrawals', content: { 'application/json': { schema: { $ref: '#/components/schemas/WithdrawalPage' } } } },
+          '400': { description: 'validation_failed: page or pageSize' },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'Not an administrator' },
+          '404': { description: 'goalkeeper_not_found' },
+        },
+      },
+    },
+    '/api/admin/goalkeepers/{userId}/withdrawals/{withdrawalId}/reversal': {
+      post: {
+        summary: "Reverse a withdrawal's money and/or suspensions, with a mandatory reason (administrators only)",
+        description:
+          'refund gives back the booking commission once (a commission_refund by the administrator); liftSuspension lifts its penalties and recomputes the suspension end immediately. Either one forgives the withdrawal: it no longer counts toward the weekly limit. Repeating it changes nothing.',
+        tags: ['Admin'],
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'userId', in: 'path', required: true, schema: { type: 'string' } },
+          { name: 'withdrawalId', in: 'path', required: true, schema: { type: 'string' } },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  refund: { type: 'boolean', default: false },
+                  liftSuspension: { type: 'boolean', default: false },
+                  reason: { type: 'string', minLength: 3, maxLength: 500, example: 'Incapacidad médica presentada' },
+                },
+                required: ['reason'],
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Reversed now, or nothing left to reverse: the withdrawal (admin view) and the suspension end',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    withdrawal: { $ref: '#/components/schemas/WithdrawalItem' },
+                    suspendedUntil: { type: 'string', format: 'date-time', nullable: true },
+                  },
+                  required: ['withdrawal', 'suspendedUntil'],
+                },
+              },
+            },
+          },
+          '400': { description: 'validation_failed: reason, or neither refund nor liftSuspension', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } } },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'Not an administrator' },
+          '404': { description: 'goalkeeper_not_found or withdrawal_not_found' },
+          '409': { description: 'missing_charge (bookingId): the booking has no commission charge to refund; nothing changed' },
+          '422': { description: 'wallet_not_configured: a refund is asked but the goalkeeper wallet context cannot be resolved' },
         },
       },
     },

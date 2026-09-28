@@ -74,4 +74,13 @@ describe('BookingSettings', () => {
   it.each([-5, 2.5])('rejects a travel margin of %s', (value) => {
     expect(() => new BookingSettings({ ...base, travelBufferMinutes: value })).toThrow(InvalidConfigurationError);
   });
+
+  it('accepts optional goalkeeper penalty values, partial or absent (feature 018)', () => {
+    expect(new BookingSettings({ ...base, goalkeeperPenalties: { lateNoticeMinutes: 60 } }).goalkeeperPenalties).toEqual({ lateNoticeMinutes: 60 });
+    expect(new BookingSettings(base).goalkeeperPenalties).toBeNull();
+  });
+
+  it.each([0, -1, 2.5])('rejects a penalty value of %s', (value) => {
+    expect(() => new BookingSettings({ ...base, goalkeeperPenalties: { weeklyLimit: value } })).toThrow(/goalkeeperPenalties.weeklyLimit/);
+  });
 });

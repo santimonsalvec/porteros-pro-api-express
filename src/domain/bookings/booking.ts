@@ -16,10 +16,10 @@ export const BOOKING_STATUSES = [
 ] as const;
 export type BookingStatus = (typeof BOOKING_STATUSES)[number];
 
-/** Why a booking ended without being played (feature 016; 017 and 018 add theirs). */
-export type BookingEndReason = 'search_ended' | 'cancel_all' | 'client_cancelled';
-/** Who ended it: the system (016) or the client (017). */
-export type BookingEndedBy = 'system' | 'client';
+/** Why a booking ended without being played (features 016, 017 and 018). */
+export type BookingEndReason = 'search_ended' | 'cancel_all' | 'client_cancelled' | 'goalkeeper_withdrew';
+/** Who ended it: the system (016), the client (017) or the goalkeeper who withdrew (018). */
+export type BookingEndedBy = 'system' | 'client' | 'goalkeeper';
 
 /** The client's optional reason when cancelling (feature 017). */
 export const MAX_CANCELLATION_NOTE_LENGTH = 200;
@@ -53,8 +53,12 @@ export interface BookingProps {
   endedAt?: Date | null;
   endReason?: BookingEndReason | null;
   cancelledBy?: BookingEndedBy | null;
-  /** The client's reason, when the client cancelled it. */
+  /** The client's reason when they cancelled it, or the goalkeeper's when they withdrew. */
   cancellationNote?: string | null;
+  /** The withdrawn booking this one replaces (feature 018). */
+  replacesBookingId?: string | null;
+  /** Goalkeepers who can never take it: those who withdrew from the bookings it replaces. */
+  excludedGoalkeeperIds?: readonly string[];
 }
 
 /**
@@ -81,6 +85,8 @@ export class Booking extends Entity<string> {
   readonly endReason: BookingEndReason | null;
   readonly cancelledBy: BookingEndedBy | null;
   readonly cancellationNote: string | null;
+  readonly replacesBookingId: string | null;
+  readonly excludedGoalkeeperIds: readonly string[];
 
   private constructor(props: BookingProps) {
     super(props.id);
@@ -107,6 +113,8 @@ export class Booking extends Entity<string> {
     this.endReason = props.endReason ?? null;
     this.cancelledBy = props.cancelledBy ?? null;
     this.cancellationNote = props.cancellationNote ?? null;
+    this.replacesBookingId = props.replacesBookingId ?? null;
+    this.excludedGoalkeeperIds = [...(props.excludedGoalkeeperIds ?? [])];
   }
 
   /** A new place for one goalkeeper, at the request's per-goalkeeper price, awaiting assignment. */
@@ -130,6 +138,32 @@ export class Booking extends Entity<string> {
     });
   }
 
+  /**
+   * The booking that takes the place of one a goalkeeper withdrew from (feature 018): the same
+   * match, price, commission and end of search, awaiting a new goalkeeper. The one who withdrew
+   * (and whoever the original already excluded) can never take it.
+   */
+  static replacementFor(original: Booking, id: string, withdrawingGoalkeeperId: string, now: Date): Booking {
+    return new Booking({
+      id,
+      requestId: original.requestId,
+      clientId: original.clientId,
+      zoneId: original.zoneId,
+      startsAt: original.startsAt,
+      endsAt: original.endsAt,
+      status: 'pending_assignment',
+      price: original.price,
+      commission: original.commission,
+      travelBufferMinutes: original.travelBufferMinutes,
+      searchEndsAt: original.searchEndsAt,
+      goalkeeperId: null,
+      assignedAt: null,
+      createdAt: now,
+      replacesBookingId: original.id,
+      excludedGoalkeeperIds: [...new Set([...original.excludedGoalkeeperIds, withdrawingGoalkeeperId])],
+    });
+  }
+
   static rehydrate(props: BookingProps): Booking {
     return new Booking(props);
   }
@@ -137,6 +171,11 @@ export class Booking extends Entity<string> {
   /** Goalkeepers can take it strictly before `searchEndsAt` (start − travel margin). */
   isSearchOpenAt(now: Date): boolean {
     return now.getTime() < this.searchEndsAt.getTime();
+  }
+
+  /** Whole minutes left before the start (0 once started): how much notice a withdrawal gives. */
+  withdrawalNoticeMinutes(now: Date): number {
+    return Math.max(0, Math.floor((this.startsAt.getTime() - now.getTime()) / 60_000));
   }
 
   /** The booking once a goalkeeper has taken it. Only a pending booking can be assigned. */

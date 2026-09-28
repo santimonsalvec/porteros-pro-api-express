@@ -25,6 +25,7 @@ const eventSchema = z.discriminatedUnion('type', [
       commission: z.number(),
       currency: z.string(),
       goalkeeperCount: z.number().int(),
+      replacesBookingId: z.string().optional(),
     }),
   }),
   z.object({
@@ -55,6 +56,21 @@ const eventSchema = z.discriminatedUnion('type', [
       currency: z.string(),
       reason: z.enum(['cancel_all', 'client_cancelled']),
       by: z.enum(['system', 'client']),
+    }),
+  }),
+  z.object({
+    ...envelopeFields,
+    type: z.literal('goalkeeper.withdrew'),
+    payload: z.object({
+      goalkeeperId: z.string(),
+      clientId: z.string(),
+      zoneId: z.string(),
+      startsAt: isoDate,
+      noticeMinutes: z.number().int(),
+      late: z.boolean(),
+      replacementBookingId: z.string().nullable(),
+      suspendedUntil: isoDate.nullable(),
+      penalties: z.array(z.object({ kind: z.enum(['late', 'weekly_limit']), days: z.number().int(), endsAt: isoDate })),
     }),
   }),
 ]);

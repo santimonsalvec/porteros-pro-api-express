@@ -1,5 +1,7 @@
-import type { Booking } from '../../../../domain/bookings/booking.js';
+import type { Booking, BookingStatus } from '../../../../domain/bookings/booking.js';
 import type { DomainEvent } from '../../../../domain/events/domainEvent.js';
+import type { GoalkeeperIncident } from '../../../../domain/goalkeepers/goalkeeperIncident.js';
+import type { GoalkeeperPenaltyConfig } from '../../../../domain/goalkeepers/penaltyPolicy.js';
 import type { LedgerOwner } from '../../wallet/common/walletLedger.js';
 
 export interface ExpireResult {
@@ -31,6 +33,32 @@ export type ClientCancelResult =
   | { kind: 'owner_required'; goalkeeperId: string }
   | { kind: 'missing_charge'; bookingId: string };
 
+export type WithdrawResult =
+  | {
+      kind: 'withdrawn';
+      /** The booking as it is now (`goalkeeper_withdrew`). */
+      booking: Booking;
+      incident: GoalkeeperIncident;
+      replacement: Booking | null;
+      /** The goalkeeper's suspension end after the withdrawal (null when not suspended). */
+      suspendedUntil: Date | null;
+      events: DomainEvent[];
+    }
+  /** Already withdrawn by this goalkeeper: nothing to do (idempotent). */
+  | { kind: 'replayed'; booking: Booking; incident: GoalkeeperIncident; suspendedUntil: Date | null }
+  /** No such booking, or this goalkeeper never held it. */
+  | { kind: 'not_found' }
+  | { kind: 'not_withdrawable'; status: BookingStatus }
+  | { kind: 'match_started'; startsAt: Date };
+
+export type ReversalOutcome =
+  | { kind: 'reversed'; incident: GoalkeeperIncident; suspendedUntil: Date | null }
+  /** Nothing was left to reverse. */
+  | { kind: 'replayed'; incident: GoalkeeperIncident; suspendedUntil: Date | null }
+  | { kind: 'not_found' }
+  /** The booking has no commission charge to give back (data problem): nothing changed. */
+  | { kind: 'missing_charge'; bookingId: string };
+
 /**
  * The time-driven transitions of bookings (feature 016), each one all or nothing and effective
  * once: a second call on the same request finds nothing left to do.
@@ -60,6 +88,41 @@ export interface IBookingLifecycleStore {
     newId: () => string;
     buildEvent: (booking: Booking, refund: { amount: number; currency: string } | null) => DomainEvent;
   }): Promise<ClientCancelResult>;
+  /**
+   * The goalkeeper withdraws from a booking they hold (feature 018), all or nothing: the booking
+   * ends, a replacement is created while the search is open, the penalty policy is applied, the
+   * goalkeeper's suspension end is recomputed and the events are recorded. Refusals change nothing.
+   */
+  withdraw(args: {
+    bookingId: string;
+    goalkeeperId: string;
+    now: Date;
+    note: string | null;
+    config: GoalkeeperPenaltyConfig;
+    newId: () => string;
+    buildEvents: (withdrawn: Booking, incident: GoalkeeperIncident, replacement: Booking | null, suspendedUntil: Date | null) => DomainEvent[];
+  }): Promise<WithdrawResult>;
+  /**
+   * An administrator reverses a withdrawal's money and/or suspensions (feature 018), once. `owner`
+   * is required when `refund` is asked.
+   */
+  reverseWithdrawal(args: {
+    goalkeeperId: string;
+    withdrawalId: string;
+    adminId: string;
+    refund: boolean;
+    liftSuspension: boolean;
+    reason: string;
+    now: Date;
+    owner: LedgerOwner | null;
+    newId: () => string;
+  }): Promise<ReversalOutcome>;
+}
+
+/** A goalkeeper's withdrawals (and, from 021, no-shows), newest first. */
+export interface IGoalkeeperIncidentRepository {
+  listForGoalkeeper(goalkeeperId: string, skip: number, limit: number): Promise<GoalkeeperIncident[]>;
+  countForGoalkeeper(goalkeeperId: string): Promise<number>;
 }
 
 /** The logging the lifecycle needs, so the application never imports pino. */

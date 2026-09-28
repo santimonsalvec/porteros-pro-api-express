@@ -99,4 +99,23 @@ describe('ClientOutcomeNoticeHandler', () => {
 
     expect(h.notifications.all()).toHaveLength(0);
   });
+
+  it('sends a final notice for a replacement that expires after an earlier outcome notice (feature 018)', async () => {
+    const h = lifecycleHarness();
+    await h.phone('client-a');
+    const { bookings } = h.match('r1', 3, 2);
+    await h.acceptAndPay(bookings[0]!, 'gk-1');
+    await h.acceptAndPay(bookings[1]!, 'gk-2');
+    // gk-2 withdraws; the replacement expires; the outcome ignores the withdrawn booking.
+    await h.withdraw(bookings[1]!.id, 'gk-2');
+    h.clock.advance(minutes(151));
+    await h.expiryJob.run(h.clock.now());
+    for (const event of h.relayed) await h.clientNotices.handle(event);
+
+    const outcomes = h.notifications.all().filter((item) => item.type.startsWith('request.'));
+    const replacement = h.bookingRepository.all().find((booking) => booking.replacesBookingId === bookings[1]!.id)!;
+    expect(outcomes).toMatchObject([{ type: 'request.partially_expired', dedupeKey: `request-outcome:r1:${replacement.id}` }]);
+    expect(outcomes[0]!.body).toMatch(/^Conseguimos 1 de 2 porteros/);
+  });
 });
+

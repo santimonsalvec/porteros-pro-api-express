@@ -84,6 +84,29 @@ export class MongoNotificationRepository implements INotificationRepository {
     }
   }
 
+  async renewOffer(offer: NewOffer): Promise<string | null> {
+    const renewed = await this.collection.findOneAndUpdate(
+      { userId: offer.userId, requestId: offer.requestId, type: OFFER_TYPE, 'data.bookingId': { $ne: offer.data.bookingId } } as Document,
+      {
+        $set: {
+          title: offer.title,
+          body: offer.body,
+          data: offer.data,
+          createdAt: offer.createdAt,
+          readAt: null,
+          dismissedAt: null,
+          notifiedAt: null,
+          reminderCount: 0,
+          lastRemindedAt: null,
+        },
+      },
+      { returnDocument: 'after' },
+    );
+    if (renewed) return String(renewed._id);
+    // None to reopen: either there is no offer yet, or it already offers this booking.
+    return (await this.createOfferIfAbsent(offer)) ? offer.id : null;
+  }
+
   async listForUser(userId: string, skip: number, limit: number): Promise<NotificationItem[]> {
     const docs = await this.collection.find({ userId }).sort({ createdAt: -1, _id: -1 }).skip(skip).limit(limit).toArray();
     return docs.map(toItem);

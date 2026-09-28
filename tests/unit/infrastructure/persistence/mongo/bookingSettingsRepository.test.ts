@@ -112,4 +112,14 @@ describe('BookingSettingsRepository (mocked driver)', () => {
     expect(found.country?.travelBufferMinutes).toBe(30);
     expect(found.city?.travelBufferMinutes).toBeNull();
   });
+
+  it('maps the goalkeeper penalty values (feature 018)', async () => {
+    const collection = createFakeCollection();
+    collection.find.mockReturnValue(toArrayResult([{ ...countryDoc, goalkeeperPenalties: { lateNoticeMinutes: 60, weeklyLimit: 4 } }, cityDoc]));
+
+    const found = await repositoryWith(collection).findFor('city-1', 'country-co');
+
+    expect(found.country?.goalkeeperPenalties).toEqual({ lateNoticeMinutes: 60, weeklyLimit: 4 });
+    expect(found.city?.goalkeeperPenalties).toBeNull();
+  });
 });

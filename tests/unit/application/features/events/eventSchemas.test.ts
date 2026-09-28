@@ -65,4 +65,29 @@ describe('event parsing at the edge', () => {
       payload: { reason: 'client_cancelled', by: 'client' },
     });
   });
+
+  it('parses a withdrawal and a replacement booking (feature 018)', () => {
+    const withdrew = {
+      ...created,
+      id: 'ev-9',
+      type: 'goalkeeper.withdrew',
+      payload: {
+        goalkeeperId: 'gk-1',
+        clientId: 'c-1',
+        zoneId: 'z-1',
+        startsAt: '2026-09-29T20:00:00.000Z',
+        noticeMinutes: 90,
+        late: true,
+        replacementBookingId: 'b-2',
+        suspendedUntil: '2026-10-01T18:00:00.000Z',
+        penalties: [{ kind: 'late', days: 3, endsAt: '2026-10-01T18:00:00.000Z' }],
+      },
+    };
+    expect(parseEvent(withdrew)).toMatchObject({
+      type: 'goalkeeper.withdrew',
+      payload: { suspendedUntil: new Date('2026-10-01T18:00:00.000Z'), penalties: [{ endsAt: new Date('2026-10-01T18:00:00.000Z') }] },
+    });
+    expect(parseEvent({ ...withdrew, payload: { ...withdrew.payload, replacementBookingId: null, suspendedUntil: null, penalties: [] } })).not.toBeNull();
+    expect(parseEvent({ ...created, payload: { ...created.payload, replacesBookingId: 'b-0' } })).toMatchObject({ payload: { replacesBookingId: 'b-0' } });
+  });
 });

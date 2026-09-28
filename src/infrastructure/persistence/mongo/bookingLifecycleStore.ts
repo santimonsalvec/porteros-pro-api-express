@@ -4,16 +4,23 @@ import type {
   ClientCancelResult,
   ExpireResult,
   IBookingLifecycleStore,
+  ReversalOutcome,
+  WithdrawResult,
 } from '../../../application/features/bookingLifecycle/common/ports.js';
 import { commissionRefundDraft, type LedgerOwner } from '../../../application/features/wallet/common/walletLedger.js';
-import type { Booking } from '../../../domain/bookings/booking.js';
+import { Booking } from '../../../domain/bookings/booking.js';
 import type { DomainEvent } from '../../../domain/events/domainEvent.js';
-import type { CancellationDetails } from '../../../domain/wallet/walletMovement.js';
+import { GoalkeeperIncident, suspensionEndOf } from '../../../domain/goalkeepers/goalkeeperIncident.js';
+import { isLate, penaltiesFor, windowStart, type GoalkeeperPenaltyConfig } from '../../../domain/goalkeepers/penaltyPolicy.js';
+import type { CancellationDetails, MovementActor } from '../../../domain/wallet/walletMovement.js';
 import { BOOKINGS_COLLECTION, bookingFromDocument, bookingToDocument } from './bookingRepository.js';
+import { GOALKEEPER_INCIDENTS_COLLECTION, incidentFromDocument, incidentToDocument } from './goalkeeperIncidentRepository.js';
 import { GOALKEEPER_REQUESTS_COLLECTION, requestFromDocument } from './goalkeeperRequestRepository.js';
 import { appendEventsInSession } from './outboxStore.js';
 import { WALLET_MOVEMENTS_COLLECTION } from './walletMovementRepository.js';
 import { appendMovementInSession } from './walletStore.js';
+
+const GOALKEEPER_PROFILES_COLLECTION = 'goalkeeperProfiles';
 
 const TRANSACTION_OPTIONS = {
   readConcern: { level: 'snapshot' as const },
@@ -37,7 +44,14 @@ export async function refundCommissionInSession(
   db: Db,
   session: ClientSession,
   booking: Booking,
-  args: { requestId: string; owner: LedgerOwner; cancellation: CancellationDetails; newId: () => string; now: Date },
+  args: {
+    requestId: string;
+    owner: LedgerOwner;
+    cancellation: CancellationDetails;
+    newId: () => string;
+    now: Date;
+    actor?: MovementActor;
+  },
 ): Promise<{ amount: number; currency: string }> {
   const movements = db.collection(WALLET_MOVEMENTS_COLLECTION);
   const charge = await movements.findOne({ causeKey: `commission:${booking.id}` } as Document, { session });
@@ -53,6 +67,7 @@ export async function refundCommissionInSession(
     { bookingId: booking.id, requestId: args.requestId, amount, cancellation: args.cancellation },
     args.newId(),
     args.now,
+    args.actor,
   );
   await appendMovementInSession(db, session, draft, args.now);
   return { amount, currency };
@@ -113,10 +128,11 @@ export class MongoBookingLifecycleStore implements IBookingLifecycleStore {
         if (!gate) return { kind: 'already_evaluated' };
 
         const bookings = this.db.collection(BOOKINGS_COLLECTION);
-        // Bookings the client cancelled themselves no longer count (017, clarification 3).
+        // Bookings the client cancelled themselves no longer count (017, clarification 3), nor do
+        // the ones a goalkeeper withdrew from: their replacement stands in their place (018).
         const wanted = (await bookings.find({ requestId } as Document, { session }).toArray())
           .map(bookingFromDocument)
-          .filter((booking) => booking.cancelledBy !== 'client');
+          .filter((booking) => booking.cancelledBy !== 'client' && booking.status !== 'goalkeeper_withdrew');
         if (wanted.every((booking) => booking.status === 'assigned')) return { kind: 'kept' };
 
         const toCancel = wanted.filter((booking) => booking.status === 'pending_assignment' || booking.status === 'assigned');
@@ -237,6 +253,141 @@ export class MongoBookingLifecycleStore implements IBookingLifecycleStore {
       if (error instanceof LifecycleAbort) return error.result as ClientCancelResult;
       throw error;
     }
+  }
+
+  async withdraw(args: {
+    bookingId: string;
+    goalkeeperId: string;
+    now: Date;
+    note: string | null;
+    config: GoalkeeperPenaltyConfig;
+    newId: () => string;
+    buildEvents: (withdrawn: Booking, incident: GoalkeeperIncident, replacement: Booking | null, suspendedUntil: Date | null) => DomainEvent[];
+  }): Promise<WithdrawResult> {
+    const { bookingId, goalkeeperId, now, config } = args;
+    return this.inTransaction(async (session): Promise<WithdrawResult> => {
+      const bookings = this.db.collection(BOOKINGS_COLLECTION);
+      const incidents = this.db.collection(GOALKEEPER_INCIDENTS_COLLECTION);
+      const doc = await bookings.findOne({ _id: bookingId } as Document, { session });
+      const booking = doc ? bookingFromDocument(doc) : null;
+      if (!booking || booking.goalkeeperId !== goalkeeperId) return { kind: 'not_found' };
+      if (booking.status === 'goalkeeper_withdrew') {
+        const existing = await incidents.findOne({ kind: 'withdrawal', bookingId } as Document, { session });
+        if (existing) {
+          return { kind: 'replayed', booking, incident: incidentFromDocument(existing), suspendedUntil: await this.suspendedUntilOf(session, goalkeeperId) };
+        }
+      }
+      if (booking.status !== 'assigned') return { kind: 'not_withdrawable', status: booking.status };
+      if (now.getTime() >= booking.startsAt.getTime()) return { kind: 'match_started', startsAt: booking.startsAt };
+
+      const ended = { status: 'goalkeeper_withdrew', endedAt: now, endReason: 'goalkeeper_withdrew', cancelledBy: 'goalkeeper', cancellationNote: args.note };
+      await bookings.updateOne({ _id: bookingId, status: 'assigned', goalkeeperId } as Document, { $set: ended }, { session });
+      const withdrawn = bookingFromDocument({ ...bookingToDocument(booking), ...ended });
+
+      // The search is still open: a new booking takes its place (clarification 3).
+      const replacement = booking.isSearchOpenAt(now) ? Booking.replacementFor(booking, args.newId(), goalkeeperId, now) : null;
+      if (replacement) await bookings.insertOne(bookingToDocument(replacement), { session });
+
+      const recentCount = await incidents.countDocuments(
+        { goalkeeperId, forgivenAt: null, occurredAt: { $gt: windowStart(now, config) } } as Document,
+        { session },
+      );
+      const noticeMinutes = booking.withdrawalNoticeMinutes(now);
+      const late = isLate(noticeMinutes, config);
+      const incident = GoalkeeperIncident.rehydrate({
+        id: args.newId(),
+        kind: 'withdrawal',
+        goalkeeperId,
+        bookingId,
+        requestId: booking.requestId,
+        startsAt: booking.startsAt,
+        occurredAt: now,
+        noticeMinutes,
+        late,
+        reason: args.note,
+        replacementBookingId: replacement?.id ?? null,
+        penalties: penaltiesFor({ occurredAt: now, late, recentCount, config, newId: args.newId }).map((penalty) => ({ ...penalty, reversal: null })),
+        moneyReversal: null,
+        forgivenAt: null,
+      });
+      await incidents.insertOne(incidentToDocument(incident), { session });
+      const suspendedUntil = await this.writeSuspension(session, goalkeeperId, now);
+
+      const events = args.buildEvents(withdrawn, incident, replacement, suspendedUntil);
+      await appendEventsInSession(this.db, session, events, now);
+      await this.deactivateIfEnded(session, booking.requestId);
+      return { kind: 'withdrawn', booking: withdrawn, incident, replacement, suspendedUntil, events };
+    });
+  }
+
+  async reverseWithdrawal(args: {
+    goalkeeperId: string;
+    withdrawalId: string;
+    adminId: string;
+    refund: boolean;
+    liftSuspension: boolean;
+    reason: string;
+    now: Date;
+    owner: LedgerOwner | null;
+    newId: () => string;
+  }): Promise<ReversalOutcome> {
+    const { goalkeeperId, now } = args;
+    try {
+      return await this.inTransaction(async (session): Promise<ReversalOutcome> => {
+        const incidents = this.db.collection(GOALKEEPER_INCIDENTS_COLLECTION);
+        const doc = await incidents.findOne({ _id: args.withdrawalId, goalkeeperId } as Document, { session });
+        if (!doc) return { kind: 'not_found' };
+        const incident = incidentFromDocument(doc);
+        const decision = { by: args.adminId, at: now, reason: args.reason };
+
+        let refund: { amount: number; currency: string } | null = null;
+        if (args.refund && incident.moneyReversal === null) {
+          if (!args.owner) throw new Error(`No ledger owner resolved for goalkeeper ${goalkeeperId}`);
+          const bookingDoc = await this.db.collection(BOOKINGS_COLLECTION).findOne({ _id: incident.bookingId } as Document, { session });
+          if (!bookingDoc) throw new LifecycleAbort<ReversalOutcome>({ kind: 'missing_charge', bookingId: incident.bookingId });
+          refund = await refundCommissionInSession(this.db, session, bookingFromDocument(bookingDoc), {
+            requestId: incident.requestId,
+            owner: args.owner,
+            cancellation: { by: 'admin', at: now, reason: args.reason },
+            newId: args.newId,
+            now,
+            actor: { kind: 'admin', userId: args.adminId },
+          });
+        }
+
+        const { incident: reversed, changed } = incident.reverse(decision, { refund, liftSuspension: args.liftSuspension });
+        if (!changed) return { kind: 'replayed', incident, suspendedUntil: await this.suspendedUntilOf(session, goalkeeperId) };
+        await incidents.replaceOne({ _id: incident.id } as Document, incidentToDocument(reversed), { session });
+        const suspendedUntil = await this.writeSuspension(session, goalkeeperId, now);
+        return { kind: 'reversed', incident: reversed, suspendedUntil };
+      });
+    } catch (error) {
+      if (error instanceof LifecycleAbort) return error.result as ReversalOutcome;
+      throw error;
+    }
+  }
+
+  /**
+   * Recomputes the goalkeeper's suspension end from the penalties in force (FR-012) and always
+   * writes the profile, so two transactions on the same goalkeeper conflict and one retries.
+   */
+  private async writeSuspension(session: ClientSession, goalkeeperId: string, now: Date): Promise<Date | null> {
+    const inForce = (
+      await this.db
+        .collection(GOALKEEPER_INCIDENTS_COLLECTION)
+        .find({ goalkeeperId, 'penalties.endsAt': { $gt: now } } as Document, { session })
+        .toArray()
+    ).map(incidentFromDocument);
+    const suspendedUntil = suspensionEndOf(inForce, now);
+    await this.db
+      .collection(GOALKEEPER_PROFILES_COLLECTION)
+      .updateOne({ userId: goalkeeperId } as Document, { $set: { suspendedUntil, penaltiesUpdatedAt: now } }, { session });
+    return suspendedUntil;
+  }
+
+  private async suspendedUntilOf(session: ClientSession, goalkeeperId: string): Promise<Date | null> {
+    const profile = await this.db.collection(GOALKEEPER_PROFILES_COLLECTION).findOne({ userId: goalkeeperId } as Document, { session });
+    return profile?.suspendedUntil ? new Date(profile.suspendedUntil as Date) : null;
   }
 
   private ownerOf(owners: ReadonlyMap<string, LedgerOwner>, booking: Booking): LedgerOwner {

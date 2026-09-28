@@ -110,6 +110,8 @@ export class AcceptBookingCommandHandler implements ICommandHandler<AcceptBookin
     if (booking.status === 'assigned') return { outcome: 'already_taken' };
     if (booking.status !== 'pending_assignment') return { outcome: 'not_available' };
     if (booking.clientId === goalkeeperId) return { outcome: 'own_request' };
+    // The replacement of a booking this goalkeeper withdrew from is never theirs (feature 018).
+    if (booking.excludedGoalkeeperIds.includes(goalkeeperId)) return { outcome: 'not_available' };
     if (!booking.isSearchOpenAt(now)) return { outcome: 'search_ended' };
     return null;
   }

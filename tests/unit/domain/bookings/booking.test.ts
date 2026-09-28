@@ -64,3 +64,51 @@ describe('Booking.forRequest', () => {
     expect(() => assigned.assign('gk-2', at)).toThrow(/not pending/);
   });
 });
+
+describe('Booking.replacementFor (feature 018)', () => {
+  const at = new Date('2026-09-21T18:30:00.000Z');
+  const withdrawn = Booking.forRequest('b-1', request, createdAt).assign('gk-1', createdAt);
+
+  it('is the same place of the match, pending, excluding the goalkeeper who withdrew', () => {
+    const replacement = Booking.replacementFor(withdrawn, 'b-2', 'gk-1', at);
+
+    expect(replacement).toMatchObject({
+      id: 'b-2',
+      requestId: withdrawn.requestId,
+      clientId: withdrawn.clientId,
+      zoneId: withdrawn.zoneId,
+      startsAt: withdrawn.startsAt,
+      endsAt: withdrawn.endsAt,
+      commission: withdrawn.commission,
+      travelBufferMinutes: withdrawn.travelBufferMinutes,
+      searchEndsAt: withdrawn.searchEndsAt,
+      status: 'pending_assignment',
+      goalkeeperId: null,
+      assignedAt: null,
+      createdAt: at,
+      replacesBookingId: 'b-1',
+      excludedGoalkeeperIds: ['gk-1'],
+    });
+    expect(replacement.price).toEqual(withdrawn.price);
+  });
+
+  it('keeps excluding earlier goalkeepers when a replacement is itself replaced', () => {
+    const first = Booking.replacementFor(withdrawn, 'b-2', 'gk-1', at).assign('gk-2', at);
+    const second = Booking.replacementFor(first, 'b-3', 'gk-2', at);
+
+    expect(second.excludedGoalkeeperIds).toEqual(['gk-1', 'gk-2']);
+    expect(second.replacesBookingId).toBe('b-2');
+  });
+
+  it('measures the notice of a withdrawal in whole minutes, never below zero', () => {
+    // The match starts at 20:00Z.
+    expect(withdrawn.withdrawalNoticeMinutes(new Date('2026-09-21T18:00:00.000Z'))).toBe(120);
+    expect(withdrawn.withdrawalNoticeMinutes(new Date('2026-09-21T18:00:30.000Z'))).toBe(119);
+    expect(withdrawn.withdrawalNoticeMinutes(new Date('2026-09-21T20:05:00.000Z'))).toBe(0);
+  });
+
+  it('defaults the new fields on older bookings', () => {
+    expect(withdrawn.replacesBookingId).toBeNull();
+    expect(withdrawn.excludedGoalkeeperIds).toEqual([]);
+  });
+});

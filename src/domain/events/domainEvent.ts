@@ -1,5 +1,10 @@
 /** Every event type the platform records (feature 013). Later features add theirs here. */
-export type DomainEventType = 'booking.created' | 'goalkeeper.assigned' | 'booking.expired' | 'booking.cancelled';
+export type DomainEventType =
+  | 'booking.created'
+  | 'goalkeeper.assigned'
+  | 'booking.expired'
+  | 'booking.cancelled'
+  | 'goalkeeper.withdrew';
 
 /**
  * A past fact about a booking, recorded in the same transaction as the change that produced it

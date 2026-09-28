@@ -1,5 +1,6 @@
 import type { IClock } from '../../../common/clock.js';
 import type { INotificationHandler } from '../../../common/mediator/types.js';
+import type { Booking } from '../../../../domain/bookings/booking.js';
 import type { BookingCancelledPayload } from '../../../../domain/events/bookingEvents.js';
 import type { DomainEvent } from '../../../../domain/events/domainEvent.js';
 import {
@@ -51,10 +52,10 @@ export class ClientOutcomeNoticeHandler implements INotificationHandler<DomainEv
   private async notify(requestId: string): Promise<void> {
     const [request] = await this.deps.requestRepository.findByIds([requestId]);
     if (!request) return;
-    // Bookings the client cancelled themselves are not part of the outcome (feature 017).
-    const bookings = (await this.deps.bookingRepository.findByRequestIds([requestId])).filter(
-      (booking) => booking.cancelledBy !== 'client',
-    );
+    const all = await this.deps.bookingRepository.findByRequestIds([requestId]);
+    // Bookings the client cancelled themselves are not part of the outcome (feature 017), nor are
+    // the ones a goalkeeper withdrew from: their replacement stands in their place (feature 018).
+    const bookings = all.filter((booking) => booking.cancelledBy !== 'client' && booking.status !== 'goalkeeper_withdrew');
     if (bookings.length === 0) return;
     // Not final while a booking is still searching: the notice waits for the outcome.
     if (bookings.some((booking) => booking.status === 'pending_assignment')) return;
@@ -84,7 +85,7 @@ export class ClientOutcomeNoticeHandler implements INotificationHandler<DomainEv
       body: message.body,
       data: message.data,
       createdAt: this.deps.clock.now(),
-      dedupeKey: `request-outcome:${requestId}`,
+      dedupeKey: outcomeKey(requestId, all),
     });
     if (!created) return;
     const result = await this.deps.pushNotifier.sendToUsers([request.clientId], message);
@@ -93,4 +94,15 @@ export class ClientOutcomeNoticeHandler implements INotificationHandler<DomainEv
       'Client told how their request ended',
     );
   }
+}
+
+/**
+ * One outcome notice per request, and one more per round of replacements (feature 018): a
+ * replacement that expires after an earlier outcome still gets its own final notice.
+ */
+function outcomeKey(requestId: string, bookings: readonly Booking[]): string {
+  const latest = bookings
+    .filter((booking) => booking.replacesBookingId !== null)
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? 1 : -1))[0];
+  return latest ? `request-outcome:${requestId}:${latest.id}` : `request-outcome:${requestId}`;
 }

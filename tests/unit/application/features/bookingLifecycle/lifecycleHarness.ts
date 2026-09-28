@@ -19,6 +19,13 @@ import { CancelBookingsByClientCommand } from '../../../../../src/application/fe
 import { CancelBookingsByClientCommandHandler } from '../../../../../src/application/features/bookingLifecycle/commands/cancelBookingsByClient/cancelBookingsByClientCommandHandler.js';
 import { FakeBookingAuditLogger } from '../../../../fakes/fakeBookingAuditLogger.js';
 import { FakeUserRepository } from '../../../../fakes/fakeUserRepository.js';
+import { WithdrawFromBookingCommand } from '../../../../../src/application/features/bookingLifecycle/commands/withdrawFromBooking/withdrawFromBookingCommand.js';
+import { WithdrawFromBookingCommandHandler } from '../../../../../src/application/features/bookingLifecycle/commands/withdrawFromBooking/withdrawFromBookingCommandHandler.js';
+import { ReverseWithdrawalPenaltyCommand } from '../../../../../src/application/features/bookingLifecycle/commands/reverseWithdrawalPenalty/reverseWithdrawalPenaltyCommand.js';
+import { ReverseWithdrawalPenaltyCommandHandler } from '../../../../../src/application/features/bookingLifecycle/commands/reverseWithdrawalPenalty/reverseWithdrawalPenaltyCommandHandler.js';
+import { WithdrawalNoticeHandler } from '../../../../../src/application/features/bookingLifecycle/handlers/withdrawalNoticeHandler.js';
+import { FakeBookingSettingsRepository } from '../../../../fakes/fakeBookingSettingsRepository.js';
+import { FakeGoalkeeperIncidentRepository } from '../../../../fakes/fakeGoalkeeperIncidentRepository.js';
 
 /**
  * 015's offer harness (requests in Bello, inbox, push) plus the lifecycle store over fakes, a
@@ -28,7 +35,7 @@ export function lifecycleHarness() {
   const h = offerHarness();
   const wallet = new FakeWalletStore(() => h.clock.now());
   const outbox = new FakeOutboxStore();
-  const store = new FakeBookingLifecycleStore(h.bookingRepository, h.requestRepository, wallet, outbox);
+  const store = new FakeBookingLifecycleStore(h.bookingRepository, h.requestRepository, wallet, outbox, h.goalkeeperProfileRepository);
   const relayed: DomainEvent[] = [];
   const relay: IEventRelay = { relay: async (events) => void relayed.push(...events) };
   let counter = 0;
@@ -100,6 +107,43 @@ export function lifecycleHarness() {
   /** The client (`client-a`, the owner of every `match()`) cancels a booking, or the whole request with `null`. */
   const cancel = (requestId: string, bookingId: string | null, reason?: string, clientId = 'client-a') =>
     clientCancel.handle(new CancelBookingsByClientCommand(clientId, requestId, bookingId, reason));
+  // Goalkeeper withdrawal (feature 018).
+  const bookingSettingsRepository = new FakeBookingSettingsRepository();
+  const warnings: Record<string, unknown>[] = [];
+  const lifecycleLogger = { info: () => undefined, warn: (entry: Record<string, unknown>) => void warnings.push(entry) };
+  const withdrawer = new WithdrawFromBookingCommandHandler({
+    walletContext,
+    bookingSettingsRepository,
+    store,
+    bookingRepository: h.bookingRepository,
+    requestRepository: h.requestRepository,
+    zoneRepository: h.zoneRepository,
+    cityRepository: h.cityRepository,
+    relay,
+    idGenerator,
+    clock: h.clock,
+    audit,
+    logger: lifecycleLogger,
+  });
+  /** The goalkeeper withdraws from the booking. */
+  const withdraw = (bookingId: string, goalkeeperId: string, reason?: string) =>
+    withdrawer.handle(new WithdrawFromBookingCommand(goalkeeperId, bookingId, reason));
+  const withdrawalNotices = new WithdrawalNoticeHandler({
+    requestRepository: h.requestRepository,
+    zoneRepository: h.zoneRepository,
+    cityRepository: h.cityRepository,
+    notifications: h.notifications,
+    pushNotifier: h.pushNotifier,
+    processed: new FakeProcessedEventStore(),
+    idGenerator,
+    clock: h.clock,
+    logger: h.silent,
+  });
+  const incidents = new FakeGoalkeeperIncidentRepository(store);
+  const reverser = new ReverseWithdrawalPenaltyCommandHandler({ walletContext, store, idGenerator, clock: h.clock, audit, logger: lifecycleLogger });
+  /** An administrator reverses the goalkeeper's withdrawal: `refund` the money and/or `lift` the suspensions. */
+  const reverse = (goalkeeperId: string, withdrawalId: string, what: { refund?: boolean; lift?: boolean }, reason = 'Incapacidad médica') =>
+    reverser.handle(new ReverseWithdrawalPenaltyCommand('admin-1', goalkeeperId, withdrawalId, what.refund ?? false, what.lift ?? false, reason));
   /** Stores the booking as assigned to the goalkeeper. */
   const assign = (booking: Booking, goalkeeperId: string) => h.bookingRepository.seed(booking.assign(goalkeeperId, h.clock.now()));
   const current = (id: string) => h.bookingRepository.all().find((booking) => booking.id === id)!;
@@ -121,6 +165,14 @@ export function lifecycleHarness() {
     cancel,
     audit,
     walletContext,
+    bookingSettingsRepository,
+    warnings,
+    withdraw,
+    withdrawalNotices,
+    incidents,
+    reverse,
+    ledger,
+    owner,
     assign,
     current,
     request,

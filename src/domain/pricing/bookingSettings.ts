@@ -1,4 +1,5 @@
 import { Entity } from '../common/entity.js';
+import { PENALTY_CONFIG_FIELDS, type GoalkeeperPenaltyConfig } from '../goalkeepers/penaltyPolicy.js';
 import { InvalidConfigurationError } from './invalidConfigurationError.js';
 
 export type BookingSettingsScope = 'country' | 'city';
@@ -38,6 +39,11 @@ export class BookingSettings extends Entity<string> {
    * booking's search ends. Optional at every level: a default applies when absent (FR-010).
    */
   readonly travelBufferMinutes: number | null;
+  /**
+   * The goalkeeper penalty values (feature 018), read at the country level only. Each absent
+   * field falls back to the Colombia default.
+   */
+  readonly goalkeeperPenalties: Partial<GoalkeeperPenaltyConfig> | null;
 
   constructor(params: {
     id: string;
@@ -48,6 +54,7 @@ export class BookingSettings extends Entity<string> {
     leadTimeSurcharge?: LeadTimeSurcharge | null;
     freeCancellationMinutes?: number | null;
     travelBufferMinutes?: number | null;
+    goalkeeperPenalties?: Partial<GoalkeeperPenaltyConfig> | null;
   }) {
     super(params.id);
     const where = `bookingSettings document ${params.id}`;
@@ -78,6 +85,8 @@ export class BookingSettings extends Entity<string> {
     }
     const leadTimeSurcharge = params.leadTimeSurcharge ?? null;
     if (leadTimeSurcharge !== null) validateSurcharge(leadTimeSurcharge, where);
+    const goalkeeperPenalties = params.goalkeeperPenalties ?? null;
+    if (goalkeeperPenalties !== null) validatePenalties(goalkeeperPenalties, where);
 
     this.scope = params.scope;
     this.refId = params.refId;
@@ -86,6 +95,17 @@ export class BookingSettings extends Entity<string> {
     this.leadTimeSurcharge = leadTimeSurcharge;
     this.freeCancellationMinutes = freeCancellationMinutes;
     this.travelBufferMinutes = travelBufferMinutes;
+    this.goalkeeperPenalties = goalkeeperPenalties;
+  }
+}
+
+function validatePenalties(penalties: Partial<GoalkeeperPenaltyConfig>, where: string): void {
+  for (const field of PENALTY_CONFIG_FIELDS) {
+    const value = penalties[field];
+    if (value === undefined || value === null) continue;
+    if (!Number.isInteger(value) || value < 1) {
+      throw new InvalidConfigurationError(`${where}: goalkeeperPenalties.${field} must be an integer of at least 1`);
+    }
   }
 }
 

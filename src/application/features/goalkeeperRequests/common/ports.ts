@@ -183,4 +183,8 @@ export interface IBookingAuditLogger {
   }): void;
   /** Every client cancellation attempt, whatever its outcome (feature 017). */
   logClientCancellation(entry: { outcome: string; clientId: string; requestId: string; bookingId?: string }): void;
+  /** Every goalkeeper withdrawal attempt, whatever its outcome (feature 018). */
+  logWithdrawal(entry: { outcome: string; goalkeeperId: string; bookingId: string; requestId?: string }): void;
+  /** Every administrator reversal attempt of a withdrawal's penalty (feature 018). */
+  logPenaltyReversal(entry: { outcome: string; adminId: string; goalkeeperId: string; withdrawalId: string }): void;
 }

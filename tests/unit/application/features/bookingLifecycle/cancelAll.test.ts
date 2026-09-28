@@ -31,6 +31,41 @@ describe('CancelAllJob', () => {
     expect(h.request(request.id)).toMatchObject({ active: false, cancelAllEvaluatedAt: h.clock.now() });
   });
 
+  it('cancels the whole request when nobody took the replacement of a withdrawal by start − 60 (feature 018)', async () => {
+    const h = lifecycleHarness();
+    const { request, bookings } = h.match('r1', 3, 2, 'cancel_all');
+    await h.acceptAndPay(bookings[0]!, 'gk-1');
+    await h.acceptAndPay(bookings[1]!, 'gk-2');
+    await h.withdraw(bookings[1]!.id, 'gk-2');
+    h.clock.advance(minutes(120));
+
+    await h.cancelAllJob.run(h.clock.now());
+
+    const replacement = h.bookingRepository.all().find((booking) => booking.replacesBookingId === bookings[1]!.id)!;
+    expect(h.current(bookings[0]!.id)).toMatchObject({ status: 'cancelled', endReason: 'cancel_all' });
+    expect(h.current(replacement.id).status).toBe('cancelled');
+    expect(h.current(bookings[1]!.id).status).toBe('goalkeeper_withdrew');
+    expect(await h.balanceOf('gk-1')).toBe(20000);
+    expect(await h.balanceOf('gk-2')).toBe(13000);
+    expect(h.request(request.id).active).toBe(false);
+  });
+
+  it('keeps the request when the replacement was taken in time (feature 018)', async () => {
+    const h = lifecycleHarness();
+    const { bookings } = h.match('r1', 3, 2, 'cancel_all');
+    await h.acceptAndPay(bookings[0]!, 'gk-1');
+    await h.acceptAndPay(bookings[1]!, 'gk-2');
+    await h.withdraw(bookings[1]!.id, 'gk-2');
+    const replacement = h.bookingRepository.all().find((booking) => booking.replacesBookingId === bookings[1]!.id)!;
+    await h.acceptAndPay(replacement, 'gk-3');
+    h.clock.advance(minutes(120));
+
+    await h.cancelAllJob.run(h.clock.now());
+
+    expect(h.current(bookings[0]!.id).status).toBe('assigned');
+    expect(h.current(replacement.id).status).toBe('assigned');
+  });
+
   it('keeps a complete request firm and never evaluates it again', async () => {
     const h = lifecycleHarness();
     const { request, bookings } = h.match('r1', 2, 2, 'cancel_all');

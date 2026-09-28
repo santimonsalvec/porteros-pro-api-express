@@ -15,7 +15,7 @@ export interface OutcomeMatch {
 }
 
 /** "en Bello · dom 4 oct, 3:00 p. m." */
-function where(match: OutcomeMatch): string {
+export function where(match: OutcomeMatch): string {
   return `en ${match.zoneName ?? match.cityName ?? 'tu zona'} · ${localWhen(match.startsAt, match.timeZone)}`;
 }
 

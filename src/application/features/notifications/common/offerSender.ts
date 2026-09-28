@@ -14,8 +14,10 @@ import type { INotificationRepository, IOfferPushState, IOffersLogger } from './
  * - `first`: a new booking's offers; only the offers this call creates are pushed.
  * - `catchUp`: the goalkeeper just turned offers on; likewise only newly created offers.
  * - `round`: a reminder round; every open offer counts, after an atomic per-goalkeeper claim.
+ * - `renew`: a replacement booking (feature 018); like `first`, but a goalkeeper's existing offer
+ *   for the request is reopened for the new booking, so even one who dismissed it hears again.
  */
-export type OfferSendMode = 'first' | 'catchUp' | 'round';
+export type OfferSendMode = 'first' | 'catchUp' | 'round' | 'renew';
 
 export interface OfferSendReport {
   goalkeepers: number;
@@ -69,17 +71,22 @@ export class OfferSender {
         const inserted: PendingOffer[] = [];
         for (const booking of representatives.values()) {
           const message = this.offerMessage(booking, context);
-          const offerId = this.deps.idGenerator.newId();
-          const created = await this.deps.notifications.createOfferIfAbsent({
-            id: offerId,
+          const offer = {
+            id: this.deps.idGenerator.newId(),
             userId: goalkeeperId,
             requestId: booking.requestId,
             title: message.title,
             body: message.body,
             data: message.data,
             createdAt: now,
-          });
-          if (created) inserted.push({ offerId, requestId: booking.requestId, booking, first: true });
+          };
+          const offerId =
+            mode === 'renew'
+              ? await this.deps.notifications.renewOffer(offer)
+              : (await this.deps.notifications.createOfferIfAbsent(offer))
+                ? offer.id
+                : null;
+          if (offerId) inserted.push({ offerId, requestId: booking.requestId, booking, first: true });
         }
         report.entriesCreated += inserted.length;
         toPush.set(goalkeeperId, mode === 'round' ? await this.openOffers(goalkeeperId, representatives) : inserted);

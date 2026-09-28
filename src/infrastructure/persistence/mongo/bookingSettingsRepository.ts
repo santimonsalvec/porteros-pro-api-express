@@ -1,5 +1,6 @@
 import type { Collection, Db, Document } from 'mongodb';
 import type { IBookingSettingsRepository } from '../../../application/features/goalkeeperRequests/common/ports.js';
+import type { GoalkeeperPenaltyConfig } from '../../../domain/goalkeepers/penaltyPolicy.js';
 import { BookingSettings, type SurchargeTier } from '../../../domain/pricing/bookingSettings.js';
 
 /**
@@ -27,6 +28,7 @@ export class BookingSettingsRepository implements IBookingSettingsRepository {
       minNoticeMinutes: (doc.minNoticeMinutes as number | undefined | null) ?? null,
       freeCancellationMinutes: (doc.freeCancellationMinutes as number | undefined | null) ?? null,
       travelBufferMinutes: (doc.travelBufferMinutes as number | undefined | null) ?? null,
+      goalkeeperPenalties: (doc.goalkeeperPenalties as Partial<GoalkeeperPenaltyConfig> | undefined | null) ?? null,
       // Only the tiers are read: the currency is the country's. A leftover `currency` key inside
       // `leadTimeSurcharge` (from an earlier layout) is ignored.
       leadTimeSurcharge: doc.leadTimeSurcharge ? { tiers: doc.leadTimeSurcharge.tiers as SurchargeTier[] } : null,

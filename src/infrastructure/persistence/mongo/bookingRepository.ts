@@ -37,6 +37,8 @@ export function bookingToDocument(booking: Booking): Document {
     endReason: booking.endReason,
     cancelledBy: booking.cancelledBy,
     cancellationNote: booking.cancellationNote,
+    replacesBookingId: booking.replacesBookingId,
+    excludedGoalkeeperIds: [...booking.excludedGoalkeeperIds],
   };
 }
 
@@ -66,6 +68,8 @@ export function bookingFromDocument(doc: Document): Booking {
     endReason: (doc.endReason as BookingEndReason | null | undefined) ?? null,
     cancelledBy: (doc.cancelledBy as BookingEndedBy | null | undefined) ?? null,
     cancellationNote: (doc.cancellationNote as string | null | undefined) ?? null,
+    replacesBookingId: (doc.replacesBookingId as string | null | undefined) ?? null,
+    excludedGoalkeeperIds: (doc.excludedGoalkeeperIds as string[] | undefined) ?? [],
   });
 }
 

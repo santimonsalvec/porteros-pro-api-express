@@ -232,6 +232,15 @@ describe('AcceptBookingCommandHandler — US4: clear refusals that change nothin
     await unchanged(bookingId!);
   });
 
+  it('refuses the replacement of a booking the goalkeeper withdrew from (feature 018)', async () => {
+    const [bookingId] = match(1, 5);
+    const pending = (await h.bookings.findById(bookingId!))!;
+    h.bookings.seed(Booking.rehydrate({ ...pending, excludedGoalkeeperIds: ['gk-1'], replacesBookingId: uuid(7) }));
+
+    expect(await accept(bookingId!)).toEqual({ outcome: 'not_available' });
+    await unchanged(bookingId!);
+  });
+
   it('answers not_available for an unknown, malformed or cancelled booking', async () => {
     const [bookingId] = match(1, 5);
     const cancelled = (await h.bookings.findById(bookingId!))!;
