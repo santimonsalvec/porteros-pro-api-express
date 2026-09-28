@@ -27,4 +27,10 @@ export class WalletRepository implements IWalletRepository {
     const doc = await this.collection.findOne({ _id: goalkeeperId } as Document);
     return doc ? walletFromDocument(doc) : null;
   }
+
+  async findByGoalkeeperIds(goalkeeperIds: readonly string[]): Promise<Wallet[]> {
+    if (goalkeeperIds.length === 0) return [];
+    const docs = await this.collection.find({ _id: { $in: [...goalkeeperIds] } } as Document).toArray();
+    return docs.map(walletFromDocument);
+  }
 }

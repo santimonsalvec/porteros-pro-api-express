@@ -25,6 +25,8 @@ export interface IWalletStore {
 export interface IWalletRepository {
   /** `null` before the wallet's first movement (it is created lazily). */
   findByGoalkeeperId(goalkeeperId: string): Promise<Wallet | null>;
+  /** The existing wallets among these goalkeepers (a missing one means balance 0). */
+  findByGoalkeeperIds(goalkeeperIds: readonly string[]): Promise<Wallet[]>;
 }
 
 export interface IWalletMovementRepository {

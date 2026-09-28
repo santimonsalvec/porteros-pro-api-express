@@ -25,6 +25,8 @@ Auto-generated from all feature plans. Last updated: 2026-09-28
 - MongoDB (Atlas, transactions). New collections `outbox` (TTL on `publishedAt`), `processedEvents`, `jobLocks`, `eventDeliveryLog`; Google Cloud Pub/Sub (topic `booking-events` + DLQ) and Cloud Scheduler (every-minute sweep). (013-domain-events-outbox)
 - TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. FCM HTTP v1 is called over REST with `google-auth-library` (already installed; research §1). No new dependency, and no `firebase-admin`. (014-fcm-device-registration)
 - MongoDB. One new collection `devices` (`_id` = sha256 of the token, index `userId_lastSeen`, TTL `lastSeen_ttl` 60 days); Firebase Cloud Messaging (APNs key in Firebase). (014-fcm-device-registration)
+- TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. The 014 push capability and the 013 events and sweep are reused. Dates are formatted with the built-in `Intl`. No new dependency. (015-notify-eligible-goalkeepers)
+- MongoDB. New collections `notifications` (inbox; unique partial index on offers per user+request; TTL 90 days) and `offerPushState`; new field `goalkeeperProfiles.availableForOffers` (absent = on) with index `zone_offers`; new index `bookings.status_searchEnds`. (015-notify-eligible-goalkeepers)
 
 - TypeScript ~6.x (last JavaScript-hosted compiler generation) on Node.js 24 LTS (Active LTS as of Aug 2026; Node 22 remains Maintenance LTS as a fallback). TypeScript 7.0 (Go-native compiler) is intentionally *not* adopted yet — see research.md for rationale. + Express 5.2.x (web framework); official `mongodb` driver 7.x (no ODM, mirrors the source's raw `MongoDB.Driver` usage); `google-auth-library` 11.x (`OAuth2Client.verifyIdToken`, official equivalent of `Google.Apis.Auth`); `jose` (JWT sign/verify, chosen over legacy `jsonwebtoken` — see research.md); `zod` (request DTO shape validation); `uuid` v9+ (`v7()` for entity ids, matching the source's UUIDv7 convention); `pino` (structured logging, audit-log equivalent); `@opentelemetry/sdk-node` + HTTP/Express auto-instrumentation + OTLP/console exporters (observability parity) (001-porteros-api-migration)
 
@@ -45,9 +47,9 @@ npm test && npm run lint
 TypeScript ~6.x (last JavaScript-hosted compiler generation) on Node.js 24 LTS (Active LTS as of Aug 2026; Node 22 remains Maintenance LTS as a fallback). TypeScript 7.0 (Go-native compiler) is intentionally *not* adopted yet — see research.md for rationale.: Follow standard conventions
 
 ## Recent Changes
+- 015-notify-eligible-goalkeepers: Added TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. The 014 push capability and the 013 events and sweep are reused. Dates are formatted with the built-in `Intl`. No new dependency.
 - 014-fcm-device-registration: Added TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. FCM HTTP v1 is called over REST with `google-auth-library` (already installed; research §1). No new dependency, and no `firebase-admin`.
 - 013-domain-events-outbox: Added TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. Pub/Sub is called via its REST API with `google-auth-library` (already installed; research §9). OIDC verification uses the same library. No new dependency.
-- 012-accept-goalkeeper-booking: Added TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. No new dependency.
 
 
 <!-- MANUAL ADDITIONS START -->

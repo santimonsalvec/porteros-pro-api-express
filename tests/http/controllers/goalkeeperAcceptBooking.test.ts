@@ -37,6 +37,19 @@ describe('POST /api/goalkeepers/me/bookings/:bookingId/accept — US2: assign an
     expect(movements.body.items[0]).toMatchObject({ type: 'commission_charge', amount: -7000, balanceAfter: 13000, references: { bookingId } });
   });
 
+  it('409 goalkeeper_not_available while offers are switched off; nothing is charged (feature 015)', async () => {
+    const { context, client, goalkeeper } = await setUp();
+    const bookingId = (await createRequestAsClient(context, client.token)).bookings[0]!.bookingId;
+    await context.goalkeeperProfileRepository.setAvailableForOffers(goalkeeper.userId, false);
+
+    const response = await accept(context, goalkeeper.token, bookingId);
+
+    expect(response.status).toBe(409);
+    expect(response.body.error).toBe('goalkeeper_not_available');
+    expect(context.walletStore.movements().filter((movement) => movement.type === 'commission_charge')).toHaveLength(0);
+    expect((await context.bookingRepository.findById(bookingId))?.status).toBe('pending_assignment');
+  });
+
   it('200 on a repeat, with no second charge', async () => {
     const { context, client, goalkeeper } = await setUp();
     const bookingId = (await createRequestAsClient(context, client.token)).bookings[0]!.bookingId;

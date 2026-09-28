@@ -74,6 +74,10 @@ export interface IBookingRepository {
   }): Promise<Booking[]>;
   /** The bookings currently assigned to the goalkeeper (the commitments the clash rule checks). */
   findAssignedToGoalkeeper(goalkeeperId: string): Promise<Booking[]>;
+  /** The assigned bookings of all these goalkeepers, in one read (feature 015). */
+  findAssignedToGoalkeepers(goalkeeperIds: readonly string[]): Promise<Booking[]>;
+  /** Pending bookings whose search is still open, soonest first, at most `cap` (feature 015). */
+  findOpenPending(now: Date, cap: number): Promise<Booking[]>;
   /** The goalkeeper's agenda (any status): how many start at or after `now` and before it. */
   countForGoalkeeper(goalkeeperId: string, now: Date): Promise<{ upcoming: number; past: number }>;
   /** Soonest first (ties: id ascending). */
@@ -117,6 +121,7 @@ export type AcceptanceOutcome =
   | 'zone_not_enabled'
   | 'insufficient_funds'
   | 'suspended'
+  | 'not_available_for_offers'
   | 'schedule_conflict'
   | 'own_request'
   | 'same_request'

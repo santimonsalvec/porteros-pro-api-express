@@ -100,7 +100,13 @@ describe('POST /internal/sweep — US4: the every-minute sweep', () => {
     const response = await request(context.app).post('/internal/sweep').set('Authorization', `Bearer ${TEST_INTERNAL_TOKEN}`);
 
     expect(response.status).toBe(200);
-    expect(response.body).toEqual({ published: 1, stillPending: 0, oldestPendingSeconds: null, jobs: [] });
+    expect(response.body).toEqual({
+      published: 1,
+      stillPending: 0,
+      oldestPendingSeconds: null,
+      // Feature 015 registers the offer reminder round on the sweep.
+      jobs: [{ name: 'offer-reminders', outcome: 'succeeded', detail: '0 open bookings' }],
+    });
     expect(context.eventPublisher.published().map((event) => event.id)).toEqual(['ev-9']);
   });
 });

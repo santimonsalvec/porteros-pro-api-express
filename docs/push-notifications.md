@@ -37,6 +37,18 @@ Todo push lleva, además del título y el cuerpo, un mapa `data` de **strings**.
 
 Un `type` desconocido abre el inicio o la bandeja, y la app lo registra en sus logs.
 
+### Ofertas a porteros (feature 015)
+
+| `type` | Cuándo | Qué abre la app |
+|---|---|---|
+| `booking.available` | Primer aviso de un partido, o recordatorio de una sola oferta | El partido (`bookingId`) dentro de "partidos disponibles" |
+| `bookings.available` | Recordatorio que agrupa varias ofertas ("Hay N partidos disponibles en tus zonas") | La lista de "partidos disponibles" |
+
+- Cuando el portero abre una oferta, desde la bandeja o tocando el push, la app llama **`POST /api/notifications/{notificationId}/read`**. Eso la marca como abierta y **detiene sus recordatorios**. El `notificationId` sale de `GET /api/notifications`; para ubicar la oferta de un push, la app busca en la bandeja la entrada con el mismo `data.requestId`.
+- "Descartar" (`POST /api/notifications/{id}/dismiss`) también detiene los recordatorios.
+- Cada oferta recibe como máximo 3 recordatorios, con al menos 5 minutos entre pushes al mismo portero, a cualquier hora.
+- Con **"disponible para ofertas"** apagado (`PUT /api/goalkeepers/me/offers-availability`), no llegan ofertas, "partidos disponibles" aparece vacío (`unavailableReason: not_available_for_offers`) y aceptar responde `409 goalkeeper_not_available`. Al prenderlo, llegan de inmediato las ofertas de los partidos abiertos. La app debe mostrar el interruptor en un lugar visible.
+
 Bloques por plataforma que añade el backend:
 - Android: prioridad `high` y canal `default`;
 - iOS: `apns-priority: 10` y sonido `default`.

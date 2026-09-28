@@ -54,7 +54,7 @@ import { UpdateGoalkeeperAvailabilityCommandHandler } from '../application/featu
 import { CancelGoalkeeperRegistrationCommand } from '../application/features/goalkeepers/commands/cancelGoalkeeperRegistration/cancelGoalkeeperRegistrationCommand.js';
 import { CancelGoalkeeperRegistrationCommandHandler } from '../application/features/goalkeepers/commands/cancelGoalkeeperRegistration/cancelGoalkeeperRegistrationCommandHandler.js';
 import type { AppDependencies } from '../appDependencies.js';
-import { assertEventsConfig, assertPushConfig, config } from './config.js';
+import { assertEventsConfig, assertOffersConfig, assertPushConfig, config } from './config.js';
 import { MongoConnectionProvider } from './persistence/mongo/mongoConnectionProvider.js';
 import { UserRepository } from './persistence/mongo/userRepository.js';
 import { RefreshTokenRepository } from './persistence/mongo/refreshTokenRepository.js';
@@ -125,6 +125,24 @@ import { FcmPushSender } from './push/fcmPushSender.js';
 import { LoggingPushSender } from './push/loggingPushSender.js';
 import { InMemoryRateLimiter } from './push/inMemoryRateLimiter.js';
 import { sha256TokenFingerprint } from './push/tokenRef.js';
+import { OfferEligibilityService } from '../application/features/notifications/common/offerEligibilityService.js';
+import { OfferSender } from '../application/features/notifications/common/offerSender.js';
+import { NotifyBookingOffersCommand } from '../application/features/notifications/commands/notifyBookingOffers/notifyBookingOffersCommand.js';
+import { NotifyBookingOffersCommandHandler } from '../application/features/notifications/commands/notifyBookingOffers/notifyBookingOffersCommandHandler.js';
+import { SetOffersAvailabilityCommand } from '../application/features/notifications/commands/setOffersAvailability/setOffersAvailabilityCommand.js';
+import { SetOffersAvailabilityCommandHandler } from '../application/features/notifications/commands/setOffersAvailability/setOffersAvailabilityCommandHandler.js';
+import { OfferRemindersJob } from '../application/features/notifications/jobs/offerRemindersJob.js';
+import { ListNotificationsQuery } from '../application/features/notifications/queries/listNotifications/listNotificationsQuery.js';
+import { ListNotificationsQueryHandler } from '../application/features/notifications/queries/listNotifications/listNotificationsQueryHandler.js';
+import { MarkNotificationReadCommand } from '../application/features/notifications/commands/markNotificationRead/markNotificationReadCommand.js';
+import { MarkNotificationReadCommandHandler } from '../application/features/notifications/commands/markNotificationRead/markNotificationReadCommandHandler.js';
+import { MarkAllNotificationsReadCommand } from '../application/features/notifications/commands/markAllNotificationsRead/markAllNotificationsReadCommand.js';
+import { MarkAllNotificationsReadCommandHandler } from '../application/features/notifications/commands/markAllNotificationsRead/markAllNotificationsReadCommandHandler.js';
+import { DismissOfferCommand } from '../application/features/notifications/commands/dismissOffer/dismissOfferCommand.js';
+import { DismissOfferCommandHandler } from '../application/features/notifications/commands/dismissOffer/dismissOfferCommandHandler.js';
+import { NotifyBookingOffersHandler, OFFER_EVENT_TYPES } from '../application/features/notifications/handlers/notifyBookingOffersHandler.js';
+import { MongoNotificationRepository } from './persistence/mongo/notificationRepository.js';
+import { MongoOfferPushStateStore } from './persistence/mongo/offerPushStateStore.js';
 
 export interface CompositionRoot {
   dependencies: AppDependencies;
@@ -241,6 +259,29 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   const pushSender =
     config.push.mode === 'fcm' ? new FcmPushSender(config.push.firebaseProjectId()) : new LoggingPushSender(logger);
   const pushNotifier = new PushNotifier({ devices: deviceRepository, sender: pushSender, logger, fingerprint: sha256TokenFingerprint });
+  // Offers to eligible goalkeepers (feature 015).
+  assertOffersConfig();
+  const notificationRepository = new MongoNotificationRepository(db);
+  await notificationRepository.ensureIndexes();
+  const offerPushState = new MongoOfferPushStateStore(db);
+  const offerEligibility = new OfferEligibilityService({ goalkeeperProfileRepository, walletRepository, commissionResolver, bookingRepository });
+  const offerSender = new OfferSender({
+    notifications: notificationRepository,
+    pushState: offerPushState,
+    pushNotifier,
+    idGenerator,
+    requestRepository,
+    zoneRepository,
+    cityRepository,
+    logger,
+    maxReminders: config.offers.maxReminders,
+    intervalMinutes: config.offers.reminderIntervalMinutes,
+  });
+  const offersHandler = new NotifyBookingOffersHandler(mediator, processedEventStore, clock);
+  registerSubscribers(
+    mediator,
+    OFFER_EVENT_TYPES.map((type) => ({ type, handler: offersHandler })),
+  );
   logger.info({ push_mode: config.push.mode }, 'Push notifications configured');
   if (process.env.NODE_ENV === 'production' && config.push.mode === 'log') {
     logger.warn({ push_mode: 'log' }, 'Push notifications are only logged in production: nothing reaches devices');
@@ -465,9 +506,24 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         logger,
         batchLimit: config.events.sweepBatchLimit,
         pendingWarningMinutes: config.events.pendingWarningMinutes,
-        jobs: [],
+        jobs: [new OfferRemindersJob({ bookingRepository, eligibility: offerEligibility, sender: offerSender, logger: logger, roundCap: config.offers.roundCap })],
         jobLocks: jobLockStore,
       }),
+    },
+    {
+      requestType: SetOffersAvailabilityCommand,
+      handler: new SetOffersAvailabilityCommandHandler({ goalkeeperProfileRepository, eligibility: offerEligibility, sender: offerSender, clock, logger }),
+    },
+    {
+      requestType: ListNotificationsQuery,
+      handler: new ListNotificationsQueryHandler({ notifications: notificationRepository, eligibility: offerEligibility, clock }),
+    },
+    { requestType: MarkNotificationReadCommand, handler: new MarkNotificationReadCommandHandler(notificationRepository, clock) },
+    { requestType: MarkAllNotificationsReadCommand, handler: new MarkAllNotificationsReadCommandHandler(notificationRepository, clock) },
+    { requestType: DismissOfferCommand, handler: new DismissOfferCommandHandler(notificationRepository, clock) },
+    {
+      requestType: NotifyBookingOffersCommand,
+      handler: new NotifyBookingOffersCommandHandler({ bookingRepository, eligibility: offerEligibility, sender: offerSender, clock, logger }),
     },
     {
       requestType: RegisterDeviceCommand,

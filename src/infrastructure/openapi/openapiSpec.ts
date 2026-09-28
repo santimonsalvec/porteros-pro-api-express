@@ -26,6 +26,33 @@ export const openapiSpec = {
         properties: { token: { type: 'string', minLength: 1, maxLength: 4096 } },
         required: ['token'],
       },
+      NotificationItem: {
+        type: 'object',
+        properties: {
+          notificationId: { type: 'string' },
+          type: { type: 'string', example: 'booking.available' },
+          title: { type: 'string', example: 'Partido disponible' },
+          body: { type: 'string', example: 'Bello · dom 4 oct, 3:00 p. m. · 90 min' },
+          data: { type: 'object', additionalProperties: { type: 'string' }, example: { type: 'booking.available', requestId: '0191…', bookingId: '0191…' } },
+          createdAt: { type: 'string', format: 'date-time' },
+          readAt: { type: 'string', format: 'date-time', nullable: true, description: 'For an offer, read means opened: no more reminders' },
+          dismissedAt: { type: 'string', format: 'date-time', nullable: true, description: 'Offers only; null for other types' },
+          stillAvailable: { type: 'boolean', nullable: true, description: 'Offers only: the caller can still take a booking of that match now' },
+        },
+        required: ['notificationId', 'type', 'title', 'body', 'data', 'createdAt', 'readAt', 'dismissedAt', 'stillAvailable'],
+      },
+      NotificationsPage: {
+        type: 'object',
+        properties: {
+          items: { type: 'array', items: { $ref: '#/components/schemas/NotificationItem' } },
+          page: { type: 'integer' },
+          pageSize: { type: 'integer' },
+          totalItems: { type: 'integer' },
+          totalPages: { type: 'integer' },
+          unreadCount: { type: 'integer' },
+        },
+        required: ['items', 'page', 'pageSize', 'totalItems', 'totalPages', 'unreadCount'],
+      },
       UserPushResult: {
         type: 'object',
         properties: {
@@ -150,8 +177,9 @@ export const openapiSpec = {
           unavailableReason: {
             type: 'string',
             nullable: true,
-            enum: ['insufficient_funds', 'suspended', null],
-            description: 'Why the list is empty whatever the matches; null when the goalkeeper can see offers',
+            enum: ['not_available_for_offers', 'insufficient_funds', 'suspended', null],
+            description:
+              'Why the list is empty whatever the matches, checked in this order: not_available_for_offers (the goalkeeper turned offers off), suspended, insufficient_funds. null when the goalkeeper can see offers',
           },
           missingAmount: { type: 'integer', nullable: true, description: 'With insufficient_funds' },
           suspendedUntil: { type: 'string', format: 'date-time', nullable: true, description: 'With suspended' },
@@ -492,6 +520,11 @@ export const openapiSpec = {
           weightKg: { type: 'number', nullable: true },
           cityId: { type: 'string', nullable: true },
           serviceZoneIds: { type: 'array', items: { type: 'string' } },
+          availableForOffers: {
+            type: 'boolean',
+            nullable: true,
+            description: 'The "available for offers" switch; null unless status is active. Off: no offers, no available matches, cannot accept',
+          },
           city: {
             type: 'object',
             nullable: true,
@@ -1029,7 +1062,7 @@ export const openapiSpec = {
       get: {
         summary: 'The bookings the goalkeeper can take now, soonest first',
         description:
-          'Pending bookings in the goalkeeper\u2019s enabled zones whose search is still open (start \u2212 travel margin), whose commission the balance covers, that do not clash with their assigned bookings (travel margin included), that are not of a request they already hold a booking of, and that are not of their own requests. A suspended goalkeeper, or one whose balance does not cover the lowest commission of their zones, gets an empty list with unavailableReason.',
+          'Pending bookings in the goalkeeper\u2019s enabled zones whose search is still open (start \u2212 travel margin), whose commission the balance covers, that do not clash with their assigned bookings (travel margin included), that are not of a request they already hold a booking of, and that are not of their own requests. A suspended goalkeeper, or one whose balance does not cover the lowest commission of their zones, gets an empty list with unavailableReason. So does a goalkeeper with offers switched off (PUT /api/goalkeepers/me/offers-availability).',
         tags: ['Goalkeeper bookings'],
         security: [{ bearerAuth: [] }],
         parameters: [
@@ -1060,7 +1093,7 @@ export const openapiSpec = {
           '404': { description: 'booking_not_available (unknown or malformed id, cancelled, expired or completed), or goalkeeper_not_found', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
           '409': {
             description:
-              'booking_already_taken, search_ended (now \u2265 start \u2212 travel margin), zone_not_enabled, insufficient_funds (missingAmount), schedule_conflict (conflictingBookingId), own_request, or same_request',
+              'booking_already_taken, search_ended (now \u2265 start \u2212 travel margin), zone_not_enabled, insufficient_funds (missingAmount), schedule_conflict (conflictingBookingId), own_request, same_request, or goalkeeper_not_available (offers switched off; nothing charged)',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
           },
         },
@@ -1504,6 +1537,88 @@ export const openapiSpec = {
             description: 'too_many_requests: body includes retryAfterSeconds; a Retry-After header is set',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
           },
+        },
+      },
+    },
+    '/api/notifications': {
+      get: {
+        summary: "The caller's inbox, newest first, one page at a time",
+        description: 'Any signed-in user. In feature 015 the entries are match offers to goalkeepers (type booking.available).',
+        tags: ['Notifications'],
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'page', in: 'query', required: false, schema: { type: 'integer', minimum: 1, default: 1 } },
+          { name: 'pageSize', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 50, default: 20 } },
+        ],
+        responses: {
+          '200': { description: 'One page, with the unread count', content: { 'application/json': { schema: { $ref: '#/components/schemas/NotificationsPage' } } } },
+          '400': { description: 'validation_failed: invalid page or pageSize', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } } },
+          '401': { description: 'Not signed in' },
+        },
+      },
+    },
+    '/api/notifications/read-all': {
+      post: {
+        summary: "Mark every unread entry of the caller read",
+        tags: ['Notifications'],
+        security: [{ bearerAuth: [] }],
+        responses: { '204': { description: 'Done' }, '401': { description: 'Not signed in' } },
+      },
+    },
+    '/api/notifications/{notificationId}/read': {
+      post: {
+        summary: 'Mark one entry read (for an offer: opened, so it is never reminded again)',
+        tags: ['Notifications'],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'notificationId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          '204': { description: 'Read (idempotent)' },
+          '401': { description: 'Not signed in' },
+          '404': { description: "notification_not_found: unknown, malformed, or someone else's", content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/api/notifications/{notificationId}/dismiss': {
+      post: {
+        summary: 'Dismiss an offer: never reminded again, and marked read',
+        tags: ['Notifications'],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'notificationId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          '204': { description: 'Dismissed (idempotent)' },
+          '401': { description: 'Not signed in' },
+          '404': { description: 'notification_not_found', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '409': { description: 'not_an_offer: only match offers can be dismissed', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/api/goalkeepers/me/offers-availability': {
+      put: {
+        summary: 'Turn offers on or off',
+        description:
+          'Off: no offers (first notifications or reminders), an empty available-matches list and no accepting; the agenda is unaffected. Turning it on sends the offers for the open matches the goalkeeper can take right away, in one push.',
+        tags: ['Goalkeeper bookings'],
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { type: 'object', properties: { available: { type: 'boolean' } }, required: ['available'] } } },
+        },
+        responses: {
+          '200': {
+            description: 'Saved; offersSent counts the new offers sent by turning it on',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: { availableForOffers: { type: 'boolean' }, offersSent: { type: 'integer' } },
+                  required: ['availableForOffers', 'offersSent'],
+                },
+              },
+            },
+          },
+          '400': { description: 'validation_failed: available must be true or false', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } } },
+          '401': { description: 'Not signed in' },
+          '404': { description: 'goalkeeper_not_found: not an active goalkeeper', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
         },
       },
     },

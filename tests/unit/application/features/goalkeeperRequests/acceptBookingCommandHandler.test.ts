@@ -202,6 +202,18 @@ describe('AcceptBookingCommandHandler — US4: clear refusals that change nothin
     await unchanged(bookingId!);
   });
 
+  it('refuses while offers are switched off, charging nothing, but still answers a repeat (feature 015)', async () => {
+    const [taken] = match(1, 5);
+    const [other] = match(2, 9);
+    expect(await accept(taken!)).toMatchObject({ outcome: 'accepted' });
+    await h.profiles.setAvailableForOffers('gk-1', false);
+
+    expect(await accept(taken!)).toMatchObject({ outcome: 'replayed' });
+    expect(await accept(other!)).toEqual({ outcome: 'not_available_for_offers' });
+    expect(await h.bookings.findById(other!)).toMatchObject({ status: 'pending_assignment' });
+    expect(charges()).toHaveLength(1);
+  });
+
   it("refuses a booking of the goalkeeper's own request", async () => {
     const [bookingId] = match(1, 5, { clientId: 'gk-1' });
 

@@ -118,6 +118,8 @@ cp .env.example .env
 | `PUSH_DEVICE_INACTIVITY_DAYS` | No (default `60`) | Días sin registrarse tras los cuales un dispositivo se borra solo |
 | `PUSH_MAX_DEVICES_PER_USER` | No (default `10`) | Máximo de dispositivos por usuario; el más antiguo se borra al pasarse |
 | `PUSH_TEST_LIMIT_PER_MINUTE` | No (default `5`) | Pushes de prueba por usuario y minuto (`POST /api/devices/test-push`) |
+| `OFFER_REMINDER_INTERVAL_MINUTES` | No (default `5`) | Minutos mínimos entre pushes de ofertas a un mismo portero en las rondas de recordatorio |
+| `OFFER_MAX_REMINDERS` | No (default `3`) | Recordatorios por oferta después de su primer aviso |
 
 En producción (`NODE_ENV=production`) las variables se leen únicamente del entorno real, nunca de un archivo `.env`. En local no se necesita crear el `.env` a mano: pídele a alguien del equipo con acceso a Firebase Console los valores reales de `MONGODB_CONNECTION_STRING`, `JWT_SIGNING_KEY`, `GOOGLE_CLIENT_ID_MOBILE` y `CLOUDINARY_URL` (App Hosting → Environment variables), ya que el entorno local por defecto apunta a la misma base de datos de desarrollo que usa el backend desplegado.
 

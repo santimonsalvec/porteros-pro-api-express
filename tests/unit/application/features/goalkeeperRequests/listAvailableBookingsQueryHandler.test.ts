@@ -127,6 +127,21 @@ describe('ListAvailableBookingsQueryHandler — US1: a goalkeeper sees the match
     expect(await list()).toMatchObject({ items: [], unavailableReason: 'suspended', suspendedUntil: until.toISOString() });
   });
 
+  it('shows nothing while offers are switched off, before any other reason (feature 015)', async () => {
+    h.profiles.seed(
+      buildGoalkeeperProfile('gk-1', { zoneIds: ['zone-cali-norte'], availableForOffers: false, suspendedUntil: inHours(72) }),
+    );
+    h.seedRequest('norte', inHours(5), { goalkeeperCount: 1 });
+
+    expect(await list()).toMatchObject({
+      items: [],
+      totalItems: 0,
+      unavailableReason: 'not_available_for_offers',
+      missingAmount: null,
+      suspendedUntil: null,
+    });
+  });
+
   it("never lists a booking of the goalkeeper's own request", async () => {
     h.seedRequest('mine', inHours(5), { goalkeeperCount: 1, clientId: 'gk-1' });
 

@@ -56,6 +56,10 @@ export class FakeWalletStore implements IWalletStore, IWalletRepository, IWallet
     return { kind: 'recorded', movement, wallet };
   }
 
+  async findByGoalkeeperIds(goalkeeperIds: readonly string[]): Promise<Wallet[]> {
+    return this.wallets().filter((wallet) => goalkeeperIds.includes(wallet.goalkeeperId));
+  }
+
   async findByGoalkeeperId(goalkeeperId: string): Promise<Wallet | null> {
     return this.walletState.get(goalkeeperId) ?? null;
   }

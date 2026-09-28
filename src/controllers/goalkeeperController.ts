@@ -23,6 +23,8 @@ import { savePhysicalDataSectionRequestSchema } from './requests/goalkeepers/sav
 import { saveAvailabilitySectionRequestSchema } from './requests/goalkeepers/saveAvailabilitySectionRequest.js';
 import { updateGoalkeeperPhysicalDataRequestSchema } from './requests/goalkeepers/updateGoalkeeperPhysicalDataRequest.js';
 import { updateGoalkeeperAvailabilityRequestSchema } from './requests/goalkeepers/updateGoalkeeperAvailabilityRequest.js';
+import { offersAvailabilityRequestSchema } from './requests/goalkeepers/offersAvailabilityRequest.js';
+import { SetOffersAvailabilityCommand } from '../application/features/notifications/commands/setOffersAvailability/setOffersAvailabilityCommand.js';
 import { ApiError } from './apiError.js';
 import { goalkeeperNotFound, sendMovements, sendWallet } from './wallet/walletHttp.js';
 import { AcceptBookingCommand } from '../application/features/goalkeeperRequests/commands/acceptBooking/acceptBookingCommand.js';
@@ -164,6 +166,20 @@ export function createGoalkeeperController(deps: GoalkeeperControllerDependencie
         throw new ApiError(404, 'goalkeeper_not_found', 'You have not started a goalkeeper registration.');
       case 'not_active':
         throw new ApiError(409, 'goalkeeper_not_active', 'Your goalkeeper profile is not active yet; finish and activate your registration first.');
+    }
+  });
+
+  // The "available for offers" switch (feature 015): off hides and refuses matches; on sends the open ones now.
+  router.put('/me/offers-availability', async (req, res) => {
+    const body = offersAvailabilityRequestSchema.parse(req.body);
+    const result = await deps.mediator.send(new SetOffersAvailabilityCommand(req.authClaims!.sub, body.available));
+
+    switch (result.outcome) {
+      case 'updated':
+        res.status(200).json({ availableForOffers: result.availableForOffers, offersSent: result.offersSent });
+        return;
+      case 'not_a_goalkeeper':
+        throw goalkeeperNotFound();
     }
   });
 
@@ -355,6 +371,8 @@ export function createGoalkeeperController(deps: GoalkeeperControllerDependencie
         throw new ApiError(403, 'goalkeeper_suspended', 'You cannot take bookings while suspended.', undefined, {
           suspendedUntil: result.suspendedUntil,
         });
+      case 'not_available_for_offers':
+        throw new ApiError(409, 'goalkeeper_not_available', 'Turn on availability for offers to take matches.');
       case 'schedule_conflict':
         throw new ApiError(409, 'schedule_conflict', 'This booking clashes with a match you already have.', undefined, {
           conflictingBookingId: result.conflictingBookingId,

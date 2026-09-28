@@ -83,6 +83,7 @@ export class BookingRepository implements IBookingRepository {
     await this.collection.createIndex({ requestId: 1, _id: 1 }, { name: 'requestId' });
     await this.collection.createIndex({ status: 1, zoneId: 1, startsAt: 1, _id: 1 }, { name: 'status_zone_start' });
     await this.collection.createIndex({ goalkeeperId: 1, startsAt: 1, _id: 1 }, { name: 'goalkeeper_start' });
+    await this.collection.createIndex({ status: 1, searchEndsAt: 1 }, { name: 'status_searchEnds' });
   }
 
   async findById(id: string): Promise<Booking | null> {
@@ -108,6 +109,21 @@ export class BookingRepository implements IBookingRepository {
       })
       .sort({ startsAt: 1, _id: 1 })
       .limit(query.cap)
+      .toArray();
+    return docs.map(bookingFromDocument);
+  }
+
+  async findAssignedToGoalkeepers(goalkeeperIds: readonly string[]): Promise<Booking[]> {
+    if (goalkeeperIds.length === 0) return [];
+    const docs = await this.collection.find({ goalkeeperId: { $in: [...goalkeeperIds] }, status: 'assigned' }).toArray();
+    return docs.map(bookingFromDocument);
+  }
+
+  async findOpenPending(now: Date, cap: number): Promise<Booking[]> {
+    const docs = await this.collection
+      .find({ status: 'pending_assignment', searchEndsAt: { $gt: now } })
+      .sort({ startsAt: 1, _id: 1 })
+      .limit(cap)
       .toArray();
     return docs.map(bookingFromDocument);
   }

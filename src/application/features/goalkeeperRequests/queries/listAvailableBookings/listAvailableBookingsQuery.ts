@@ -10,7 +10,7 @@ export type ListAvailableBookingsResult =
       totalItems: number;
       totalPages: number;
       /** Why the list is empty whatever the matches (FR-002); null when the goalkeeper can see offers. */
-      unavailableReason: 'insufficient_funds' | 'suspended' | null;
+      unavailableReason: 'not_available_for_offers' | 'insufficient_funds' | 'suspended' | null;
       missingAmount: number | null;
       suspendedUntil: string | null;
     }

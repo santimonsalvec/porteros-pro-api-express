@@ -50,6 +50,17 @@ describe('GET /api/goalkeepers/me/available-bookings — US1: the goalkeeper see
     expect(response.body).toMatchObject({ items: [], totalItems: 0, unavailableReason: 'insufficient_funds', missingAmount: 7000 });
   });
 
+  it('shows nothing while the goalkeeper has offers switched off (feature 015)', async () => {
+    const { context, client, goalkeeper } = await setUp();
+    await createRequestAsClient(context, client.token);
+    await context.walletLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: 'k-off' });
+    await context.goalkeeperProfileRepository.setAvailableForOffers(goalkeeper.userId, false);
+
+    const response = await available(context, goalkeeper.token);
+
+    expect(response.body).toMatchObject({ items: [], totalItems: 0, unavailableReason: 'not_available_for_offers' });
+  });
+
   it('404 for a client who is not an active goalkeeper, 400 for bad pagination', async () => {
     const { context, client, goalkeeper } = await setUp();
 
