@@ -48,4 +48,46 @@ export const config = {
     // clear error when it's missing, consistent with every other lazily-read secret above.
     cloudinaryUrl: (): string => requireEnv('CLOUDINARY_URL'),
   },
+  // Domain events (feature 013). `local` delivers events in-process and sweeps on a timer;
+  // `pubsub` publishes to Google Cloud Pub/Sub and relies on Cloud Scheduler for the sweep.
+  events: {
+    mode: optionalEnv('EVENTS_MODE', 'local') as EventsMode,
+    gcpProjectId: (): string => requireEnv('GCP_PROJECT_ID'),
+    topic: optionalEnv('EVENTS_TOPIC', 'booking-events'),
+    relayTimeoutMs: 2000,
+    pendingWarningMinutes: 5,
+    sweepBatchLimit: 200,
+  },
+  // Who may call /internal/* (feature 013): Google OIDC tokens for this audience, issued to
+  // one of these service accounts (the Pub/Sub push identity and the Cloud Scheduler identity).
+  internalAuth: {
+    /** Empty means no internal caller is accepted (local development). */
+    audience: optionalEnv('INTERNAL_OIDC_AUDIENCE', ''),
+    allowedInvokers: optionalEnv('INTERNAL_ALLOWED_INVOKERS', '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean),
+  },
 };
+
+export type EventsMode = 'local' | 'pubsub';
+
+/**
+ * Fails fast at startup when the events configuration cannot work: an unknown mode, or
+ * `pubsub` mode without its project, audience or invokers.
+ */
+export function assertEventsConfig(): void {
+  const { mode } = config.events;
+  if (mode !== 'local' && mode !== 'pubsub') {
+    throw new Error(`EVENTS_MODE must be "local" or "pubsub", got "${String(mode)}"`);
+  }
+  if (mode === 'pubsub') {
+    config.events.gcpProjectId();
+    if (!config.internalAuth.audience) {
+      throw new Error('Missing required environment variable: INTERNAL_OIDC_AUDIENCE');
+    }
+    if (config.internalAuth.allowedInvokers.length === 0) {
+      throw new Error('Missing required environment variable: INTERNAL_ALLOWED_INVOKERS');
+    }
+  }
+}

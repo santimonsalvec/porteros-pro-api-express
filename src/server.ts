@@ -3,17 +3,21 @@ import { config } from './infrastructure/config.js';
 import { buildDependencies } from './infrastructure/di.js';
 import { logger } from './infrastructure/observability/logger.js';
 import { startObservability } from './infrastructure/observability/otel.js';
+import { startLocalSweepTimer } from './infrastructure/events/localSweepTimer.js';
 
 async function main(): Promise<void> {
   const otelSdk = startObservability(config.otel.otlpEndpoint);
   const { dependencies, close } = await buildDependencies();
   const app = createApp(dependencies);
+  // Local mode has no Cloud Scheduler: sweep in-process every minute (feature 013).
+  const localSweep = config.events.mode === 'local' ? startLocalSweepTimer(dependencies.mediator, logger) : null;
 
   const server = app.listen(config.port, '0.0.0.0', () => {
     logger.info({ port: config.port }, 'PorterosPRO API listening');
   });
 
   const shutdown = async (): Promise<void> => {
+    localSweep?.stop();
     server.close();
     await close();
     await otelSdk.shutdown().catch(() => undefined);

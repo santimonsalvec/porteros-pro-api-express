@@ -4,6 +4,7 @@ import type {
 } from '../../src/application/features/goalkeeperRequests/common/ports.js';
 import { firstConflict, holdsSameRequest } from '../../src/domain/bookings/schedulePolicy.js';
 import type { FakeBookingRepository } from './fakeBookingRepository.js';
+import type { FakeOutboxStore } from './fakeOutboxStore.js';
 import type { FakeWalletStore } from './fakeWalletStore.js';
 
 type AcceptArgs = Parameters<IBookingAcceptanceStore['accept']>[0];
@@ -22,6 +23,7 @@ export class FakeBookingAcceptanceStore implements IBookingAcceptanceStore {
   constructor(
     private readonly bookings: FakeBookingRepository,
     private readonly wallet: FakeWalletStore,
+    private readonly outbox?: FakeOutboxStore,
   ) {}
 
   failNextWith(result: AcceptanceResult | Error): void {
@@ -62,6 +64,8 @@ export class FakeBookingAcceptanceStore implements IBookingAcceptanceStore {
     const charge = await this.wallet.append(args.commissionDraft(booking));
     if (charge.kind === 'insufficient_funds') return { kind: 'insufficient_funds', balance: charge.balance };
     this.bookings.seed(booking);
-    return { kind: 'accepted', booking };
+    const event = args.event(booking);
+    this.outbox?.append([event], args.now);
+    return { kind: 'accepted', booking, event };
   }
 }

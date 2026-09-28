@@ -5,6 +5,7 @@ import { GoalkeeperRequest } from '../../../../../src/domain/bookings/goalkeeper
 import type { Quote } from '../../../../../src/domain/bookings/quote.js';
 import { bookingToDocument } from '../../../../../src/infrastructure/persistence/mongo/bookingRepository.js';
 import { requestToDocument } from '../../../../../src/infrastructure/persistence/mongo/goalkeeperRequestRepository.js';
+import { bookingCreated } from '../../../../../src/domain/events/bookingEvents.js';
 import { MongoQuoteConfirmationStore } from '../../../../../src/infrastructure/persistence/mongo/quoteConfirmationStore.js';
 import { quoteToDocument } from '../../../../../src/infrastructure/persistence/mongo/quoteRepository.js';
 import { createFakeCollection } from '../../../../fakes/fakeMongoCollection.js';
@@ -16,7 +17,8 @@ function harness() {
   const quotes = createFakeCollection();
   const requests = createFakeCollection();
   const bookings = createFakeCollection();
-  const collections: Record<string, unknown> = { quotes, goalkeeperRequests: requests, bookings };
+  const outbox = createFakeCollection();
+  const collections: Record<string, unknown> = { quotes, goalkeeperRequests: requests, bookings, outbox };
   const db = { collection: (name: string) => collections[name] as Collection<Document> } as unknown as Db;
   // Runs the callback once, as the driver does when nothing is transient.
   const session = {
@@ -28,11 +30,13 @@ function harness() {
   const store = new MongoQuoteConfirmationStore(() => session as unknown as ClientSession, db);
   const build = (quote: Quote) => {
     const request = GoalkeeperRequest.fromQuote('r-1', quote, 'keep_confirmed', now);
-    return { request, bookings: [Booking.forRequest('b-1', request, now), Booking.forRequest('b-2', request, now)] };
+    const created = [Booking.forRequest('b-1', request, now), Booking.forRequest('b-2', request, now)];
+    return { request, bookings: created, events: created.map((booking, index) => bookingCreated(`ev-${index + 1}`, booking, request, now)) };
   };
   requests.insertOne.mockResolvedValue({});
   bookings.insertMany.mockResolvedValue({});
-  return { quotes, requests, bookings, session, store, build };
+  outbox.insertMany.mockResolvedValue({});
+  return { quotes, requests, bookings, outbox, session, store, build };
 }
 
 function duplicateKeyError(keyPattern: Record<string, number>) {
@@ -41,10 +45,10 @@ function duplicateKeyError(keyPattern: Record<string, number>) {
 
 describe('MongoQuoteConfirmationStore (mocked driver)', () => {
   it("claims only the caller's unexpired quote, and every write is inside the transaction", async () => {
-    const { quotes, requests, bookings, session, store, build } = harness();
+    const { quotes, requests, bookings, outbox, session, store, build } = harness();
     quotes.findOneAndDelete.mockResolvedValue(quoteToDocument(buildStoredQuote()));
 
-    await store.claimAndCreateRequest(STORED_QUOTE_ID, 'client-a', now, build);
+    const result = await store.claimAndCreateRequest(STORED_QUOTE_ID, 'client-a', now, build);
 
     expect(quotes.findOneAndDelete).toHaveBeenCalledWith(
       { _id: STORED_QUOTE_ID, clientId: 'client-a', expiresAt: { $gt: now } },
@@ -52,6 +56,13 @@ describe('MongoQuoteConfirmationStore (mocked driver)', () => {
     );
     expect(requests.insertOne.mock.calls[0]![1]).toEqual({ session });
     expect(bookings.insertMany.mock.calls[0]![1]).toEqual({ session, ordered: true });
+    // Feature 013: one booking.created per booking, in the same transaction.
+    expect(outbox.insertMany.mock.calls[0]![0]).toMatchObject([
+      { _id: 'ev-1', type: 'booking.created', bookingId: 'b-1', status: 'pending' },
+      { _id: 'ev-2', type: 'booking.created', bookingId: 'b-2', status: 'pending' },
+    ]);
+    expect(outbox.insertMany.mock.calls[0]![1]).toEqual({ session });
+    expect(result).toMatchObject({ kind: 'created', events: [{ id: 'ev-1' }, { id: 'ev-2' }] });
   });
 
   it('inserts the request and all its bookings built from the deleted quote', async () => {
@@ -64,7 +75,7 @@ describe('MongoQuoteConfirmationStore (mocked driver)', () => {
     const expected = build(quote);
     expect(requests.insertOne.mock.calls[0]![0]).toEqual(requestToDocument(expected.request));
     expect(bookings.insertMany.mock.calls[0]![0]).toEqual(expected.bookings.map(bookingToDocument));
-    expect(result).toEqual({ kind: 'created', request: expected.request, bookings: expected.bookings });
+    expect(result).toEqual({ kind: 'created', request: expected.request, bookings: expected.bookings, events: expected.events });
   });
 
   it('writes nothing when no claimable quote exists', async () => {

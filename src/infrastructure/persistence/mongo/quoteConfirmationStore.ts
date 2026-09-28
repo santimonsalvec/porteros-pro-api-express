@@ -6,8 +6,10 @@ import type {
 import type { Booking } from '../../../domain/bookings/booking.js';
 import type { GoalkeeperRequest } from '../../../domain/bookings/goalkeeperRequest.js';
 import type { Quote } from '../../../domain/bookings/quote.js';
+import type { DomainEvent } from '../../../domain/events/domainEvent.js';
 import { BOOKINGS_COLLECTION, bookingToDocument } from './bookingRepository.js';
 import { GOALKEEPER_REQUESTS_COLLECTION, requestToDocument } from './goalkeeperRequestRepository.js';
+import { appendEventsInSession } from './outboxStore.js';
 import { QUOTES_COLLECTION, quoteFromDocument } from './quoteRepository.js';
 
 const DUPLICATE_KEY = 11000;
@@ -42,7 +44,7 @@ export class MongoQuoteConfirmationStore implements IQuoteConfirmationStore {
     quoteId: string,
     clientId: string,
     now: Date,
-    build: (quote: Quote) => { request: GoalkeeperRequest; bookings: Booking[] },
+    build: (quote: Quote) => { request: GoalkeeperRequest; bookings: Booking[]; events: DomainEvent[] },
   ): Promise<ClaimResult> {
     const quotes = this.db.collection(QUOTES_COLLECTION);
     const requests = this.db.collection(GOALKEEPER_REQUESTS_COLLECTION);
@@ -63,7 +65,8 @@ export class MongoQuoteConfirmationStore implements IQuoteConfirmationStore {
           attempt.request = created.request;
           await requests.insertOne(requestToDocument(created.request), { session });
           await bookings.insertMany(created.bookings.map(bookingToDocument), { session, ordered: true });
-          return { kind: 'created', request: created.request, bookings: created.bookings };
+          await appendEventsInSession(this.db, session, created.events, now);
+          return { kind: 'created', request: created.request, bookings: created.bookings, events: created.events };
         },
         {
           readConcern: { level: 'snapshot' },

@@ -10,6 +10,8 @@ import { FakeGoalkeeperRequestRepository } from '../../../../fakes/fakeGoalkeepe
 import { FixedClock } from '../../../../fakes/fakeClock.js';
 import { FakeQuoteConfirmationStore } from '../../../../fakes/fakeQuoteConfirmationStore.js';
 import { FakeQuoteRepository } from '../../../../fakes/fakeQuoteRepository.js';
+import { FakeOutboxStore } from '../../../../fakes/fakeOutboxStore.js';
+import { FakeEventRelay } from '../../../../fakes/fakeEventRelay.js';
 import { FakeUserRepository } from '../../../../fakes/fakeUserRepository.js';
 import { User } from '../../../../../src/domain/users/user.js';
 import {
@@ -24,7 +26,9 @@ class Harness {
   readonly quotes = new FakeQuoteRepository();
   readonly requests = new FakeGoalkeeperRequestRepository();
   readonly bookings = new FakeBookingRepository();
-  readonly store = new FakeQuoteConfirmationStore(this.quotes, this.requests, this.bookings);
+  readonly outbox = new FakeOutboxStore();
+  readonly relay = new FakeEventRelay();
+  readonly store = new FakeQuoteConfirmationStore(this.quotes, this.requests, this.bookings, this.outbox);
   readonly audit = new FakeBookingAuditLogger();
   readonly users = new FakeUserRepository();
   readonly clock = new FixedClock('2026-09-21T18:01:00.000Z');
@@ -39,6 +43,7 @@ class Harness {
     { newId: () => `id-${++this.counter}` },
     this.clock,
     this.audit,
+    this.relay,
   );
 
   confirm(quoteId = STORED_QUOTE_ID, clientId = 'client-a', partialFulfillment?: 'keep_confirmed' | 'cancel_all') {
@@ -451,5 +456,35 @@ describe('ConfirmBookingCommandHandler — Story 4: stale, foreign or unknown qu
       { outcome: 'quote_expired', clientId: 'client-a', quoteId: STORED_QUOTE_ID },
       { outcome: 'quote_not_found', clientId: 'client-a', quoteId: 'not-a-uuid' },
     ]);
+  });
+});
+
+describe('ConfirmBookingCommandHandler — 013 US1: a confirmation records one event per booking', () => {
+  const events = () => h.outbox.all().map((entry) => entry.event);
+
+  it('records a booking.created for each booking, naming it and its request', async () => {
+    await h.confirm();
+
+    expect(events()).toEqual([
+      expect.objectContaining({ type: 'booking.created', bookingId: 'id-2', requestId: 'id-1', occurredAt: h.clock.now() }),
+      expect.objectContaining({ type: 'booking.created', bookingId: 'id-3', requestId: 'id-1' }),
+    ]);
+    expect(events()[0]!.payload).toMatchObject({ clientId: 'client-a', zoneId: 'zone-cali-norte', commission: 7000, currency: 'COP', goalkeeperCount: 2 });
+    expect(new Set(events().map((event) => event.id)).size).toBe(2);
+  });
+
+  it('records nothing on a replay, and relays only the created events (013 US2)', async () => {
+    await h.confirm();
+    await h.confirm();
+
+    expect(events()).toHaveLength(2);
+    expect(h.relay.calls).toEqual([events()]);
+  });
+
+  it('records nothing when the confirmation is refused', async () => {
+    h.clock.set('2026-09-21T18:05:00.000Z'); // the quote expired at 18:03
+
+    expect((await h.confirm()).outcome).toBe('quote_expired');
+    expect(events()).toHaveLength(0);
   });
 });

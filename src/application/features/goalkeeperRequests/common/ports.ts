@@ -1,3 +1,4 @@
+import type { DomainEvent } from '../../../../domain/events/domainEvent.js';
 import type { Booking } from '../../../../domain/bookings/booking.js';
 import type { GoalkeeperRequest } from '../../../../domain/bookings/goalkeeperRequest.js';
 import type { MovementDraft } from '../../wallet/common/ports.js';
@@ -82,7 +83,8 @@ export interface IBookingRepository {
 }
 
 export type AcceptanceResult =
-  | { kind: 'accepted'; booking: Booking }
+  /** Assigned, charged, and `event` recorded in the same transaction (feature 013). */
+  | { kind: 'accepted'; booking: Booking; event: DomainEvent }
   /** The booking was not pending, its search had ended, or it is the goalkeeper's own request. Nothing written. */
   | { kind: 'not_claimed' }
   /** The goalkeeper already holds another booking of the same request. Nothing written. */
@@ -102,6 +104,8 @@ export interface IBookingAcceptanceStore {
     goalkeeperId: string;
     now: Date;
     commissionDraft: (booking: Booking) => MovementDraft;
+    /** The "goalkeeper assigned" event, recorded with the assignment (feature 013). */
+    event: (booking: Booking) => DomainEvent;
   }): Promise<AcceptanceResult>;
 }
 
@@ -125,7 +129,8 @@ export interface IAcceptanceAuditLogger {
 }
 
 export type ClaimResult =
-  | { kind: 'created'; request: GoalkeeperRequest; bookings: Booking[] }
+  /** The request, its bookings and their events were written together (feature 013). */
+  | { kind: 'created'; request: GoalkeeperRequest; bookings: Booking[]; events: DomainEvent[] }
   /** No pending, unexpired quote with that id belongs to this client. Nothing was written. */
   | { kind: 'not_claimed' }
   /** A request for this quote already exists (a concurrent confirmation won). Nothing was written. */
@@ -142,7 +147,7 @@ export interface IQuoteConfirmationStore {
     quoteId: string,
     clientId: string,
     now: Date,
-    build: (quote: Quote) => { request: GoalkeeperRequest; bookings: Booking[] },
+    build: (quote: Quote) => { request: GoalkeeperRequest; bookings: Booking[]; events: DomainEvent[] },
   ): Promise<ClaimResult>;
 }
 

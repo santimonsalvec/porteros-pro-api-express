@@ -1,4 +1,4 @@
-import { Mediator, registerHandlers } from '../application/common/mediator/mediator.js';
+import { Mediator, registerHandlers, registerSubscribers } from '../application/common/mediator/mediator.js';
 import { GetSsoOptionsQuery } from '../application/features/auth/queries/getSsoOptions/getSsoOptionsQuery.js';
 import { GetSsoOptionsQueryHandler } from '../application/features/auth/queries/getSsoOptions/getSsoOptionsQueryHandler.js';
 import { ExchangeSsoCredentialCommand } from '../application/features/auth/commands/exchangeSsoCredential/exchangeSsoCredentialCommand.js';
@@ -54,7 +54,7 @@ import { UpdateGoalkeeperAvailabilityCommandHandler } from '../application/featu
 import { CancelGoalkeeperRegistrationCommand } from '../application/features/goalkeepers/commands/cancelGoalkeeperRegistration/cancelGoalkeeperRegistrationCommand.js';
 import { CancelGoalkeeperRegistrationCommandHandler } from '../application/features/goalkeepers/commands/cancelGoalkeeperRegistration/cancelGoalkeeperRegistrationCommandHandler.js';
 import type { AppDependencies } from '../appDependencies.js';
-import { config } from './config.js';
+import { assertEventsConfig, config } from './config.js';
 import { MongoConnectionProvider } from './persistence/mongo/mongoConnectionProvider.js';
 import { UserRepository } from './persistence/mongo/userRepository.js';
 import { RefreshTokenRepository } from './persistence/mongo/refreshTokenRepository.js';
@@ -102,6 +102,17 @@ import { CloudinaryImageStorageProvider } from './images/cloudinaryImageStorageP
 import { GoalkeeperRegistrationRepository } from './persistence/mongo/goalkeeperRegistrationRepository.js';
 import { DocumentTypeRepository } from './persistence/mongo/documentTypeRepository.js';
 import { GoalkeeperProfileRepository } from './persistence/mongo/goalkeeperProfileRepository.js';
+import { MongoOutboxStore } from './persistence/mongo/outboxStore.js';
+import { MongoJobLockStore } from './persistence/mongo/jobLockStore.js';
+import { MongoProcessedEventStore } from './persistence/mongo/processedEventStore.js';
+import { MongoEventDeliveryLog } from './persistence/mongo/eventDeliveryLogRepository.js';
+import { GoogleOidcVerifier } from './events/googleOidcVerifier.js';
+import { DELIVERY_LOG_EVENT_TYPES, LogEventDeliveryHandler } from '../application/features/events/handlers/logEventDelivery.js';
+import { PubSubEventPublisher } from './events/pubSubEventPublisher.js';
+import { InProcessEventPublisher } from './events/inProcessEventPublisher.js';
+import { EventRelay } from '../application/features/events/common/eventRelay.js';
+import { RunSweepCommand } from '../application/features/events/commands/runSweep/runSweepCommand.js';
+import { RunSweepCommandHandler } from '../application/features/events/commands/runSweep/runSweepCommandHandler.js';
 
 export interface CompositionRoot {
   dependencies: AppDependencies;
@@ -180,6 +191,37 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   const mongoHealthCheck = new MongoHealthCheck(db);
 
   const mediator = new Mediator();
+
+  // Domain events (feature 013).
+  assertEventsConfig();
+  const outboxStore = new MongoOutboxStore(db);
+  await outboxStore.ensureIndexes();
+  const eventPublisher =
+    config.events.mode === 'pubsub'
+      ? new PubSubEventPublisher(config.events.gcpProjectId(), config.events.topic)
+      : new InProcessEventPublisher(mediator);
+  const eventRelay = new EventRelay(eventPublisher, outboxStore, clock, logger, config.events.relayTimeoutMs);
+  const jobLockStore = new MongoJobLockStore(db);
+  const processedEventStore = new MongoProcessedEventStore(db);
+  await processedEventStore.ensureIndexes();
+  const eventDeliveryLog = new MongoEventDeliveryLog(db);
+  await eventDeliveryLog.ensureIndexes();
+  const deliveryLogHandler = new LogEventDeliveryHandler(eventDeliveryLog, processedEventStore, clock, logger);
+  registerSubscribers(
+    mediator,
+    DELIVERY_LOG_EVENT_TYPES.map((type) => ({ type, handler: deliveryLogHandler })),
+  );
+  const oidcVerifier = new GoogleOidcVerifier(config.internalAuth.audience, config.internalAuth.allowedInvokers);
+  const verifyInternalCaller = async (token: string): Promise<boolean> => {
+    const verdict = await oidcVerifier.verify(token);
+    if (!verdict.ok) logger.warn({ outcome: 'internal_auth_rejected', reason: verdict.reason }, 'Internal call refused');
+    return verdict.ok;
+  };
+  logger.info({ events_mode: config.events.mode }, 'Domain events configured');
+  if (process.env.NODE_ENV === 'production' && config.events.mode === 'local') {
+    logger.warn({ events_mode: 'local' }, 'Domain events run in-process in production: nothing reaches Pub/Sub');
+  }
+
   registerHandlers(mediator, [
     { requestType: GetSsoOptionsQuery, handler: new GetSsoOptionsQueryHandler(ssoCatalog) },
     {
@@ -268,6 +310,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         idGenerator,
         clock,
         auditLogger,
+        eventRelay,
       ),
     },
     {
@@ -312,6 +355,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         idGenerator: idGenerator,
         clock,
         audit: auditLogger,
+        relay: eventRelay,
       }),
     },
     {
@@ -389,6 +433,19 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       ),
     },
     {
+      requestType: RunSweepCommand,
+      handler: new RunSweepCommandHandler({
+        outbox: outboxStore,
+        publisher: eventPublisher,
+        clock,
+        logger,
+        batchLimit: config.events.sweepBatchLimit,
+        pendingWarningMinutes: config.events.pendingWarningMinutes,
+        jobs: [],
+        jobLocks: jobLockStore,
+      }),
+    },
+    {
       requestType: CancelGoalkeeperRegistrationCommand,
       handler: new CancelGoalkeeperRegistrationCommandHandler(mediator, goalkeeperRegistrationRepository),
     },
@@ -399,6 +456,8 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       mediator,
       verifyAccessToken: (token) => tokenIssuer.verifyAccessToken(token),
       checkHealth: () => mongoHealthCheck.check(),
+      publisher: mediator,
+      verifyInternalCaller,
     },
     close: async () => {
       await connectionProvider.close();

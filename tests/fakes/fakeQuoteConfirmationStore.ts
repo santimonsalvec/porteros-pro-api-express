@@ -5,15 +5,17 @@ import type {
 import type { Booking } from '../../src/domain/bookings/booking.js';
 import type { GoalkeeperRequest } from '../../src/domain/bookings/goalkeeperRequest.js';
 import type { Quote } from '../../src/domain/bookings/quote.js';
+import type { DomainEvent } from '../../src/domain/events/domainEvent.js';
 import type { FakeBookingRepository } from './fakeBookingRepository.js';
 import type { FakeGoalkeeperRequestRepository } from './fakeGoalkeeperRequestRepository.js';
+import type { FakeOutboxStore } from './fakeOutboxStore.js';
 import type { FakeQuoteRepository } from './fakeQuoteRepository.js';
 
 /**
  * In-memory stand-in for the transactional store, applying the same rules over the fakes: claim
  * only the client's unexpired quote, enforce both unique rules BEFORE touching anything (a
  * violation leaves the quote in place, as an aborted transaction would), else delete the quote
- * and store the request with all its bookings.
+ * and store the request with all its bookings — and their events, in the outbox when one is given.
  */
 export class FakeQuoteConfirmationStore implements IQuoteConfirmationStore {
   calls = 0;
@@ -23,6 +25,7 @@ export class FakeQuoteConfirmationStore implements IQuoteConfirmationStore {
     private readonly quotes: FakeQuoteRepository,
     private readonly requests: FakeGoalkeeperRequestRepository,
     private readonly bookings: FakeBookingRepository,
+    private readonly outbox?: FakeOutboxStore,
   ) {}
 
   /**
@@ -37,7 +40,7 @@ export class FakeQuoteConfirmationStore implements IQuoteConfirmationStore {
     quoteId: string,
     clientId: string,
     now: Date,
-    build: (quote: Quote) => { request: GoalkeeperRequest; bookings: Booking[] },
+    build: (quote: Quote) => { request: GoalkeeperRequest; bookings: Booking[]; events: DomainEvent[] },
   ): Promise<ClaimResult> {
     this.calls += 1;
     if (this.forced) {
@@ -62,6 +65,7 @@ export class FakeQuoteConfirmationStore implements IQuoteConfirmationStore {
     this.quotes.remove(quote.id);
     this.requests.seed(request);
     created.bookings.forEach((booking) => this.bookings.seed(booking));
-    return { kind: 'created', request, bookings: created.bookings };
+    this.outbox?.append(created.events, now);
+    return { kind: 'created', request, bookings: created.bookings, events: created.events };
   }
 }

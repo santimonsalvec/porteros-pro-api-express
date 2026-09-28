@@ -108,6 +108,11 @@ cp .env.example .env
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | No | Endpoint OTLP para trazas; sin valor, exporta a consola |
 | `OTEL_EXPORTER_OTLP_HEADERS` | No | Cabeceras `clave=valor` (ej. `Authorization=Basic ...`) para el endpoint OTLP, requeridas por proveedores como Grafana Cloud. Leída automáticamente por el SDK de OpenTelemetry, no necesita cableado propio |
 | `PORT` | No (default `3000`) | Puerto HTTP |
+| `EVENTS_MODE` | No (default `local`) | `local`: eventos en el mismo proceso y barrido con timer. `pubsub`: Google Cloud Pub/Sub más Cloud Scheduler. Ver [docs/events-infrastructure.md](docs/events-infrastructure.md) |
+| `GCP_PROJECT_ID` | Con `pubsub` | Proyecto de Google Cloud del topic de eventos |
+| `EVENTS_TOPIC` | No (default `booking-events`) | Topic de Pub/Sub de los eventos de dominio |
+| `INTERNAL_OIDC_AUDIENCE` | Con `pubsub` | URL pública del servicio: la audiencia del token OIDC que envían Pub/Sub y Cloud Scheduler a `/internal/*` |
+| `INTERNAL_ALLOWED_INVOKERS` | Con `pubsub` | Emails de las cuentas de servicio autorizadas a llamar `/internal/*`, separados por coma |
 
 En producción (`NODE_ENV=production`) las variables se leen únicamente del entorno real, nunca de un archivo `.env`. En local no se necesita crear el `.env` a mano: pídele a alguien del equipo con acceso a Firebase Console los valores reales de `MONGODB_CONNECTION_STRING`, `JWT_SIGNING_KEY`, `GOOGLE_CLIENT_ID_MOBILE` y `CLOUDINARY_URL` (App Hosting → Environment variables), ya que el entorno local por defecto apunta a la misma base de datos de desarrollo que usa el backend desplegado.
 
@@ -180,6 +185,8 @@ El proyecto se desarrolla feature por feature con [Spec Kit](https://github.com/
 El backend se despliega en **Firebase App Hosting**, con build y deploy automáticos al hacer push a `main`. La configuración de runtime (CPU, memoria, instancias) vive en `apphosting.yaml`; las variables de entorno sensibles se gestionan desde la consola de Firebase (App Hosting → Environment variables), no desde el repositorio.
 
 Como la instancia puede escalar a cero (`minInstances: 0`), el servicio no debe depender de estado ni temporizadores en memoria: todo estado vive en MongoDB.
+
+Los eventos de dominio y el barrido de cada minuto (feature 013) necesitan recursos de Google Cloud: topics y suscripción de Pub/Sub, cuentas de servicio y un job de Cloud Scheduler. La guía completa está en [docs/events-infrastructure.md](docs/events-infrastructure.md).
 
 ## Troubleshooting
 
