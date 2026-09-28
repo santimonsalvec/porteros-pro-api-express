@@ -36,8 +36,8 @@ export interface BookingCancelledPayload {
   /** The commission given back to that goalkeeper, when there was one. */
   refundedAmount: number | null;
   currency: string;
-  reason: 'cancel_all';
-  by: 'system';
+  reason: 'cancel_all' | 'client_cancelled';
+  by: 'system' | 'client';
 }
 
 export type BookingCreatedEvent = DomainEvent<'booking.created', BookingCreatedPayload>;
@@ -102,8 +102,8 @@ export function bookingExpired(id: string, booking: Booking, at: Date): BookingE
 }
 
 /**
- * The system cancelled the booking because its "cancel all" request wasn't complete in time
- * (feature 016). `booking` is as it was before the cancellation, so an assigned one names its
+ * The booking was cancelled: by the system because its "cancel all" request wasn't complete in
+ * time (feature 016, the default author), or by the client (feature 017). `booking` is as it was before the cancellation, so an assigned one names its
  * goalkeeper; `refund` is what that goalkeeper got back.
  */
 export function bookingCancelled(
@@ -111,6 +111,7 @@ export function bookingCancelled(
   booking: Booking,
   at: Date,
   refund: { amount: number; currency: string } | null,
+  author: { reason: BookingCancelledPayload['reason']; by: BookingCancelledPayload['by'] } = { reason: 'cancel_all', by: 'system' },
 ): BookingCancelledEvent {
   return {
     id,
@@ -126,8 +127,8 @@ export function bookingCancelled(
       goalkeeperId: booking.goalkeeperId,
       refundedAmount: refund?.amount ?? null,
       currency: refund?.currency ?? booking.price.currency,
-      reason: 'cancel_all',
-      by: 'system',
+      reason: author.reason,
+      by: author.by,
     },
   };
 }

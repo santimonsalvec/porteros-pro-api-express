@@ -145,6 +145,8 @@ import { CLIENT_OUTCOME_EVENT_TYPES, ClientOutcomeNoticeHandler } from '../appli
 import { MongoBookingLifecycleStore } from './persistence/mongo/bookingLifecycleStore.js';
 import { CancelAllJob } from '../application/features/bookingLifecycle/jobs/cancelAllJob.js';
 import { GOALKEEPER_CANCELLATION_EVENT_TYPES, GoalkeeperCancellationNoticeHandler } from '../application/features/bookingLifecycle/handlers/goalkeeperCancellationNoticeHandler.js';
+import { CancelBookingsByClientCommand } from '../application/features/bookingLifecycle/commands/cancelBookingsByClient/cancelBookingsByClientCommand.js';
+import { CancelBookingsByClientCommandHandler } from '../application/features/bookingLifecycle/commands/cancelBookingsByClient/cancelBookingsByClientCommandHandler.js';
 import { NotifyBookingOffersHandler, OFFER_EVENT_TYPES } from '../application/features/notifications/handlers/notifyBookingOffersHandler.js';
 import { MongoNotificationRepository } from './persistence/mongo/notificationRepository.js';
 import { MongoOfferPushStateStore } from './persistence/mongo/offerPushStateStore.js';
@@ -569,6 +571,21 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     { requestType: MarkNotificationReadCommand, handler: new MarkNotificationReadCommandHandler(notificationRepository, clock) },
     { requestType: MarkAllNotificationsReadCommand, handler: new MarkAllNotificationsReadCommandHandler(notificationRepository, clock) },
     { requestType: DismissOfferCommand, handler: new DismissOfferCommandHandler(notificationRepository, clock) },
+    {
+      requestType: CancelBookingsByClientCommand,
+      handler: new CancelBookingsByClientCommandHandler({
+        requestRepository,
+        bookingRepository,
+        userRepository,
+        store: lifecycleStore,
+        walletContext,
+        relay: eventRelay,
+        idGenerator: idGenerator,
+        clock,
+        audit: auditLogger,
+        logger: logger,
+      }),
+    },
     {
       requestType: NotifyBookingOffersCommand,
       handler: new NotifyBookingOffersCommandHandler({ bookingRepository, eligibility: offerEligibility, sender: offerSender, clock, logger }),

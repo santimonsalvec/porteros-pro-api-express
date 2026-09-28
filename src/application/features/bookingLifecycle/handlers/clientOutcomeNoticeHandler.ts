@@ -1,5 +1,6 @@
 import type { IClock } from '../../../common/clock.js';
 import type { INotificationHandler } from '../../../common/mediator/types.js';
+import type { BookingCancelledPayload } from '../../../../domain/events/bookingEvents.js';
 import type { DomainEvent } from '../../../../domain/events/domainEvent.js';
 import {
   requestCancelledMessage,
@@ -42,13 +43,19 @@ export class ClientOutcomeNoticeHandler implements INotificationHandler<DomainEv
   constructor(private readonly deps: ClientOutcomeNoticeDependencies) {}
 
   async handle(event: DomainEvent): Promise<void> {
+    // The client is never told about a cancellation they made themselves (feature 017).
+    if (event.type === 'booking.cancelled' && (event.payload as BookingCancelledPayload).by === 'client') return;
     await runOnce(this.deps.processed, this.deps.clock, this.name, event.id, () => this.notify(event.requestId));
   }
 
   private async notify(requestId: string): Promise<void> {
     const [request] = await this.deps.requestRepository.findByIds([requestId]);
     if (!request) return;
-    const bookings = await this.deps.bookingRepository.findByRequestIds([requestId]);
+    // Bookings the client cancelled themselves are not part of the outcome (feature 017).
+    const bookings = (await this.deps.bookingRepository.findByRequestIds([requestId])).filter(
+      (booking) => booking.cancelledBy !== 'client',
+    );
+    if (bookings.length === 0) return;
     // Not final while a booking is still searching: the notice waits for the outcome.
     if (bookings.some((booking) => booking.status === 'pending_assignment')) return;
 

@@ -3,6 +3,7 @@ import type { ClientSession, Collection, Db, Document } from 'mongodb';
 import { bookingCancelled, bookingExpired } from '../../../../../src/domain/events/bookingEvents.js';
 import { MongoBookingLifecycleStore } from '../../../../../src/infrastructure/persistence/mongo/bookingLifecycleStore.js';
 import { bookingToDocument } from '../../../../../src/infrastructure/persistence/mongo/bookingRepository.js';
+import { requestToDocument } from '../../../../../src/infrastructure/persistence/mongo/goalkeeperRequestRepository.js';
 import { createFakeCollection, toArrayResult } from '../../../../fakes/fakeMongoCollection.js';
 import { buildRequest, buildRequestBookings } from '../../../../fixtures/quoteFixtures.js';
 import { COLOMBIA_INVOICING } from '../../../../fixtures/walletFixtures.js';
@@ -167,5 +168,111 @@ describe('MongoBookingLifecycleStore (mocked driver)', () => {
 
       expect(await cancelAll()).toEqual({ kind: 'missing_charge', bookingId: second!.id });
     });
+  });
+
+  describe('cancelByClient (feature 017)', () => {
+    const early = new Date('2026-09-28T18:00:00.000Z'); // the free-cancellation period ends 19:00Z
+    const cancelByClient = (h: ReturnType<typeof harness>, bookingId: string | null, at = early, owners = new Map([['gk-1', owner]])) =>
+      h.store.cancelByClient({
+        requestId: 'r-1',
+        clientId: 'client-a',
+        bookingId,
+        now: at,
+        note: 'Un amigo cubre el arco',
+        owners,
+        newId: () => 'm-1',
+        buildEvent: (booking, refund) => bookingCancelled(`ev-${booking.id}`, booking, at, refund, { reason: 'client_cancelled', by: 'client' }),
+      });
+
+    it("cancels a pending booking of the client's request, with no refund", async () => {
+      const h = harness();
+      h.requests.findOne.mockResolvedValue(requestToDocument(request));
+      h.bookings.find.mockReturnValue(toArrayResult([pendingDoc, assignedDoc]));
+      h.bookings.countDocuments.mockResolvedValue(1);
+
+      const result = await cancelByClient(h, first!.id);
+
+      expect(h.requests.findOne).toHaveBeenCalledWith({ _id: 'r-1', clientId: 'client-a' }, { session: h.session });
+      expect(h.bookings.updateOne).toHaveBeenCalledWith(
+        { _id: first!.id, status: 'pending_assignment' },
+        {
+          $set: {
+            status: 'cancelled',
+            endedAt: early,
+            endReason: 'client_cancelled',
+            cancelledBy: 'client',
+            cancellationNote: 'Un amigo cubre el arco',
+          },
+        },
+        { session: h.session },
+      );
+      expect(h.movements.insertOne).not.toHaveBeenCalled();
+      expect(result).toMatchObject({ kind: 'cancelled', refunds: 0 });
+    });
+
+    it('refunds an assigned booking cancelled in time, naming the client', async () => {
+      const h = harness();
+      h.requests.findOne.mockResolvedValue(requestToDocument(request));
+      h.bookings.find.mockReturnValue(toArrayResult([pendingDoc, assignedDoc]));
+      h.bookings.countDocuments.mockResolvedValue(1);
+      h.movements.findOne.mockResolvedValueOnce({ amount: -7000, currency: 'COP' }).mockResolvedValueOnce(null);
+
+      expect(await cancelByClient(h, second!.id)).toMatchObject({ kind: 'cancelled', refunds: 1 });
+      expect(h.movements.insertOne.mock.calls[0]![0]).toMatchObject({
+        type: 'commission_refund',
+        amount: 7000,
+        causeKey: `commission_refund:${second!.id}`,
+        cancellation: { by: 'client', at: early, reason: 'Un amigo cubre el arco' },
+      });
+    });
+
+    it('refuses the whole request, writing nothing, when an assigned booking is past its deadline', async () => {
+      const h = harness();
+      h.requests.findOne.mockResolvedValue(requestToDocument(request));
+      h.bookings.find.mockReturnValue(toArrayResult([pendingDoc, assignedDoc]));
+
+      const result = await cancelByClient(h, null, new Date('2026-09-28T19:00:01.000Z'));
+
+      expect(result).toEqual({ kind: 'window_closed', bookingId: second!.id, freeCancellationUntil: new Date('2026-09-28T19:00:00.000Z') });
+      expect(h.bookings.updateOne).not.toHaveBeenCalled();
+      expect(h.outbox.insertMany).not.toHaveBeenCalled();
+    });
+
+    it('asks for the owner of a goalkeeper assigned since the caller looked', async () => {
+      const h = harness();
+      h.requests.findOne.mockResolvedValue(requestToDocument(request));
+      h.bookings.find.mockReturnValue(toArrayResult([assignedDoc]));
+
+      expect(await cancelByClient(h, second!.id, early, new Map())).toEqual({ kind: 'owner_required', goalkeeperId: 'gk-1' });
+      expect(h.bookings.updateOne).not.toHaveBeenCalled();
+    });
+
+    it("answers not found for another client's request or an unknown booking, replayed and already final otherwise", async () => {
+      const h = harness();
+      h.requests.findOne.mockResolvedValueOnce(null);
+      expect(await cancelByClient(h, first!.id)).toEqual({ kind: 'not_found', what: 'request' });
+
+      h.requests.findOne.mockResolvedValue(requestToDocument(request));
+      h.bookings.find.mockReturnValue(
+        toArrayResult([
+          { ...pendingDoc, status: 'cancelled', cancelledBy: 'client' },
+          { ...assignedDoc, status: 'expired' },
+        ]),
+      );
+      expect(await cancelByClient(h, 'unknown')).toEqual({ kind: 'not_found', what: 'booking' });
+      expect(await cancelByClient(h, first!.id)).toEqual({ kind: 'replayed' });
+      expect(await cancelByClient(h, second!.id)).toEqual({ kind: 'already_final', status: 'expired' });
+      expect(await cancelByClient(h, null)).toEqual({ kind: 'replayed' });
+      expect(h.bookings.updateOne).not.toHaveBeenCalled();
+    });
+  });
+
+  it('"cancel all" ignores bookings the client cancelled (feature 017)', async () => {
+    const h = harness();
+    h.requests.findOneAndUpdate.mockResolvedValue({ _id: 'r-1' });
+    h.bookings.find.mockReturnValue(toArrayResult([{ ...pendingDoc, status: 'cancelled', cancelledBy: 'client' }, assignedDoc]));
+
+    expect(await h.cancelAll()).toEqual({ kind: 'kept' });
+    expect(h.bookings.updateOne).not.toHaveBeenCalled();
   });
 });

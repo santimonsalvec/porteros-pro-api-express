@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import type { ISender } from '../application/common/mediator/types.js';
 import type { AccessTokenClaims } from '../application/features/auth/common/accessTokenClaims.js';
 import type { MissingSetting } from '../application/features/goalkeeperRequests/common/resolveBookingSettings.js';
@@ -13,6 +13,8 @@ import { requireClientOnly } from '../infrastructure/auth/middleware/requireClie
 import { requireCompleteProfile } from '../infrastructure/auth/middleware/requireCompleteProfile.js';
 import { PARTIAL_FULFILLMENT_DEFAULT } from '../domain/bookings/goalkeeperRequest.js';
 import { ApiError } from './apiError.js';
+import { cancelRequestSchema } from './requests/goalkeeperRequests/cancelRequest.js';
+import { CancelBookingsByClientCommand } from '../application/features/bookingLifecycle/commands/cancelBookingsByClient/cancelBookingsByClientCommand.js';
 import { confirmBookingRequestSchema } from './requests/goalkeeperRequests/confirmBookingRequest.js';
 import { getBookingConfigRequestSchema } from './requests/goalkeeperRequests/getBookingConfigRequest.js';
 import { listClientBookingsRequestSchema } from './requests/goalkeeperRequests/listClientBookingsRequest.js';
@@ -194,6 +196,41 @@ export function createGoalkeeperRequestsController(deps: GoalkeeperRequestsContr
         );
     }
   });
+
+  // The client cancels one booking, or the whole request (feature 017).
+  const cancel = async (req: Request, res: Response, bookingId: string | null) => {
+    const body = cancelRequestSchema.parse(req.body ?? {});
+    const result = await deps.mediator.send(
+      new CancelBookingsByClientCommand(req.authClaims!.sub, String(req.params.requestId), bookingId, body.reason),
+    );
+    switch (result.outcome) {
+      case 'cancelled':
+      case 'replayed':
+        res.status(200).json(result.request);
+        return;
+      case 'request_not_found':
+        throw new ApiError(404, 'request_not_found', 'This request does not exist.');
+      case 'booking_not_found':
+        throw new ApiError(404, 'booking_not_found', 'This booking does not exist in this request.');
+      case 'not_cancellable':
+        throw new ApiError(409, 'booking_not_cancellable', 'This booking has already ended.', undefined, { status: result.status });
+      case 'window_closed':
+        throw new ApiError(
+          409,
+          'cancellation_window_closed',
+          'A goalkeeper is already assigned and the free-cancellation period is over: use the goalkeeper or pay them.',
+          undefined,
+          { bookingId: result.bookingId, freeCancellationUntil: result.freeCancellationUntil },
+        );
+      case 'temporarily_unavailable':
+        res.set('Retry-After', '60');
+        throw new ApiError(503, 'cancellation_temporarily_unavailable', 'The cancellation cannot be completed right now; try again shortly.');
+      case 'invalid_reason':
+        throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', { reason: 'reason must have at most 200 characters' });
+    }
+  };
+  router.post('/bookings/:requestId/cancel', (req, res) => cancel(req, res, null));
+  router.post('/bookings/:requestId/bookings/:bookingId/cancel', (req, res) => cancel(req, res, String(req.params.bookingId)));
 
   router.get('/bookings', async (req, res) => {
     const parsed = listClientBookingsRequestSchema.safeParse(req.query);

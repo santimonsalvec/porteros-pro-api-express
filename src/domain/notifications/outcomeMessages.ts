@@ -53,12 +53,14 @@ export function bookingCancelledMessage(
   requestId: string,
   bookingId: string,
   refund: { amount: number; currency: string } | null,
+  by: 'system' | 'client' = 'system',
 ): PushMessage {
   // The time already ends in "a. m." / "p. m.", so no extra period after it.
   const refunded = refund ? ` Te devolvimos ${formatAmount(refund.amount, refund.currency)}.` : '';
+  const what = by === 'client' ? 'El cliente canceló tu partido' : 'Se canceló tu partido';
   return {
     title: 'Partido cancelado',
-    body: `Se canceló tu partido ${where(match)}${refunded}`,
+    body: `${what} ${where(match)}${refunded}`,
     data: { type: BOOKING_CANCELLED_TYPE, requestId, bookingId },
   };
 }

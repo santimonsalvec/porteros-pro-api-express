@@ -37,6 +37,12 @@ describe('outcome messages (feature 016)', () => {
     expect(bookingCancelledMessage({ ...match, zoneName: null }, 'r-1', 'b-1', null).body).toBe('Se canceló tu partido en Medellín · dom 4 oct, 3:00 p. m.');
   });
 
+  it('says the client cancelled, when they did (feature 017)', () => {
+    expect(bookingCancelledMessage(match, 'r-1', 'b-1', { amount: 7000, currency: 'COP' }, 'client').body).toBe(
+      'El cliente canceló tu partido en Bello · dom 4 oct, 3:00 p. m. Te devolvimos 7.000 COP.',
+    );
+  });
+
   it('formats amounts with the Colombian thousands separator', () => {
     expect(formatAmount(7000, 'COP')).toBe('7.000 COP');
     expect(formatAmount(120000, 'COP')).toBe('120.000 COP');

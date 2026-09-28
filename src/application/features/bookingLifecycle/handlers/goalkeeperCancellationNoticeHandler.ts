@@ -54,6 +54,7 @@ export class GoalkeeperCancellationNoticeHandler implements INotificationHandler
       event.requestId,
       event.bookingId,
       payload.refundedAmount === null ? null : { amount: payload.refundedAmount, currency: payload.currency },
+      payload.by,
     );
     const created = await this.deps.notifications.createIfAbsent({
       id: this.deps.idGenerator.newId(),

@@ -17,9 +17,22 @@ export const BOOKING_STATUSES = [
 export type BookingStatus = (typeof BOOKING_STATUSES)[number];
 
 /** Why a booking ended without being played (feature 016; 017 and 018 add theirs). */
-export type BookingEndReason = 'search_ended' | 'cancel_all';
-/** Who ended it (feature 016: always the system; 017 adds the client). */
-export type BookingEndedBy = 'system';
+export type BookingEndReason = 'search_ended' | 'cancel_all' | 'client_cancelled';
+/** Who ended it: the system (016) or the client (017). */
+export type BookingEndedBy = 'system' | 'client';
+
+/** The client's optional reason when cancelling (feature 017). */
+export const MAX_CANCELLATION_NOTE_LENGTH = 200;
+
+/** The trimmed reason, `null` when empty; throws when longer than allowed. */
+export function normalizeCancellationNote(raw?: string | null): string | null {
+  const note = raw?.trim() ?? '';
+  if (note === '') return null;
+  if (note.length > MAX_CANCELLATION_NOTE_LENGTH) {
+    throw new Error(`Cancellation note must have at most ${MAX_CANCELLATION_NOTE_LENGTH} characters`);
+  }
+  return note;
+}
 
 export interface BookingProps {
   id: string;
@@ -40,6 +53,8 @@ export interface BookingProps {
   endedAt?: Date | null;
   endReason?: BookingEndReason | null;
   cancelledBy?: BookingEndedBy | null;
+  /** The client's reason, when the client cancelled it. */
+  cancellationNote?: string | null;
 }
 
 /**
@@ -65,6 +80,7 @@ export class Booking extends Entity<string> {
   readonly endedAt: Date | null;
   readonly endReason: BookingEndReason | null;
   readonly cancelledBy: BookingEndedBy | null;
+  readonly cancellationNote: string | null;
 
   private constructor(props: BookingProps) {
     super(props.id);
@@ -90,6 +106,7 @@ export class Booking extends Entity<string> {
     this.endedAt = props.endedAt ? new Date(props.endedAt) : null;
     this.endReason = props.endReason ?? null;
     this.cancelledBy = props.cancelledBy ?? null;
+    this.cancellationNote = props.cancellationNote ?? null;
   }
 
   /** A new place for one goalkeeper, at the request's per-goalkeeper price, awaiting assignment. */

@@ -181,4 +181,6 @@ export interface IBookingAuditLogger {
     requestId?: string;
     bookingIds?: string[];
   }): void;
+  /** Every client cancellation attempt, whatever its outcome (feature 017). */
+  logClientCancellation(entry: { outcome: string; clientId: string; requestId: string; bookingId?: string }): void;
 }
