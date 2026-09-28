@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js';
 
-async function signInMobile(app: ReturnType<typeof buildTestApp>['app'], googleValidator: ReturnType<typeof buildTestApp>['googleValidator'], credential: string, sub: string) {
+async function signInMobile(app: Awaited<ReturnType<typeof buildTestApp>>['app'], googleValidator: Awaited<ReturnType<typeof buildTestApp>>['googleValidator'], credential: string, sub: string) {
   googleValidator.registerValidCredential(credential, new ExternalIdentity('google', sub, `${sub}@example.com`));
   const response = await request(app)
     .post('/api/auth/sso/exchange')
@@ -13,7 +13,7 @@ async function signInMobile(app: ReturnType<typeof buildTestApp>['app'], googleV
 
 describe('POST /api/profile/complete', () => {
   it('completes the profile and returns fresh tokens', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInMobile(app, googleValidator, 'good-token', 'sub-1');
 
     const response = await request(app)
@@ -26,7 +26,7 @@ describe('POST /api/profile/complete', () => {
   });
 
   it('rejects an unauthenticated request', async () => {
-    const { app } = buildTestApp();
+    const { app } = await buildTestApp();
 
     const response = await request(app)
       .post('/api/profile/complete')
@@ -36,7 +36,7 @@ describe('POST /api/profile/complete', () => {
   });
 
   it('rejects a blank name with field errors', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInMobile(app, googleValidator, 'good-token', 'sub-2');
 
     const response = await request(app)
@@ -50,7 +50,7 @@ describe('POST /api/profile/complete', () => {
   });
 
   it('rejects an unrecognized country code', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInMobile(app, googleValidator, 'good-token', 'sub-3');
 
     const response = await request(app)
@@ -63,7 +63,7 @@ describe('POST /api/profile/complete', () => {
   });
 
   it('is a no-op when already complete', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInMobile(app, googleValidator, 'good-token', 'sub-4');
     await request(app)
       .post('/api/profile/complete')

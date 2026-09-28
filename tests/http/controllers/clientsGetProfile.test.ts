@@ -4,7 +4,7 @@ import { buildTestApp } from '../testAppFactory.js';
 import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js';
 import { User } from '../../../src/domain/users/user.js';
 
-async function signInMobile(app: ReturnType<typeof buildTestApp>['app'], googleValidator: ReturnType<typeof buildTestApp>['googleValidator'], credential: string, sub: string) {
+async function signInMobile(app: Awaited<ReturnType<typeof buildTestApp>>['app'], googleValidator: Awaited<ReturnType<typeof buildTestApp>>['googleValidator'], credential: string, sub: string) {
   googleValidator.registerValidCredential(credential, new ExternalIdentity('google', sub, `${sub}@example.com`));
   const response = await request(app).post('/api/auth/sso/exchange').send({ provider: 'google', platform: 'mobile', credential });
   return response.body.accessToken as string;
@@ -12,7 +12,7 @@ async function signInMobile(app: ReturnType<typeof buildTestApp>['app'], googleV
 
 describe('GET /api/clients/me', () => {
   it('returns the five expected fields for a completed profile', async () => {
-    const { app, googleValidator, userRepository, tokenIssuer } = buildTestApp();
+    const { app, googleValidator, userRepository, tokenIssuer } = await buildTestApp();
     const accessToken = await signInMobile(app, googleValidator, 'good-token', 'sub-1');
     const user = await userRepository.findByExternalIdentity('google', 'sub-1');
     user!.completeProfile('Jhon', 'Doe', '+57', '300 123 4567');
@@ -27,7 +27,7 @@ describe('GET /api/clients/me', () => {
   });
 
   it('represents an incomplete profile with empty fields rather than failing', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInMobile(app, googleValidator, 'good-token', 'sub-2');
 
     const response = await request(app).get('/api/clients/me').set('Authorization', `Bearer ${accessToken}`);
@@ -38,7 +38,7 @@ describe('GET /api/clients/me', () => {
   });
 
   it('rejects an admin account', async () => {
-    const { app, googleValidator, userRepository } = buildTestApp();
+    const { app, googleValidator, userRepository } = await buildTestApp();
     const admin = User.createFromExternalIdentity({ id: 'admin-1', email: 'admin@example.com', displayName: null, provider: 'google', subject: 'admin-sub', isAdmin: true });
     await userRepository.add(admin);
     googleValidator.registerValidCredential('good-token', new ExternalIdentity('google', 'admin-sub', 'admin@example.com'));
@@ -50,7 +50,7 @@ describe('GET /api/clients/me', () => {
   });
 
   it('rejects an unauthenticated request', async () => {
-    const { app } = buildTestApp();
+    const { app } = await buildTestApp();
 
     const response = await request(app).get('/api/clients/me');
 

@@ -4,8 +4,8 @@ import { buildTestApp } from '../testAppFactory.js';
 import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js';
 
 async function signInAndComplete(
-  app: ReturnType<typeof buildTestApp>['app'],
-  googleValidator: ReturnType<typeof buildTestApp>['googleValidator'],
+  app: Awaited<ReturnType<typeof buildTestApp>>['app'],
+  googleValidator: Awaited<ReturnType<typeof buildTestApp>>['googleValidator'],
   credential: string,
   sub: string,
   whatsAppNumber = '300 000 0000',
@@ -21,7 +21,7 @@ async function signInAndComplete(
 
 describe('PATCH /api/goalkeepers/me/* section endpoints', () => {
   it('saves the physical-data section and reflects it on a later GET', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-1');
 
     const response = await request(app)
@@ -38,7 +38,7 @@ describe('PATCH /api/goalkeepers/me/* section endpoints', () => {
   });
 
   it('saves the availability section', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-3');
 
     const response = await request(app)
@@ -52,7 +52,7 @@ describe('PATCH /api/goalkeepers/me/* section endpoints', () => {
   });
 
   it('saves the identification section text fields, incomplete without photos', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-4');
 
     const response = await request(app)
@@ -66,7 +66,7 @@ describe('PATCH /api/goalkeepers/me/* section endpoints', () => {
   });
 
   it('rejects an unrecognized document type with 400', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-5');
 
     const response = await request(app)
@@ -79,7 +79,7 @@ describe('PATCH /api/goalkeepers/me/* section endpoints', () => {
   });
 
   it('rejects a duplicate document with 409', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const tokenA = await signInAndComplete(app, googleValidator, 'token-a', 'sub-a', '300 111 1111');
     const tokenB = await signInAndComplete(app, googleValidator, 'token-b', 'sub-b', '300 222 2222');
     await request(app)
@@ -97,7 +97,7 @@ describe('PATCH /api/goalkeepers/me/* section endpoints', () => {
   });
 
   it('rejects an empty zoneIds array with 400 validation_failed', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-6');
 
     const response = await request(app)
@@ -110,7 +110,7 @@ describe('PATCH /api/goalkeepers/me/* section endpoints', () => {
   });
 
   it('rejects a nonexistent city with 400 invalid_city', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-7');
 
     const response = await request(app)
@@ -123,7 +123,7 @@ describe('PATCH /api/goalkeepers/me/* section endpoints', () => {
   });
 
   it('rejects a zone that does not belong to the city with 400 invalid_zones', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-8');
 
     const response = await request(app)
@@ -137,7 +137,7 @@ describe('PATCH /api/goalkeepers/me/* section endpoints', () => {
   });
 
   it('rejects requests with no token', async () => {
-    const { app } = buildTestApp();
+    const { app } = await buildTestApp();
 
     const response = await request(app).patch('/api/goalkeepers/me/availability').send({ cityId: 'city-medellin', zoneIds: ['zone-bello'] });
 

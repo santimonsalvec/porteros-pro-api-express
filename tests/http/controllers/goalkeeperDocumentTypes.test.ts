@@ -4,7 +4,7 @@ import { buildTestApp } from '../testAppFactory.js';
 
 describe('GET /api/goalkeepers/document-types', () => {
   it('returns the seeded document types with no authentication required', async () => {
-    const { app } = buildTestApp();
+    const { app } = await buildTestApp();
 
     const response = await request(app).get('/api/goalkeepers/document-types');
 

@@ -8,8 +8,8 @@ import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js'
 const tinyJpeg = readFileSync(fileURLToPath(new URL('../../fixtures/tinyImage.jpg', import.meta.url)));
 
 async function signInAndComplete(
-  app: ReturnType<typeof buildTestApp>['app'],
-  googleValidator: ReturnType<typeof buildTestApp>['googleValidator'],
+  app: Awaited<ReturnType<typeof buildTestApp>>['app'],
+  googleValidator: Awaited<ReturnType<typeof buildTestApp>>['googleValidator'],
   credential: string,
   sub: string,
 ) {
@@ -24,7 +24,7 @@ async function signInAndComplete(
 
 describe('POST /api/goalkeepers/me/document-photo', () => {
   it('uploads sideA, marking documentPhotoASubmitted true and sideB false', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-1');
 
     const response = await request(app)
@@ -38,7 +38,7 @@ describe('POST /api/goalkeepers/me/document-photo', () => {
   });
 
   it('uploads both sides in one request', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-2');
 
     const response = await request(app)
@@ -53,7 +53,7 @@ describe('POST /api/goalkeepers/me/document-photo', () => {
   });
 
   it('replaces a previously uploaded photo for the same side', async () => {
-    const { app, googleValidator, imageRepository } = buildTestApp();
+    const { app, googleValidator, imageRepository } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-3');
     await request(app).post('/api/goalkeepers/me/document-photo').set('Authorization', `Bearer ${accessToken}`).attach('sideA', tinyJpeg, 'first.jpg');
     const firstImages = await imageRepository.getAll();
@@ -67,7 +67,7 @@ describe('POST /api/goalkeepers/me/document-photo', () => {
   });
 
   it('rejects a request with no file', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-4');
 
     const response = await request(app).post('/api/goalkeepers/me/document-photo').set('Authorization', `Bearer ${accessToken}`);
@@ -77,7 +77,7 @@ describe('POST /api/goalkeepers/me/document-photo', () => {
   });
 
   it('rejects non-image content', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-5');
 
     const response = await request(app)
@@ -90,7 +90,7 @@ describe('POST /api/goalkeepers/me/document-photo', () => {
   });
 
   it('rejects an unauthenticated request', async () => {
-    const { app } = buildTestApp();
+    const { app } = await buildTestApp();
 
     const response = await request(app).post('/api/goalkeepers/me/document-photo').attach('sideA', tinyJpeg, 'front.jpg');
 

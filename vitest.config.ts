@@ -14,6 +14,7 @@ export default defineConfig({
         test: {
           name: 'http',
           include: ['tests/http/**/*.test.ts'],
+          setupFiles: ['tests/http/setup.ts'],
           environment: 'node',
         },
       },

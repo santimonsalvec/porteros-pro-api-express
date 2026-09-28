@@ -5,7 +5,7 @@ import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js'
 import { User } from '../../../src/domain/users/user.js';
 import { buildBooking, POINTS } from '../../fixtures/quoteFixtures.js';
 
-type TestApp = ReturnType<typeof buildTestApp>;
+type TestApp = Awaited<ReturnType<typeof buildTestApp>>;
 
 const NOW = '2026-09-25T18:00:00.000Z';
 const DAY = 24 * 60 * 60 * 1000;
@@ -36,7 +36,7 @@ async function signInAndComplete(context: TestApp, sub: string): Promise<{ token
 }
 
 async function setUp(sub = 'sub-0001') {
-  const context = buildTestApp();
+  const context = await buildTestApp();
   context.clock.set(NOW);
   const client = await signInAndComplete(context, sub);
   return { context, ...client };
@@ -115,7 +115,7 @@ describe('GET /api/goalkeeper-requests/bookings — Story 2: only the caller’s
   });
 
   it('401 without a token', async () => {
-    const context = buildTestApp();
+    const context = await buildTestApp();
 
     const response = await request(context.app).get('/api/goalkeeper-requests/bookings');
 
@@ -124,7 +124,7 @@ describe('GET /api/goalkeeper-requests/bookings — Story 2: only the caller’s
   });
 
   it('401 with an invalid token', async () => {
-    const context = buildTestApp();
+    const context = await buildTestApp();
 
     const response = await list(context, 'not-a-token');
 
@@ -132,7 +132,7 @@ describe('GET /api/goalkeeper-requests/bookings — Story 2: only the caller’s
   });
 
   it('403 when the client profile is not complete', async () => {
-    const context = buildTestApp();
+    const context = await buildTestApp();
     context.googleValidator.registerValidCredential(
       'cred-new',
       new ExternalIdentity('google', 'sub-new', 'new@example.com'),
@@ -147,7 +147,7 @@ describe('GET /api/goalkeeper-requests/bookings — Story 2: only the caller’s
   });
 
   it('403 for an admin account', async () => {
-    const context = buildTestApp();
+    const context = await buildTestApp();
     await context.userRepository.add(
       User.createFromExternalIdentity({ id: 'admin-1', email: 'admin@example.com', displayName: null, provider: 'google', subject: 'admin-sub', isAdmin: true }),
     );

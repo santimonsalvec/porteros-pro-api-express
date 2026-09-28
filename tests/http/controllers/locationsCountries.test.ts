@@ -4,7 +4,7 @@ import { buildTestApp } from '../testAppFactory.js';
 
 describe('GET /api/locations/countries', () => {
   it('returns the full country catalog with no authentication', async () => {
-    const { app } = buildTestApp();
+    const { app } = await buildTestApp();
 
     const response = await request(app).get('/api/locations/countries');
 

@@ -4,7 +4,7 @@ import { buildTestApp } from '../testAppFactory.js';
 import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js';
 import { POINTS } from '../../fixtures/quoteFixtures.js';
 
-type TestApp = ReturnType<typeof buildTestApp>;
+type TestApp = Awaited<ReturnType<typeof buildTestApp>>;
 
 /** Signs in and completes the client profile, so the token passes `requireCompleteProfile`. */
 async function signInAndComplete(context: TestApp, sub: string): Promise<string> {
@@ -54,7 +54,7 @@ function confirm(context: TestApp, token: string, body: unknown) {
 }
 
 async function setUp(sub = 'sub-0001') {
-  const context = buildTestApp();
+  const context = await buildTestApp();
   context.clock.set(NOW);
   const token = await signInAndComplete(context, sub);
   return { context, token };
@@ -124,7 +124,7 @@ describe('POST /api/goalkeeper-requests/bookings — Story 1: book at exactly th
   });
 
   it('401 without a token', async () => {
-    const context = buildTestApp();
+    const context = await buildTestApp();
 
     const response = await request(context.app)
       .post('/api/goalkeeper-requests/bookings')
@@ -134,7 +134,7 @@ describe('POST /api/goalkeeper-requests/bookings — Story 1: book at exactly th
   });
 
   it('403 when the client profile is not complete', async () => {
-    const context = buildTestApp();
+    const context = await buildTestApp();
     context.googleValidator.registerValidCredential(
       'cred-new',
       new ExternalIdentity('google', 'sub-new', 'new@example.com'),

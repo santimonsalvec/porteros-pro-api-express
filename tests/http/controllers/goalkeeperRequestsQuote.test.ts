@@ -10,7 +10,7 @@ import { City } from '../../../src/domain/locations/city.js';
 import { Zone } from '../../../src/domain/zones/zone.js';
 import { logger } from '../../../src/infrastructure/observability/logger.js';
 
-type TestApp = ReturnType<typeof buildTestApp>;
+type TestApp = Awaited<ReturnType<typeof buildTestApp>>;
 
 /** Signs in and completes the client profile, so the token passes `requireCompleteProfile`. */
 async function signInAndComplete(context: TestApp, sub: string): Promise<string> {
@@ -38,7 +38,7 @@ function post(context: TestApp, token: string, body: unknown) {
 
 describe('POST /api/goalkeeper-requests/quote — Story 1: price a booking', () => {
   it('returns the full price breakdown', async () => {
-    const context = buildTestApp();
+    const context = await buildTestApp();
     const token = await signInAndComplete(context, 'sub-0001');
 
     const response = await post(context, token, validBody);
@@ -61,7 +61,7 @@ describe('POST /api/goalkeeper-requests/quote — Story 1: price a booking', () 
   });
 
   it('stores the quote for the caller so it can be confirmed', async () => {
-    const context = buildTestApp();
+    const context = await buildTestApp();
     const token = await signInAndComplete(context, 'sub-0010');
 
     const response = await post(context, token, validBody);
@@ -75,7 +75,7 @@ describe('POST /api/goalkeeper-requests/quote — Story 1: price a booking', () 
   });
 
   it('charges the lead-time surcharge per goalkeeper (the contract worked example)', async () => {
-    const context = buildTestApp();
+    const context = await buildTestApp();
     const token = await signInAndComplete(context, 'sub-0002');
     context.clock.set('2026-09-21T18:30:00.000Z'); // 13:30 → 90 minutes of notice
 
@@ -93,7 +93,7 @@ describe('POST /api/goalkeeper-requests/quote — Story 1: price a booking', () 
   });
 
   it('reads an offset-less start time in the city of the location and reports that city\'s time zone', async () => {
-    const context = buildTestApp();
+    const context = await buildTestApp();
     const token = await signInAndComplete(context, 'sub-0003');
 
     const response = await post(context, token, { ...validBody, ...POINTS.cdmx });
@@ -108,7 +108,7 @@ describe('POST /api/goalkeeper-requests/quote — Story 1: price a booking', () 
   });
 
   it('accepts an explicit offset and returns the same instant in the city\'s local time', async () => {
-    const context = buildTestApp();
+    const context = await buildTestApp();
     const token = await signInAndComplete(context, 'sub-0004');
 
     const response = await post(context, token, { ...validBody, ...POINTS.nyc, startsAt: '2026-09-21T15:00:00-05:00' });
@@ -118,7 +118,7 @@ describe('POST /api/goalkeeper-requests/quote — Story 1: price a booking', () 
   });
 
   it('rejects a request with no token', async () => {
-    const { app } = buildTestApp();
+    const { app } = await buildTestApp();
 
     const response = await request(app).post('/api/goalkeeper-requests/quote').send(validBody);
 
@@ -126,7 +126,7 @@ describe('POST /api/goalkeeper-requests/quote — Story 1: price a booking', () 
   });
 
   it('rejects a client whose profile is not yet complete', async () => {
-    const context = buildTestApp();
+    const context = await buildTestApp();
     context.googleValidator.registerValidCredential('cred-incomplete', new ExternalIdentity('google', 'sub-0005', 'sub-0005@example.com'));
     const exchange = await request(context.app)
       .post('/api/auth/sso/exchange')
@@ -140,7 +140,7 @@ describe('POST /api/goalkeeper-requests/quote — Story 1: price a booking', () 
 
 describe('POST /api/goalkeeper-requests/quote — Story 2: city-rate fallback', () => {
   it('falls back to the city rate when the zone has none', async () => {
-    const context = buildTestApp();
+    const context = await buildTestApp();
     const token = await signInAndComplete(context, 'sub-0101');
 
     const response = await post(context, token, { ...validBody, ...POINTS.caliCentro, durationMinutes: 90 });
@@ -150,7 +150,7 @@ describe('POST /api/goalkeeper-requests/quote — Story 2: city-rate fallback', 
   });
 
   it('returns 422 rate_not_configured, with no price, when no level has a rate', async () => {
-    const context = buildTestApp();
+    const context = await buildTestApp();
     const token = await signInAndComplete(context, 'sub-0102');
     context.rentalRateRepository.clear();
 
@@ -165,7 +165,7 @@ describe('POST /api/goalkeeper-requests/quote — Story 2: city-rate fallback', 
 
 describe('POST /api/goalkeeper-requests/quote — Story 3: refusals', () => {
   async function refused(sub: string, body: unknown) {
-    const context = buildTestApp();
+    const context = await buildTestApp();
     const token = await signInAndComplete(context, sub);
     return post(context, token, body);
   }
@@ -206,7 +206,7 @@ describe('POST /api/goalkeeper-requests/quote — Story 3: refusals', () => {
   });
 
   it('stores nothing when the quote is refused', async () => {
-    const context = buildTestApp();
+    const context = await buildTestApp();
     const token = await signInAndComplete(context, 'sub-0299');
 
     const response = await post(context, token, { ...validBody, ...POINTS.nowhere });
@@ -265,7 +265,7 @@ describe('POST /api/goalkeeper-requests/quote — Story 3: refusals', () => {
 
 describe('POST /api/goalkeeper-requests/quote — Story 4: configuration', () => {
   async function withToken(sub: string) {
-    const context = buildTestApp();
+    const context = await buildTestApp();
     const token = await signInAndComplete(context, sub);
     return { context, token };
   }

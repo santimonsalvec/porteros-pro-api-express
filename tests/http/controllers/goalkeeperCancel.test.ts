@@ -8,8 +8,8 @@ import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js'
 const tinyJpeg = readFileSync(fileURLToPath(new URL('../../fixtures/tinyImage.jpg', import.meta.url)));
 
 async function signInAndComplete(
-  app: ReturnType<typeof buildTestApp>['app'],
-  googleValidator: ReturnType<typeof buildTestApp>['googleValidator'],
+  app: Awaited<ReturnType<typeof buildTestApp>>['app'],
+  googleValidator: Awaited<ReturnType<typeof buildTestApp>>['googleValidator'],
   credential: string,
   sub: string,
 ) {
@@ -24,7 +24,7 @@ async function signInAndComplete(
 
 describe('POST /api/goalkeepers/me/cancel', () => {
   it('discards previously saved section data, resetting to not_started', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-1');
     await request(app)
       .patch('/api/goalkeepers/me/physical-data')
@@ -42,7 +42,7 @@ describe('POST /api/goalkeepers/me/cancel', () => {
   });
 
   it('discards uploaded document photos too, no longer retrievable afterward', async () => {
-    const { app, googleValidator, imageRepository } = buildTestApp();
+    const { app, googleValidator, imageRepository } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-2');
     await request(app)
       .post('/api/goalkeepers/me/document-photo')
@@ -56,7 +56,7 @@ describe('POST /api/goalkeepers/me/cancel', () => {
   });
 
   it('is a graceful no-op when nothing was ever saved', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-3');
 
     const response = await request(app).post('/api/goalkeepers/me/cancel').set('Authorization', `Bearer ${accessToken}`);
@@ -66,7 +66,7 @@ describe('POST /api/goalkeepers/me/cancel', () => {
   });
 
   it('rejects cancellation of an already-active profile', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-4');
     await request(app)
       .patch('/api/goalkeepers/me/identification')
@@ -94,7 +94,7 @@ describe('POST /api/goalkeepers/me/cancel', () => {
   });
 
   it('rejects requests with no token', async () => {
-    const { app } = buildTestApp();
+    const { app } = await buildTestApp();
 
     const response = await request(app).post('/api/goalkeepers/me/cancel');
 

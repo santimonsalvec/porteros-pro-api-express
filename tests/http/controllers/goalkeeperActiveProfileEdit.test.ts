@@ -7,7 +7,7 @@ import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js'
 
 const tinyJpeg = readFileSync(fileURLToPath(new URL('../../fixtures/tinyImage.jpg', import.meta.url)));
 
-type TestApp = ReturnType<typeof buildTestApp>;
+type TestApp = Awaited<ReturnType<typeof buildTestApp>>;
 
 async function signInAndComplete(ctx: TestApp, sub: string): Promise<string> {
   ctx.googleValidator.registerValidCredential(`cred-${sub}`, new ExternalIdentity('google', sub, `${sub}@example.com`));
@@ -49,7 +49,7 @@ const bearer = (token: string) => ({ Authorization: `Bearer ${token}` });
 
 describe('PATCH /api/goalkeepers/me/profile/physical-data (active goalkeeper)', () => {
   it('updates only the height when only the height is sent, and GET /me reflects it', async () => {
-    const ctx = buildTestApp();
+    const ctx = await buildTestApp();
     const token = await activeGoalkeeper(ctx, 'a1');
 
     const response = await request(ctx.app).patch('/api/goalkeepers/me/profile/physical-data').set(bearer(token)).send({ heightCm: 190 });
@@ -61,7 +61,7 @@ describe('PATCH /api/goalkeepers/me/profile/physical-data (active goalkeeper)', 
   });
 
   it('updates only the weight when only the weight is sent', async () => {
-    const ctx = buildTestApp();
+    const ctx = await buildTestApp();
     const token = await activeGoalkeeper(ctx, 'a2');
 
     const response = await request(ctx.app).patch('/api/goalkeepers/me/profile/physical-data').set(bearer(token)).send({ weightKg: 82 });
@@ -71,7 +71,7 @@ describe('PATCH /api/goalkeepers/me/profile/physical-data (active goalkeeper)', 
   });
 
   it('is idempotent: repeating the same request gives the same 200 and state', async () => {
-    const ctx = buildTestApp();
+    const ctx = await buildTestApp();
     const token = await activeGoalkeeper(ctx, 'a3');
     const send = () => request(ctx.app).patch('/api/goalkeepers/me/profile/physical-data').set(bearer(token)).send({ heightCm: 192, weightKg: 80 });
 
@@ -83,7 +83,7 @@ describe('PATCH /api/goalkeepers/me/profile/physical-data (active goalkeeper)', 
   });
 
   it('keeps the goalkeeper active — no status change, no reactivation needed', async () => {
-    const ctx = buildTestApp();
+    const ctx = await buildTestApp();
     const token = await activeGoalkeeper(ctx, 'a4');
 
     await request(ctx.app).patch('/api/goalkeepers/me/profile/physical-data').set(bearer(token)).send({ heightCm: 190 });
@@ -100,7 +100,7 @@ describe('PATCH /api/goalkeepers/me/profile/physical-data (active goalkeeper)', 
     ['weight 39', { weightKg: 39 }, 'weightKg'],
     ['weight 151', { weightKg: 151 }, 'weightKg'],
   ])('rejects %s with 400 validation_failed and a field error, changing nothing', async (_label, body, field) => {
-    const ctx = buildTestApp();
+    const ctx = await buildTestApp();
     const token = await activeGoalkeeper(ctx, `v-${field}-${JSON.stringify(body)}`);
 
     const response = await request(ctx.app).patch('/api/goalkeepers/me/profile/physical-data').set(bearer(token)).send(body);
@@ -113,7 +113,7 @@ describe('PATCH /api/goalkeepers/me/profile/physical-data (active goalkeeper)', 
   });
 
   it('rejects an empty body and non-numeric values with 400 validation_failed', async () => {
-    const ctx = buildTestApp();
+    const ctx = await buildTestApp();
     const token = await activeGoalkeeper(ctx, 'a5');
     const patch = (body: object) => request(ctx.app).patch('/api/goalkeepers/me/profile/physical-data').set(bearer(token)).send(body);
 
@@ -125,7 +125,7 @@ describe('PATCH /api/goalkeepers/me/profile/physical-data (active goalkeeper)', 
   });
 
   it('returns 404 goalkeeper_not_found for a client who never started a registration', async () => {
-    const ctx = buildTestApp();
+    const ctx = await buildTestApp();
     const token = await signInAndComplete(ctx, 'n1');
 
     const response = await request(ctx.app).patch('/api/goalkeepers/me/profile/physical-data').set(bearer(token)).send({ heightCm: 190 });
@@ -135,7 +135,7 @@ describe('PATCH /api/goalkeepers/me/profile/physical-data (active goalkeeper)', 
   });
 
   it('returns 409 goalkeeper_not_active for a draft registration, and leaves the draft untouched', async () => {
-    const ctx = buildTestApp();
+    const ctx = await buildTestApp();
     const token = await signInAndComplete(ctx, 'd1');
     await request(ctx.app).patch('/api/goalkeepers/me/physical-data').set(bearer(token)).send({ heightCm: 170, weightKg: 60 });
 
@@ -148,7 +148,7 @@ describe('PATCH /api/goalkeepers/me/profile/physical-data (active goalkeeper)', 
   });
 
   it('authorizes against the database, not the token claim: a token claiming isGoalkeeper is still refused without a profile', async () => {
-    const ctx = buildTestApp();
+    const ctx = await buildTestApp();
     const token = await signInAndComplete(ctx, 'claim1');
     const forged = 'forged-goalkeeper-token';
     // A (hypothetically stale or tampered-with) token that claims isGoalkeeper for an account that has no profile.
@@ -162,7 +162,7 @@ describe('PATCH /api/goalkeepers/me/profile/physical-data (active goalkeeper)', 
   });
 
   it('succeeds for an active goalkeeper whose token is stale and lacks the isGoalkeeper claim', async () => {
-    const ctx = buildTestApp();
+    const ctx = await buildTestApp();
     const token = await activeGoalkeeper(ctx, 'stale1'); // this token was issued before activation
     expect((await ctx.tokenIssuer.verifyAccessToken(token))?.isGoalkeeper).toBeUndefined();
 
@@ -172,7 +172,7 @@ describe('PATCH /api/goalkeepers/me/profile/physical-data (active goalkeeper)', 
   });
 
   it('returns 401 without a token', async () => {
-    const { app } = buildTestApp();
+    const { app } = await buildTestApp();
 
     const response = await request(app).patch('/api/goalkeepers/me/profile/physical-data').send({ heightCm: 190 });
 
@@ -182,7 +182,7 @@ describe('PATCH /api/goalkeepers/me/profile/physical-data (active goalkeeper)', 
 
 describe('PUT /api/goalkeepers/me/profile/availability (active goalkeeper)', () => {
   it('replaces city and zones together, and GET /me reflects the new city with its name and region', async () => {
-    const ctx = buildTestApp();
+    const ctx = await buildTestApp();
     const token = await activeGoalkeeper(ctx, 'l1');
 
     const response = await request(ctx.app)
@@ -200,7 +200,7 @@ describe('PUT /api/goalkeepers/me/profile/availability (active goalkeeper)', () 
   });
 
   it('is idempotent', async () => {
-    const ctx = buildTestApp();
+    const ctx = await buildTestApp();
     const token = await activeGoalkeeper(ctx, 'l2');
     const send = () =>
       request(ctx.app).put('/api/goalkeepers/me/profile/availability').set(bearer(token)).send({ cityId: 'city-medellin', zoneIds: ['zone-copacabana'] });
@@ -213,7 +213,7 @@ describe('PUT /api/goalkeepers/me/profile/availability (active goalkeeper)', () 
   });
 
   it('rejects an unknown city with 400 invalid_city and changes nothing', async () => {
-    const ctx = buildTestApp();
+    const ctx = await buildTestApp();
     const token = await activeGoalkeeper(ctx, 'l3');
 
     const response = await request(ctx.app)
@@ -228,7 +228,7 @@ describe('PUT /api/goalkeepers/me/profile/availability (active goalkeeper)', () 
   });
 
   it('rejects invalid zones with 400 invalid_zones naming them, and changes nothing', async () => {
-    const ctx = buildTestApp();
+    const ctx = await buildTestApp();
     const token = await activeGoalkeeper(ctx, 'l4');
 
     const response = await request(ctx.app)
@@ -244,7 +244,7 @@ describe('PUT /api/goalkeepers/me/profile/availability (active goalkeeper)', () 
   });
 
   it('rejects a body with no zones, a blank city, or a missing field with 400 validation_failed', async () => {
-    const ctx = buildTestApp();
+    const ctx = await buildTestApp();
     const token = await activeGoalkeeper(ctx, 'l5');
     const put = (body: object) => request(ctx.app).put('/api/goalkeepers/me/profile/availability').set(bearer(token)).send(body);
 
@@ -256,7 +256,7 @@ describe('PUT /api/goalkeepers/me/profile/availability (active goalkeeper)', () 
   });
 
   it('returns 404 goalkeeper_not_found for a client who never started a registration', async () => {
-    const ctx = buildTestApp();
+    const ctx = await buildTestApp();
     const token = await signInAndComplete(ctx, 'ln1');
 
     const response = await request(ctx.app)
@@ -269,7 +269,7 @@ describe('PUT /api/goalkeepers/me/profile/availability (active goalkeeper)', () 
   });
 
   it('returns 409 goalkeeper_not_active for a draft registration', async () => {
-    const ctx = buildTestApp();
+    const ctx = await buildTestApp();
     const token = await signInAndComplete(ctx, 'ld1');
     await request(ctx.app).patch('/api/goalkeepers/me/physical-data').set(bearer(token)).send({ heightCm: 170, weightKg: 60 });
 
@@ -285,7 +285,7 @@ describe('PUT /api/goalkeepers/me/profile/availability (active goalkeeper)', () 
 
 describe('parallel autosave of physical data and availability', () => {
   it('keeps both edits when they arrive at the same time', async () => {
-    const ctx = buildTestApp();
+    const ctx = await buildTestApp();
     const token = await activeGoalkeeper(ctx, 'p1');
 
     const [physical, availability] = await Promise.all([
@@ -302,7 +302,7 @@ describe('parallel autosave of physical data and availability', () => {
   });
 
   it('is last-write-wins for repeated edits of the same field', async () => {
-    const ctx = buildTestApp();
+    const ctx = await buildTestApp();
     const token = await activeGoalkeeper(ctx, 'p2');
 
     await request(ctx.app).patch('/api/goalkeepers/me/profile/physical-data').set(bearer(token)).send({ heightCm: 190 });
@@ -315,7 +315,7 @@ describe('parallel autosave of physical data and availability', () => {
 
 describe('the draft registration flow is unchanged', () => {
   it('still saves physical data and availability sections of a not-yet-active registration', async () => {
-    const ctx = buildTestApp();
+    const ctx = await buildTestApp();
     const token = await signInAndComplete(ctx, 'draft1');
 
     const physical = await request(ctx.app).patch('/api/goalkeepers/me/physical-data').set(bearer(token)).send({ heightCm: 185, weightKg: 78 });
@@ -332,7 +332,7 @@ describe('the draft registration flow is unchanged', () => {
   });
 
   it('keeps the old draft routes locked with 409 already_active once the goalkeeper is active', async () => {
-    const ctx = buildTestApp();
+    const ctx = await buildTestApp();
     const token = await activeGoalkeeper(ctx, 'draft2');
 
     const physical = await request(ctx.app).patch('/api/goalkeepers/me/physical-data').set(bearer(token)).send({ heightCm: 190 });
@@ -349,7 +349,7 @@ describe('the draft registration flow is unchanged', () => {
   });
 
   it('keeps activation errors: incomplete → 409 goalkeeper_profile_incomplete with missingSections', async () => {
-    const ctx = buildTestApp();
+    const ctx = await buildTestApp();
     const token = await signInAndComplete(ctx, 'draft3');
     await request(ctx.app).patch('/api/goalkeepers/me/physical-data').set(bearer(token)).send({ heightCm: 185, weightKg: 78 });
 
@@ -361,7 +361,7 @@ describe('the draft registration flow is unchanged', () => {
   });
 
   it('GET /me on a draft returns the city name and region once a city is saved, and city: null before', async () => {
-    const ctx = buildTestApp();
+    const ctx = await buildTestApp();
     const token = await signInAndComplete(ctx, 'draft4');
 
     const before = await request(ctx.app).get('/api/goalkeepers/me').set(bearer(token));

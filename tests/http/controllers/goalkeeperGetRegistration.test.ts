@@ -5,8 +5,8 @@ import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js'
 import { GoalkeeperRegistration } from '../../../src/domain/goalkeepers/goalkeeperRegistration.js';
 
 async function signInAndComplete(
-  app: ReturnType<typeof buildTestApp>['app'],
-  googleValidator: ReturnType<typeof buildTestApp>['googleValidator'],
+  app: Awaited<ReturnType<typeof buildTestApp>>['app'],
+  googleValidator: Awaited<ReturnType<typeof buildTestApp>>['googleValidator'],
   credential: string,
   sub: string,
 ) {
@@ -21,7 +21,7 @@ async function signInAndComplete(
 
 describe('GET /api/goalkeepers/me', () => {
   it('returns not_started for a client who never saved anything', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-1');
 
     const response = await request(app).get('/api/goalkeepers/me').set('Authorization', `Bearer ${accessToken}`);
@@ -35,7 +35,7 @@ describe('GET /api/goalkeepers/me', () => {
   });
 
   it('reflects a previously saved city and service zones', async () => {
-    const { app, googleValidator, goalkeeperRegistrationRepository, tokenIssuer } = buildTestApp();
+    const { app, googleValidator, goalkeeperRegistrationRepository, tokenIssuer } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-5');
     const claims = await tokenIssuer.verifyAccessToken(accessToken);
     const registration = GoalkeeperRegistration.createEmpty('reg-5', claims!.sub);
@@ -51,7 +51,7 @@ describe('GET /api/goalkeepers/me', () => {
   });
 
   it('rejects a request with no token', async () => {
-    const { app } = buildTestApp();
+    const { app } = await buildTestApp();
 
     const response = await request(app).get('/api/goalkeepers/me');
 
@@ -59,7 +59,7 @@ describe('GET /api/goalkeepers/me', () => {
   });
 
   it('rejects a client whose own profile is not yet complete', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     googleValidator.registerValidCredential('good-token', new ExternalIdentity('google', 'sub-2', 'sub-2@example.com'));
     const exchange = await request(app).post('/api/auth/sso/exchange').send({ provider: 'google', platform: 'mobile', credential: 'good-token' });
 

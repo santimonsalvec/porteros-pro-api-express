@@ -1,6 +1,7 @@
-import type { Express } from 'express';
+import type { Server } from 'node:http';
 import { v7 as uuidv7 } from 'uuid';
 import { createApp } from '../../src/app.js';
+import { listenOnLoopback } from './testServers.js';
 import type { AppDependencies } from '../../src/appDependencies.js';
 import { Mediator, registerHandlers } from '../../src/application/common/mediator/mediator.js';
 import { GetSsoOptionsQuery } from '../../src/application/features/auth/queries/getSsoOptions/getSsoOptionsQuery.js';
@@ -88,7 +89,8 @@ import { CancelGoalkeeperRegistrationCommand } from '../../src/application/featu
 import { CancelGoalkeeperRegistrationCommandHandler } from '../../src/application/features/goalkeepers/commands/cancelGoalkeeperRegistration/cancelGoalkeeperRegistrationCommandHandler.js';
 
 export interface TestAppContext {
-  app: Express;
+  /** The app, already listening on 127.0.0.1 (see `listenOnLoopback`); pass it to supertest's `request`. */
+  app: Server;
   userRepository: FakeUserRepository;
   refreshTokenRepository: FakeRefreshTokenRepository;
   googleValidator: FakeGoogleIdTokenValidator;
@@ -125,7 +127,7 @@ export interface TestAppContext {
  * source's `WebApplicationFactory` + `ConfigureTestServices`/`RemoveAll<T>()`. Grows
  * incrementally as each user story adds its own handlers/registrations.
  */
-export function buildTestApp(): TestAppContext {
+export async function buildTestApp(): Promise<TestAppContext> {
   const mediator = new Mediator();
   const userRepository = new FakeUserRepository();
   const refreshTokenRepository = new FakeRefreshTokenRepository();
@@ -348,7 +350,7 @@ export function buildTestApp(): TestAppContext {
   };
 
   return {
-    app: createApp(dependencies),
+    app: await listenOnLoopback(createApp(dependencies)),
     userRepository,
     refreshTokenRepository,
     googleValidator,

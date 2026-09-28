@@ -4,8 +4,8 @@ import { buildTestApp } from '../testAppFactory.js';
 import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js';
 
 async function signInAndComplete(
-  app: ReturnType<typeof buildTestApp>['app'],
-  googleValidator: ReturnType<typeof buildTestApp>['googleValidator'],
+  app: Awaited<ReturnType<typeof buildTestApp>>['app'],
+  googleValidator: Awaited<ReturnType<typeof buildTestApp>>['googleValidator'],
   credential: string,
   sub: string,
   whatsAppNumber = '300 000 0000',
@@ -21,7 +21,7 @@ async function signInAndComplete(
 
 describe('PATCH /api/clients/me', () => {
   it('updates name and whatsapp, reflected on the next GET', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-1');
 
     const response = await request(app)
@@ -37,7 +37,7 @@ describe('PATCH /api/clients/me', () => {
   });
 
   it('never changes email regardless of what is submitted', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-2');
 
     const response = await request(app)
@@ -49,7 +49,7 @@ describe('PATCH /api/clients/me', () => {
   });
 
   it('rejects an update from a profile that is not yet complete', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     googleValidator.registerValidCredential('good-token', new ExternalIdentity('google', 'sub-3', 'sub-3@example.com'));
     const exchange = await request(app).post('/api/auth/sso/exchange').send({ provider: 'google', platform: 'mobile', credential: 'good-token' });
 
@@ -62,7 +62,7 @@ describe('PATCH /api/clients/me', () => {
   });
 
   it('rejects a duplicate number belonging to a different account', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     await signInAndComplete(app, googleValidator, 'token-a', 'sub-a', '300 111 1111');
     const accessTokenB = await signInAndComplete(app, googleValidator, 'token-b', 'sub-b', '300 222 2222');
 

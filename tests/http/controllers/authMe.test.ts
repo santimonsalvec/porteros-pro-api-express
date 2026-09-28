@@ -5,7 +5,7 @@ import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js'
 
 describe('GET /api/auth/me', () => {
   it('returns claims for a valid access token', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     googleValidator.registerValidCredential('good-token', new ExternalIdentity('google', 'sub-1', 'a@example.com'));
     const exchange = await request(app)
       .post('/api/auth/sso/exchange')
@@ -22,7 +22,7 @@ describe('GET /api/auth/me', () => {
   });
 
   it('rejects a missing token', async () => {
-    const { app } = buildTestApp();
+    const { app } = await buildTestApp();
 
     const response = await request(app).get('/api/auth/me');
 
@@ -30,7 +30,7 @@ describe('GET /api/auth/me', () => {
   });
 
   it('rejects an invalid token', async () => {
-    const { app } = buildTestApp();
+    const { app } = await buildTestApp();
 
     const response = await request(app).get('/api/auth/me').set('Authorization', 'Bearer garbage');
 

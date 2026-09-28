@@ -4,8 +4,8 @@ import { buildTestApp } from '../testAppFactory.js';
 import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js';
 
 async function signIn(
-  app: ReturnType<typeof buildTestApp>['app'],
-  googleValidator: ReturnType<typeof buildTestApp>['googleValidator'],
+  app: Awaited<ReturnType<typeof buildTestApp>>['app'],
+  googleValidator: Awaited<ReturnType<typeof buildTestApp>>['googleValidator'],
   credential: string,
   sub: string,
 ) {
@@ -16,7 +16,7 @@ async function signIn(
 
 describe('GET /api/locations/cities', () => {
   it('returns matching cities with hasZones, without requiring a complete profile', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signIn(app, googleValidator, 'good-token', 'sub-1');
 
     const response = await request(app).get('/api/locations/cities?q=medel').set('Authorization', `Bearer ${accessToken}`);
@@ -28,7 +28,7 @@ describe('GET /api/locations/cities', () => {
   });
 
   it('returns an empty list for an empty q', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signIn(app, googleValidator, 'good-token', 'sub-2');
 
     const response = await request(app).get('/api/locations/cities?q=').set('Authorization', `Bearer ${accessToken}`);
@@ -38,7 +38,7 @@ describe('GET /api/locations/cities', () => {
   });
 
   it('rejects requests with no token', async () => {
-    const { app } = buildTestApp();
+    const { app } = await buildTestApp();
 
     const response = await request(app).get('/api/locations/cities?q=medel');
 

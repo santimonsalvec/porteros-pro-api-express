@@ -4,8 +4,8 @@ import { buildTestApp } from '../testAppFactory.js';
 import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js';
 
 async function signIn(
-  app: ReturnType<typeof buildTestApp>['app'],
-  googleValidator: ReturnType<typeof buildTestApp>['googleValidator'],
+  app: Awaited<ReturnType<typeof buildTestApp>>['app'],
+  googleValidator: Awaited<ReturnType<typeof buildTestApp>>['googleValidator'],
   credential: string,
   sub: string,
 ) {
@@ -16,7 +16,7 @@ async function signIn(
 
 describe('GET /api/zones', () => {
   it('returns a city\'s active zones', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signIn(app, googleValidator, 'good-token', 'sub-1');
 
     const response = await request(app).get('/api/zones?cityId=city-medellin').set('Authorization', `Bearer ${accessToken}`);
@@ -26,7 +26,7 @@ describe('GET /api/zones', () => {
   });
 
   it('resolves a satellite city to its anchor\'s zones', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signIn(app, googleValidator, 'good-token', 'sub-2');
 
     const response = await request(app).get('/api/zones?cityId=city-envigado').set('Authorization', `Bearer ${accessToken}`);
@@ -36,7 +36,7 @@ describe('GET /api/zones', () => {
   });
 
   it('returns 404 city_not_found for an unknown cityId', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signIn(app, googleValidator, 'good-token', 'sub-3');
 
     const response = await request(app).get('/api/zones?cityId=does-not-exist').set('Authorization', `Bearer ${accessToken}`);
@@ -46,7 +46,7 @@ describe('GET /api/zones', () => {
   });
 
   it('returns 404 no_zones_configured for a city with no active zones', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signIn(app, googleValidator, 'good-token', 'sub-4');
 
     const response = await request(app).get('/api/zones?cityId=city-bogota').set('Authorization', `Bearer ${accessToken}`);
@@ -56,7 +56,7 @@ describe('GET /api/zones', () => {
   });
 
   it('rejects requests with no token', async () => {
-    const { app } = buildTestApp();
+    const { app } = await buildTestApp();
 
     const response = await request(app).get('/api/zones?cityId=city-medellin');
 

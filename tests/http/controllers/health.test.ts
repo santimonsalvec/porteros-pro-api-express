@@ -4,7 +4,7 @@ import { buildTestApp } from '../testAppFactory.js';
 
 describe('GET /health', () => {
   it('reports healthy while the dependency is up', async () => {
-    const { app } = buildTestApp();
+    const { app } = await buildTestApp();
 
     const response = await request(app).get('/health');
 
@@ -13,7 +13,7 @@ describe('GET /health', () => {
   });
 
   it('reports unhealthy with a 503 and no internal detail', async () => {
-    const { app, health } = buildTestApp();
+    const { app, health } = await buildTestApp();
     health.status = 'Unhealthy';
     health.checks = [{ name: 'mongodb', status: 'Unhealthy' }];
 

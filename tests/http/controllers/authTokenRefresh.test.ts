@@ -5,7 +5,7 @@ import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js'
 
 describe('POST /api/auth/tokens/refresh', () => {
   it('issues a new pair for a valid refresh token', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     googleValidator.registerValidCredential('good-token', new ExternalIdentity('google', 'sub-1', 'a@example.com'));
     const exchange = await request(app)
       .post('/api/auth/sso/exchange')
@@ -20,7 +20,7 @@ describe('POST /api/auth/tokens/refresh', () => {
   });
 
   it('rejects an unrecognized refresh token', async () => {
-    const { app } = buildTestApp();
+    const { app } = await buildTestApp();
 
     const response = await request(app).post('/api/auth/tokens/refresh').send({ refreshToken: 'never-issued' });
 
@@ -29,7 +29,7 @@ describe('POST /api/auth/tokens/refresh', () => {
   });
 
   it('rejects a refresh token that has already been used', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     googleValidator.registerValidCredential('good-token', new ExternalIdentity('google', 'sub-1', 'a@example.com'));
     const exchange = await request(app)
       .post('/api/auth/sso/exchange')

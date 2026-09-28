@@ -7,7 +7,7 @@ import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js'
 
 const tinyJpeg = readFileSync(fileURLToPath(new URL('../../fixtures/tinyImage.jpg', import.meta.url)));
 
-async function signInMobile(app: ReturnType<typeof buildTestApp>['app'], googleValidator: ReturnType<typeof buildTestApp>['googleValidator'], credential: string, sub: string) {
+async function signInMobile(app: Awaited<ReturnType<typeof buildTestApp>>['app'], googleValidator: Awaited<ReturnType<typeof buildTestApp>>['googleValidator'], credential: string, sub: string) {
   googleValidator.registerValidCredential(credential, new ExternalIdentity('google', sub, `${sub}@example.com`));
   const response = await request(app).post('/api/auth/sso/exchange').send({ provider: 'google', platform: 'mobile', credential });
   return response.body.accessToken as string;
@@ -15,7 +15,7 @@ async function signInMobile(app: ReturnType<typeof buildTestApp>['app'], googleV
 
 describe('POST /api/images', () => {
   it('stores an optimized image and returns its reference', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInMobile(app, googleValidator, 'good-token', 'sub-1');
 
     const response = await request(app)
@@ -30,7 +30,7 @@ describe('POST /api/images', () => {
   });
 
   it('rejects a request with no file', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInMobile(app, googleValidator, 'good-token', 'sub-2');
 
     const response = await request(app).post('/api/images').set('Authorization', `Bearer ${accessToken}`);
@@ -40,7 +40,7 @@ describe('POST /api/images', () => {
   });
 
   it('rejects a file whose content is not actually an image, regardless of its name', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInMobile(app, googleValidator, 'good-token', 'sub-3');
 
     const response = await request(app)
@@ -53,7 +53,7 @@ describe('POST /api/images', () => {
   });
 
   it('rejects a file larger than the configured maximum', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInMobile(app, googleValidator, 'good-token', 'sub-4');
     const oversized = Buffer.alloc(11 * 1024 * 1024, 0);
 
@@ -67,7 +67,7 @@ describe('POST /api/images', () => {
   });
 
   it('returns 502 when the storage provider fails', async () => {
-    const { app, googleValidator, imageStorageProvider } = buildTestApp();
+    const { app, googleValidator, imageStorageProvider } = await buildTestApp();
     const accessToken = await signInMobile(app, googleValidator, 'good-token', 'sub-5');
     imageStorageProvider.uploadError = new Error('Cloudinary is down');
 
@@ -81,7 +81,7 @@ describe('POST /api/images', () => {
   });
 
   it('rejects an unauthenticated request', async () => {
-    const { app } = buildTestApp();
+    const { app } = await buildTestApp();
 
     const response = await request(app).post('/api/images').attach('image', tinyJpeg, 'photo.jpg');
 

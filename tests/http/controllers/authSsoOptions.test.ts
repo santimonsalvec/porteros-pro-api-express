@@ -4,7 +4,7 @@ import { buildTestApp } from '../testAppFactory.js';
 
 describe('GET /api/auth/sso-options', () => {
   it('returns Google for a valid platform', async () => {
-    const { app } = buildTestApp();
+    const { app } = await buildTestApp();
 
     const response = await request(app).get('/api/auth/sso-options?platform=mobile');
 
@@ -15,7 +15,7 @@ describe('GET /api/auth/sso-options', () => {
   });
 
   it('rejects a missing platform', async () => {
-    const { app } = buildTestApp();
+    const { app } = await buildTestApp();
 
     const response = await request(app).get('/api/auth/sso-options');
 
@@ -24,7 +24,7 @@ describe('GET /api/auth/sso-options', () => {
   });
 
   it('rejects an unrecognized platform', async () => {
-    const { app } = buildTestApp();
+    const { app } = await buildTestApp();
 
     const response = await request(app).get('/api/auth/sso-options?platform=desktop');
 

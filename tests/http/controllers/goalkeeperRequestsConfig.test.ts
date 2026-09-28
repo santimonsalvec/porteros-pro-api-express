@@ -9,7 +9,7 @@ import { InvalidConfigurationError } from '../../../src/domain/pricing/invalidCo
 import { logger } from '../../../src/infrastructure/observability/logger.js';
 import { POINTS } from '../../fixtures/quoteFixtures.js';
 
-type TestApp = ReturnType<typeof buildTestApp>;
+type TestApp = Awaited<ReturnType<typeof buildTestApp>>;
 
 /** Signs in and completes the client profile, so the token passes `requireCompleteProfile`. */
 async function signInAndComplete(context: TestApp, sub: string): Promise<string> {
@@ -25,7 +25,7 @@ async function signInAndComplete(context: TestApp, sub: string): Promise<string>
 }
 
 async function withToken(sub: string) {
-  const context = buildTestApp();
+  const context = await buildTestApp();
   return { context, token: await signInAndComplete(context, sub) };
 }
 
@@ -90,13 +90,13 @@ describe('GET /api/goalkeeper-requests/config', () => {
   });
 
   it('rejects a request with no token', async () => {
-    const { app } = buildTestApp();
+    const { app } = await buildTestApp();
 
     expect((await request(app).get(`/api/goalkeeper-requests/config${at(POINTS.caliNorte)}`)).status).toBe(401);
   });
 
   it('rejects a client whose profile is not yet complete', async () => {
-    const context = buildTestApp();
+    const context = await buildTestApp();
     context.googleValidator.registerValidCredential('cred-inc', new ExternalIdentity('google', 'sub-0405', 'sub-0405@example.com'));
     const exchange = await request(context.app).post('/api/auth/sso/exchange').send({ provider: 'google', platform: 'mobile', credential: 'cred-inc' });
 

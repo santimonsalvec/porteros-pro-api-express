@@ -6,7 +6,7 @@ import { User } from '../../../src/domain/users/user.js';
 
 describe('POST /api/auth/sso/exchange', () => {
   it('issues a session for a new mobile account', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     googleValidator.registerValidCredential('good-token', new ExternalIdentity('google', 'sub-1', 'a@example.com'));
 
     const response = await request(app)
@@ -19,7 +19,7 @@ describe('POST /api/auth/sso/exchange', () => {
   });
 
   it('rejects an invalid credential', async () => {
-    const { app } = buildTestApp();
+    const { app } = await buildTestApp();
 
     const response = await request(app)
       .post('/api/auth/sso/exchange')
@@ -30,7 +30,7 @@ describe('POST /api/auth/sso/exchange', () => {
   });
 
   it('rejects admin-web login with no matching admin account', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     googleValidator.registerValidCredential('good-token', new ExternalIdentity('google', 'sub-2', 'b@example.com'));
 
     const response = await request(app)
@@ -42,7 +42,7 @@ describe('POST /api/auth/sso/exchange', () => {
   });
 
   it('succeeds for an existing admin-web account', async () => {
-    const { app, googleValidator, userRepository } = buildTestApp();
+    const { app, googleValidator, userRepository } = await buildTestApp();
     const admin = User.createFromExternalIdentity({
       id: 'admin-1',
       email: 'admin@example.com',
@@ -62,7 +62,7 @@ describe('POST /api/auth/sso/exchange', () => {
   });
 
   it('rejects a malformed request body', async () => {
-    const { app } = buildTestApp();
+    const { app } = await buildTestApp();
 
     const response = await request(app).post('/api/auth/sso/exchange').send({ provider: 'google' });
 

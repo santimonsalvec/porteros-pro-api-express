@@ -8,8 +8,8 @@ import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js'
 const tinyJpeg = readFileSync(fileURLToPath(new URL('../../fixtures/tinyImage.jpg', import.meta.url)));
 
 async function signInAndComplete(
-  app: ReturnType<typeof buildTestApp>['app'],
-  googleValidator: ReturnType<typeof buildTestApp>['googleValidator'],
+  app: Awaited<ReturnType<typeof buildTestApp>>['app'],
+  googleValidator: Awaited<ReturnType<typeof buildTestApp>>['googleValidator'],
   credential: string,
   sub: string,
   whatsAppNumber = '300 000 0000',
@@ -23,7 +23,7 @@ async function signInAndComplete(
   return completion.body.accessToken as string;
 }
 
-async function completeAllSections(app: ReturnType<typeof buildTestApp>['app'], accessToken: string) {
+async function completeAllSections(app: Awaited<ReturnType<typeof buildTestApp>>['app'], accessToken: string) {
   await request(app)
     .patch('/api/goalkeepers/me/identification')
     .set('Authorization', `Bearer ${accessToken}`)
@@ -45,7 +45,7 @@ async function completeAllSections(app: ReturnType<typeof buildTestApp>['app'], 
 
 describe('POST /api/goalkeepers/me/activate', () => {
   it('activates once all four sections are complete', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-1');
     await completeAllSections(app, accessToken);
 
@@ -59,7 +59,7 @@ describe('POST /api/goalkeepers/me/activate', () => {
   });
 
   it('rejects activation with a missing section, naming it', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-2');
     await request(app)
       .patch('/api/goalkeepers/me/physical-data')
@@ -75,7 +75,7 @@ describe('POST /api/goalkeepers/me/activate', () => {
   });
 
   it('rejects a second activation attempt', async () => {
-    const { app, googleValidator } = buildTestApp();
+    const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-3');
     await completeAllSections(app, accessToken);
     await request(app).post('/api/goalkeepers/me/activate').set('Authorization', `Bearer ${accessToken}`);
