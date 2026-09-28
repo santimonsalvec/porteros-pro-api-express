@@ -51,6 +51,8 @@ export type AreaSettingsResult =
       bookingWindowDays: number;
       minNoticeMinutes: number;
       leadTimeSurcharge: LeadTimeSurcharge;
+      /** `null` when not configured: the caller applies the default (FR-014). */
+      freeCancellationMinutes: number | null;
     }
   | { ok: false; missing: MissingSetting[] };
 
@@ -87,5 +89,12 @@ export async function resolveAreaSettings(deps: AreaSettingsDependencies, city: 
   ) {
     return { ok: false, missing: currency === null ? [...settings.missing, 'currency'] : settings.missing };
   }
-  return { ok: true, currency, bookingWindowDays, minNoticeMinutes, leadTimeSurcharge };
+  return {
+    ok: true,
+    currency,
+    bookingWindowDays,
+    minNoticeMinutes,
+    leadTimeSurcharge,
+    freeCancellationMinutes: settings.freeCancellationMinutes,
+  };
 }

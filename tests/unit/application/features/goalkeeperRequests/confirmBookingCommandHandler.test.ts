@@ -1,14 +1,17 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { v7 as uuidv7 } from 'uuid';
 import { Booking } from '../../../../../src/domain/bookings/booking.js';
+import { GoalkeeperRequest } from '../../../../../src/domain/bookings/goalkeeperRequest.js';
 import { ConfirmBookingCommand } from '../../../../../src/application/features/goalkeeperRequests/commands/confirmBooking/confirmBookingCommand.js';
 import { ConfirmBookingCommandHandler } from '../../../../../src/application/features/goalkeeperRequests/commands/confirmBooking/confirmBookingCommandHandler.js';
 import { FakeBookingAuditLogger } from '../../../../fakes/fakeBookingAuditLogger.js';
 import { FakeBookingRepository } from '../../../../fakes/fakeBookingRepository.js';
+import { FakeGoalkeeperRequestRepository } from '../../../../fakes/fakeGoalkeeperRequestRepository.js';
 import { FixedClock } from '../../../../fakes/fakeClock.js';
 import { FakeQuoteConfirmationStore } from '../../../../fakes/fakeQuoteConfirmationStore.js';
 import { FakeQuoteRepository } from '../../../../fakes/fakeQuoteRepository.js';
 import {
+  buildRequest,
   buildStoredQuote,
   QUOTE_NOW,
   STORED_QUOTE_ID,
@@ -17,22 +20,25 @@ import {
 /** The stored quote is issued at QUOTE_NOW (18:00Z) and expires at 18:03Z. */
 class Harness {
   readonly quotes = new FakeQuoteRepository();
+  readonly requests = new FakeGoalkeeperRequestRepository();
   readonly bookings = new FakeBookingRepository();
-  readonly store = new FakeQuoteConfirmationStore(this.quotes, this.bookings);
+  readonly store = new FakeQuoteConfirmationStore(this.quotes, this.requests, this.bookings);
   readonly audit = new FakeBookingAuditLogger();
   readonly clock = new FixedClock('2026-09-21T18:01:00.000Z');
   private counter = 0;
+  // Ids in creation order: the request is `id-1`, its bookings `id-2` and `id-3`.
   readonly handler = new ConfirmBookingCommandHandler(
+    this.requests,
     this.bookings,
     this.quotes,
     this.store,
-    { newId: () => `booking-${++this.counter}` },
+    { newId: () => `id-${++this.counter}` },
     this.clock,
     this.audit,
   );
 
-  confirm(quoteId = STORED_QUOTE_ID, clientId = 'client-a') {
-    return this.handler.handle(new ConfirmBookingCommand(clientId, quoteId));
+  confirm(quoteId = STORED_QUOTE_ID, clientId = 'client-a', partialFulfillment?: 'keep_confirmed' | 'cancel_all') {
+    return this.handler.handle(new ConfirmBookingCommand(clientId, quoteId, partialFulfillment));
   }
 }
 
@@ -43,15 +49,16 @@ beforeEach(() => {
 });
 
 describe('ConfirmBookingCommandHandler — Story 1: book at exactly the quoted price', () => {
-  it('creates a booking that copies the quote and deletes the quote', async () => {
+  it('creates a request that copies the quote, with its bookings, and deletes the quote', async () => {
     const result = await h.confirm();
 
     expect(result).toEqual({
       outcome: 'created',
-      booking: {
-        bookingId: 'booking-1',
+      request: {
+        requestId: 'id-1',
         quoteId: STORED_QUOTE_ID,
-        status: 'pending_assignment',
+        status: 'searching',
+        partialFulfillment: 'keep_confirmed',
         latitude: 3.45,
         longitude: -76.5,
         zoneId: 'zone-cali-norte',
@@ -67,12 +74,23 @@ describe('ConfirmBookingCommandHandler — Story 1: book at exactly the quoted p
         surcharge: 10000,
         total: 120000,
         currency: 'COP',
+        cancellation: { freeCancellationUntil: '2026-09-21T19:00:00.000Z', freeCancellationAvailable: true },
         createdAt: '2026-09-21T18:01:00.000Z',
+        bookings: ['id-2', 'id-3'].map((bookingId) => ({
+          bookingId,
+          status: 'pending_assignment',
+          unitRate: 55000,
+          unitSurcharge: 5000,
+          total: 60000,
+          currency: 'COP',
+          createdAt: '2026-09-21T18:01:00.000Z',
+        })),
       },
     });
     expect(h.quotes.all()).toHaveLength(0);
-    expect(h.bookings.all()).toHaveLength(1);
-    expect(h.bookings.all()[0]!.quoteIssuedAt).toEqual(new Date(QUOTE_NOW));
+    expect(h.requests.all()).toHaveLength(1);
+    expect(h.requests.all()[0]!.quoteIssuedAt).toEqual(new Date(QUOTE_NOW));
+    expect(h.bookings.all()).toHaveLength(2);
   });
 
   it('books the stored price even though nothing is re-priced (the handler reads no rate or setting)', async () => {
@@ -82,11 +100,11 @@ describe('ConfirmBookingCommandHandler — Story 1: book at exactly the quoted p
 
     expect(result).toMatchObject({
       outcome: 'created',
-      booking: { unitRate: 55000, total: 120000, currency: 'COP' },
+      request: { unitRate: 55000, total: 120000, currency: 'COP' },
     });
   });
 
-  it('audits the creation once, with the booking id', async () => {
+  it('audits the creation once, with the request and booking ids', async () => {
     await h.confirm();
 
     expect(h.audit.entries).toEqual([
@@ -94,7 +112,8 @@ describe('ConfirmBookingCommandHandler — Story 1: book at exactly the quoted p
         outcome: 'created',
         clientId: 'client-a',
         quoteId: STORED_QUOTE_ID,
-        bookingId: 'booking-1',
+        requestId: 'id-1',
+        bookingIds: ['id-2', 'id-3'],
       },
     ]);
   });
@@ -105,57 +124,106 @@ describe('ConfirmBookingCommandHandler — Story 1: book at exactly the quoted p
 
     expect(await h.confirm(otherId)).toMatchObject({
       outcome: 'created',
-      booking: { quoteId: otherId },
+      request: { quoteId: otherId },
     });
   });
 });
 
-describe('ConfirmBookingCommandHandler — Story 2: retries never create a second booking', () => {
-  it('returns the same booking on a retry, without opening another transaction', async () => {
+describe('ConfirmBookingCommandHandler — US1: one request and one booking per goalkeeper', () => {
+  it('splits a 2-goalkeeper quote into 2 bookings whose prices add up to the quoted total', async () => {
+    const result = await h.confirm();
+
+    if (result.outcome !== 'created') throw new Error('expected a created request');
+    expect(result.request.bookings).toHaveLength(2);
+    for (const booking of result.request.bookings) {
+      expect(booking).toMatchObject({ unitRate: 55000, unitSurcharge: 5000, total: 60000, currency: 'COP' });
+    }
+    expect(result.request.bookings.reduce((sum, booking) => sum + booking.total, 0)).toBe(result.request.total);
+    expect(h.bookings.all().every((booking) => booking.requestId === 'id-1')).toBe(true);
+  });
+
+  it('creates exactly one booking for a 1-goalkeeper quote', async () => {
+    const soloId = uuidv7();
+    h.quotes.seed(buildStoredQuote({ id: soloId, goalkeeperCount: 1, startsAt: '2026-09-21T21:00:00.000Z' }));
+
+    const result = await h.confirm(soloId);
+
+    expect(result).toMatchObject({ outcome: 'created', request: { goalkeeperCount: 1, total: 60000 } });
+    expect(result.outcome === 'created' && result.request.bookings).toHaveLength(1);
+  });
+
+  it('leaves nothing behind when the transaction is interrupted, and the quote is still confirmable', async () => {
+    h.store.failNextWith(new Error('connection reset'));
+
+    await expect(h.confirm()).rejects.toThrow('connection reset');
+
+    expect(h.requests.all()).toHaveLength(0);
+    expect(h.bookings.all()).toHaveLength(0);
+    expect(h.quotes.all()).toHaveLength(1);
+    expect(await h.confirm()).toMatchObject({ outcome: 'created' });
+  });
+});
+
+describe('ConfirmBookingCommandHandler — Story 2: retries never create a second request', () => {
+  it('returns the same request on a retry, without opening another transaction', async () => {
     const first = await h.confirm();
     const second = await h.confirm();
 
     expect(second).toEqual({ ...first, outcome: 'replayed' });
     expect(h.store.calls).toBe(1);
-    expect(h.bookings.all()).toHaveLength(1);
+    expect(h.requests.all()).toHaveLength(1);
+    expect(h.bookings.all()).toHaveLength(2);
   });
 
-  it('still returns the booking when retried long after the quote expired', async () => {
+  it('still returns the request when retried long after the quote expired', async () => {
     const first = await h.confirm();
     h.clock.advance(2 * 24 * 60 * 60 * 1000);
 
     const retry = await h.confirm();
 
-    expect(retry).toMatchObject({ outcome: 'replayed' });
-    expect(retry).toEqual({ ...first, outcome: 'replayed' });
+    // Same request and bookings; only the free-cancellation answer reflects the later "now".
+    if (first.outcome !== 'created') throw new Error('expected the first confirmation to create');
+    expect(retry).toEqual({
+      outcome: 'replayed',
+      request: { ...first.request, cancellation: { ...first.request.cancellation, freeCancellationAvailable: false } },
+    });
   });
 
-  it("returns the winner's booking when a concurrent confirmation committed first", async () => {
-    // Simulate the race: between the replay lookup and the claim, another request booked the quote.
+  it("returns the winner's request when a concurrent confirmation committed first", async () => {
+    // Simulate the race: between the replay lookup and the claim, another confirmation created the request.
     const quote = h.quotes.all()[0]!;
-    const winner = Booking.fromQuote('booking-winner', quote, h.clock.now());
-    const lookup = h.bookings.findByQuoteForClient.bind(h.bookings);
+    const winner = GoalkeeperRequest.fromQuote('request-winner', quote, 'keep_confirmed', h.clock.now());
+    const lookup = h.requests.findByQuoteForClient.bind(h.requests);
     let lookups = 0;
-    h.bookings.findByQuoteForClient = async (quoteId, clientId) => {
+    h.requests.findByQuoteForClient = async (quoteId, clientId) => {
       lookups += 1;
-      if (lookups === 2) h.bookings.seed(winner); // committed while we were claiming
+      if (lookups === 2) {
+        // committed while we were claiming
+        h.requests.seed(winner);
+        h.bookings.seed(Booking.forRequest('booking-winner-1', winner, h.clock.now()));
+        h.bookings.seed(Booking.forRequest('booking-winner-2', winner, h.clock.now()));
+      }
       return lookup(quoteId, clientId);
     };
-    h.store.failNextWith({ kind: 'already_booked' });
+    h.store.failNextWith({ kind: 'already_requested' });
 
     const result = await h.confirm();
 
-    expect(result).toMatchObject({ outcome: 'replayed', booking: { bookingId: 'booking-winner' } });
-    expect(h.bookings.all()).toHaveLength(1);
+    expect(result).toMatchObject({ outcome: 'replayed', request: { requestId: 'request-winner' } });
+    expect(result.outcome === 'replayed' && result.request.bookings.map((booking) => booking.bookingId)).toEqual([
+      'booking-winner-1',
+      'booking-winner-2',
+    ]);
+    expect(h.requests.all()).toHaveLength(1);
   });
 
-  it('answers confirmation_in_progress when a valid quote could not be claimed and no booking exists yet', async () => {
+  it('answers confirmation_in_progress when a valid quote could not be claimed and no request exists yet', async () => {
     h.store.failNextWith({ kind: 'not_claimed' });
 
     const result = await h.confirm();
 
     expect(result).toEqual({ outcome: 'confirmation_in_progress' });
-    expect(h.bookings.all()).toHaveLength(0);
+    expect(h.requests.all()).toHaveLength(0);
     expect(h.quotes.all()).toHaveLength(1);
   });
 
@@ -172,7 +240,112 @@ describe('ConfirmBookingCommandHandler — Story 2: retries never create a secon
       'replayed',
       'confirmation_in_progress',
     ]);
-    expect(h.audit.entries[1]).toMatchObject({ bookingId: 'booking-1' });
+    expect(h.audit.entries[1]).toMatchObject({ requestId: 'id-1', bookingIds: ['id-2', 'id-3'] });
+  });
+});
+
+describe('ConfirmBookingCommandHandler — US2: a replay shows the bookings as they are now', () => {
+  it('returns the current state of each booking, and the derived status follows it', async () => {
+    await h.confirm();
+    const [first] = h.bookings.all();
+    h.bookings.seed(Booking.rehydrate({ ...first!, status: 'assigned' }));
+
+    const replay = await h.confirm();
+
+    expect(replay).toMatchObject({ outcome: 'replayed', request: { status: 'partially_assigned' } });
+    expect(replay.outcome === 'replayed' && replay.request.bookings.map((booking) => booking.status)).toEqual([
+      'assigned',
+      'pending_assignment',
+    ]);
+    expect(h.store.calls).toBe(1);
+  });
+});
+
+describe('ConfirmBookingCommandHandler — US3: partial-confirmation preference', () => {
+  it('stores keep_confirmed when no preference is given', async () => {
+    await h.confirm();
+
+    expect(h.requests.all()[0]!.partialFulfillment).toBe('keep_confirmed');
+  });
+
+  it('stores cancel_all when the client chooses it', async () => {
+    const result = await h.confirm(STORED_QUOTE_ID, 'client-a', 'cancel_all');
+
+    expect(result).toMatchObject({ outcome: 'created', request: { partialFulfillment: 'cancel_all' } });
+    expect(h.requests.all()[0]!.partialFulfillment).toBe('cancel_all');
+  });
+
+  it('accepts either value for a 1-goalkeeper quote', async () => {
+    const soloId = uuidv7();
+    h.quotes.seed(buildStoredQuote({ id: soloId, goalkeeperCount: 1, startsAt: '2026-09-21T21:00:00.000Z' }));
+
+    expect(await h.confirm(soloId, 'client-a', 'cancel_all')).toMatchObject({
+      outcome: 'created',
+      request: { partialFulfillment: 'cancel_all', goalkeeperCount: 1 },
+    });
+  });
+
+  it('never changes the stored preference on a replay', async () => {
+    await h.confirm(STORED_QUOTE_ID, 'client-a', 'keep_confirmed');
+
+    const replay = await h.confirm(STORED_QUOTE_ID, 'client-a', 'cancel_all');
+
+    expect(replay).toMatchObject({ outcome: 'replayed', request: { partialFulfillment: 'keep_confirmed' } });
+    expect(h.requests.all()[0]!.partialFulfillment).toBe('keep_confirmed');
+  });
+});
+
+describe('ConfirmBookingCommandHandler — US4: one active request per match', () => {
+  it('lets a new request reuse the zone and start of an ended (inactive) request', async () => {
+    h.requests.seed(buildRequest('old-request', new Date('2026-09-21T20:00:00.000Z'), { active: false }));
+
+    expect(await h.confirm()).toMatchObject({ outcome: 'created' });
+    expect(h.requests.all()).toHaveLength(2);
+  });
+
+  it('never refuses the bookings of one request against each other', async () => {
+    const result = await h.confirm();
+
+    expect(result.outcome).toBe('created');
+    expect(h.bookings.all().map((booking) => booking.requestId)).toEqual(['id-1', 'id-1']);
+  });
+});
+
+describe('ConfirmBookingCommandHandler — US6: late-confirmation notice', () => {
+  // The clock reads 18:01Z; each quote below uses a 60-minute free-cancellation period.
+  const confirmStartingAt = async (startsAt: string) => {
+    const id = uuidv7();
+    h.quotes.seed(buildStoredQuote({ id, startsAt, freeCancellationMinutes: 60 }));
+    const result = await h.confirm(id);
+    if (result.outcome !== 'created') throw new Error(`expected created, got ${result.outcome}`);
+    return result.request.cancellation;
+  };
+
+  it('says free cancellation is over when the match starts inside the period (45 min away)', async () => {
+    expect(await confirmStartingAt('2026-09-21T18:46:00.000Z')).toEqual({
+      freeCancellationUntil: '2026-09-21T17:46:00.000Z',
+      freeCancellationAvailable: false,
+    });
+  });
+
+  it('says until when it is free when the match is 3 hours away', async () => {
+    expect(await confirmStartingAt('2026-09-21T21:01:00.000Z')).toEqual({
+      freeCancellationUntil: '2026-09-21T20:01:00.000Z',
+      freeCancellationAvailable: true,
+    });
+  });
+
+  it('is still free exactly at the boundary (the match starts exactly 60 minutes after confirming)', async () => {
+    expect((await confirmStartingAt('2026-09-21T19:01:00.000Z')).freeCancellationAvailable).toBe(true);
+  });
+
+  it("keeps the quote's period on the request instead of re-reading settings", async () => {
+    const id = uuidv7();
+    h.quotes.seed(buildStoredQuote({ id, freeCancellationMinutes: 45, startsAt: '2026-09-21T21:00:00.000Z' }));
+
+    await h.confirm(id);
+
+    expect(h.requests.all()[0]!.freeCancellationMinutes).toBe(45);
   });
 });
 
@@ -184,7 +357,7 @@ describe('ConfirmBookingCommandHandler — Story 4: stale, foreign or unknown qu
 
     expect(result).toEqual({ outcome: 'quote_expired' });
     expect(h.quotes.all()).toHaveLength(1);
-    expect(h.bookings.all()).toHaveLength(0);
+    expect(h.requests.all()).toHaveLength(0);
   });
 
   it('books one second before the expiry and refuses at the expiry instant', async () => {
@@ -209,7 +382,7 @@ describe('ConfirmBookingCommandHandler — Story 4: stale, foreign or unknown qu
 
     expect(result).toEqual({ outcome: 'quote_not_found' });
     expect(h.quotes.all()).toHaveLength(1);
-    expect(h.bookings.all()).toHaveLength(0);
+    expect(h.requests.all()).toHaveLength(0);
   });
 
   it('answers quote_not_found to a malformed id without touching any repository', async () => {
@@ -219,15 +392,16 @@ describe('ConfirmBookingCommandHandler — Story 4: stale, foreign or unknown qu
     expect(h.store.calls).toBe(0);
   });
 
-  it('refuses a second quote for a match the client already booked, pointing at the existing booking', async () => {
-    await h.confirm(); // books zone Cali Norte at 20:00Z as booking-1
+  it('refuses a second quote for a match the client already requested, pointing at the existing request', async () => {
+    await h.confirm(); // requests zone Cali Norte at 20:00Z as id-1
     const secondId = uuidv7();
     h.quotes.seed(buildStoredQuote({ id: secondId }));
 
     const result = await h.confirm(secondId);
 
-    expect(result).toEqual({ outcome: 'duplicate_booking', existingBookingId: 'booking-1' });
-    expect(h.bookings.all()).toHaveLength(1);
+    expect(result).toEqual({ outcome: 'duplicate_request', existingRequestId: 'id-1' });
+    expect(h.requests.all()).toHaveLength(1);
+    expect(h.bookings.all()).toHaveLength(2);
     expect(h.quotes.all().map((quote) => quote.id)).toEqual([secondId]); // left to expire
   });
 
@@ -240,10 +414,10 @@ describe('ConfirmBookingCommandHandler — Story 4: stale, foreign or unknown qu
 
     expect(await h.confirm(otherZone)).toMatchObject({ outcome: 'created' });
     expect(await h.confirm(otherStart)).toMatchObject({ outcome: 'created' });
-    expect(h.bookings.all()).toHaveLength(3);
+    expect(h.requests.all()).toHaveLength(3);
   });
 
-  it('audits every refusal once, without a booking id', async () => {
+  it('audits every refusal once, without request or booking ids', async () => {
     h.clock.set('2026-09-21T18:04:00.000Z');
     await h.confirm();
     await h.confirm('not-a-uuid');

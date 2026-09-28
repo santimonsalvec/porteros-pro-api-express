@@ -1,51 +1,57 @@
 import type { Collection, Db, Document } from 'mongodb';
 import type { IBookingRepository } from '../../../application/features/goalkeeperRequests/common/ports.js';
 import { Booking, type BookingStatus } from '../../../domain/bookings/booking.js';
-import {
-  matchFromDocument,
-  matchToDocument,
-  pricingFromDocument,
-  pricingToDocument,
-} from './quoteRepository.js';
+import { GoalkeeperPrice } from '../../../domain/bookings/goalkeeperPrice.js';
 
 export const BOOKINGS_COLLECTION = 'bookings';
 
-/** `zoneId` and `startsAt` are repeated at the top level so the duplicate-match index is a plain one. */
+/**
+ * Indexes of the pre-010 shape (one booking per match). Their rules moved to the request, and
+ * `quoteId_unique` would even reject the second booking of a request (no `quoteId` any more).
+ */
+const OBSOLETE_INDEXES = ['quoteId_unique', 'client_zone_start_unique', 'client_startsAt'];
+const INDEX_NOT_FOUND = 27;
+
 export function bookingToDocument(booking: Booking): Document {
   return {
     _id: booking.id,
+    requestId: booking.requestId,
     clientId: booking.clientId,
-    quoteId: booking.quoteId,
-    status: booking.status,
     zoneId: booking.zoneId,
     startsAt: booking.startsAt,
-    match: matchToDocument(booking.match),
-    pricing: pricingToDocument(booking.pricing),
-    quoteIssuedAt: booking.quoteIssuedAt,
+    status: booking.status,
+    price: {
+      unitRate: booking.price.unitRate,
+      unitSurcharge: booking.price.unitSurcharge,
+      total: booking.price.total,
+      currency: booking.price.currency,
+    },
     createdAt: booking.createdAt,
   };
 }
 
 export function bookingFromDocument(doc: Document): Booking {
-  const match = matchFromDocument(doc.match as Document);
+  const price = doc.price as Document;
   return Booking.rehydrate({
     id: String(doc._id),
+    requestId: doc.requestId as string,
     clientId: doc.clientId as string,
-    quoteId: doc.quoteId as string,
+    zoneId: doc.zoneId as string,
+    startsAt: doc.startsAt as Date,
     status: doc.status as BookingStatus,
-    match,
-    pricing: pricingFromDocument(doc.pricing as Document, match.goalkeeperCount),
-    quoteIssuedAt: doc.quoteIssuedAt as Date,
+    price: new GoalkeeperPrice({
+      unitRate: price.unitRate as number,
+      unitSurcharge: price.unitSurcharge as number,
+      total: price.total as number,
+      currency: price.currency as string,
+    }),
     createdAt: doc.createdAt as Date,
   });
 }
 
 /**
- * Bookings are written only inside the confirmation transaction (`MongoQuoteConfirmationStore`);
- * this repository reads them. The two unique indexes are the database-level guarantees that a
- * quote never yields two bookings (FR-012) and a client never books the same match twice (FR-022).
- * `client_startsAt` serves the client's list (feature 009): both segment counts, and each segment's
- * sort as a forward (upcoming) or backward (past) scan of the index.
+ * One booking per goalkeeper. Bookings are written only inside the confirmation transaction
+ * (`MongoQuoteConfirmationStore`); this repository reads them.
  */
 export class BookingRepository implements IBookingRepository {
   private readonly collection: Collection<Document>;
@@ -55,52 +61,21 @@ export class BookingRepository implements IBookingRepository {
   }
 
   async ensureIndexes(): Promise<void> {
-    await this.collection.createIndex({ quoteId: 1 }, { name: 'quoteId_unique', unique: true });
-    await this.collection.createIndex(
-      { clientId: 1, zoneId: 1, startsAt: 1 },
-      { name: 'client_zone_start_unique', unique: true },
-    );
-    await this.collection.createIndex({ clientId: 1, startsAt: 1, _id: 1 }, { name: 'client_startsAt' });
+    for (const name of OBSOLETE_INDEXES) {
+      try {
+        await this.collection.dropIndex(name);
+      } catch (error) {
+        if ((error as { code?: unknown }).code !== INDEX_NOT_FOUND) throw error;
+      }
+    }
+    await this.collection.createIndex({ requestId: 1, _id: 1 }, { name: 'requestId' });
   }
 
-  async findByQuoteForClient(quoteId: string, clientId: string): Promise<Booking | null> {
-    const doc = await this.collection.findOne({ quoteId, clientId });
-    return doc ? bookingFromDocument(doc) : null;
-  }
-
-  async findByMatchForClient(
-    clientId: string,
-    zoneId: string,
-    startsAt: Date,
-  ): Promise<Booking | null> {
-    const doc = await this.collection.findOne({ clientId, zoneId, startsAt });
-    return doc ? bookingFromDocument(doc) : null;
-  }
-
-  async countForClient(clientId: string, now: Date): Promise<{ upcoming: number; past: number }> {
-    const [upcoming, past] = await Promise.all([
-      this.collection.countDocuments({ clientId, startsAt: { $gte: now } }),
-      this.collection.countDocuments({ clientId, startsAt: { $lt: now } }),
-    ]);
-    return { upcoming, past };
-  }
-
-  async findUpcomingForClient(clientId: string, now: Date, skip: number, limit: number): Promise<Booking[]> {
+  async findByRequestIds(requestIds: string[]): Promise<Booking[]> {
+    if (requestIds.length === 0) return [];
     const docs = await this.collection
-      .find({ clientId, startsAt: { $gte: now } })
-      .sort({ startsAt: 1, _id: 1 })
-      .skip(skip)
-      .limit(limit)
-      .toArray();
-    return docs.map(bookingFromDocument);
-  }
-
-  async findPastForClient(clientId: string, now: Date, skip: number, limit: number): Promise<Booking[]> {
-    const docs = await this.collection
-      .find({ clientId, startsAt: { $lt: now } })
-      .sort({ startsAt: -1, _id: -1 })
-      .skip(skip)
-      .limit(limit)
+      .find({ requestId: { $in: requestIds } })
+      .sort({ requestId: 1, _id: 1 })
       .toArray();
     return docs.map(bookingFromDocument);
   }

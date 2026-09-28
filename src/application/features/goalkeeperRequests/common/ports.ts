@@ -1,4 +1,5 @@
 import type { Booking } from '../../../../domain/bookings/booking.js';
+import type { GoalkeeperRequest } from '../../../../domain/bookings/goalkeeperRequest.js';
 import type { Quote } from '../../../../domain/bookings/quote.js';
 import type { Country } from '../../../../domain/countries/country.js';
 import type { BookingSettings } from '../../../../domain/pricing/bookingSettings.js';
@@ -37,34 +38,46 @@ export interface IQuoteRepository {
   findByIdForClient(quoteId: string, clientId: string): Promise<Quote | null>;
 }
 
-export interface IBookingRepository {
-  /** The booking created from this quote, when it belongs to this client (replays are matched on it). */
-  findByQuoteForClient(quoteId: string, clientId: string): Promise<Booking | null>;
-  /** The client's booking for that zone and start instant, if any (at most one exists). */
-  findByMatchForClient(clientId: string, zoneId: string, startsAt: Date): Promise<Booking | null>;
+/** Requests (one per match). Lookups are always scoped to the client. */
+export interface IGoalkeeperRequestRepository {
+  /** The request created from this quote, when it belongs to this client (replays are matched on it). */
+  findByQuoteForClient(quoteId: string, clientId: string): Promise<GoalkeeperRequest | null>;
+  /** The client's active request for that zone and start instant, if any (at most one exists). */
+  findActiveByMatchForClient(clientId: string, zoneId: string, startsAt: Date): Promise<GoalkeeperRequest | null>;
   /** How many of the client's matches start at or after `now` (upcoming) and before it (past). */
   countForClient(clientId: string, now: Date): Promise<{ upcoming: number; past: number }>;
-  /** The client's bookings with `startsAt >= now`, soonest first (ties: id ascending). */
-  findUpcomingForClient(clientId: string, now: Date, skip: number, limit: number): Promise<Booking[]>;
-  /** The client's bookings with `startsAt < now`, most recent first (ties: id descending). */
-  findPastForClient(clientId: string, now: Date, skip: number, limit: number): Promise<Booking[]>;
+  /** The client's requests with `startsAt >= now`, soonest first (ties: id ascending). */
+  findUpcomingForClient(clientId: string, now: Date, skip: number, limit: number): Promise<GoalkeeperRequest[]>;
+  /** The client's requests with `startsAt < now`, most recent first (ties: id descending). */
+  findPastForClient(clientId: string, now: Date, skip: number, limit: number): Promise<GoalkeeperRequest[]>;
+}
+
+/** Bookings (one per goalkeeper). */
+export interface IBookingRepository {
+  /** Every booking of these requests, ordered by request id, then booking id. */
+  findByRequestIds(requestIds: string[]): Promise<Booking[]>;
 }
 
 export type ClaimResult =
-  | { kind: 'booked'; booking: Booking }
+  | { kind: 'created'; request: GoalkeeperRequest; bookings: Booking[] }
   /** No pending, unexpired quote with that id belongs to this client. Nothing was written. */
   | { kind: 'not_claimed' }
-  /** A booking for this quote already exists (a concurrent confirmation won). Nothing was written. */
-  | { kind: 'already_booked' }
-  /** The client already holds a booking for this zone and start. Nothing was written; the quote stays. */
-  | { kind: 'duplicate_booking'; zoneId: string; startsAt: Date };
+  /** A request for this quote already exists (a concurrent confirmation won). Nothing was written. */
+  | { kind: 'already_requested' }
+  /** The client already holds an active request for this zone and start. Nothing was written; the quote stays. */
+  | { kind: 'duplicate_request'; zoneId: string; startsAt: Date };
 
 /**
- * The one step that must be atomic: delete the client's claimable quote and insert the booking
- * built from it — both or neither (FR-010, FR-011).
+ * The one step that must be atomic: delete the client's claimable quote and insert the request
+ * and its bookings built from it — all or nothing (FR-005).
  */
 export interface IQuoteConfirmationStore {
-  claimAndBook(quoteId: string, clientId: string, now: Date, newBooking: (quote: Quote) => Booking): Promise<ClaimResult>;
+  claimAndCreateRequest(
+    quoteId: string,
+    clientId: string,
+    now: Date,
+    build: (quote: Quote) => { request: GoalkeeperRequest; bookings: Booking[] },
+  ): Promise<ClaimResult>;
 }
 
 export type BookingConfirmationOutcome =
@@ -72,7 +85,7 @@ export type BookingConfirmationOutcome =
   | 'replayed'
   | 'quote_not_found'
   | 'quote_expired'
-  | 'duplicate_booking'
+  | 'duplicate_request'
   | 'confirmation_in_progress';
 
 /** Audit trail of every confirmation attempt (FR-024). */
@@ -81,6 +94,7 @@ export interface IBookingAuditLogger {
     outcome: BookingConfirmationOutcome;
     clientId: string;
     quoteId: string;
-    bookingId?: string;
+    requestId?: string;
+    bookingIds?: string[];
   }): void;
 }

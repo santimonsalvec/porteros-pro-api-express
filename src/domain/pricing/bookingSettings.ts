@@ -28,6 +28,11 @@ export class BookingSettings extends Entity<string> {
   readonly bookingWindowDays: number | null;
   readonly minNoticeMinutes: number | null;
   readonly leadTimeSurcharge: LeadTimeSurcharge | null;
+  /**
+   * Minutes before the start during which assigned bookings can no longer be cancelled free.
+   * Optional at every level: when absent everywhere a default is used (FR-014), unlike the rest.
+   */
+  readonly freeCancellationMinutes: number | null;
 
   constructor(params: {
     id: string;
@@ -36,6 +41,7 @@ export class BookingSettings extends Entity<string> {
     bookingWindowDays?: number | null;
     minNoticeMinutes?: number | null;
     leadTimeSurcharge?: LeadTimeSurcharge | null;
+    freeCancellationMinutes?: number | null;
   }) {
     super(params.id);
     const where = `bookingSettings document ${params.id}`;
@@ -53,6 +59,13 @@ export class BookingSettings extends Entity<string> {
     if (minNoticeMinutes !== null && (!Number.isInteger(minNoticeMinutes) || minNoticeMinutes < 0)) {
       throw new InvalidConfigurationError(`${where}: minNoticeMinutes must be an integer of at least 0`);
     }
+    const freeCancellationMinutes = params.freeCancellationMinutes ?? null;
+    if (
+      freeCancellationMinutes !== null &&
+      (!Number.isInteger(freeCancellationMinutes) || freeCancellationMinutes < 0)
+    ) {
+      throw new InvalidConfigurationError(`${where}: freeCancellationMinutes must be an integer of at least 0`);
+    }
     const leadTimeSurcharge = params.leadTimeSurcharge ?? null;
     if (leadTimeSurcharge !== null) validateSurcharge(leadTimeSurcharge, where);
 
@@ -61,6 +74,7 @@ export class BookingSettings extends Entity<string> {
     this.bookingWindowDays = bookingWindowDays;
     this.minNoticeMinutes = minNoticeMinutes;
     this.leadTimeSurcharge = leadTimeSurcharge;
+    this.freeCancellationMinutes = freeCancellationMinutes;
   }
 }
 

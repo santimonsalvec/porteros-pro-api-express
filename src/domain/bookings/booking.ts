@@ -1,70 +1,74 @@
 import { Entity } from '../common/entity.js';
-import type { MatchDetails } from './matchDetails.js';
-import type { PricingSnapshot } from './pricingSnapshot.js';
-import type { Quote } from './quote.js';
+import type { GoalkeeperPrice } from './goalkeeperPrice.js';
+import type { GoalkeeperRequest } from './goalkeeperRequest.js';
 
-/** Confirmed, awaiting goalkeeper assignment — the only status until assignment exists. */
-export type BookingStatus = 'pending_assignment';
+/**
+ * Every state a booking can be in. Only `pending_assignment` is reachable today; the transitions
+ * into the others belong to later features (acceptance, expiry, cancellation, withdrawal, close).
+ */
+export const BOOKING_STATUSES = [
+  'pending_assignment',
+  'assigned',
+  'cancelled',
+  'expired',
+  'goalkeeper_withdrew',
+  'completed',
+] as const;
+export type BookingStatus = (typeof BOOKING_STATUSES)[number];
 
 interface BookingProps {
   id: string;
+  requestId: string;
   clientId: string;
-  quoteId: string;
+  zoneId: string;
+  startsAt: Date;
   status: BookingStatus;
-  match: MatchDetails;
-  pricing: PricingSnapshot;
-  quoteIssuedAt: Date;
+  price: GoalkeeperPrice;
   createdAt: Date;
 }
 
 /**
- * A client's confirmed request for goalkeepers for one match, created from exactly one quote.
- * The quote is deleted when the booking is created, so the booking is the only lasting record
- * of what the client accepted: its match and price are copies, never recalculated.
+ * One goalkeeper's place in a request. The client, zone and start are copies of the request's,
+ * written once and never updated, so later features can query bookings on their own.
  */
 export class Booking extends Entity<string> {
+  readonly requestId: string;
   readonly clientId: string;
-  readonly quoteId: string;
+  readonly zoneId: string;
+  readonly startsAt: Date;
   readonly status: BookingStatus;
-  readonly match: MatchDetails;
-  readonly pricing: PricingSnapshot;
-  readonly quoteIssuedAt: Date;
+  readonly price: GoalkeeperPrice;
   readonly createdAt: Date;
 
   private constructor(props: BookingProps) {
     super(props.id);
+    if (!BOOKING_STATUSES.includes(props.status)) {
+      throw new Error(`Booking: unknown status '${props.status}'`);
+    }
+    this.requestId = props.requestId;
     this.clientId = props.clientId;
-    this.quoteId = props.quoteId;
+    this.zoneId = props.zoneId;
+    this.startsAt = new Date(props.startsAt);
     this.status = props.status;
-    this.match = props.match;
-    this.pricing = props.pricing;
-    this.quoteIssuedAt = new Date(props.quoteIssuedAt);
+    this.price = props.price;
     this.createdAt = new Date(props.createdAt);
   }
 
-  static fromQuote(id: string, quote: Quote, createdAt: Date): Booking {
+  /** A new place for one goalkeeper, at the request's per-goalkeeper price, awaiting assignment. */
+  static forRequest(id: string, request: GoalkeeperRequest, createdAt: Date): Booking {
     return new Booking({
       id,
-      clientId: quote.clientId,
-      quoteId: quote.id,
+      requestId: request.id,
+      clientId: request.clientId,
+      zoneId: request.zoneId,
+      startsAt: request.startsAt,
       status: 'pending_assignment',
-      match: quote.match,
-      pricing: quote.pricing,
-      quoteIssuedAt: quote.issuedAt,
+      price: request.pricing.perGoalkeeper(),
       createdAt,
     });
   }
 
   static rehydrate(props: BookingProps): Booking {
     return new Booking(props);
-  }
-
-  /** The zone and start a client may hold only one booking for. */
-  get zoneId(): string {
-    return this.match.zoneId;
-  }
-
-  get startsAt(): Date {
-    return this.match.startsAt;
   }
 }

@@ -61,7 +61,7 @@ async function setUp(sub = 'sub-0001') {
 }
 
 describe('POST /api/goalkeeper-requests/bookings — Story 1: book at exactly the quoted price', () => {
-  it('201 with a booking that copies the quote, and the quote is gone', async () => {
+  it('201 with a request that copies the quote, one booking per goalkeeper, and the quote is gone', async () => {
     const { context, token } = await setUp();
     const quote = await issueQuote(context, token);
 
@@ -69,9 +69,10 @@ describe('POST /api/goalkeeper-requests/bookings — Story 1: book at exactly th
 
     expect(response.status).toBe(201);
     expect(response.body).toEqual({
-      bookingId: expect.any(String),
+      requestId: expect.any(String),
       quoteId: quote.quoteId,
-      status: 'pending_assignment',
+      status: 'searching',
+      partialFulfillment: 'keep_confirmed',
       latitude: POINTS.caliNorte.latitude,
       longitude: POINTS.caliNorte.longitude,
       zoneId: 'zone-cali-norte',
@@ -87,10 +88,16 @@ describe('POST /api/goalkeeper-requests/bookings — Story 1: book at exactly th
       surcharge: 10000,
       total: 120000,
       currency: 'COP',
+      cancellation: { freeCancellationUntil: '2026-09-21T19:00:00.000Z', freeCancellationAvailable: true },
       createdAt: NOW,
+      bookings: [
+        { bookingId: expect.any(String), status: 'pending_assignment', unitRate: 55000, unitSurcharge: 5000, total: 60000, currency: 'COP', createdAt: NOW },
+        { bookingId: expect.any(String), status: 'pending_assignment', unitRate: 55000, unitSurcharge: 5000, total: 60000, currency: 'COP', createdAt: NOW },
+      ],
     });
     expect(context.quoteRepository.all()).toHaveLength(0);
-    expect(context.bookingRepository.all()).toHaveLength(1);
+    expect(context.requestRepository.all()).toHaveLength(1);
+    expect(context.bookingRepository.all()).toHaveLength(2);
   });
 
   it('ignores price and match fields sent with the confirmation', async () => {
@@ -149,6 +156,67 @@ describe('POST /api/goalkeeper-requests/bookings — Story 1: book at exactly th
   });
 });
 
+describe('POST /api/goalkeeper-requests/bookings — US1: one booking per goalkeeper', () => {
+  it('201 with one booking per goalkeeper whose totals add up to the request total', async () => {
+    const { context, token } = await setUp();
+    const two = await issueQuote(context, token);
+    const one = await issueQuote(context, token, { ...quoteBody, goalkeeperCount: 1, startsAt: '2026-09-21T16:00:00' });
+
+    const pair = await confirm(context, token, { quoteId: two.quoteId });
+    const single = await confirm(context, token, { quoteId: one.quoteId });
+
+    expect(pair.status).toBe(201);
+    expect(pair.body.bookings).toHaveLength(2);
+    expect(pair.body.bookings.reduce((sum: number, booking: { total: number }) => sum + booking.total, 0)).toBe(pair.body.total);
+    expect(single.status).toBe(201);
+    expect(single.body.bookings).toHaveLength(1);
+    expect(single.body.bookings[0].total).toBe(single.body.total);
+  });
+});
+
+describe('POST /api/goalkeeper-requests/bookings — US3: partial-confirmation preference', () => {
+  it('echoes keep_confirmed by default and cancel_all when chosen', async () => {
+    const { context, token } = await setUp();
+    const first = await issueQuote(context, token);
+    const second = await issueQuote(context, token, { ...quoteBody, startsAt: '2026-09-21T16:00:00' });
+
+    const byDefault = await confirm(context, token, { quoteId: first.quoteId });
+    const chosen = await confirm(context, token, { quoteId: second.quoteId, partialFulfillment: 'cancel_all' });
+
+    expect(byDefault.body.partialFulfillment).toBe('keep_confirmed');
+    expect(chosen.body.partialFulfillment).toBe('cancel_all');
+  });
+
+  it('400 validation_failed for an unknown preference, storing nothing', async () => {
+    const { context, token } = await setUp();
+    const quote = await issueQuote(context, token);
+
+    const response = await confirm(context, token, { quoteId: quote.quoteId, partialFulfillment: 'all' });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('validation_failed');
+    expect(response.body.fieldErrors).toHaveProperty('partialFulfillment');
+    expect(context.requestRepository.all()).toHaveLength(0);
+    expect(context.quoteRepository.all()).toHaveLength(1);
+  });
+});
+
+describe('POST /api/goalkeeper-requests/bookings — US6: late-confirmation notice', () => {
+  it('reports that assigned bookings cannot be cancelled for a match starting within the free-cancellation period', async () => {
+    const { context, token } = await setUp();
+    // Now 13:30 Bogotá; the match starts at 14:00 (30 minutes, the minimum notice) → inside the 60-minute period.
+    const quote = await issueQuote(context, token, { ...quoteBody, startsAt: '2026-09-21T14:00:00' });
+
+    const response = await confirm(context, token, { quoteId: quote.quoteId });
+
+    expect(response.status).toBe(201);
+    expect(response.body.cancellation).toEqual({
+      freeCancellationUntil: '2026-09-21T18:00:00.000Z',
+      freeCancellationAvailable: false,
+    });
+  });
+});
+
 describe('POST /api/goalkeeper-requests/bookings — Story 2: retries are safe', () => {
   it('201 then 200 with the identical booking', async () => {
     const { context, token } = await setUp();
@@ -162,7 +230,7 @@ describe('POST /api/goalkeeper-requests/bookings — Story 2: retries are safe',
     expect(retry.body).toEqual(first.body);
   });
 
-  it('a double tap books once and both answers name the same booking', async () => {
+  it('a double tap creates one request and both answers name the same request and bookings', async () => {
     const { context, token } = await setUp();
     const quote = await issueQuote(context, token);
 
@@ -172,8 +240,24 @@ describe('POST /api/goalkeeper-requests/bookings — Story 2: retries are safe',
     ]);
 
     expect([a.status, b.status].sort()).toEqual([200, 201]);
-    expect(a.body.bookingId).toBe(b.body.bookingId);
-    expect(context.bookingRepository.all()).toHaveLength(1);
+    expect(a.body.requestId).toBe(b.body.requestId);
+    expect(a.body.bookings).toEqual(b.body.bookings);
+    expect(context.requestRepository.all()).toHaveLength(1);
+    expect(context.bookingRepository.all()).toHaveLength(2);
+  });
+
+  it('a sequential retry answers 200 with the same request and bookings, creating nothing', async () => {
+    const { context, token } = await setUp();
+    const quote = await issueQuote(context, token);
+    const first = await confirm(context, token, { quoteId: quote.quoteId });
+
+    const retry = await confirm(context, token, { quoteId: quote.quoteId });
+
+    expect(first.status).toBe(201);
+    expect(retry.status).toBe(200);
+    expect(retry.body).toEqual(first.body);
+    expect(context.requestRepository.all()).toHaveLength(1);
+    expect(context.bookingRepository.all()).toHaveLength(2);
   });
 
   it('409 confirmation_in_progress with Retry-After while a concurrent confirmation has not committed', async () => {
@@ -243,7 +327,7 @@ describe('POST /api/goalkeeper-requests/bookings — Story 4: refusals are clear
     expect(context.bookingRepository.all()).toHaveLength(0);
   });
 
-  it('409 duplicate_booking for a second quote of an already-booked match, with the existing booking id', async () => {
+  it('409 duplicate_request for a second quote of an already-requested match, with the existing request id', async () => {
     const { context, token } = await setUp();
     const first = await issueQuote(context, token);
     const second = await issueQuote(context, token);
@@ -253,10 +337,10 @@ describe('POST /api/goalkeeper-requests/bookings — Story 4: refusals are clear
 
     expect(response.status).toBe(409);
     expect(response.body).toMatchObject({
-      error: 'duplicate_booking',
-      bookingId: booked.body.bookingId,
+      error: 'duplicate_request',
+      requestId: booked.body.requestId,
     });
-    expect(context.bookingRepository.all()).toHaveLength(1);
+    expect(context.requestRepository.all()).toHaveLength(1);
     expect(context.quoteRepository.all().map((quote) => quote.id)).toEqual([second.quoteId]);
   });
 });

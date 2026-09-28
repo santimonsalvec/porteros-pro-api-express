@@ -1,6 +1,6 @@
 # porteros-pro-api Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-09-25
+Auto-generated from all feature plans. Last updated: 2026-09-27
 
 ## Active Technologies
 - TypeScript ~6.x on Node.js 24 LTS — unchanged, same runtime as the rest of this repository (see `specs/001-porteros-api-migration/plan.md`). + Existing stack (Express 5.2.x, `mongodb` 7.x, `zod`, `uuid`, `pino`) plus three new dependencies scoped to this feature: `cloudinary` 2.x (official Node SDK — the storage provider adapter, see research.md §1); `multer` 2.x with in-memory storage (Express does not parse `multipart/form-data` itself — see research.md §2); `file-type` 22.x (magic-byte content sniffing, so an upload is validated by its actual bytes, not its claimed MIME type or file extension — see research.md §3). (002-cloudinary-image-storage)
@@ -16,6 +16,8 @@ Auto-generated from all feature plans. Last updated: 2026-09-25
 - TypeScript ~6.x on Node.js 24 LTS. Unchanged, the same runtime as the rest of this repository. + Existing stack only (Express 5.2.x, `mongodb` 7.x, `zod`, `uuid`, `pino`). No new npm dependency. Atomicity uses the `mongodb` driver's own `ClientSession.withTransaction` (research §1). Expiry uses MongoDB's native TTL index (research §4). No Redis or lock service. (008-quote-to-booking)
 - MongoDB (Atlas replica set, so transactions are available). Two new collections owned and written by this system: `quotes` (short-lived, deleted on confirmation, otherwise removed by a TTL index on `expiresAt`) and `bookings` (unique on `quoteId` and on `clientId + zoneId + startsAt`). See data-model.md. (008-quote-to-booking)
 - MongoDB. No new collection and no shape change. It reads `bookings` (owned by 008) and adds one non-unique index, `client_startsAt`. It also reads `zones` and `cities` (externally owned) for names. (009-list-client-bookings)
+- TypeScript ~6.x on Node.js 24 LTS. Unchanged. + Existing stack only (Express 5.2.x, `mongodb` 7.x, `zod`, `uuid`, `pino`). No new dependency. (010-goalkeeper-request-bookings)
+- MongoDB (Atlas replica set, transactions available). (010-goalkeeper-request-bookings)
 
 - TypeScript ~6.x (last JavaScript-hosted compiler generation) on Node.js 24 LTS (Active LTS as of Aug 2026; Node 22 remains Maintenance LTS as a fallback). TypeScript 7.0 (Go-native compiler) is intentionally *not* adopted yet — see research.md for rationale. + Express 5.2.x (web framework); official `mongodb` driver 7.x (no ODM, mirrors the source's raw `MongoDB.Driver` usage); `google-auth-library` 11.x (`OAuth2Client.verifyIdToken`, official equivalent of `Google.Apis.Auth`); `jose` (JWT sign/verify, chosen over legacy `jsonwebtoken` — see research.md); `zod` (request DTO shape validation); `uuid` v9+ (`v7()` for entity ids, matching the source's UUIDv7 convention); `pino` (structured logging, audit-log equivalent); `@opentelemetry/sdk-node` + HTTP/Express auto-instrumentation + OTLP/console exporters (observability parity) (001-porteros-api-migration)
 
@@ -36,9 +38,9 @@ npm test && npm run lint
 TypeScript ~6.x (last JavaScript-hosted compiler generation) on Node.js 24 LTS (Active LTS as of Aug 2026; Node 22 remains Maintenance LTS as a fallback). TypeScript 7.0 (Go-native compiler) is intentionally *not* adopted yet — see research.md for rationale.: Follow standard conventions
 
 ## Recent Changes
+- 010-goalkeeper-request-bookings: Added TypeScript ~6.x on Node.js 24 LTS. Unchanged. + Existing stack only (Express 5.2.x, `mongodb` 7.x, `zod`, `uuid`, `pino`). No new dependency.
 - 009-list-client-bookings: Added TypeScript ~6.x on Node.js 24 LTS. Unchanged, the same runtime as the rest of this repository. + Existing stack only (Express 5.2.x, `mongodb` 7.x, `zod`, `uuid`, `pino`). No new npm dependency.
 - 008-quote-to-booking: Added TypeScript ~6.x on Node.js 24 LTS. Unchanged, the same runtime as the rest of this repository. + Existing stack only (Express 5.2.x, `mongodb` 7.x, `zod`, `uuid`, `pino`). No new npm dependency. Atomicity uses the `mongodb` driver's own `ClientSession.withTransaction` (research §1). Expiry uses MongoDB's native TTL index (research §4). No Redis or lock service.
-- 007-goalkeeper-service-quote: Added TypeScript ~6.x on Node.js 24 LTS — unchanged, same runtime as the rest of this repository. + Existing stack only (Express 5.2.x, `mongodb` 7.x, `zod`, `uuid`, `pino`) — no new npm dependency. Time-zone conversion uses the runtime's built-in `Intl.DateTimeFormat` (research.md §3) rather than `luxon`; point-in-polygon is delegated to MongoDB `$geoIntersects` (research.md §2), so no geometry library is added either.
 
 
 <!-- MANUAL ADDITIONS START -->

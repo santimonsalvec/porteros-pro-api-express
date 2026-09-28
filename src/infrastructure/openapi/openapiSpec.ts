@@ -110,16 +110,45 @@ export const openapiSpec = {
         type: 'object',
         properties: {
           quoteId: { type: 'string', example: '01924f6e-8c1b-7c3a-9d4e-2b7f5a1c9e00', description: 'The quoteId returned by POST /quote' },
+          partialFulfillment: {
+            type: 'string',
+            enum: ['keep_confirmed', 'cancel_all'],
+            default: 'keep_confirmed',
+            description: 'What to do if only some of the goalkeepers are confirmed. Ignored when the request already exists (a replay).',
+          },
         },
         required: ['quoteId'],
       },
-      BookingResponse: {
+      BookingItemResponse: {
         type: 'object',
-        description: 'A booking: the match and price are exact copies of the confirmed quote. Amounts are integers in whole currency units.',
+        description: 'One goalkeeper\u2019s place in a request, at the per-goalkeeper price of the quote.',
         properties: {
           bookingId: { type: 'string' },
+          status: {
+            type: 'string',
+            enum: ['pending_assignment', 'assigned', 'cancelled', 'expired', 'goalkeeper_withdrew', 'completed'],
+          },
+          unitRate: { type: 'integer', example: 55000 },
+          unitSurcharge: { type: 'integer', example: 5000 },
+          total: { type: 'integer', example: 60000, description: 'unitRate + unitSurcharge' },
+          currency: { type: 'string', example: 'COP' },
+          createdAt: { type: 'string', format: 'date-time' },
+        },
+        required: ['bookingId', 'status', 'unitRate', 'unitSurcharge', 'total', 'currency', 'createdAt'],
+      },
+      RequestResponse: {
+        type: 'object',
+        description:
+          'A request (the match) with one booking per goalkeeper. Match and price are exact copies of the confirmed quote; the bookings\u2019 totals add up to `total`. Amounts are integers in whole currency units.',
+        properties: {
+          requestId: { type: 'string' },
           quoteId: { type: 'string' },
-          status: { type: 'string', enum: ['pending_assignment'], description: 'Confirmed, awaiting goalkeeper assignment' },
+          status: {
+            type: 'string',
+            enum: ['searching', 'partially_assigned', 'assigned', 'completed', 'closed'],
+            description: 'Derived from the bookings',
+          },
+          partialFulfillment: { type: 'string', enum: ['keep_confirmed', 'cancel_all'] },
           latitude: { type: 'number' },
           longitude: { type: 'number' },
           zoneId: { type: 'string' },
@@ -135,34 +164,30 @@ export const openapiSpec = {
           surcharge: { type: 'integer', example: 10000 },
           total: { type: 'integer', example: 120000 },
           currency: { type: 'string', example: 'COP' },
+          cancellation: {
+            type: 'object',
+            properties: {
+              freeCancellationUntil: { type: 'string', format: 'date-time', description: 'startsAt minus the free-cancellation period' },
+              freeCancellationAvailable: {
+                type: 'boolean',
+                description: 'false when, at confirmation, the match already is inside the free-cancellation period: assigned bookings cannot be cancelled and the goalkeeper must be paid',
+              },
+            },
+            required: ['freeCancellationUntil', 'freeCancellationAvailable'],
+          },
           createdAt: { type: 'string', format: 'date-time' },
+          bookings: { type: 'array', items: { $ref: '#/components/schemas/BookingItemResponse' } },
         },
         required: [
-          'bookingId',
-          'quoteId',
-          'status',
-          'latitude',
-          'longitude',
-          'zoneId',
-          'cityId',
-          'startsAt',
-          'startsAtLocal',
-          'timeZone',
-          'goalkeeperCount',
-          'durationMinutes',
-          'unitRate',
-          'subtotal',
-          'unitSurcharge',
-          'surcharge',
-          'total',
-          'currency',
-          'createdAt',
+          'requestId', 'quoteId', 'status', 'partialFulfillment', 'latitude', 'longitude', 'zoneId', 'cityId', 'startsAt',
+          'startsAtLocal', 'timeZone', 'goalkeeperCount', 'durationMinutes', 'unitRate', 'subtotal', 'unitSurcharge',
+          'surcharge', 'total', 'currency', 'cancellation', 'createdAt', 'bookings',
         ],
       },
-      ListedBookingResponse: {
-        description: 'A listed booking: exactly the POST /bookings body, plus the current zone and city names.',
+      ListedRequestResponse: {
+        description: 'A listed request: exactly the POST /bookings body, plus the current zone and city names.',
         allOf: [
-          { $ref: '#/components/schemas/BookingResponse' },
+          { $ref: '#/components/schemas/RequestResponse' },
           {
             type: 'object',
             properties: {
@@ -173,14 +198,14 @@ export const openapiSpec = {
           },
         ],
       },
-      BookingsPageResponse: {
+      RequestsPageResponse: {
         type: 'object',
         properties: {
-          items: { type: 'array', items: { $ref: '#/components/schemas/ListedBookingResponse' } },
+          items: { type: 'array', items: { $ref: '#/components/schemas/ListedRequestResponse' } },
           page: { type: 'integer', example: 1 },
           pageSize: { type: 'integer', example: 20 },
-          totalItems: { type: 'integer', example: 45 },
-          totalPages: { type: 'integer', example: 3, description: 'ceil(totalItems / pageSize); 0 when there are no bookings' },
+          totalItems: { type: 'integer', example: 45, description: 'Number of requests' },
+          totalPages: { type: 'integer', example: 3, description: 'ceil(totalItems / pageSize); 0 when there are no requests' },
         },
         required: ['items', 'page', 'pageSize', 'totalItems', 'totalPages'],
       },
@@ -736,9 +761,9 @@ export const openapiSpec = {
     },
     '/api/goalkeeper-requests/bookings': {
       get: {
-        summary: "List the caller's own bookings, one page at a time",
+        summary: "List the caller's own requests (one per match, with their bookings), one page at a time",
         description:
-          'Upcoming matches first (start at or after the request time, soonest first), then past matches (most recent first); ties are broken by bookingId. The client is always the token’s subject: any clientId, userId or other unknown parameter is ignored. A page past the last one returns an empty list with the real totals. Amounts and match details are the stored values; zone and city names are the current ones.',
+          'Upcoming matches first (start at or after the request time, soonest first), then past matches (most recent first); ties are broken by requestId. The client is always the token’s subject: any clientId, userId or other unknown parameter is ignored. A page past the last one returns an empty list with the real totals. Amounts and match details are the stored values; zone and city names are the current ones.',
         tags: ['Goalkeeper requests'],
         security: [{ bearerAuth: [] }],
         parameters: [
@@ -748,7 +773,7 @@ export const openapiSpec = {
         responses: {
           '200': {
             description: 'One page of the caller’s bookings (possibly empty)',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/BookingsPageResponse' } } },
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/RequestsPageResponse' } } },
           },
           '400': {
             description: 'validation_failed: page or pageSize is not a whole number, is out of range (page ≥ 1, pageSize 1–50) or is repeated',
@@ -759,9 +784,9 @@ export const openapiSpec = {
         },
       },
       post: {
-        summary: 'Book a quote at exactly the quoted price (idempotent per quoteId)',
+        summary: 'Confirm a quote: one request plus one booking per goalkeeper, at exactly the quoted price (idempotent per quoteId)',
         description:
-          'Deletes the caller’s unexpired quote and creates the booking in one transaction: both happen or neither does. However many times the same quoteId is confirmed, one booking exists and every successful call returns it (201 the first time, 200 afterwards). Only quoteId is read; any other field is ignored. Refusals never create a booking and never change or delete a quote.',
+          'Deletes the caller’s unexpired quote and creates the request with its bookings (one per goalkeeper, each at the per-goalkeeper price) in one transaction: all of it happens or none of it does. However many times the same quoteId is confirmed, one request exists and every successful call returns it with its bookings as they are now (201 the first time, 200 afterwards). Only quoteId and partialFulfillment are read; any other field is ignored. Refusals never create anything and never change or delete a quote.',
         tags: ['Goalkeeper requests'],
         security: [{ bearerAuth: [] }],
         requestBody: {
@@ -770,15 +795,15 @@ export const openapiSpec = {
         },
         responses: {
           '201': {
-            description: 'Booking created by this call',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/BookingResponse' } } },
+            description: 'Request and bookings created by this call',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/RequestResponse' } } },
           },
           '200': {
-            description: 'The booking already existed (a retry or a double tap) — the same booking, nothing created',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/BookingResponse' } } },
+            description: 'The request already existed (a retry or a double tap) — the same request and bookings, nothing created',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/RequestResponse' } } },
           },
           '400': {
-            description: 'validation_failed: quoteId missing or not a string',
+            description: 'validation_failed: quoteId missing or not a string, or partialFulfillment not keep_confirmed or cancel_all',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } },
           },
           '401': { description: 'Not signed in' },
@@ -790,7 +815,7 @@ export const openapiSpec = {
           },
           '409': {
             description:
-              'duplicate_booking (bookingId of the caller’s existing booking for the same zone and start; the quote is left untouched) or confirmation_in_progress (another confirmation of this quote has not committed yet; retry after the Retry-After header, 1 second)',
+              'duplicate_request (requestId of the caller’s existing active request for the same zone and start; the quote is left untouched) or confirmation_in_progress (another confirmation of this quote has not committed yet; retry after the Retry-After header, 1 second)',
             headers: { 'Retry-After': { schema: { type: 'integer' }, description: 'Only with confirmation_in_progress' } },
             content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
           },

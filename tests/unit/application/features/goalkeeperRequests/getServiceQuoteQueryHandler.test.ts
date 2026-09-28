@@ -80,7 +80,7 @@ describe('GetServiceQuoteQueryHandler — Story 1: price a booking', () => {
         startsAtLocal: '2026-09-21T15:00:00-05:00',
         timeZone: 'America/Bogota',
       },
-      area: { zoneId: 'zone-cali-norte', cityId: 'city-cali' },
+      area: { zoneId: 'zone-cali-norte', cityId: 'city-cali', freeCancellationMinutes: null },
     });
   });
 
@@ -670,5 +670,16 @@ describe('GetServiceQuoteQueryHandler — read-only guarantee (FR-020, SC-007)',
     ]);
     expect(calls.length).toBeGreaterThan(0);
     for (const call of calls) expect(allowed.has(call)).toBe(true);
+  });
+
+  it("carries the city's free-cancellation period over the country's, internally only", async () => {
+    h.bookingSettingsRepository.seed(
+      new BookingSettings({ id: 'settings-cali', scope: 'city', refId: 'city-cali', freeCancellationMinutes: 90 }),
+    );
+
+    const result = await h.quote('2026-09-21T15:00:00');
+
+    expect(result).toMatchObject({ outcome: 'success', area: { freeCancellationMinutes: 90 } });
+    expect(result.outcome === 'success' && result.quote).not.toHaveProperty('freeCancellationMinutes');
   });
 });

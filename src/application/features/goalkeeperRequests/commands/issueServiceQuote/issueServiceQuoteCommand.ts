@@ -13,7 +13,14 @@ export interface IssuedServiceQuote extends ServiceQuote {
 }
 
 export type IssueServiceQuoteResult =
-  | { outcome: 'success'; quote: IssuedServiceQuote }
+  | {
+      outcome: 'success';
+      quote: IssuedServiceQuote;
+      /** True when the area has no free-cancellation period and the default was stored. Not serialized. */
+      freeCancellationDefaulted: boolean;
+      /** The anchor city of the quote, for the warning above. Not serialized. */
+      cityId: string;
+    }
   | Exclude<GetServiceQuoteResult, { outcome: 'success' }>;
 
 /** Prices a booking and stores the quote so the client can confirm it (the quote endpoint). */

@@ -6,6 +6,8 @@ export interface ResolvedBookingSettings {
   bookingWindowDays: number | null;
   minNoticeMinutes: number | null;
   leadTimeSurcharge: LeadTimeSurcharge | null;
+  /** `null` when neither level defines it — never "missing": a default applies (FR-014). */
+  freeCancellationMinutes: number | null;
   /** Names of the settings defined at neither level. Empty ⇒ the area is quotable. */
   missing: MissingSetting[];
 }
@@ -22,11 +24,13 @@ export function resolveBookingSettings(docs: {
   const bookingWindowDays = docs.city?.bookingWindowDays ?? docs.country?.bookingWindowDays ?? null;
   const minNoticeMinutes = docs.city?.minNoticeMinutes ?? docs.country?.minNoticeMinutes ?? null;
   const leadTimeSurcharge = docs.city?.leadTimeSurcharge ?? docs.country?.leadTimeSurcharge ?? null;
+  const freeCancellationMinutes =
+    docs.city?.freeCancellationMinutes ?? docs.country?.freeCancellationMinutes ?? null;
 
   const missing: MissingSetting[] = [];
   if (bookingWindowDays === null) missing.push('bookingWindowDays');
   if (minNoticeMinutes === null) missing.push('minNoticeMinutes');
   if (leadTimeSurcharge === null) missing.push('leadTimeSurcharge');
 
-  return { bookingWindowDays, minNoticeMinutes, leadTimeSurcharge, missing };
+  return { bookingWindowDays, minNoticeMinutes, leadTimeSurcharge, freeCancellationMinutes, missing };
 }

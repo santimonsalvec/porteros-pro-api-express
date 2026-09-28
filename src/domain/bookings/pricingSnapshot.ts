@@ -1,3 +1,5 @@
+import { GoalkeeperPrice } from './goalkeeperPrice.js';
+
 /**
  * The exact price breakdown a client was shown. It is never recomputed after the quote is
  * issued, so the constructor insists it is internally consistent: a corrupt snapshot throws
@@ -51,5 +53,15 @@ export class PricingSnapshot {
     this.surcharge = params.surcharge;
     this.total = params.total;
     this.currency = params.currency;
+  }
+
+  /** The price of one goalkeeper: the unit amounts are stored, so nothing is divided or rounded. */
+  perGoalkeeper(): GoalkeeperPrice {
+    return new GoalkeeperPrice({
+      unitRate: this.unitRate,
+      unitSurcharge: this.unitSurcharge,
+      total: this.unitRate + this.unitSurcharge,
+      currency: this.currency,
+    });
   }
 }

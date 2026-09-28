@@ -1,5 +1,7 @@
 import type { LeadTimeSurcharge } from '../../src/domain/pricing/bookingSettings.js';
+import { FREE_CANCELLATION_MINUTES_DEFAULT } from '../../src/application/features/goalkeeperRequests/common/bookingLimits.js';
 import { Booking } from '../../src/domain/bookings/booking.js';
+import { GoalkeeperRequest, type PartialFulfillment } from '../../src/domain/bookings/goalkeeperRequest.js';
 import { MatchDetails } from '../../src/domain/bookings/matchDetails.js';
 import { PricingSnapshot } from '../../src/domain/bookings/pricingSnapshot.js';
 import { Quote } from '../../src/domain/bookings/quote.js';
@@ -164,12 +166,23 @@ export const STORED_QUOTE_ID = '01924f6e-8c1b-7c3a-9d4e-2b7f5a1c9e00';
 
 /**
  * The canonical stored quote: Cali Norte, 2 goalkeepers × 90 minutes at 15:00 Bogotá,
- * issued at `QUOTE_NOW` with 90 minutes of notice → (55.000 + 5.000) × 2 = 120.000 COP.
+ * issued at `QUOTE_NOW` with 90 minutes of notice → (55.000 + 5.000) × 2 = 120.000 COP,
+ * with the default 60-minute free-cancellation period.
  */
 export function buildStoredQuote(
-  overrides: Partial<{ id: string; clientId: string; issuedAt: string; zoneId: string; startsAt: string; validityMinutes: number }> = {},
+  overrides: Partial<{
+    id: string;
+    clientId: string;
+    issuedAt: string;
+    zoneId: string;
+    startsAt: string;
+    validityMinutes: number;
+    goalkeeperCount: 1 | 2;
+    freeCancellationMinutes: number;
+  }> = {},
 ): Quote {
   const startsAt = overrides.startsAt ?? '2026-09-21T20:00:00.000Z';
+  const goalkeeperCount = overrides.goalkeeperCount ?? 2;
   const match = new MatchDetails({
     ...POINTS.caliNorte,
     zoneId: overrides.zoneId ?? 'zone-cali-norte',
@@ -177,12 +190,19 @@ export function buildStoredQuote(
     startsAt: new Date(startsAt),
     startsAtLocal: '2026-09-21T15:00:00-05:00',
     timeZone: 'America/Bogota',
-    goalkeeperCount: 2,
+    goalkeeperCount,
     durationMinutes: 90,
   });
   const pricing = new PricingSnapshot(
-    { unitRate: 55000, subtotal: 110000, unitSurcharge: 5000, surcharge: 10000, total: 120000, currency: 'COP' },
-    2,
+    {
+      unitRate: 55000,
+      subtotal: 55000 * goalkeeperCount,
+      unitSurcharge: 5000,
+      surcharge: 5000 * goalkeeperCount,
+      total: 60000 * goalkeeperCount,
+      currency: 'COP',
+    },
+    goalkeeperCount,
   );
   return Quote.issue(
     overrides.id ?? STORED_QUOTE_ID,
@@ -191,23 +211,32 @@ export function buildStoredQuote(
     pricing,
     new Date(overrides.issuedAt ?? QUOTE_NOW),
     overrides.validityMinutes ?? 3,
+    overrides.freeCancellationMinutes ?? FREE_CANCELLATION_MINUTES_DEFAULT,
   );
 }
 
 /**
- * A stored booking of the Cali Norte world (120.000 COP, 2 goalkeepers, 90 min) with only the
- * fields a list cares about varied: who owns it, when it starts and where.
+ * A stored request of the Cali Norte world (60.000 COP per goalkeeper, 90 min) with only the
+ * fields a list cares about varied: who owns it, when it starts, where and how many goalkeepers.
  */
-export function buildBooking(
+export function buildRequest(
   id: string,
   startsAt: Date,
-  overrides: Partial<{ clientId: string; zoneId: string; cityId: string }> = {},
-): Booking {
-  return Booking.rehydrate({
+  overrides: Partial<{
+    clientId: string;
+    zoneId: string;
+    cityId: string;
+    goalkeeperCount: 1 | 2;
+    partialFulfillment: PartialFulfillment;
+    freeCancellationMinutes: number;
+    active: boolean;
+  }> = {},
+): GoalkeeperRequest {
+  const goalkeeperCount = overrides.goalkeeperCount ?? 2;
+  return GoalkeeperRequest.rehydrate({
     id,
     clientId: overrides.clientId ?? 'client-a',
     quoteId: `quote-${id}`,
-    status: 'pending_assignment',
     match: new MatchDetails({
       ...POINTS.caliNorte,
       zoneId: overrides.zoneId ?? 'zone-cali-norte',
@@ -215,14 +244,30 @@ export function buildBooking(
       startsAt,
       startsAtLocal: '2026-09-25T13:00:00-05:00',
       timeZone: 'America/Bogota',
-      goalkeeperCount: 2,
+      goalkeeperCount,
       durationMinutes: 90,
     }),
     pricing: new PricingSnapshot(
-      { unitRate: 55000, subtotal: 110000, unitSurcharge: 5000, surcharge: 10000, total: 120000, currency: 'COP' },
-      2,
+      {
+        unitRate: 55000,
+        subtotal: 55000 * goalkeeperCount,
+        unitSurcharge: 5000,
+        surcharge: 5000 * goalkeeperCount,
+        total: 60000 * goalkeeperCount,
+        currency: 'COP',
+      },
+      goalkeeperCount,
     ),
+    partialFulfillment: overrides.partialFulfillment ?? 'keep_confirmed',
+    freeCancellationMinutes: overrides.freeCancellationMinutes ?? FREE_CANCELLATION_MINUTES_DEFAULT,
+    active: overrides.active ?? true,
     quoteIssuedAt: new Date('2026-09-20T12:00:00.000Z'),
     createdAt: new Date('2026-09-20T12:01:00.000Z'),
   });
+}
+
+/** The request's bookings, one per goalkeeper, with ids `<requestId>-b1`, `<requestId>-b2`. */
+export function buildRequestBookings(request: GoalkeeperRequest, ids?: string[]): Booking[] {
+  const bookingIds = ids ?? Array.from({ length: request.goalkeeperCount }, (_, index) => `${request.id}-b${index + 1}`);
+  return bookingIds.map((id) => Booking.forRequest(id, request, request.createdAt));
 }

@@ -55,4 +55,14 @@ describe('BookingSettings', () => {
   ])('rejects %s', (_label, override) => {
     expect(() => new BookingSettings({ ...base, ...override })).toThrow(InvalidConfigurationError);
   });
+
+  it('accepts an optional free-cancellation period and leaves it null when absent', () => {
+    expect(new BookingSettings({ ...base, freeCancellationMinutes: 60 }).freeCancellationMinutes).toBe(60);
+    expect(new BookingSettings({ ...base, freeCancellationMinutes: 0 }).freeCancellationMinutes).toBe(0);
+    expect(new BookingSettings(base).freeCancellationMinutes).toBeNull();
+  });
+
+  it.each([-1, 1.5])('rejects a free-cancellation period of %s', (value) => {
+    expect(() => new BookingSettings({ ...base, freeCancellationMinutes: value })).toThrow(InvalidConfigurationError);
+  });
 });

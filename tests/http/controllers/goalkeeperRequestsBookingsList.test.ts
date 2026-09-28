@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js';
 import { User } from '../../../src/domain/users/user.js';
-import { buildBooking, POINTS } from '../../fixtures/quoteFixtures.js';
+import { buildRequest, buildRequestBookings, POINTS } from '../../fixtures/quoteFixtures.js';
 
 type TestApp = Awaited<ReturnType<typeof buildTestApp>>;
 
@@ -48,7 +48,13 @@ function list(context: TestApp, token: string, query = '') {
     .set('Authorization', `Bearer ${token}`);
 }
 
-const ids = (body: { items: { bookingId: string }[] }) => body.items.map((item) => item.bookingId);
+const ids = (body: { items: { requestId: string }[] }) => body.items.map((item) => item.requestId);
+
+/** Stores a request and its bookings in the test app, as a confirmation would. */
+function seedRequest(context: TestApp, request: ReturnType<typeof buildRequest>) {
+  context.requestRepository.seed(request);
+  buildRequestBookings(request).forEach((booking) => context.bookingRepository.seed(booking));
+}
 
 describe('GET /api/goalkeeper-requests/bookings — Story 1: the client sees their bookings', () => {
   it('200 with the confirmed booking exactly as confirmed, plus the zone and city names', async () => {
@@ -76,11 +82,25 @@ describe('GET /api/goalkeeper-requests/bookings — Story 1: the client sees the
     });
   });
 
+  it('lists one item per match, each carrying its bookings', async () => {
+    const { context, token, clientId } = await setUp();
+    seedRequest(context, buildRequest('pair', at(DAY), { clientId }));
+    seedRequest(context, buildRequest('solo', at(2 * DAY), { clientId, goalkeeperCount: 1 }));
+
+    const response = await list(context, token);
+
+    expect(response.body.totalItems).toBe(2);
+    expect(response.body.items.map((item: { requestId: string; bookings: unknown[] }) => [item.requestId, item.bookings.length])).toEqual([
+      ['pair', 2],
+      ['solo', 1],
+    ]);
+  });
+
   it('lists upcoming matches soonest first, then past matches most recent first', async () => {
     const { context, token, clientId } = await setUp();
-    context.bookingRepository.seed(buildBooking('past-5d', at(-5 * DAY), { clientId }));
-    context.bookingRepository.seed(buildBooking('in-10d', at(10 * DAY), { clientId }));
-    context.bookingRepository.seed(buildBooking('tomorrow', at(DAY), { clientId }));
+    seedRequest(context, buildRequest('past-5d', at(-5 * DAY), { clientId }));
+    seedRequest(context, buildRequest('in-10d', at(10 * DAY), { clientId }));
+    seedRequest(context, buildRequest('tomorrow', at(DAY), { clientId }));
 
     const response = await list(context, token);
 
@@ -101,10 +121,10 @@ describe('GET /api/goalkeeper-requests/bookings — Story 2: only the caller’s
   it('ignores a clientId or userId in the query and lists only the caller’s bookings', async () => {
     const { context, token, clientId } = await setUp('sub-0001');
     const other = await signInAndComplete(context, 'sub-0002');
-    context.bookingRepository.seed(buildBooking('a-1', at(DAY), { clientId }));
-    context.bookingRepository.seed(buildBooking('a-2', at(-DAY), { clientId }));
+    seedRequest(context, buildRequest('a-1', at(DAY), { clientId }));
+    seedRequest(context, buildRequest('a-2', at(-DAY), { clientId }));
     for (let i = 0; i < 5; i++) {
-      context.bookingRepository.seed(buildBooking(`b-${i}`, at((i + 1) * DAY), { clientId: other.clientId }));
+      seedRequest(context, buildRequest(`b-${i}`, at((i + 1) * DAY), { clientId: other.clientId }));
     }
 
     const response = await list(context, token, `?clientId=${other.clientId}&userId=${other.clientId}`);
@@ -194,7 +214,7 @@ describe('GET /api/goalkeeper-requests/bookings — Story 3: page by page', () =
 
   it('200 with an empty page and the real totals past the last page', async () => {
     const { context, token, clientId } = await setUp();
-    for (let i = 0; i < 3; i++) context.bookingRepository.seed(buildBooking(`bk-${i}`, at((i + 1) * DAY), { clientId }));
+    for (let i = 0; i < 3; i++) seedRequest(context, buildRequest(`bk-${i}`, at((i + 1) * DAY), { clientId }));
 
     const response = await list(context, token, '?page=999&pageSize=2');
 

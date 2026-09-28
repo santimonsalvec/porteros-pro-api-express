@@ -29,7 +29,7 @@ const issuedAt = new Date('2026-09-21T18:00:00.000Z');
 
 describe('Quote', () => {
   it('expires exactly the validity period after it is issued', () => {
-    const quote = Quote.issue('q-1', 'client-1', match, pricing, issuedAt, 3);
+    const quote = Quote.issue('q-1', 'client-1', match, pricing, issuedAt, 3, 60);
 
     expect(quote.expiresAt.getTime() - quote.issuedAt.getTime()).toBe(180_000);
     expect(quote).toMatchObject({
@@ -42,7 +42,7 @@ describe('Quote', () => {
   });
 
   it('is confirmable strictly before its expiry and expired from the expiry instant on', () => {
-    const quote = Quote.issue('q-1', 'client-1', match, pricing, issuedAt, 3);
+    const quote = Quote.issue('q-1', 'client-1', match, pricing, issuedAt, 3, 60);
 
     expect(quote.isExpiredAt(new Date(quote.expiresAt.getTime() - 1))).toBe(false);
     expect(quote.isExpiredAt(quote.expiresAt)).toBe(true);
@@ -50,6 +50,15 @@ describe('Quote', () => {
   });
 
   it('refuses a quote without a client', () => {
-    expect(() => Quote.issue('q-1', '', match, pricing, issuedAt, 3)).toThrow();
+    expect(() => Quote.issue('q-1', '', match, pricing, issuedAt, 3, 60)).toThrow();
+  });
+
+  it('keeps the free-cancellation period it was issued with', () => {
+    expect(Quote.issue('q-1', 'client-1', match, pricing, issuedAt, 3, 45).freeCancellationMinutes).toBe(45);
+  });
+
+  it('rejects a negative or fractional free-cancellation period', () => {
+    expect(() => Quote.issue('q-1', 'client-1', match, pricing, issuedAt, 3, -1)).toThrow();
+    expect(() => Quote.issue('q-1', 'client-1', match, pricing, issuedAt, 3, 1.5)).toThrow();
   });
 });
