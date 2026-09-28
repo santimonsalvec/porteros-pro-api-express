@@ -9,6 +9,11 @@ export class FakeCommissionSettingRepository implements ICommissionSettingReposi
     this.settings.push(setting);
   }
 
+  /** Removes every seeded setting, e.g. to simulate an area without a commission. */
+  clear(): void {
+    this.settings.length = 0;
+  }
+
   async findFor(refs: { zoneIds: string[]; cityIds: string[]; countryIds: string[] }): Promise<CommissionSetting[]> {
     this.calls += 1;
     return this.settings.filter(

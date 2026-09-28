@@ -11,6 +11,8 @@ import { GetServiceQuoteQuery } from '../../../../../src/application/features/go
 import { GetServiceQuoteQueryHandler } from '../../../../../src/application/features/goalkeeperRequests/queries/getServiceQuote/getServiceQuoteQueryHandler.js';
 import { parseStartsAt } from '../../../../../src/application/features/goalkeeperRequests/common/startsAt.js';
 import { FakeBookingSettingsRepository } from '../../../../fakes/fakeBookingSettingsRepository.js';
+import { FakeCommissionSettingRepository } from '../../../../fakes/fakeCommissionSettingRepository.js';
+import { CommissionResolver } from '../../../../../src/application/features/wallet/common/commissionResolver.js';
 import { FakeCityRepository } from '../../../../fakes/fakeCityRepository.js';
 import { FixedClock } from '../../../../fakes/fakeClock.js';
 import { FakeCountryRepository } from '../../../../fakes/fakeCountryRepository.js';
@@ -27,6 +29,8 @@ class Harness {
   readonly countryRepository = new FakeCountryRepository();
   readonly rentalRateRepository = new FakeRentalRateRepository();
   readonly bookingSettingsRepository = new FakeBookingSettingsRepository();
+  readonly commissionSettingRepository = new FakeCommissionSettingRepository();
+  readonly commissionResolver = new CommissionResolver(this.commissionSettingRepository, this.zoneRepository, this.cityRepository, this.regionRepository);
   readonly clock = new FixedClock(QUOTE_NOW);
   readonly config: GetBookingConfigQueryHandler;
   readonly quote: GetServiceQuoteQueryHandler;
@@ -48,7 +52,7 @@ class Harness {
       this.countryRepository,
       this.rentalRateRepository,
       this.bookingSettingsRepository,
-      this.clock,
+      this.commissionResolver,      this.clock,
     );
   }
 

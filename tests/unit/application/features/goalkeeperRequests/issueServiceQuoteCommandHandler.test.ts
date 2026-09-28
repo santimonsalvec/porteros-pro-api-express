@@ -24,10 +24,10 @@ const priced = {
   startsAtLocal: '2026-09-21T15:00:00-05:00',
   timeZone: 'America/Bogota',
 };
-const success: GetServiceQuoteResult = {
+const success: Extract<GetServiceQuoteResult, { outcome: 'success' }> = {
   outcome: 'success',
   quote: priced,
-  area: { zoneId: 'zone-cali-norte', cityId: 'city-cali', freeCancellationMinutes: 60 },
+  area: { zoneId: 'zone-cali-norte', cityId: 'city-cali', freeCancellationMinutes: 60, commission: 7000, travelBufferMinutes: 30 },
 };
 const input: ServiceQuoteInput = {
   ...POINTS.caliNorte,
@@ -98,6 +98,7 @@ describe('IssueServiceQuoteCommandHandler — Story 3: every quote is recorded',
       outcome: 'success',
       quote: { ...priced, quoteId: 'quote-1', expiresAt: '2026-09-21T18:03:00.000Z' },
       freeCancellationDefaulted: false,
+      travelBufferDefaulted: false,
       cityId: 'city-cali',
     });
   });

@@ -33,6 +33,11 @@ export class BookingSettings extends Entity<string> {
    * Optional at every level: when absent everywhere a default is used (FR-014), unlike the rest.
    */
   readonly freeCancellationMinutes: number | null;
+  /**
+   * Minutes a goalkeeper needs to travel between matches; also how long before the start a
+   * booking's search ends. Optional at every level: a default applies when absent (FR-010).
+   */
+  readonly travelBufferMinutes: number | null;
 
   constructor(params: {
     id: string;
@@ -42,6 +47,7 @@ export class BookingSettings extends Entity<string> {
     minNoticeMinutes?: number | null;
     leadTimeSurcharge?: LeadTimeSurcharge | null;
     freeCancellationMinutes?: number | null;
+    travelBufferMinutes?: number | null;
   }) {
     super(params.id);
     const where = `bookingSettings document ${params.id}`;
@@ -66,6 +72,10 @@ export class BookingSettings extends Entity<string> {
     ) {
       throw new InvalidConfigurationError(`${where}: freeCancellationMinutes must be an integer of at least 0`);
     }
+    const travelBufferMinutes = params.travelBufferMinutes ?? null;
+    if (travelBufferMinutes !== null && (!Number.isInteger(travelBufferMinutes) || travelBufferMinutes < 0)) {
+      throw new InvalidConfigurationError(`${where}: travelBufferMinutes must be an integer of at least 0`);
+    }
     const leadTimeSurcharge = params.leadTimeSurcharge ?? null;
     if (leadTimeSurcharge !== null) validateSurcharge(leadTimeSurcharge, where);
 
@@ -75,6 +85,7 @@ export class BookingSettings extends Entity<string> {
     this.minNoticeMinutes = minNoticeMinutes;
     this.leadTimeSurcharge = leadTimeSurcharge;
     this.freeCancellationMinutes = freeCancellationMinutes;
+    this.travelBufferMinutes = travelBufferMinutes;
   }
 }
 

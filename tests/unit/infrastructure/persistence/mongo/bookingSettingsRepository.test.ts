@@ -102,4 +102,14 @@ describe('BookingSettingsRepository (mocked driver)', () => {
     expect(found.country?.freeCancellationMinutes).toBe(60);
     expect(found.city?.freeCancellationMinutes).toBeNull();
   });
+
+  it('maps the travel margin, and reads it as null when the document has none', async () => {
+    const collection = createFakeCollection();
+    collection.find.mockReturnValue(toArrayResult([{ ...countryDoc, travelBufferMinutes: 30 }, cityDoc]));
+
+    const found = await repositoryWith(collection).findFor('city-1', 'country-co');
+
+    expect(found.country?.travelBufferMinutes).toBe(30);
+    expect(found.city?.travelBufferMinutes).toBeNull();
+  });
 });

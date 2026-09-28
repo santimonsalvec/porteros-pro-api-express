@@ -80,4 +80,11 @@ describe('QuoteRepository (mocked driver)', () => {
 
     expect(quoteFromDocument(legacy).freeCancellationMinutes).toBe(60);
   });
+
+  it('stores the fixed commission and travel margin and reads them back', () => {
+    const doc = quoteToDocument(buildStoredQuote({ commission: 9000, travelBufferMinutes: 45 }));
+
+    expect(doc).toMatchObject({ commission: 9000, travelBufferMinutes: 45 });
+    expect(quoteFromDocument(doc)).toMatchObject({ commission: 9000, travelBufferMinutes: 45 });
+  });
 });

@@ -109,4 +109,17 @@ describe('GoalkeeperRequestRepository (mocked driver)', () => {
       expect(found).toEqual([request]);
     });
   });
+
+  it('stores the fixed commission and travel margin, and reads several requests by id', async () => {
+    const doc = requestToDocument(buildRequest('r-9', startsAt, { commission: 9000, travelBufferMinutes: 45 }));
+    expect(doc).toMatchObject({ commission: 9000, travelBufferMinutes: 45 });
+
+    const collection = createFakeCollection();
+    collection.find.mockReturnValue(toArrayCursor([doc]));
+    const found = await repositoryWith(collection).findByIds(['r-9', 'r-x']);
+
+    expect(collection.find).toHaveBeenCalledWith({ _id: { $in: ['r-9', 'r-x'] } });
+    expect(found[0]).toMatchObject({ id: 'r-9', commission: 9000, travelBufferMinutes: 45 });
+    expect(await repositoryWith(createFakeCollection()).findByIds([])).toEqual([]);
+  });
 });

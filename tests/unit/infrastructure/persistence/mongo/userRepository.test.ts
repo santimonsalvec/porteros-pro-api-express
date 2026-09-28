@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Collection, Db, Document } from 'mongodb';
 import { UserRepository } from '../../../../../src/infrastructure/persistence/mongo/userRepository.js';
 import { User } from '../../../../../src/domain/users/user.js';
-import { createFakeCollection } from '../../../../fakes/fakeMongoCollection.js';
+import { createFakeCollection, toArrayResult } from '../../../../fakes/fakeMongoCollection.js';
 
 function repositoryWith(collection: ReturnType<typeof createFakeCollection>) {
   const db = { collection: () => collection as unknown as Collection<Document> } as unknown as Db;
@@ -87,5 +87,18 @@ describe('UserRepository (mocked driver)', () => {
       { normalizedPhoneNumber: 1 },
       expect.objectContaining({ unique: true, sparse: true }),
     );
+  });
+
+  it('reads several users by id with one query, and none for an empty list', async () => {
+    const collection = createFakeCollection();
+    collection.find.mockReturnValue(toArrayResult([
+      { _id: 'user-1', email: 'a@example.com', isAdmin: false, externalIdentities: [], createdAt: new Date(), isProfileComplete: true, firstName: 'Ana' },
+    ]));
+
+    const users = await repositoryWith(collection).getByIds(['user-1', 'user-x']);
+
+    expect(collection.find).toHaveBeenCalledWith({ _id: { $in: ['user-1', 'user-x'] } });
+    expect(users.map((user) => user.firstName)).toEqual(['Ana']);
+    expect(await repositoryWith(createFakeCollection()).getByIds([])).toEqual([]);
   });
 });

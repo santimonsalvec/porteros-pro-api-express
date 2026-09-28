@@ -30,6 +30,10 @@ export class FakeUserRepository implements IUserRepository {
     this.users.delete(id);
   }
 
+  async getByIds(ids: string[]): Promise<User[]> {
+    return ids.flatMap((id) => this.users.get(id) ?? []);
+  }
+
   async findByExternalIdentity(provider: string, subject: string): Promise<User | null> {
     for (const user of this.users.values()) {
       if (user.findExternalIdentity(provider, subject)) return user;

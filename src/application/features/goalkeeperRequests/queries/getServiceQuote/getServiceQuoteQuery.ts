@@ -43,7 +43,14 @@ export type GetServiceQuoteResult =
        * Where the point was resolved, and the area's free-cancellation period (`null` when not
        * configured). Internal: recorded on the stored quote, never serialized.
        */
-      area: { zoneId: string; cityId: string; freeCancellationMinutes: number | null };
+      area: {
+        zoneId: string;
+        cityId: string;
+        freeCancellationMinutes: number | null;
+        /** The platform commission for one goalkeeper, fixed for the whole flow (012). */
+        commission: number;
+        travelBufferMinutes: number | null;
+      };
     }
   | { outcome: 'location_not_covered' }
   | { outcome: 'time_zone_not_configured'; cityId: string }

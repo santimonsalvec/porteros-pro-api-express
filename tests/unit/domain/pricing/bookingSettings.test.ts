@@ -65,4 +65,13 @@ describe('BookingSettings', () => {
   it.each([-1, 1.5])('rejects a free-cancellation period of %s', (value) => {
     expect(() => new BookingSettings({ ...base, freeCancellationMinutes: value })).toThrow(InvalidConfigurationError);
   });
+
+  it('accepts an optional travel margin and leaves it null when absent', () => {
+    expect(new BookingSettings({ ...base, travelBufferMinutes: 30 }).travelBufferMinutes).toBe(30);
+    expect(new BookingSettings(base).travelBufferMinutes).toBeNull();
+  });
+
+  it.each([-5, 2.5])('rejects a travel margin of %s', (value) => {
+    expect(() => new BookingSettings({ ...base, travelBufferMinutes: value })).toThrow(InvalidConfigurationError);
+  });
 });

@@ -71,6 +71,8 @@ export function quoteToDocument(quote: Quote): Document {
     issuedAt: quote.issuedAt,
     expiresAt: quote.expiresAt,
     freeCancellationMinutes: quote.freeCancellationMinutes,
+    commission: quote.commission,
+    travelBufferMinutes: quote.travelBufferMinutes,
   };
 }
 
@@ -85,6 +87,8 @@ export function quoteFromDocument(doc: Document): Quote {
     expiresAt: doc.expiresAt as Date,
     // Quotes issued before the field existed read as the default (research.md §5).
     freeCancellationMinutes: (doc.freeCancellationMinutes as number | undefined) ?? FREE_CANCELLATION_MINUTES_DEFAULT,
+    commission: doc.commission as number,
+    travelBufferMinutes: doc.travelBufferMinutes as number,
   });
 }
 

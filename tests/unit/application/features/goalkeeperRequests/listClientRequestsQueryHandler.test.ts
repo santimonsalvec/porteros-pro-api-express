@@ -10,6 +10,8 @@ import { FakeGoalkeeperRequestRepository } from '../../../../fakes/fakeGoalkeepe
 import { FakeCityRepository } from '../../../../fakes/fakeCityRepository.js';
 import { FixedClock } from '../../../../fakes/fakeClock.js';
 import { FakeZoneRepository } from '../../../../fakes/fakeZoneRepository.js';
+import { FakeUserRepository } from '../../../../fakes/fakeUserRepository.js';
+import { User } from '../../../../../src/domain/users/user.js';
 import { buildRequest, buildRequestBookings } from '../../../../fixtures/quoteFixtures.js';
 
 const NOW = '2026-09-25T18:00:00.000Z';
@@ -37,6 +39,7 @@ let requests: FakeGoalkeeperRequestRepository;
 let bookings: FakeBookingRepository;
 let zones: FakeZoneRepository;
 let cities: FakeCityRepository;
+let users: FakeUserRepository;
 let clock: FixedClock;
 let handler: ListClientRequestsQueryHandler;
 
@@ -47,8 +50,9 @@ beforeEach(() => {
   zones.seed(zone('zone-cali-norte', 'Cali Norte'));
   cities = new FakeCityRepository();
   cities.seed(new City({ id: 'city-cali', name: 'Cali', regionId: 'region-valle', zoneCityId: null }));
+  users = new FakeUserRepository();
   clock = new FixedClock(NOW);
-  handler = new ListClientRequestsQueryHandler(requests, bookings, zones, cities, clock);
+  handler = new ListClientRequestsQueryHandler(requests, bookings, zones, cities, users, clock);
 });
 
 const list = (clientId = 'client-a', page = 1, pageSize = 20) =>
@@ -302,4 +306,52 @@ describe('ListClientRequestsQueryHandler — US5: one item per match, with its b
       }
     });
   }
+});
+
+describe('ListClientRequestsQueryHandler — 012 US5: the assigned goalkeeper\'s contact', () => {
+  function goalkeeper(id: string, firstName: string, whatsAppNumber: string): void {
+    const user = User.createFromExternalIdentity({ id, email: `${id}@example.com`, displayName: null, provider: 'google', subject: id });
+    user.completeProfile(firstName, 'Portero', '+57', whatsAppNumber);
+    users.seed(user);
+  }
+
+  it('shows name and WhatsApp on the assigned booking and null on the pending one, with one user read per page', async () => {
+    goalkeeper('gk-1', 'Camilo', '3001234567');
+    goalkeeper('gk-2', 'David', '3007654321');
+    const pair = requestAt('r-pair', at(DAY), { goalkeeperCount: 2 });
+    const single = requestAt('r-single', at(2 * DAY), { zoneId: 'zone-2' });
+    seed(pair);
+    seed(single);
+    const [taken] = bookings.all().filter((booking) => booking.requestId === 'r-pair');
+    bookings.seed(taken!.assign('gk-1', at(-HOUR)));
+    const [other] = bookings.all().filter((booking) => booking.requestId === 'r-single');
+    bookings.seed(other!.assign('gk-2', at(-HOUR)));
+    const getByIds = vi.spyOn(users, 'getByIds');
+
+    const result = await list();
+
+    const pairItem = result.items.find((item) => item.requestId === 'r-pair')!;
+    expect(pairItem.status).toBe('partially_assigned');
+    const assigned = pairItem.bookings.find((booking) => booking.bookingId === taken!.id)!;
+    const pending = pairItem.bookings.find((booking) => booking.bookingId !== taken!.id)!;
+    expect(assigned).toMatchObject({
+      status: 'assigned',
+      goalkeeper: { firstName: 'Camilo', lastName: 'Portero', whatsApp: '+57 3001234567' },
+      assignedAt: at(-HOUR).toISOString(),
+    });
+    expect(Object.keys(assigned.goalkeeper!).sort()).toEqual(['firstName', 'lastName', 'whatsApp']);
+    expect(pending).toMatchObject({ status: 'pending_assignment', goalkeeper: null, assignedAt: null });
+    expect(getByIds).toHaveBeenCalledTimes(1);
+    expect(getByIds.mock.calls[0]![0].sort()).toEqual(['gk-1', 'gk-2']);
+  });
+
+  it('reads no users when nothing is assigned', async () => {
+    seed(requestAt('r-open', at(DAY)));
+    const getByIds = vi.spyOn(users, 'getByIds');
+
+    const result = await list();
+
+    expect(result.items[0]!.bookings[0]).toMatchObject({ goalkeeper: null, assignedAt: null });
+    expect(getByIds).not.toHaveBeenCalled();
+  });
 });

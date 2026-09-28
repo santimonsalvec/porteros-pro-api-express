@@ -19,6 +19,7 @@ export function bookingToDocument(booking: Booking): Document {
     clientId: booking.clientId,
     zoneId: booking.zoneId,
     startsAt: booking.startsAt,
+    endsAt: booking.endsAt,
     status: booking.status,
     price: {
       unitRate: booking.price.unitRate,
@@ -26,6 +27,11 @@ export function bookingToDocument(booking: Booking): Document {
       total: booking.price.total,
       currency: booking.price.currency,
     },
+    commission: booking.commission,
+    travelBufferMinutes: booking.travelBufferMinutes,
+    searchEndsAt: booking.searchEndsAt,
+    goalkeeperId: booking.goalkeeperId,
+    assignedAt: booking.assignedAt,
     createdAt: booking.createdAt,
   };
 }
@@ -38,6 +44,7 @@ export function bookingFromDocument(doc: Document): Booking {
     clientId: doc.clientId as string,
     zoneId: doc.zoneId as string,
     startsAt: doc.startsAt as Date,
+    endsAt: doc.endsAt as Date,
     status: doc.status as BookingStatus,
     price: new GoalkeeperPrice({
       unitRate: price.unitRate as number,
@@ -45,6 +52,11 @@ export function bookingFromDocument(doc: Document): Booking {
       total: price.total as number,
       currency: price.currency as string,
     }),
+    commission: doc.commission as number,
+    travelBufferMinutes: doc.travelBufferMinutes as number,
+    searchEndsAt: doc.searchEndsAt as Date,
+    goalkeeperId: (doc.goalkeeperId as string | null | undefined) ?? null,
+    assignedAt: (doc.assignedAt as Date | null | undefined) ?? null,
     createdAt: doc.createdAt as Date,
   });
 }
@@ -69,6 +81,68 @@ export class BookingRepository implements IBookingRepository {
       }
     }
     await this.collection.createIndex({ requestId: 1, _id: 1 }, { name: 'requestId' });
+    await this.collection.createIndex({ status: 1, zoneId: 1, startsAt: 1, _id: 1 }, { name: 'status_zone_start' });
+    await this.collection.createIndex({ goalkeeperId: 1, startsAt: 1, _id: 1 }, { name: 'goalkeeper_start' });
+  }
+
+  async findById(id: string): Promise<Booking | null> {
+    const doc = await this.collection.findOne({ _id: id } as Document);
+    return doc ? bookingFromDocument(doc) : null;
+  }
+
+  async findAvailableCandidates(query: {
+    zoneIds: string[];
+    excludeClientId: string;
+    maxCommission: number;
+    now: Date;
+    cap: number;
+  }): Promise<Booking[]> {
+    if (query.zoneIds.length === 0) return [];
+    const docs = await this.collection
+      .find({
+        status: 'pending_assignment',
+        zoneId: { $in: query.zoneIds },
+        searchEndsAt: { $gt: query.now },
+        clientId: { $ne: query.excludeClientId },
+        commission: { $lte: query.maxCommission },
+      })
+      .sort({ startsAt: 1, _id: 1 })
+      .limit(query.cap)
+      .toArray();
+    return docs.map(bookingFromDocument);
+  }
+
+  async findAssignedToGoalkeeper(goalkeeperId: string): Promise<Booking[]> {
+    const docs = await this.collection.find({ goalkeeperId, status: 'assigned' }).toArray();
+    return docs.map(bookingFromDocument);
+  }
+
+  async countForGoalkeeper(goalkeeperId: string, now: Date): Promise<{ upcoming: number; past: number }> {
+    const [upcoming, past] = await Promise.all([
+      this.collection.countDocuments({ goalkeeperId, startsAt: { $gte: now } }),
+      this.collection.countDocuments({ goalkeeperId, startsAt: { $lt: now } }),
+    ]);
+    return { upcoming, past };
+  }
+
+  async findUpcomingForGoalkeeper(goalkeeperId: string, now: Date, skip: number, limit: number): Promise<Booking[]> {
+    const docs = await this.collection
+      .find({ goalkeeperId, startsAt: { $gte: now } })
+      .sort({ startsAt: 1, _id: 1 })
+      .skip(skip)
+      .limit(limit)
+      .toArray();
+    return docs.map(bookingFromDocument);
+  }
+
+  async findPastForGoalkeeper(goalkeeperId: string, now: Date, skip: number, limit: number): Promise<Booking[]> {
+    const docs = await this.collection
+      .find({ goalkeeperId, startsAt: { $lt: now } })
+      .sort({ startsAt: -1, _id: -1 })
+      .skip(skip)
+      .limit(limit)
+      .toArray();
+    return docs.map(bookingFromDocument);
   }
 
   async findByRequestIds(requestIds: string[]): Promise<Booking[]> {

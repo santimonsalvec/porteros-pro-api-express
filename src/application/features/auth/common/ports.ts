@@ -29,6 +29,8 @@ export interface IInternalTokenIssuer {
 
 export interface IUserRepository extends IRepository<User, string> {
   findByExternalIdentity(provider: string, subject: string): Promise<User | null>;
+  /** The users with these ids, in no particular order; unknown ids are simply absent. */
+  getByIds(ids: string[]): Promise<User[]>;
   existsByPhoneNumber(
     countryCallingCode: string,
     whatsAppNumber: string,

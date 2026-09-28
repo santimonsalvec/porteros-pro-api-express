@@ -35,9 +35,16 @@ import { FakeGoalkeeperRequestRepository } from '../fakes/fakeGoalkeeperRequestR
 import { FakeBookingRepository } from '../fakes/fakeBookingRepository.js';
 import { FakeWalletStore } from '../fakes/fakeWalletStore.js';
 import { FakeCommissionSettingRepository } from '../fakes/fakeCommissionSettingRepository.js';
-import { CommissionSetting } from '../../src/domain/wallet/commissionSetting.js';
 import { CommissionResolver } from '../../src/application/features/wallet/common/commissionResolver.js';
 import { WalletLedger } from '../../src/application/features/wallet/common/walletLedger.js';
+import { ListAvailableBookingsQuery } from '../../src/application/features/goalkeeperRequests/queries/listAvailableBookings/listAvailableBookingsQuery.js';
+import { ListGoalkeeperAgendaQuery } from '../../src/application/features/goalkeeperRequests/queries/listGoalkeeperAgenda/listGoalkeeperAgendaQuery.js';
+import { ListGoalkeeperAgendaQueryHandler } from '../../src/application/features/goalkeeperRequests/queries/listGoalkeeperAgenda/listGoalkeeperAgendaQueryHandler.js';
+import { AcceptBookingCommand } from '../../src/application/features/goalkeeperRequests/commands/acceptBooking/acceptBookingCommand.js';
+import { AcceptBookingCommandHandler } from '../../src/application/features/goalkeeperRequests/commands/acceptBooking/acceptBookingCommandHandler.js';
+import { FakeBookingAcceptanceStore } from '../fakes/fakeBookingAcceptanceStore.js';
+import { FakeAcceptanceAuditLogger } from '../fakes/fakeAcceptanceAuditLogger.js';
+import { ListAvailableBookingsQueryHandler } from '../../src/application/features/goalkeeperRequests/queries/listAvailableBookings/listAvailableBookingsQueryHandler.js';
 import { RecordWalletAdjustmentCommand } from '../../src/application/features/wallet/commands/recordWalletAdjustment/recordWalletAdjustmentCommand.js';
 import { RecordWalletAdjustmentCommandHandler } from '../../src/application/features/wallet/commands/recordWalletAdjustment/recordWalletAdjustmentCommandHandler.js';
 import { GetGoalkeeperWalletQuery } from '../../src/application/features/wallet/queries/getGoalkeeperWallet/getGoalkeeperWalletQuery.js';
@@ -136,7 +143,7 @@ export interface TestAppContext {
   health: HealthReportResponse;
   /** The wallet ledger state (movements and wallets) behind `/me/wallet` and `/api/admin/…/wallet`. */
   walletStore: FakeWalletStore;
-  /** Seeded with Colombia at 7.000 COP (country level). */
+  /** Seeded by `seedQuoteWorld`: every quote-world country has a country-level commission (Colombia 7.000 COP). */
   commissionSettingRepository: FakeCommissionSettingRepository;
   /** The real ledger over the fake store: tests seed movements through it. */
   walletLedger: WalletLedger;
@@ -195,7 +202,6 @@ export async function buildTestApp(): Promise<TestAppContext> {
   const clock = new FixedClock(QUOTE_NOW);
   const walletStore = new FakeWalletStore(() => clock.now());
   const commissionSettingRepository = new FakeCommissionSettingRepository();
-  commissionSettingRepository.seed(new CommissionSetting({ id: 'commission-co', scope: 'country', refId: 'country-co', amount: 7000 }));
   const walletLedger = new WalletLedger(walletStore, walletStore, { newId: () => uuidv7() }, clock);
   const walletContext = { goalkeeperProfileRepository, cityRepository, regionRepository, countryLookup: quoteCountryRepository };
   const commissionResolver = new CommissionResolver(commissionSettingRepository, zoneRepository, cityRepository, regionRepository);
@@ -204,7 +210,7 @@ export async function buildTestApp(): Promise<TestAppContext> {
   const bookingRepository = new FakeBookingRepository();
   const quoteConfirmationStore = new FakeQuoteConfirmationStore(quoteRepository, requestRepository, bookingRepository);
   const bookingAuditLogger = new FakeBookingAuditLogger();
-  seedQuoteWorld({ countryRepository: quoteCountryRepository, zoneRepository, cityRepository, regionRepository, rentalRateRepository, bookingSettingsRepository });
+  seedQuoteWorld({ countryRepository: quoteCountryRepository, zoneRepository, cityRepository, regionRepository, rentalRateRepository, bookingSettingsRepository, commissionSettingRepository });
 
   const ssoCatalog: ISsoProviderCatalog = {
     getProviders: (platform) =>
@@ -288,6 +294,7 @@ export async function buildTestApp(): Promise<TestAppContext> {
         quoteCountryRepository,
         rentalRateRepository,
         bookingSettingsRepository,
+        commissionResolver,
         clock,
       ),
     },
@@ -300,6 +307,7 @@ export async function buildTestApp(): Promise<TestAppContext> {
       handler: new ConfirmBookingCommandHandler(
         requestRepository,
         bookingRepository,
+        userRepository,
         quoteRepository,
         quoteConfirmationStore,
         uuidGenerator,
@@ -309,7 +317,14 @@ export async function buildTestApp(): Promise<TestAppContext> {
     },
     {
       requestType: ListClientRequestsQuery,
-      handler: new ListClientRequestsQueryHandler(requestRepository, bookingRepository, zoneRepository, cityRepository, clock),
+      handler: new ListClientRequestsQueryHandler(
+        requestRepository,
+        bookingRepository,
+        zoneRepository,
+        cityRepository,
+        userRepository,
+        clock,
+      ),
     },
     {
       requestType: StoreImageCommand,
@@ -327,6 +342,47 @@ export async function buildTestApp(): Promise<TestAppContext> {
     {
       requestType: RecordWalletAdjustmentCommand,
       handler: new RecordWalletAdjustmentCommandHandler(walletContext, walletLedger, walletStore),
+    },
+    {
+      requestType: AcceptBookingCommand,
+      handler: new AcceptBookingCommandHandler({
+        walletContext,
+        walletRepository: walletStore,
+        bookingRepository,
+        requestRepository,
+        zoneRepository,
+        cityRepository,
+        userRepository,
+        store: new FakeBookingAcceptanceStore(bookingRepository, walletStore),
+        idGenerator: uuidGenerator,
+        clock,
+        audit: new FakeAcceptanceAuditLogger(),
+      }),
+    },
+    {
+      requestType: ListAvailableBookingsQuery,
+      handler: new ListAvailableBookingsQueryHandler({
+        goalkeeperProfileRepository,
+        walletRepository: walletStore,
+        commissionResolver,
+        bookingRepository,
+        requestRepository: requestRepository,
+        zoneRepository,
+        cityRepository,
+        clock,
+      }),
+    },
+    {
+      requestType: ListGoalkeeperAgendaQuery,
+      handler: new ListGoalkeeperAgendaQueryHandler({
+        goalkeeperProfileRepository,
+        bookingRepository,
+        requestRepository,
+        zoneRepository,
+        cityRepository,
+        userRepository,
+        clock,
+      }),
     },
     {
       requestType: ListWalletMovementsQuery,

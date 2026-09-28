@@ -18,6 +18,8 @@ describe('GoalkeeperRequest', () => {
       pricing: quote.pricing,
       partialFulfillment: 'cancel_all',
       freeCancellationMinutes: quote.freeCancellationMinutes,
+      commission: quote.commission,
+      travelBufferMinutes: quote.travelBufferMinutes,
       active: true,
       quoteIssuedAt: quote.issuedAt,
       createdAt,

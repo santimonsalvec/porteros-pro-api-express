@@ -28,6 +28,7 @@ export class GoalkeeperProfileRepository extends MongoRepository<GoalkeeperProfi
       cityId: entity.cityId,
       zoneIds: entity.zoneIds,
       activatedAt: entity.activatedAt,
+      suspendedUntil: entity.suspendedUntil,
     });
   }
 
@@ -46,6 +47,7 @@ export class GoalkeeperProfileRepository extends MongoRepository<GoalkeeperProfi
       cityId: doc.cityId as string,
       zoneIds: (doc.zoneIds as string[] | undefined) ?? [],
       activatedAt: new Date(doc.activatedAt as string | Date),
+      suspendedUntil: doc.suspendedUntil ? new Date(doc.suspendedUntil as string | Date) : null,
     });
   }
 
