@@ -13,7 +13,7 @@ export const COLOMBIA_INVOICING: InvoicingSnapshot = { documentType: 'CC', docum
 /** An active goalkeeper of Cali (Colombia, COP) with the given enabled zones. */
 export function buildGoalkeeperProfile(
   userId: string,
-  overrides: Partial<{ cityId: string; zoneIds: string[] }> = {},
+  overrides: Partial<{ cityId: string; zoneIds: string[]; availableForOffers: boolean; suspendedUntil: Date | null }> = {},
 ): GoalkeeperProfile {
   return new GoalkeeperProfile({
     id: `profile-${userId}`,
@@ -29,6 +29,8 @@ export function buildGoalkeeperProfile(
     cityId: overrides.cityId ?? 'city-cali',
     zoneIds: overrides.zoneIds ?? ['zone-cali-norte'],
     activatedAt: new Date('2026-09-01T00:00:00.000Z'),
+    suspendedUntil: overrides.suspendedUntil ?? null,
+    availableForOffers: overrides.availableForOffers ?? true,
   });
 }
 

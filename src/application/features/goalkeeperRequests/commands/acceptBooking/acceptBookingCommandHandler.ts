@@ -61,6 +61,8 @@ export class AcceptBookingCommandHandler implements ICommandHandler<AcceptBookin
     if (booking.goalkeeperId === goalkeeperId) return this.finish(command, { outcome: 'replayed', booking: await this.item(booking) }, booking);
 
     const profile = context.kind === 'ok' ? context.profile : await this.deps.walletContext.goalkeeperProfileRepository.getByUserId(goalkeeperId);
+    // Offers switched off: the goalkeeper must be available to take matches (feature 015).
+    if (profile && !profile.availableForOffers) return this.finish(command, { outcome: 'not_available_for_offers' }, booking);
     if (profile?.suspendedUntil && profile.suspendedUntil > now) {
       return this.finish(command, { outcome: 'suspended', suspendedUntil: profile.suspendedUntil.toISOString() }, booking);
     }

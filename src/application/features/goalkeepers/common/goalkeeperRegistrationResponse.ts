@@ -22,6 +22,8 @@ export interface GoalkeeperRegistrationResponse {
   weightKg: number | null;
   cityId: string | null;
   serviceZoneIds: string[];
+  /** The "available for offers" switch (feature 015); null unless the goalkeeper is active. */
+  availableForOffers: boolean | null;
   /**
    * Resolved from `cityId`. Present (`null` when there is no saved city, or it no longer
    * resolves) only on `GET /api/goalkeepers/me`; the write endpoints omit it to avoid
@@ -55,6 +57,7 @@ export function toGoalkeeperRegistrationResponse(registration: GoalkeeperRegistr
       weightKg: null,
       cityId: null,
       serviceZoneIds: [],
+      availableForOffers: null,
     };
   }
 
@@ -71,6 +74,7 @@ export function toGoalkeeperRegistrationResponse(registration: GoalkeeperRegistr
     weightKg: registration.physicalData.weightKg,
     cityId: registration.availability.cityId,
     serviceZoneIds: registration.availability.zoneIds,
+    availableForOffers: null,
   };
 }
 
@@ -98,5 +102,6 @@ export function toActiveGoalkeeperResponse(profile: GoalkeeperProfile): Goalkeep
     weightKg: profile.weightKg,
     cityId: profile.cityId,
     serviceZoneIds: profile.zoneIds,
+    availableForOffers: profile.availableForOffers,
   };
 }

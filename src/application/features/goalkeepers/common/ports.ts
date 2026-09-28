@@ -19,6 +19,10 @@ export interface IGoalkeeperProfileRepository extends IRepository<GoalkeeperProf
   updatePhysicalData(userId: string, fields: { heightCm?: number; weightKg?: number }): Promise<GoalkeeperProfile | null>;
   /** Replaces `cityId` and `zoneIds` together in one write; same return contract as `updatePhysicalData`. */
   updateAvailability(userId: string, cityId: string, zoneIds: string[]): Promise<GoalkeeperProfile | null>;
+  /** Profiles with any of these zones and the offers switch on (feature 015). */
+  findOfferCandidates(zoneIds: readonly string[]): Promise<GoalkeeperProfile[]>;
+  /** Sets the "available for offers" switch; returns the value before, or null without a profile. */
+  setAvailableForOffers(userId: string, value: boolean): Promise<{ previous: boolean } | null>;
 }
 
 /** Minimal, read-only — mirrors `ICountryRepository`'s reference-data shape, no write capability needed. */

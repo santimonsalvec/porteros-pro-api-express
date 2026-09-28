@@ -42,6 +42,17 @@ export class FakeBookingRepository implements IBookingRepository {
       .slice(0, query.cap);
   }
 
+  async findAssignedToGoalkeepers(goalkeeperIds: readonly string[]): Promise<Booking[]> {
+    return this.all().filter((booking) => booking.goalkeeperId !== null && goalkeeperIds.includes(booking.goalkeeperId) && booking.status === 'assigned');
+  }
+
+  async findOpenPending(now: Date, cap: number): Promise<Booking[]> {
+    return this.all()
+      .filter((booking) => booking.status === 'pending_assignment' && booking.isSearchOpenAt(now))
+      .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime() || a.id.localeCompare(b.id))
+      .slice(0, cap);
+  }
+
   async findAssignedToGoalkeeper(goalkeeperId: string): Promise<Booking[]> {
     return this.all().filter((booking) => booking.goalkeeperId === goalkeeperId && booking.status === 'assigned');
   }

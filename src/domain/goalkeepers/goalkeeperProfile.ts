@@ -24,6 +24,11 @@ export class GoalkeeperProfile extends Entity<string> {
   readonly activatedAt: Date;
   /** While in the future, the goalkeeper sees no offers and cannot accept (read by 012, written by 018). */
   readonly suspendedUntil: Date | null;
+  /**
+   * The goalkeeper's "available for offers" switch (feature 015). Off: no offers, no available
+   * matches and no accepting. Absent in stored documents means on.
+   */
+  readonly availableForOffers: boolean;
 
   constructor(params: {
     id: string;
@@ -40,6 +45,7 @@ export class GoalkeeperProfile extends Entity<string> {
     zoneIds: string[];
     activatedAt: Date;
     suspendedUntil?: Date | null;
+    availableForOffers?: boolean;
   }) {
     super(params.id);
     this.userId = params.userId;
@@ -55,6 +61,7 @@ export class GoalkeeperProfile extends Entity<string> {
     this.zoneIds = params.zoneIds;
     this.activatedAt = params.activatedAt;
     this.suspendedUntil = params.suspendedUntil ?? null;
+    this.availableForOffers = params.availableForOffers ?? true;
   }
 
   /** The only constructor — reads every field off a registration whose completeness has already been confirmed by the caller. */

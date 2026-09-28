@@ -46,6 +46,19 @@ export class FakeGoalkeeperProfileRepository implements IGoalkeeperProfileReposi
     return this.patch(userId, { cityId, zoneIds });
   }
 
+  async findOfferCandidates(zoneIds: readonly string[]): Promise<GoalkeeperProfile[]> {
+    return [...this.profiles.values()].filter(
+      (profile) => profile.availableForOffers && profile.zoneIds.some((zoneId) => zoneIds.includes(zoneId)),
+    );
+  }
+
+  async setAvailableForOffers(userId: string, value: boolean): Promise<{ previous: boolean } | null> {
+    const current = await this.getByUserId(userId);
+    if (!current) return null;
+    await this.patch(userId, { availableForOffers: value });
+    return { previous: current.availableForOffers };
+  }
+
   /**
    * Like `findOneAndUpdate` + `$set`: merges only the given keys into whatever is stored
    * *right now*, and does the read and the write in one synchronous step (no `await`

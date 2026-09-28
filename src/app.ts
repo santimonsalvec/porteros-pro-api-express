@@ -16,6 +16,7 @@ import { createGoalkeeperRequestsController } from './controllers/goalkeeperRequ
 import { createAdminController } from './controllers/adminController.js';
 import { createInternalController } from './controllers/internalController.js';
 import { createDevicesController } from './controllers/devicesController.js';
+import { createNotificationsController } from './controllers/notificationsController.js';
 import { openapiSpec } from './infrastructure/openapi/openapiSpec.js';
 
 /**
@@ -39,6 +40,7 @@ export function createApp(deps: AppDependencies): Express {
   app.use('/api/goalkeeper-requests', createGoalkeeperRequestsController(deps));
   app.use('/api/admin', createAdminController(deps));
   app.use('/api/devices', createDevicesController(deps));
+  app.use('/api/notifications', createNotificationsController(deps));
   app.use('/health', createHealthController(deps));
   // Platform-only endpoints (feature 013): outside /api and not in the OpenAPI document.
   app.use('/internal', createInternalController(deps));

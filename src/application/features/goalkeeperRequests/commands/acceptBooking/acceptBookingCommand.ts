@@ -11,6 +11,8 @@ export type AcceptBookingResult =
   | { outcome: 'zone_not_enabled' }
   | { outcome: 'insufficient_funds'; missingAmount: number }
   | { outcome: 'suspended'; suspendedUntil: string }
+  /** The goalkeeper's "available for offers" switch is off (feature 015). */
+  | { outcome: 'not_available_for_offers' }
   | { outcome: 'schedule_conflict'; conflictingBookingId: string }
   | { outcome: 'own_request' }
   | { outcome: 'same_request' }

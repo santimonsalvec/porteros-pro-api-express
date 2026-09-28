@@ -11,6 +11,7 @@ export class GoalkeeperProfileRepository extends MongoRepository<GoalkeeperProfi
 
   async ensureIndexes(): Promise<void> {
     await this.collection.createIndex({ userId: 1 }, { unique: true, name: 'userId_unique' });
+    await this.collection.createIndex({ zoneIds: 1, availableForOffers: 1 }, { name: 'zone_offers' });
   }
 
   protected toDocument(entity: GoalkeeperProfile): Document {
@@ -29,6 +30,7 @@ export class GoalkeeperProfileRepository extends MongoRepository<GoalkeeperProfi
       zoneIds: entity.zoneIds,
       activatedAt: entity.activatedAt,
       suspendedUntil: entity.suspendedUntil,
+      availableForOffers: entity.availableForOffers,
     });
   }
 
@@ -48,6 +50,8 @@ export class GoalkeeperProfileRepository extends MongoRepository<GoalkeeperProfi
       zoneIds: (doc.zoneIds as string[] | undefined) ?? [],
       activatedAt: new Date(doc.activatedAt as string | Date),
       suspendedUntil: doc.suspendedUntil ? new Date(doc.suspendedUntil as string | Date) : null,
+      // Absent on profiles activated before feature 015: on by default (FR-024).
+      availableForOffers: doc.availableForOffers !== false,
     });
   }
 
@@ -65,6 +69,22 @@ export class GoalkeeperProfileRepository extends MongoRepository<GoalkeeperProfi
 
   async updateAvailability(userId: string, cityId: string, zoneIds: string[]): Promise<GoalkeeperProfile | null> {
     return this.setFields(userId, { cityId, zoneIds });
+  }
+
+  async findOfferCandidates(zoneIds: readonly string[]): Promise<GoalkeeperProfile[]> {
+    if (zoneIds.length === 0) return [];
+    // `$ne: false` also matches profiles activated before the switch existed (on by default).
+    const docs = await this.collection.find({ zoneIds: { $in: [...zoneIds] }, availableForOffers: { $ne: false } }).toArray();
+    return docs.map((doc) => this.fromDocument(doc));
+  }
+
+  async setAvailableForOffers(userId: string, value: boolean): Promise<{ previous: boolean } | null> {
+    const before = await this.collection.findOneAndUpdate(
+      { userId },
+      { $set: { availableForOffers: value } },
+      { returnDocument: 'before' },
+    );
+    return before ? { previous: before.availableForOffers !== false } : null;
   }
 
   /** `$set`s only the given keys, so writes to different fields of the same profile never overwrite each other. */

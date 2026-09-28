@@ -77,6 +77,14 @@ export const config = {
     maxDevicesPerUser: Number(optionalEnv('PUSH_MAX_DEVICES_PER_USER', '10')),
     testLimitPerMinute: Number(optionalEnv('PUSH_TEST_LIMIT_PER_MINUTE', '5')),
   },
+  // Offers to eligible goalkeepers (feature 015). Global while Colombia is the only country;
+  // they move to per-country booking settings when a second country launches.
+  offers: {
+    reminderIntervalMinutes: Number(optionalEnv('OFFER_REMINDER_INTERVAL_MINUTES', '5')),
+    maxReminders: Number(optionalEnv('OFFER_MAX_REMINDERS', '3')),
+    /** At most this many open bookings are read by one reminder round. */
+    roundCap: 2000,
+  },
 };
 
 export type EventsMode = 'local' | 'pubsub';
@@ -116,6 +124,19 @@ export function assertPushConfig(): void {
     PUSH_DEVICE_INACTIVITY_DAYS: config.push.inactivityDays,
     PUSH_MAX_DEVICES_PER_USER: config.push.maxDevicesPerUser,
     PUSH_TEST_LIMIT_PER_MINUTE: config.push.testLimitPerMinute,
+  };
+  for (const [name, value] of Object.entries(limits)) {
+    if (!Number.isInteger(value) || value <= 0) {
+      throw new Error(`${name} must be a positive integer, got "${String(value)}"`);
+    }
+  }
+}
+
+/** Fails fast at startup when a reminder setting is not a positive integer. */
+export function assertOffersConfig(): void {
+  const limits: Record<string, number> = {
+    OFFER_REMINDER_INTERVAL_MINUTES: config.offers.reminderIntervalMinutes,
+    OFFER_MAX_REMINDERS: config.offers.maxReminders,
   };
   for (const [name, value] of Object.entries(limits)) {
     if (!Number.isInteger(value) || value <= 0) {

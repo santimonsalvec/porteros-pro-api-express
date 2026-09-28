@@ -127,6 +127,24 @@ import { InMemoryRateLimiter } from '../../src/infrastructure/push/inMemoryRateL
 import { sha256TokenFingerprint } from '../../src/infrastructure/push/tokenRef.js';
 import { FakeDeviceRepository } from '../fakes/fakeDeviceRepository.js';
 import { FakePushSender } from '../fakes/fakePushSender.js';
+import { OfferEligibilityService } from '../../src/application/features/notifications/common/offerEligibilityService.js';
+import { OfferSender } from '../../src/application/features/notifications/common/offerSender.js';
+import { NotifyBookingOffersCommand } from '../../src/application/features/notifications/commands/notifyBookingOffers/notifyBookingOffersCommand.js';
+import { NotifyBookingOffersCommandHandler } from '../../src/application/features/notifications/commands/notifyBookingOffers/notifyBookingOffersCommandHandler.js';
+import { SetOffersAvailabilityCommand } from '../../src/application/features/notifications/commands/setOffersAvailability/setOffersAvailabilityCommand.js';
+import { SetOffersAvailabilityCommandHandler } from '../../src/application/features/notifications/commands/setOffersAvailability/setOffersAvailabilityCommandHandler.js';
+import { OfferRemindersJob } from '../../src/application/features/notifications/jobs/offerRemindersJob.js';
+import { ListNotificationsQuery } from '../../src/application/features/notifications/queries/listNotifications/listNotificationsQuery.js';
+import { ListNotificationsQueryHandler } from '../../src/application/features/notifications/queries/listNotifications/listNotificationsQueryHandler.js';
+import { MarkNotificationReadCommand } from '../../src/application/features/notifications/commands/markNotificationRead/markNotificationReadCommand.js';
+import { MarkNotificationReadCommandHandler } from '../../src/application/features/notifications/commands/markNotificationRead/markNotificationReadCommandHandler.js';
+import { MarkAllNotificationsReadCommand } from '../../src/application/features/notifications/commands/markAllNotificationsRead/markAllNotificationsReadCommand.js';
+import { MarkAllNotificationsReadCommandHandler } from '../../src/application/features/notifications/commands/markAllNotificationsRead/markAllNotificationsReadCommandHandler.js';
+import { DismissOfferCommand } from '../../src/application/features/notifications/commands/dismissOffer/dismissOfferCommand.js';
+import { DismissOfferCommandHandler } from '../../src/application/features/notifications/commands/dismissOffer/dismissOfferCommandHandler.js';
+import { NotifyBookingOffersHandler, OFFER_EVENT_TYPES } from '../../src/application/features/notifications/handlers/notifyBookingOffersHandler.js';
+import { FakeNotificationRepository } from '../fakes/fakeNotificationRepository.js';
+import { FakeOfferPushState } from '../fakes/fakeOfferPushState.js';
 
 export interface TestAppContext {
   /** The app, already listening on 127.0.0.1 (see `listenOnLoopback`); pass it to supertest's `request`. */
@@ -180,6 +198,9 @@ export interface TestAppContext {
   deviceRepository: FakeDeviceRepository;
   /** What reached the push service; `setOutcome(token, 'invalid')` simulates a dead token. */
   pushSender: FakePushSender;
+  /** Every user's inbox, offers included (feature 015). */
+  notificationRepository: FakeNotificationRepository;
+  offerPushState: FakeOfferPushState;
 }
 
 /**
@@ -269,6 +290,30 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
   const pushSender = new FakePushSender();
   const deviceLogger = { info: () => undefined, warn: () => undefined, error: () => undefined };
   const pushNotifier = new PushNotifier({ devices: deviceRepository, sender: pushSender, logger: deviceLogger, fingerprint: sha256TokenFingerprint });
+  const notificationRepository = new FakeNotificationRepository();
+  const offerPushState = new FakeOfferPushState();
+  const offersLogger = { info: () => undefined, warn: () => undefined };
+  const offerEligibility = new OfferEligibilityService({
+    goalkeeperProfileRepository,
+    walletRepository: walletStore,
+    commissionResolver,
+    bookingRepository,
+  });
+  const offerSender = new OfferSender({
+    notifications: notificationRepository,
+    pushState: offerPushState,
+    pushNotifier,
+    idGenerator: { newId: () => uuidv7() },
+    requestRepository,
+    zoneRepository,
+    cityRepository,
+    logger: offersLogger,
+    maxReminders: 3,
+    intervalMinutes: 5,
+  });
+  registerSubscribers(mediator, [
+    ...OFFER_EVENT_TYPES.map((type) => ({ type, handler: new NotifyBookingOffersHandler(mediator, new FakeProcessedEventStore(), clock) })),
+  ]);
   seedQuoteWorld({ countryRepository: quoteCountryRepository, zoneRepository, cityRepository, regionRepository, rentalRateRepository, bookingSettingsRepository, commissionSettingRepository });
 
   const ssoCatalog: ISsoProviderCatalog = {
@@ -296,7 +341,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
         logger: eventLogger,
         batchLimit: 200,
         pendingWarningMinutes: 5,
-        jobs: [],
+        jobs: [new OfferRemindersJob({ bookingRepository, eligibility: offerEligibility, sender: offerSender, logger: offersLogger, roundCap: 2000 })],
         jobLocks: new FakeJobLockStore(),
       }),
     },
@@ -510,6 +555,21 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       handler: new CancelGoalkeeperRegistrationCommandHandler(mediator, goalkeeperRegistrationRepository),
     },
     {
+      requestType: SetOffersAvailabilityCommand,
+      handler: new SetOffersAvailabilityCommandHandler({ goalkeeperProfileRepository, eligibility: offerEligibility, sender: offerSender, clock, logger: offersLogger }),
+    },
+    {
+      requestType: ListNotificationsQuery,
+      handler: new ListNotificationsQueryHandler({ notifications: notificationRepository, eligibility: offerEligibility, clock }),
+    },
+    { requestType: MarkNotificationReadCommand, handler: new MarkNotificationReadCommandHandler(notificationRepository, clock) },
+    { requestType: MarkAllNotificationsReadCommand, handler: new MarkAllNotificationsReadCommandHandler(notificationRepository, clock) },
+    { requestType: DismissOfferCommand, handler: new DismissOfferCommandHandler(notificationRepository, clock) },
+    {
+      requestType: NotifyBookingOffersCommand,
+      handler: new NotifyBookingOffersCommandHandler({ bookingRepository, eligibility: offerEligibility, sender: offerSender, clock, logger: offersLogger }),
+    },
+    {
       requestType: RegisterDeviceCommand,
       handler: new RegisterDeviceCommandHandler({
         devices: deviceRepository,
@@ -574,5 +634,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     mediator,
     deviceRepository,
     pushSender,
+    notificationRepository,
+    offerPushState,
   };
 }
