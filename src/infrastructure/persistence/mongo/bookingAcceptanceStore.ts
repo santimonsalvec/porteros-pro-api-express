@@ -5,8 +5,10 @@ import type {
 } from '../../../application/features/goalkeeperRequests/common/ports.js';
 import type { MovementDraft } from '../../../application/features/wallet/common/ports.js';
 import type { Booking } from '../../../domain/bookings/booking.js';
+import type { DomainEvent } from '../../../domain/events/domainEvent.js';
 import { firstConflict, holdsSameRequest } from '../../../domain/bookings/schedulePolicy.js';
 import { BOOKINGS_COLLECTION, bookingFromDocument } from './bookingRepository.js';
+import { appendEventsInSession } from './outboxStore.js';
 import { appendMovementInSession } from './walletStore.js';
 
 /** Aborts the acceptance transaction with a business outcome; `withTransaction` does not retry it. */
@@ -38,6 +40,7 @@ export class MongoBookingAcceptanceStore implements IBookingAcceptanceStore {
     goalkeeperId: string;
     now: Date;
     commissionDraft: (booking: Booking) => MovementDraft;
+    event: (booking: Booking) => DomainEvent;
   }): Promise<AcceptanceResult> {
     const { bookingId, goalkeeperId, now } = args;
     const bookings = this.db.collection(BOOKINGS_COLLECTION);
@@ -67,7 +70,9 @@ export class MongoBookingAcceptanceStore implements IBookingAcceptanceStore {
           const charge = await appendMovementInSession(this.db, session, args.commissionDraft(booking), now);
           if (charge.kind === 'insufficient_funds') throw new AcceptanceAbort({ kind: 'insufficient_funds', balance: charge.balance });
 
-          return { kind: 'accepted', booking };
+          const event = args.event(booking);
+          await appendEventsInSession(this.db, session, [event], now);
+          return { kind: 'accepted', booking, event };
         },
         { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority' }, readPreference: 'primary' },
       );

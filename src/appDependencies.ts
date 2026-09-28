@@ -1,4 +1,4 @@
-import type { ISender } from './application/common/mediator/types.js';
+import type { IPublisher, ISender } from './application/common/mediator/types.js';
 import type { AccessTokenClaims } from './application/features/auth/common/accessTokenClaims.js';
 import type { HealthReportResponse } from './infrastructure/healthChecks/healthReport.js';
 
@@ -11,4 +11,8 @@ export interface AppDependencies {
   mediator: ISender;
   verifyAccessToken: (token: string) => Promise<AccessTokenClaims | null>;
   checkHealth: () => Promise<HealthReportResponse>;
+  /** Fans an event out to its consumers (feature 013, `/internal/events`). */
+  publisher: IPublisher;
+  /** True only for a platform OIDC token allowed to call `/internal/*` (feature 013). */
+  verifyInternalCaller: (token: string) => Promise<boolean>;
 }

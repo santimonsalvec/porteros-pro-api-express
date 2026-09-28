@@ -10,7 +10,9 @@ import {
 import type { IWalletRepository } from '../../../wallet/common/ports.js';
 import { commissionChargeDraft } from '../../../wallet/common/walletLedger.js';
 import type { IZoneRepository } from '../../../zones/common/ports.js';
+import type { IEventRelay } from '../../../events/common/ports.js';
 import type { Booking } from '../../../../../domain/bookings/booking.js';
+import { goalkeeperAssigned } from '../../../../../domain/events/bookingEvents.js';
 import { canAfford } from '../../../../../domain/wallet/fundsPolicy.js';
 import { loadContacts } from '../../common/contacts.js';
 import { loadBookingItemContext, toAgendaItem } from '../../common/goalkeeperBookingResponse.js';
@@ -34,6 +36,8 @@ export interface AcceptBookingDependencies {
   idGenerator: IIdGenerator;
   clock: IClock;
   audit: IAcceptanceAuditLogger;
+  /** Publishes the recorded "goalkeeper assigned" event before responding (feature 013). */
+  relay: IEventRelay;
 }
 
 /**
@@ -78,9 +82,11 @@ export class AcceptBookingCommandHandler implements ICommandHandler<AcceptBookin
       now,
       commissionDraft: (claimed) =>
         commissionChargeDraft(owner, { bookingId: claimed.id, requestId: claimed.requestId, amount: claimed.commission }, this.deps.idGenerator.newId(), now),
+      event: (assigned) => goalkeeperAssigned(this.deps.idGenerator.newId(), assigned, now),
     });
     switch (result.kind) {
       case 'accepted':
+        await this.deps.relay.relay([result.event]);
         return this.finish(command, { outcome: 'accepted', booking: await this.item(result.booking) }, result.booking);
       case 'same_request':
         return this.finish(command, { outcome: 'same_request' }, booking);

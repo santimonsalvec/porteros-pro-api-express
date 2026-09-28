@@ -4,10 +4,14 @@ import { AcceptBookingCommandHandler } from '../../../../../src/application/feat
 import { requestStatusOf } from '../../../../../src/domain/bookings/requestStatus.js';
 import { FakeAcceptanceAuditLogger } from '../../../../fakes/fakeAcceptanceAuditLogger.js';
 import { FakeBookingAcceptanceStore } from '../../../../fakes/fakeBookingAcceptanceStore.js';
+import { FakeOutboxStore } from '../../../../fakes/fakeOutboxStore.js';
+import { FakeEventRelay } from '../../../../fakes/fakeEventRelay.js';
 import { GoalkeeperBookingHarness, inHours } from './goalkeeperBookingHarness.js';
 
 let h: GoalkeeperBookingHarness;
 let store: FakeBookingAcceptanceStore;
+let outbox: FakeOutboxStore;
+let relay: FakeEventRelay;
 let audit: FakeAcceptanceAuditLogger;
 let handler: AcceptBookingCommandHandler;
 let ids: number;
@@ -17,7 +21,9 @@ const uuid = (n: number) => `01925c00-0000-7000-8000-${String(n).padStart(12, '0
 
 beforeEach(async () => {
   h = new GoalkeeperBookingHarness();
-  store = new FakeBookingAcceptanceStore(h.bookings, h.wallet);
+  outbox = new FakeOutboxStore();
+  relay = new FakeEventRelay();
+  store = new FakeBookingAcceptanceStore(h.bookings, h.wallet, outbox);
   audit = new FakeAcceptanceAuditLogger();
   ids = 0;
   handler = new AcceptBookingCommandHandler({
@@ -32,6 +38,7 @@ beforeEach(async () => {
     idGenerator: { newId: () => `move-${++ids}` },
     clock: h.clock,
     audit,
+    relay,
   });
   await h.credit(20000);
 });
@@ -217,5 +224,41 @@ describe('AcceptBookingCommandHandler — US4: clear refusals that change nothin
     const [bookingId] = match(1, 5);
 
     expect(await accept(bookingId!, 'someone')).toEqual({ outcome: 'not_a_goalkeeper' });
+  });
+});
+
+describe('AcceptBookingCommandHandler — 013 US1: an acceptance records its event', () => {
+  const events = () => outbox.all().map((entry) => entry.event);
+
+  it('records one goalkeeper.assigned with the goalkeeper and the commission charged', async () => {
+    const [bookingId] = match(1, 5);
+
+    await accept(bookingId!);
+
+    expect(events()).toEqual([
+      expect.objectContaining({
+        type: 'goalkeeper.assigned',
+        bookingId,
+        requestId: uuid(1),
+        occurredAt: h.clock.now(),
+        payload: expect.objectContaining({ goalkeeperId: 'gk-1', clientId: 'client-a', commission: 7000 }),
+      }),
+    ]);
+  });
+
+  it('records nothing on a repeat or a refusal', async () => {
+    const [bookingId] = match(1, 5);
+    await accept(bookingId!);
+    h.addGoalkeeper('gk-2');
+    await h.credit(20000, 'gk-2');
+    const [clash] = match(2, 5.5);
+
+    await accept(bookingId!); // replay
+    await accept(bookingId!, 'gk-2'); // taken
+    await accept(clash!); // schedule conflict
+
+    expect(events()).toHaveLength(1);
+    // 013 US2: only the successful acceptance was relayed.
+    expect(relay.calls.map((batch) => batch.map((event) => event.type))).toEqual([['goalkeeper.assigned']]);
   });
 });

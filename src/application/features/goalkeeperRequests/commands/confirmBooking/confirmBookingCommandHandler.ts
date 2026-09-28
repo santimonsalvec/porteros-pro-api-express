@@ -2,6 +2,7 @@ import { validate as isUuid } from 'uuid';
 import type { IClock } from '../../../../common/clock.js';
 import type { ICommandHandler } from '../../../../common/mediator/types.js';
 import type { IIdGenerator, IUserRepository } from '../../../auth/common/ports.js';
+import type { IEventRelay } from '../../../events/common/ports.js';
 import type {
   IBookingAuditLogger,
   IBookingRepository,
@@ -13,6 +14,7 @@ import { loadContacts } from '../../common/contacts.js';
 import { assignedGoalkeeperIds, toRequestResponse } from '../../common/requestResponse.js';
 import { Booking } from '../../../../../domain/bookings/booking.js';
 import { GoalkeeperRequest } from '../../../../../domain/bookings/goalkeeperRequest.js';
+import { bookingCreated } from '../../../../../domain/events/bookingEvents.js';
 import { ConfirmBookingCommand, type ConfirmBookingResult } from './confirmBookingCommand.js';
 
 /**
@@ -33,6 +35,7 @@ export class ConfirmBookingCommandHandler implements ICommandHandler<
     private readonly idGenerator: IIdGenerator,
     private readonly clock: IClock,
     private readonly audit: IBookingAuditLogger,
+    private readonly relay: IEventRelay,
   ) {}
 
   async handle(command: ConfirmBookingCommand): Promise<ConfirmBookingResult> {
@@ -54,10 +57,13 @@ export class ConfirmBookingCommandHandler implements ICommandHandler<
       const bookings = Array.from({ length: request.goalkeeperCount }, () =>
         Booking.forRequest(this.idGenerator.newId(), request, now),
       );
-      return { request, bookings };
+      const events = bookings.map((booking) => bookingCreated(this.idGenerator.newId(), booking, request, now));
+      return { request, bookings, events };
     });
     switch (claim.kind) {
       case 'created':
+        // Published before responding; never fails the confirmation (feature 013).
+        await this.relay.relay(claim.events);
         return this.finish(command, {
           outcome: 'created',
           request: toRequestResponse(claim.request, claim.bookings, now),

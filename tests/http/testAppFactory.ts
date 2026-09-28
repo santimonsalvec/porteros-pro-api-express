@@ -3,7 +3,17 @@ import { v7 as uuidv7 } from 'uuid';
 import { createApp } from '../../src/app.js';
 import { listenOnLoopback } from './testServers.js';
 import type { AppDependencies } from '../../src/appDependencies.js';
-import { Mediator, registerHandlers } from '../../src/application/common/mediator/mediator.js';
+import { Mediator, registerHandlers, registerSubscribers } from '../../src/application/common/mediator/mediator.js';
+import { DELIVERY_LOG_EVENT_TYPES, LogEventDeliveryHandler } from '../../src/application/features/events/handlers/logEventDelivery.js';
+import { InProcessEventPublisher } from '../../src/infrastructure/events/inProcessEventPublisher.js';
+import { FakeEventDeliveryLog } from '../fakes/fakeEventDeliveryLog.js';
+import { FakeProcessedEventStore } from '../fakes/fakeProcessedEventStore.js';
+import { FakeOutboxStore } from '../fakes/fakeOutboxStore.js';
+import { FakeEventPublisher } from '../fakes/fakeEventPublisher.js';
+import { FakeJobLockStore } from '../fakes/fakeJobLockStore.js';
+import { EventRelay } from '../../src/application/features/events/common/eventRelay.js';
+import { RunSweepCommand } from '../../src/application/features/events/commands/runSweep/runSweepCommand.js';
+import { RunSweepCommandHandler } from '../../src/application/features/events/commands/runSweep/runSweepCommandHandler.js';
 import { GetSsoOptionsQuery } from '../../src/application/features/auth/queries/getSsoOptions/getSsoOptionsQuery.js';
 import { GetSsoOptionsQueryHandler } from '../../src/application/features/auth/queries/getSsoOptions/getSsoOptionsQueryHandler.js';
 import { ExchangeSsoCredentialCommand } from '../../src/application/features/auth/commands/exchangeSsoCredential/exchangeSsoCredentialCommand.js';
@@ -147,6 +157,14 @@ export interface TestAppContext {
   commissionSettingRepository: FakeCommissionSettingRepository;
   /** The real ledger over the fake store: tests seed movements through it. */
   walletLedger: WalletLedger;
+  /** Events recorded by confirmations and acceptances (feature 013). */
+  outboxStore: FakeOutboxStore;
+  /** What the relay and the sweep handed to the messaging service; `failNextWith` simulates an outage. */
+  eventPublisher: FakeEventPublisher;
+  /** What the example consumer recorded (feature 013). */
+  eventDeliveryLog: FakeEventDeliveryLog;
+  /** The composition root's mediator, to send commands (e.g. the sweep) directly. */
+  mediator: Mediator;
 }
 
 /**
@@ -154,7 +172,18 @@ export interface TestAppContext {
  * source's `WebApplicationFactory` + `ConfigureTestServices`/`RemoveAll<T>()`. Grows
  * incrementally as each user story adds its own handlers/registrations.
  */
-export async function buildTestApp(): Promise<TestAppContext> {
+export interface BuildTestAppOptions {
+  /**
+   * `local` wires the relay to the in-process publisher (events reach the consumers during the
+   * request, as in local development); by default the relay hands events to `eventPublisher`.
+   */
+  eventsMode?: 'fake' | 'local';
+}
+
+/** The only token `/internal/*` accepts in HTTP tests (stands in for a platform OIDC token). */
+export const TEST_INTERNAL_TOKEN = 'test-internal-token';
+
+export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<TestAppContext> {
   const mediator = new Mediator();
   const userRepository = new FakeUserRepository();
   const refreshTokenRepository = new FakeRefreshTokenRepository();
@@ -208,7 +237,18 @@ export async function buildTestApp(): Promise<TestAppContext> {
   const quoteRepository = new FakeQuoteRepository();
   const requestRepository = new FakeGoalkeeperRequestRepository();
   const bookingRepository = new FakeBookingRepository();
-  const quoteConfirmationStore = new FakeQuoteConfirmationStore(quoteRepository, requestRepository, bookingRepository);
+  const outboxStore = new FakeOutboxStore();
+  const eventPublisher = new FakeEventPublisher();
+  const eventLogger = { info: () => undefined, warn: () => undefined };
+  const relayPublisher = options.eventsMode === 'local' ? new InProcessEventPublisher(mediator) : eventPublisher;
+  const eventRelay = new EventRelay(relayPublisher, outboxStore, clock, eventLogger, 2000);
+  const eventDeliveryLog = new FakeEventDeliveryLog();
+  const deliveryLogHandler = new LogEventDeliveryHandler(eventDeliveryLog, new FakeProcessedEventStore(), clock, eventLogger);
+  registerSubscribers(
+    mediator,
+    DELIVERY_LOG_EVENT_TYPES.map((type) => ({ type, handler: deliveryLogHandler })),
+  );
+  const quoteConfirmationStore = new FakeQuoteConfirmationStore(quoteRepository, requestRepository, bookingRepository, outboxStore);
   const bookingAuditLogger = new FakeBookingAuditLogger();
   seedQuoteWorld({ countryRepository: quoteCountryRepository, zoneRepository, cityRepository, regionRepository, rentalRateRepository, bookingSettingsRepository, commissionSettingRepository });
 
@@ -228,6 +268,19 @@ export async function buildTestApp(): Promise<TestAppContext> {
   const uuidGenerator = { newId: (): string => uuidv7() };
 
   registerHandlers(mediator, [
+    {
+      requestType: RunSweepCommand,
+      handler: new RunSweepCommandHandler({
+        outbox: outboxStore,
+        publisher: eventPublisher,
+        clock,
+        logger: eventLogger,
+        batchLimit: 200,
+        pendingWarningMinutes: 5,
+        jobs: [],
+        jobLocks: new FakeJobLockStore(),
+      }),
+    },
     { requestType: GetSsoOptionsQuery, handler: new GetSsoOptionsQueryHandler(ssoCatalog) },
     {
       requestType: ExchangeSsoCredentialCommand,
@@ -313,6 +366,7 @@ export async function buildTestApp(): Promise<TestAppContext> {
         uuidGenerator,
         clock,
         bookingAuditLogger,
+        eventRelay,
       ),
     },
     {
@@ -353,10 +407,11 @@ export async function buildTestApp(): Promise<TestAppContext> {
         zoneRepository,
         cityRepository,
         userRepository,
-        store: new FakeBookingAcceptanceStore(bookingRepository, walletStore),
+        store: new FakeBookingAcceptanceStore(bookingRepository, walletStore, outboxStore),
         idGenerator: uuidGenerator,
         clock,
         audit: new FakeAcceptanceAuditLogger(),
+        relay: eventRelay,
       }),
     },
     {
@@ -443,6 +498,8 @@ export async function buildTestApp(): Promise<TestAppContext> {
     mediator,
     verifyAccessToken: (token) => tokenIssuer.verifyAccessToken(token),
     checkHealth: async () => health,
+    publisher: mediator,
+    verifyInternalCaller: async (token) => token === TEST_INTERNAL_TOKEN,
   };
 
   return {
@@ -474,5 +531,9 @@ export async function buildTestApp(): Promise<TestAppContext> {
     walletStore,
     commissionSettingRepository,
     walletLedger,
+    outboxStore,
+    eventPublisher,
+    eventDeliveryLog,
+    mediator,
   };
 }

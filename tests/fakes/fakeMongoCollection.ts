@@ -21,6 +21,7 @@ export interface FakeMongoCollection {
   countDocuments: Mock;
   dropIndex: Mock;
   insertMany: Mock;
+  updateMany: Mock;
 }
 
 export function createFakeCollection(): FakeMongoCollection {
@@ -38,6 +39,7 @@ export function createFakeCollection(): FakeMongoCollection {
     countDocuments: vi.fn(),
     dropIndex: vi.fn(),
     insertMany: vi.fn(),
+    updateMany: vi.fn(),
   };
 }
 

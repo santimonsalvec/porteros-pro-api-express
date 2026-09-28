@@ -30,3 +30,22 @@ export type RequestConstructor = new (...args: any[]) => IBaseRequest<unknown>;
 export interface ISender {
   send<TResponse>(request: IBaseRequest<TResponse>): Promise<TResponse>;
 }
+
+/**
+ * Something that happened, published to every handler subscribed to its `type` (feature 013).
+ * Unlike commands and queries, a notification has zero or many handlers and no response.
+ */
+export interface INotification {
+  readonly type: string;
+}
+
+export interface INotificationHandler<TNotification extends INotification> {
+  /** Unique per notification type; also the consumer name used for idempotency. */
+  readonly name: string;
+  handle(notification: TNotification): Promise<void>;
+}
+
+export interface IPublisher {
+  /** Runs every handler of the notification's type (only the named one with `only`). */
+  publish(notification: INotification, options?: { only?: string }): Promise<void>;
+}
