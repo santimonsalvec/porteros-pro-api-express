@@ -33,6 +33,17 @@ import { IssueServiceQuoteCommandHandler } from '../../src/application/features/
 import { FakeQuoteRepository } from '../fakes/fakeQuoteRepository.js';
 import { FakeGoalkeeperRequestRepository } from '../fakes/fakeGoalkeeperRequestRepository.js';
 import { FakeBookingRepository } from '../fakes/fakeBookingRepository.js';
+import { FakeWalletStore } from '../fakes/fakeWalletStore.js';
+import { FakeCommissionSettingRepository } from '../fakes/fakeCommissionSettingRepository.js';
+import { CommissionSetting } from '../../src/domain/wallet/commissionSetting.js';
+import { CommissionResolver } from '../../src/application/features/wallet/common/commissionResolver.js';
+import { WalletLedger } from '../../src/application/features/wallet/common/walletLedger.js';
+import { RecordWalletAdjustmentCommand } from '../../src/application/features/wallet/commands/recordWalletAdjustment/recordWalletAdjustmentCommand.js';
+import { RecordWalletAdjustmentCommandHandler } from '../../src/application/features/wallet/commands/recordWalletAdjustment/recordWalletAdjustmentCommandHandler.js';
+import { GetGoalkeeperWalletQuery } from '../../src/application/features/wallet/queries/getGoalkeeperWallet/getGoalkeeperWalletQuery.js';
+import { GetGoalkeeperWalletQueryHandler } from '../../src/application/features/wallet/queries/getGoalkeeperWallet/getGoalkeeperWalletQueryHandler.js';
+import { ListWalletMovementsQuery } from '../../src/application/features/wallet/queries/listWalletMovements/listWalletMovementsQuery.js';
+import { ListWalletMovementsQueryHandler } from '../../src/application/features/wallet/queries/listWalletMovements/listWalletMovementsQueryHandler.js';
 import { FakeQuoteConfirmationStore } from '../fakes/fakeQuoteConfirmationStore.js';
 import { FakeBookingAuditLogger } from '../fakes/fakeBookingAuditLogger.js';
 import { ConfirmBookingCommand } from '../../src/application/features/goalkeeperRequests/commands/confirmBooking/confirmBookingCommand.js';
@@ -123,6 +134,12 @@ export interface TestAppContext {
   clock: FixedClock;
   /** Mutate `.status` before a request to simulate an unhealthy dependency. */
   health: HealthReportResponse;
+  /** The wallet ledger state (movements and wallets) behind `/me/wallet` and `/api/admin/…/wallet`. */
+  walletStore: FakeWalletStore;
+  /** Seeded with Colombia at 7.000 COP (country level). */
+  commissionSettingRepository: FakeCommissionSettingRepository;
+  /** The real ledger over the fake store: tests seed movements through it. */
+  walletLedger: WalletLedger;
 }
 
 /**
@@ -176,6 +193,12 @@ export async function buildTestApp(): Promise<TestAppContext> {
   const rentalRateRepository = new FakeRentalRateRepository();
   const bookingSettingsRepository = new FakeBookingSettingsRepository();
   const clock = new FixedClock(QUOTE_NOW);
+  const walletStore = new FakeWalletStore(() => clock.now());
+  const commissionSettingRepository = new FakeCommissionSettingRepository();
+  commissionSettingRepository.seed(new CommissionSetting({ id: 'commission-co', scope: 'country', refId: 'country-co', amount: 7000 }));
+  const walletLedger = new WalletLedger(walletStore, walletStore, { newId: () => uuidv7() }, clock);
+  const walletContext = { goalkeeperProfileRepository, cityRepository, regionRepository, countryLookup: quoteCountryRepository };
+  const commissionResolver = new CommissionResolver(commissionSettingRepository, zoneRepository, cityRepository, regionRepository);
   const quoteRepository = new FakeQuoteRepository();
   const requestRepository = new FakeGoalkeeperRequestRepository();
   const bookingRepository = new FakeBookingRepository();
@@ -298,6 +321,18 @@ export async function buildTestApp(): Promise<TestAppContext> {
       handler: new DeleteImageCommandHandler(imageStorageProvider, imageRepository),
     },
     {
+      requestType: GetGoalkeeperWalletQuery,
+      handler: new GetGoalkeeperWalletQueryHandler(walletContext, walletStore, commissionResolver, clock),
+    },
+    {
+      requestType: RecordWalletAdjustmentCommand,
+      handler: new RecordWalletAdjustmentCommandHandler(walletContext, walletLedger, walletStore),
+    },
+    {
+      requestType: ListWalletMovementsQuery,
+      handler: new ListWalletMovementsQueryHandler(goalkeeperProfileRepository, walletStore, walletStore),
+    },
+    {
       requestType: GetGoalkeeperRegistrationQuery,
       handler: new GetGoalkeeperRegistrationQueryHandler(
         goalkeeperRegistrationRepository,
@@ -380,5 +415,8 @@ export async function buildTestApp(): Promise<TestAppContext> {
     bookingAuditLogger,
     clock,
     health,
+    walletStore,
+    commissionSettingRepository,
+    walletLedger,
   };
 }

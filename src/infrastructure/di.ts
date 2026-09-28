@@ -60,6 +60,18 @@ import { UserRepository } from './persistence/mongo/userRepository.js';
 import { RefreshTokenRepository } from './persistence/mongo/refreshTokenRepository.js';
 import { TermsAcceptanceRepository } from './persistence/mongo/termsAcceptanceRepository.js';
 import { CountryRepository } from './persistence/mongo/countryRepository.js';
+import { CommissionResolver } from '../application/features/wallet/common/commissionResolver.js';
+import { WalletLedger } from '../application/features/wallet/common/walletLedger.js';
+import { RecordWalletAdjustmentCommand } from '../application/features/wallet/commands/recordWalletAdjustment/recordWalletAdjustmentCommand.js';
+import { RecordWalletAdjustmentCommandHandler } from '../application/features/wallet/commands/recordWalletAdjustment/recordWalletAdjustmentCommandHandler.js';
+import { GetGoalkeeperWalletQuery } from '../application/features/wallet/queries/getGoalkeeperWallet/getGoalkeeperWalletQuery.js';
+import { GetGoalkeeperWalletQueryHandler } from '../application/features/wallet/queries/getGoalkeeperWallet/getGoalkeeperWalletQueryHandler.js';
+import { ListWalletMovementsQuery } from '../application/features/wallet/queries/listWalletMovements/listWalletMovementsQuery.js';
+import { ListWalletMovementsQueryHandler } from '../application/features/wallet/queries/listWalletMovements/listWalletMovementsQueryHandler.js';
+import { CommissionSettingRepository } from './persistence/mongo/commissionSettingRepository.js';
+import { WalletMovementRepository } from './persistence/mongo/walletMovementRepository.js';
+import { WalletRepository } from './persistence/mongo/walletRepository.js';
+import { MongoWalletStore } from './persistence/mongo/walletStore.js';
 import { CityRepository } from './persistence/mongo/cityRepository.js';
 import { RegionRepository } from './persistence/mongo/regionRepository.js';
 import { ZoneRepository } from './persistence/mongo/zoneRepository.js';
@@ -125,6 +137,13 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   const bookingRepository = new BookingRepository(db);
   await bookingRepository.ensureIndexes();
   const quoteConfirmationStore = new MongoQuoteConfirmationStore(() => connectionProvider.startSession(), db);
+  const walletRepository = new WalletRepository(db);
+  const walletMovementRepository = new WalletMovementRepository(db);
+  await walletMovementRepository.ensureIndexes();
+  const commissionSettingRepository = new CommissionSettingRepository(db);
+  await commissionSettingRepository.ensureIndexes();
+  const commissionResolver = new CommissionResolver(commissionSettingRepository, zoneRepository, cityRepository, regionRepository);
+  const walletContext = { goalkeeperProfileRepository, cityRepository, regionRepository, countryLookup: countryRepository };
 
   const imageStorageProvider = new CloudinaryImageStorageProvider({
     cloudinaryUrl: config.images.cloudinaryUrl,
@@ -147,6 +166,8 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   const auditLogger = new PinoAuditLogger();
   const idGenerator = new UuidIdGenerator();
   const clock = new SystemClock();
+  const walletStore = new MongoWalletStore(() => connectionProvider.startSession(), db, () => clock.now());
+  const walletLedger = new WalletLedger(walletStore, walletMovementRepository, idGenerator, clock);
   const refreshTokenLifetimeMs = config.jwt.refreshTokenLifetimeDays * 24 * 60 * 60 * 1000;
   const mongoHealthCheck = new MongoHealthCheck(db);
 
@@ -251,6 +272,18 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     {
       requestType: DeleteImageCommand,
       handler: new DeleteImageCommandHandler(imageStorageProvider, imageRepository),
+    },
+    {
+      requestType: GetGoalkeeperWalletQuery,
+      handler: new GetGoalkeeperWalletQueryHandler(walletContext, walletRepository, commissionResolver, clock),
+    },
+    {
+      requestType: RecordWalletAdjustmentCommand,
+      handler: new RecordWalletAdjustmentCommandHandler(walletContext, walletLedger, walletRepository),
+    },
+    {
+      requestType: ListWalletMovementsQuery,
+      handler: new ListWalletMovementsQueryHandler(goalkeeperProfileRepository, walletRepository, walletMovementRepository),
     },
     {
       requestType: GetGoalkeeperRegistrationQuery,

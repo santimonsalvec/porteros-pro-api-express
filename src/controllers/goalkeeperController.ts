@@ -24,6 +24,7 @@ import { saveAvailabilitySectionRequestSchema } from './requests/goalkeepers/sav
 import { updateGoalkeeperPhysicalDataRequestSchema } from './requests/goalkeepers/updateGoalkeeperPhysicalDataRequest.js';
 import { updateGoalkeeperAvailabilityRequestSchema } from './requests/goalkeepers/updateGoalkeeperAvailabilityRequest.js';
 import { ApiError } from './apiError.js';
+import { sendMovements, sendWallet } from './wallet/walletHttp.js';
 
 /** Same accepted formats as `/api/images` (research.md §11) — no goalkeeper-specific override. */
 const ALLOWED_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']);
@@ -275,6 +276,15 @@ export function createGoalkeeperController(deps: GoalkeeperControllerDependencie
       res.status(200).json(Object.keys(fieldErrors).length > 0 ? { ...latestRegistration, fieldErrors } : latestRegistration);
     },
   );
+
+  // The goalkeeper's wallet (feature 011). The goalkeeper is always the token's subject.
+  router.get('/me/wallet', async (req, res) => {
+    await sendWallet(deps.mediator, req.authClaims!.sub, res);
+  });
+
+  router.get('/me/wallet/movements', async (req, res) => {
+    await sendMovements(deps.mediator, req.authClaims!.sub, 'goalkeeper', req, res);
+  });
 
   return router;
 }
