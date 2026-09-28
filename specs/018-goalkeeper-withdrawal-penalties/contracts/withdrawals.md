@@ -96,7 +96,7 @@ The answer is the same when nothing was left to reverse (idempotent: no second r
 | `400 validation_failed` | Missing or invalid reason, or neither action requested |
 | `404 goalkeeper_not_found` | |
 | `404 withdrawal_not_found` | Unknown, or another goalkeeper's |
-| `409 wallet_not_configured` + `{ cityId }` | A refund is asked but the goalkeeper's wallet context can't be resolved |
+| `422 wallet_not_configured` | A refund is asked but the goalkeeper's wallet context can't be resolved |
 | `409 missing_charge` + `{ bookingId }` | The booking has no commission charge (data problem); nothing changed |
 
 **Side effects**:
