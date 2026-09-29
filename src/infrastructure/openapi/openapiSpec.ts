@@ -212,8 +212,19 @@ export const openapiSpec = {
                 format: 'date-time',
                 description: "From when the client's name and WhatsApp are shown (one hour before the match in Colombia)",
               },
+              checkIn: {
+                type: 'object',
+                nullable: true,
+                description: 'The goalkeeper\u2019s check-in (feature 020), with their distance to the pitch (null without a location)',
+                properties: {
+                  at: { type: 'string', format: 'date-time' },
+                  photoUrl: { type: 'string' },
+                  distanceMeters: { type: 'integer', nullable: true },
+                },
+                required: ['at', 'photoUrl', 'distanceMeters'],
+              },
             },
-            required: ['status', 'assignedAt', 'latitude', 'longitude', 'client', 'clientContactVisibleFrom'],
+            required: ['status', 'assignedAt', 'latitude', 'longitude', 'client', 'clientContactVisibleFrom', 'checkIn'],
           },
         ],
       },
@@ -445,8 +456,15 @@ export const openapiSpec = {
             description: 'The goalkeeper who took this booking; null while nobody has, and until contactsVisibleFrom (feature 019)',
           },
           assignedAt: { type: 'string', format: 'date-time', nullable: true },
+          checkIn: {
+            type: 'object',
+            nullable: true,
+            description: 'When the goalkeeper checked in and the photo (feature 020). The location is never shown to the client',
+            properties: { at: { type: 'string', format: 'date-time' }, photoUrl: { type: 'string' } },
+            required: ['at', 'photoUrl'],
+          },
         },
-        required: ['bookingId', 'status', 'unitRate', 'unitSurcharge', 'total', 'currency', 'createdAt', 'goalkeeper', 'assignedAt'],
+        required: ['bookingId', 'status', 'unitRate', 'unitSurcharge', 'total', 'currency', 'createdAt', 'goalkeeper', 'assignedAt', 'checkIn'],
       },
       RequestResponse: {
         type: 'object',
@@ -1362,6 +1380,49 @@ export const openapiSpec = {
           '404': { description: 'goalkeeper_not_found' },
           '409': { description: 'insufficient_funds: the debit would leave the balance below zero (includes balance)', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
           '422': { description: 'wallet_not_configured' },
+        },
+      },
+    },
+    '/api/goalkeepers/me/bookings/{bookingId}/check-in': {
+      post: {
+        summary: 'Confirm arrival at the pitch with a photo (feature 020)',
+        description:
+          'Upload the photo first with POST /api/images, then send its id. Allowed from start − 30 min to start + 15 min (per country, inclusive, platform clock); no check-in after the window. The location is optional evidence and never blocks. Repeating it answers the recorded check-in.',
+        tags: ['Goalkeeper bookings'],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'bookingId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  imageId: { type: 'string', description: 'An image uploaded by the caller' },
+                  location: {
+                    type: 'object',
+                    properties: {
+                      latitude: { type: 'number', minimum: -90, maximum: 90 },
+                      longitude: { type: 'number', minimum: -180, maximum: 180 },
+                      accuracyMeters: { type: 'number', minimum: 0 },
+                    },
+                    required: ['latitude', 'longitude'],
+                  },
+                },
+                required: ['imageId'],
+              },
+            },
+          },
+        },
+        responses: {
+          '200': { description: 'Checked in now or already: the agenda item with checkIn', content: { 'application/json': { schema: { $ref: '#/components/schemas/AgendaItem' } } } },
+          '400': { description: 'validation_failed, or invalid_photo (missing, or not uploaded by the caller)', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '401': { description: 'Not signed in' },
+          '404': { description: 'goalkeeper_not_found, or booking_not_found (unknown, or never theirs)', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '409': {
+            description: 'booking_not_assigned (status), check_in_not_open (opensAt) or check_in_closed (closedAt)',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
         },
       },
     },

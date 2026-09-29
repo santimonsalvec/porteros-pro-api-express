@@ -73,6 +73,18 @@ const eventSchema = z.discriminatedUnion('type', [
       penalties: z.array(z.object({ kind: z.enum(['late', 'weekly_limit']), days: z.number().int(), endsAt: isoDate })),
     }),
   }),
+  z.object({
+    ...envelopeFields,
+    type: z.literal('goalkeeper.checked_in'),
+    payload: z.object({
+      goalkeeperId: z.string(),
+      clientId: z.string(),
+      zoneId: z.string(),
+      startsAt: isoDate,
+      checkedInAt: isoDate,
+      distanceMeters: z.number().nullable(),
+    }),
+  }),
 ]);
 
 /**

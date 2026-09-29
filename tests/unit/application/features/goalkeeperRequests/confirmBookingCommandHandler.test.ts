@@ -96,6 +96,7 @@ describe('ConfirmBookingCommandHandler — Story 1: book at exactly the quoted p
           createdAt: '2026-09-21T18:01:00.000Z',
           goalkeeper: null,
           assignedAt: null,
+          checkIn: null,
         })),
       },
     });

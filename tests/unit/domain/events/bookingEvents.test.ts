@@ -128,4 +128,25 @@ describe('booking events', () => {
     expect(bookingCreated('ev-5', replacement, request, AT).payload.replacesBookingId).toBe(held.id);
     expect(bookingCreated('ev-6', booking!, request, AT).payload).not.toHaveProperty('replacesBookingId');
   });
+
+  it('describes a check-in, and refuses a booking without one (feature 020)', async () => {
+    const { goalkeeperCheckedIn } = await import('../../../../src/domain/events/bookingEvents.js');
+    const { Booking } = await import('../../../../src/domain/bookings/booking.js');
+    const held = booking!.assign('gk-1', AT);
+    const checkedIn = Booking.rehydrate({
+      ...held,
+      checkIn: { at: AT, imageId: 'img-1', photoUrl: 'https://img/1', location: null, distanceMeters: 35 },
+    });
+
+    expect(goalkeeperCheckedIn('ev-9', checkedIn, AT)).toEqual({
+      id: 'ev-9',
+      type: 'goalkeeper.checked_in',
+      version: 1,
+      occurredAt: AT,
+      bookingId: held.id,
+      requestId: 'req-1',
+      payload: { goalkeeperId: 'gk-1', clientId: held.clientId, zoneId: held.zoneId, startsAt: held.startsAt, checkedInAt: AT, distanceMeters: 35 },
+    });
+    expect(() => goalkeeperCheckedIn('ev-10', held, AT)).toThrow(/no check-in/);
+  });
 });

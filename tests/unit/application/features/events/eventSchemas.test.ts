@@ -90,4 +90,14 @@ describe('event parsing at the edge', () => {
     expect(parseEvent({ ...withdrew, payload: { ...withdrew.payload, replacementBookingId: null, suspendedUntil: null, penalties: [] } })).not.toBeNull();
     expect(parseEvent({ ...created, payload: { ...created.payload, replacesBookingId: 'b-0' } })).toMatchObject({ payload: { replacesBookingId: 'b-0' } });
   });
+
+  it('parses a check-in (feature 020)', () => {
+    const checkedIn = {
+      ...created,
+      id: 'ev-11',
+      type: 'goalkeeper.checked_in',
+      payload: { goalkeeperId: 'gk-1', clientId: 'c-1', zoneId: 'z-1', startsAt: '2026-09-29T20:00:00.000Z', checkedInAt: '2026-09-29T19:45:00.000Z', distanceMeters: null },
+    };
+    expect(parseEvent(checkedIn)).toMatchObject({ type: 'goalkeeper.checked_in', payload: { checkedInAt: new Date('2026-09-29T19:45:00.000Z'), distanceMeters: null } });
+  });
 });

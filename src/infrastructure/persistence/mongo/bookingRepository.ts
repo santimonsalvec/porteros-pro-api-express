@@ -1,9 +1,13 @@
 import type { Collection, Db, Document } from 'mongodb';
-import type { IBookingRepository } from '../../../application/features/goalkeeperRequests/common/ports.js';
-import { Booking, type BookingEndedBy, type BookingEndReason, type BookingStatus } from '../../../domain/bookings/booking.js';
+import type { CheckInNoticeField, IBookingRepository } from '../../../application/features/goalkeeperRequests/common/ports.js';
+import { Booking, type BookingEndedBy, type BookingEndReason, type BookingStatus, type CheckIn } from '../../../domain/bookings/booking.js';
 import { GoalkeeperPrice } from '../../../domain/bookings/goalkeeperPrice.js';
 
 export const BOOKINGS_COLLECTION = 'bookings';
+
+/** The check-in watch covers the configurable window maximums (120 min before, 60 after). */
+const CHECK_IN_WATCH_BEFORE_MS = 60 * 60_000;
+const CHECK_IN_WATCH_AHEAD_MS = 120 * 60_000;
 
 /**
  * Indexes of the pre-010 shape (one booking per match). Their rules moved to the request, and
@@ -39,6 +43,10 @@ export function bookingToDocument(booking: Booking): Document {
     cancellationNote: booking.cancellationNote,
     replacesBookingId: booking.replacesBookingId,
     excludedGoalkeeperIds: [...booking.excludedGoalkeeperIds],
+    checkIn: booking.checkIn,
+    checkInOpenNoticeAt: booking.checkInOpenNoticeAt,
+    checkInLastCallAt: booking.checkInLastCallAt,
+    checkInMissedAt: booking.checkInMissedAt,
   };
 }
 
@@ -70,6 +78,10 @@ export function bookingFromDocument(doc: Document): Booking {
     cancellationNote: (doc.cancellationNote as string | null | undefined) ?? null,
     replacesBookingId: (doc.replacesBookingId as string | null | undefined) ?? null,
     excludedGoalkeeperIds: (doc.excludedGoalkeeperIds as string[] | undefined) ?? [],
+    checkIn: (doc.checkIn as CheckIn | null | undefined) ?? null,
+    checkInOpenNoticeAt: (doc.checkInOpenNoticeAt as Date | null | undefined) ?? null,
+    checkInLastCallAt: (doc.checkInLastCallAt as Date | null | undefined) ?? null,
+    checkInMissedAt: (doc.checkInMissedAt as Date | null | undefined) ?? null,
   });
 }
 
@@ -96,6 +108,7 @@ export class BookingRepository implements IBookingRepository {
     await this.collection.createIndex({ status: 1, zoneId: 1, startsAt: 1, _id: 1 }, { name: 'status_zone_start' });
     await this.collection.createIndex({ goalkeeperId: 1, startsAt: 1, _id: 1 }, { name: 'goalkeeper_start' });
     await this.collection.createIndex({ status: 1, searchEndsAt: 1 }, { name: 'status_searchEnds' });
+    await this.collection.createIndex({ status: 1, startsAt: 1 }, { name: 'status_startsAt' });
   }
 
   async findById(id: string): Promise<Booking | null> {
@@ -147,6 +160,23 @@ export class BookingRepository implements IBookingRepository {
       .limit(cap)
       .toArray();
     return docs.map(bookingFromDocument);
+  }
+
+  async findForCheckInWatch(now: Date, cap: number): Promise<Booking[]> {
+    const docs = await this.collection
+      .find({
+        status: 'assigned',
+        startsAt: { $gt: new Date(now.getTime() - CHECK_IN_WATCH_BEFORE_MS), $lte: new Date(now.getTime() + CHECK_IN_WATCH_AHEAD_MS) },
+      })
+      .sort({ startsAt: 1, _id: 1 })
+      .limit(cap)
+      .toArray();
+    return docs.map(bookingFromDocument);
+  }
+
+  async markCheckInNotice(bookingId: string, field: CheckInNoticeField, now: Date): Promise<boolean> {
+    const result = await this.collection.updateOne({ _id: bookingId, [field]: null } as Document, { $set: { [field]: now } });
+    return result.modifiedCount === 1;
   }
 
   async findAssignedToGoalkeeper(goalkeeperId: string): Promise<Booking[]> {

@@ -25,4 +25,10 @@ export class FakeBookingAuditLogger implements IBookingAuditLogger {
   logPenaltyReversal(entry: { outcome: string; adminId: string; goalkeeperId: string; withdrawalId: string }): void {
     this.reversals.push(entry);
   }
+
+  readonly checkIns: Array<{ outcome: string; goalkeeperId: string; bookingId: string; requestId?: string }> = [];
+
+  logCheckIn(entry: { outcome: string; goalkeeperId: string; bookingId: string; requestId?: string }): void {
+    this.checkIns.push(entry);
+  }
 }

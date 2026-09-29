@@ -2,13 +2,14 @@ import type {
   CancelAllResult,
   ClientCancelResult,
   ExpireResult,
+  CheckInResult,
   IBookingLifecycleStore,
   ReversalOutcome,
   WithdrawResult,
 } from '../../src/application/features/bookingLifecycle/common/ports.js';
 import type { CancellationDetails } from '../../src/domain/wallet/walletMovement.js';
 import { commissionRefundDraft, type LedgerOwner } from '../../src/application/features/wallet/common/walletLedger.js';
-import { Booking } from '../../src/domain/bookings/booking.js';
+import { Booking, type CheckIn } from '../../src/domain/bookings/booking.js';
 import { GoalkeeperRequest } from '../../src/domain/bookings/goalkeeperRequest.js';
 import type { DomainEvent } from '../../src/domain/events/domainEvent.js';
 import { GoalkeeperIncident, suspensionEndOf } from '../../src/domain/goalkeepers/goalkeeperIncident.js';
@@ -276,6 +277,28 @@ export class FakeBookingLifecycleStore implements IBookingLifecycleStore {
     if (!changed) return { kind: 'replayed', incident, suspendedUntil: this.profiles?.suspendedUntilOf(goalkeeperId) ?? null };
     this.incidentList[index] = reversed;
     return { kind: 'reversed', incident: reversed, suspendedUntil: this.writeSuspension(goalkeeperId, now) };
+  }
+
+  async checkIn(args: {
+    bookingId: string;
+    goalkeeperId: string;
+    now: Date;
+    window: { opensAt: Date; closesAt: Date };
+    checkIn: Omit<CheckIn, 'at'>;
+    buildEvents: (booking: Booking) => DomainEvent[];
+  }): Promise<CheckInResult> {
+    const { now, window } = args;
+    const booking = this.bookings.all().find((item) => item.id === args.bookingId);
+    if (!booking || booking.goalkeeperId !== args.goalkeeperId) return { kind: 'not_found' };
+    if (booking.checkIn) return { kind: 'replayed', booking };
+    if (booking.status !== 'assigned') return { kind: 'not_assigned', status: booking.status };
+    if (now.getTime() < window.opensAt.getTime()) return { kind: 'too_early', opensAt: window.opensAt };
+    if (now.getTime() > window.closesAt.getTime()) return { kind: 'too_late', closedAt: window.closesAt };
+    const checkedIn = Booking.rehydrate({ ...booking, checkIn: { at: now, ...args.checkIn } });
+    this.bookings.seed(checkedIn);
+    const events = args.buildEvents(checkedIn);
+    this.outbox.append(events, now);
+    return { kind: 'checked_in', booking: checkedIn, events };
   }
 
   private writeSuspension(goalkeeperId: string, now: Date): Date | null {

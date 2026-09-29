@@ -66,6 +66,9 @@ export interface IGoalkeeperRequestRepository {
 }
 
 /** Bookings (one per goalkeeper). */
+/** The marks of the check-in notices on a booking (feature 020). */
+export type CheckInNoticeField = 'checkInOpenNoticeAt' | 'checkInLastCallAt' | 'checkInMissedAt';
+
 export interface IBookingRepository {
   /** Every booking of these requests, ordered by request id, then booking id. */
   findByRequestIds(requestIds: string[]): Promise<Booking[]>;
@@ -89,6 +92,10 @@ export interface IBookingRepository {
   findDueForExpiry(now: Date, cap: number): Promise<Booking[]>;
   /** Pending bookings whose search is still open, soonest first, at most `cap` (feature 015). */
   findOpenPending(now: Date, cap: number): Promise<Booking[]>;
+  /** Assigned bookings around their check-in window (start in (now − 60 min, now + 120 min]), soonest first (feature 020). */
+  findForCheckInWatch(now: Date, cap: number): Promise<Booking[]>;
+  /** Marks a check-in notice as sent; false when it already was (feature 020). */
+  markCheckInNotice(bookingId: string, field: CheckInNoticeField, now: Date): Promise<boolean>;
   /** The goalkeeper's agenda (any status): how many start at or after `now` and before it. */
   countForGoalkeeper(goalkeeperId: string, now: Date): Promise<{ upcoming: number; past: number }>;
   /** Soonest first (ties: id ascending). */
@@ -191,4 +198,6 @@ export interface IBookingAuditLogger {
   logWithdrawal(entry: { outcome: string; goalkeeperId: string; bookingId: string; requestId?: string }): void;
   /** Every administrator reversal attempt of a withdrawal's penalty (feature 018). */
   logPenaltyReversal(entry: { outcome: string; adminId: string; goalkeeperId: string; withdrawalId: string }): void;
+  /** Every check-in attempt, whatever its outcome (feature 020). */
+  logCheckIn(entry: { outcome: string; goalkeeperId: string; bookingId: string; requestId?: string }): void;
 }

@@ -1,4 +1,5 @@
 import { Entity } from '../common/entity.js';
+import type { CheckInWindowConfig } from '../bookings/checkInWindow.js';
 import { PENALTY_CONFIG_FIELDS, type GoalkeeperPenaltyConfig } from '../goalkeepers/penaltyPolicy.js';
 import { InvalidConfigurationError } from './invalidConfigurationError.js';
 
@@ -44,6 +45,8 @@ export class BookingSettings extends Entity<string> {
    * field falls back to the Colombia default.
    */
   readonly goalkeeperPenalties: Partial<GoalkeeperPenaltyConfig> | null;
+  /** The check-in window (feature 020), read at the country level only; absent fields default. */
+  readonly checkInWindow: Partial<CheckInWindowConfig> | null;
 
   constructor(params: {
     id: string;
@@ -55,6 +58,7 @@ export class BookingSettings extends Entity<string> {
     freeCancellationMinutes?: number | null;
     travelBufferMinutes?: number | null;
     goalkeeperPenalties?: Partial<GoalkeeperPenaltyConfig> | null;
+    checkInWindow?: Partial<CheckInWindowConfig> | null;
   }) {
     super(params.id);
     const where = `bookingSettings document ${params.id}`;
@@ -87,6 +91,8 @@ export class BookingSettings extends Entity<string> {
     if (leadTimeSurcharge !== null) validateSurcharge(leadTimeSurcharge, where);
     const goalkeeperPenalties = params.goalkeeperPenalties ?? null;
     if (goalkeeperPenalties !== null) validatePenalties(goalkeeperPenalties, where);
+    const checkInWindow = params.checkInWindow ?? null;
+    if (checkInWindow !== null) validateCheckInWindow(checkInWindow, where);
 
     this.scope = params.scope;
     this.refId = params.refId;
@@ -96,6 +102,19 @@ export class BookingSettings extends Entity<string> {
     this.freeCancellationMinutes = freeCancellationMinutes;
     this.travelBufferMinutes = travelBufferMinutes;
     this.goalkeeperPenalties = goalkeeperPenalties;
+    this.checkInWindow = checkInWindow;
+  }
+}
+
+const CHECK_IN_LIMITS: Record<keyof CheckInWindowConfig, number> = { opensMinutesBefore: 120, closesMinutesAfter: 60 };
+
+function validateCheckInWindow(window: Partial<CheckInWindowConfig>, where: string): void {
+  for (const [field, max] of Object.entries(CHECK_IN_LIMITS) as [keyof CheckInWindowConfig, number][]) {
+    const value = window[field];
+    if (value === undefined || value === null) continue;
+    if (!Number.isInteger(value) || value < 1 || value > max) {
+      throw new InvalidConfigurationError(`${where}: checkInWindow.${field} must be an integer between 1 and ${max}`);
+    }
   }
 }
 

@@ -4,7 +4,8 @@ export type DomainEventType =
   | 'goalkeeper.assigned'
   | 'booking.expired'
   | 'booking.cancelled'
-  | 'goalkeeper.withdrew';
+  | 'goalkeeper.withdrew'
+  | 'goalkeeper.checked_in';
 
 /**
  * A past fact about a booking, recorded in the same transaction as the change that produced it

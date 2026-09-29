@@ -152,8 +152,13 @@ import { ListGoalkeeperWithdrawalsQuery } from '../application/features/bookingL
 import { ListGoalkeeperWithdrawalsQueryHandler } from '../application/features/bookingLifecycle/queries/listGoalkeeperWithdrawals/listGoalkeeperWithdrawalsQueryHandler.js';
 import { ReverseWithdrawalPenaltyCommand } from '../application/features/bookingLifecycle/commands/reverseWithdrawalPenalty/reverseWithdrawalPenaltyCommand.js';
 import { ReverseWithdrawalPenaltyCommandHandler } from '../application/features/bookingLifecycle/commands/reverseWithdrawalPenalty/reverseWithdrawalPenaltyCommandHandler.js';
+import { CheckInToBookingCommand } from '../application/features/bookingLifecycle/commands/checkInToBooking/checkInToBookingCommand.js';
+import { CheckInToBookingCommandHandler } from '../application/features/bookingLifecycle/commands/checkInToBooking/checkInToBookingCommandHandler.js';
+import { createCheckInWindowResolver } from '../application/features/bookingLifecycle/common/checkInWindowResolver.js';
 import { WithdrawFromBookingCommand } from '../application/features/bookingLifecycle/commands/withdrawFromBooking/withdrawFromBookingCommand.js';
 import { WithdrawFromBookingCommandHandler } from '../application/features/bookingLifecycle/commands/withdrawFromBooking/withdrawFromBookingCommandHandler.js';
+import { CHECK_IN_NOTICE_EVENT_TYPES, CheckInNoticeHandler } from '../application/features/bookingLifecycle/handlers/checkInNoticeHandler.js';
+import { CheckInWatchJob } from '../application/features/bookingLifecycle/jobs/checkInWatchJob.js';
 import { ContactsRevealJob } from '../application/features/bookingLifecycle/jobs/contactsRevealJob.js';
 import { CLIENT_ASSIGNMENT_EVENT_TYPES, ClientAssignmentNoticeHandler } from '../application/features/bookingLifecycle/handlers/clientAssignmentNoticeHandler.js';
 import { WITHDRAWAL_NOTICE_EVENT_TYPES, WithdrawalNoticeHandler } from '../application/features/bookingLifecycle/handlers/withdrawalNoticeHandler.js';
@@ -355,6 +360,24 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   registerSubscribers(
     mediator,
     WITHDRAWAL_NOTICE_EVENT_TYPES.map((type) => ({ type, handler: withdrawalNotices })),
+  );
+  // "Your goalkeeper arrived" to the client (feature 020).
+  registerSubscribers(
+    mediator,
+    CHECK_IN_NOTICE_EVENT_TYPES.map((type) => ({
+      type,
+      handler: new CheckInNoticeHandler({
+        requestRepository,
+        zoneRepository,
+        cityRepository,
+        notifications: notificationRepository,
+        pushNotifier,
+        processed: processedEventStore,
+        idGenerator: idGenerator,
+        clock,
+        logger: logger,
+      }),
+    })),
   );
   // Assignment and completion notices to the client (feature 019).
   const clientAssignmentNotices = new ClientAssignmentNoticeHandler({
@@ -602,19 +625,35 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         logger,
         batchLimit: config.events.sweepBatchLimit,
         pendingWarningMinutes: config.events.pendingWarningMinutes,
-        jobs: [cancelAllJob, bookingExpiryJob, new OfferRemindersJob({ bookingRepository, eligibility: offerEligibility, sender: offerSender, logger: logger, roundCap: config.offers.roundCap }),
+        jobs: [
+          cancelAllJob,
+          bookingExpiryJob,
+          new OfferRemindersJob({ bookingRepository, eligibility: offerEligibility, sender: offerSender, logger: logger, roundCap: config.offers.roundCap }),
           new ContactsRevealJob({
-          requestRepository,
-          bookingRepository,
-          userRepository,
-          zoneRepository,
-          cityRepository,
-          notifications: notificationRepository,
-          pushNotifier,
-          idGenerator: idGenerator,
-          clock,
-          logger: logger,
-        }),
+            requestRepository,
+            bookingRepository,
+            userRepository,
+            zoneRepository,
+            cityRepository,
+            notifications: notificationRepository,
+            pushNotifier,
+            idGenerator: idGenerator,
+            clock,
+            logger: logger,
+          }),
+          new CheckInWatchJob({
+            bookingRepository,
+            requestRepository,
+            userRepository,
+            zoneRepository,
+            cityRepository,
+            notifications: notificationRepository,
+            pushNotifier,
+            idGenerator: idGenerator,
+            clock,
+            logger: logger,
+            windowResolver: () => createCheckInWindowResolver({ cityRepository, regionRepository, bookingSettingsRepository, logger: logger }),
+          }),
         ],
         jobLocks: jobLockStore,
       }),
@@ -652,6 +691,24 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     {
       requestType: ReverseWithdrawalPenaltyCommand,
       handler: new ReverseWithdrawalPenaltyCommandHandler({ walletContext, store: lifecycleStore, idGenerator: idGenerator, clock, audit: auditLogger, logger: logger }),
+    },
+    {
+      requestType: CheckInToBookingCommand,
+      handler: new CheckInToBookingCommandHandler({
+        goalkeeperProfileRepository,
+        imageRepository,
+        bookingRepository,
+        requestRepository,
+        zoneRepository,
+        cityRepository,
+        userRepository,
+        windowResolver: () => createCheckInWindowResolver({ cityRepository, regionRepository, bookingSettingsRepository, logger: logger }),
+        store: lifecycleStore,
+        relay: eventRelay,
+        idGenerator: idGenerator,
+        clock,
+        audit: auditLogger,
+      }),
     },
     {
       requestType: WithdrawFromBookingCommand,

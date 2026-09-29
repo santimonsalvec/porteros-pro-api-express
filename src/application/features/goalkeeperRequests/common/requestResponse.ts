@@ -19,6 +19,8 @@ export interface BookingItemResponse {
    */
   goalkeeper: Contact | null;
   assignedAt: string | null;
+  /** The goalkeeper's check-in (feature 020): when and the photo. Never the location. */
+  checkIn: { at: string; photoUrl: string } | null;
 }
 
 /** A request with its bookings: match and quoted price flattened, bookings nested. */
@@ -113,6 +115,7 @@ export function toRequestResponse(
       createdAt: booking.createdAt.toISOString(),
       goalkeeper: (visible && booking.status === 'assigned' && booking.goalkeeperId && contacts.get(booking.goalkeeperId)) || null,
       assignedAt: booking.assignedAt?.toISOString() ?? null,
+      checkIn: booking.checkIn ? { at: booking.checkIn.at.toISOString(), photoUrl: booking.checkIn.photoUrl } : null,
     })),
   };
 }

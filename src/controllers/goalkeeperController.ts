@@ -33,6 +33,8 @@ import { ListGoalkeeperAgendaQuery } from '../application/features/goalkeeperReq
 import { listClientBookingsRequestSchema } from './requests/goalkeeperRequests/listClientBookingsRequest.js';
 import { zodFieldErrors } from './requests/goalkeeperRequests/getServiceQuoteRequest.js';
 import { withdrawRequestSchema } from './requests/withdrawals/withdrawRequest.js';
+import { checkInRequestSchema } from './requests/checkIn/checkInRequest.js';
+import { CheckInToBookingCommand } from '../application/features/bookingLifecycle/commands/checkInToBooking/checkInToBookingCommand.js';
 import { sendWithdrawals } from './withdrawals/withdrawalsHttp.js';
 import { WithdrawFromBookingCommand } from '../application/features/bookingLifecycle/commands/withdrawFromBooking/withdrawFromBookingCommand.js';
 
@@ -418,6 +420,37 @@ export function createGoalkeeperController(deps: GoalkeeperControllerDependencie
         throw new ApiError(409, 'match_started', 'The match has already started.', undefined, { startsAt: result.startsAt });
       case 'invalid_reason':
         throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', { reason: 'reason must have at most 200 characters' });
+    }
+  });
+
+  // The goalkeeper confirms arrival with a photo uploaded to /api/images (feature 020): only inside
+  // the window (start − 30 / start + 15 min); the location is evidence and never blocks.
+  router.post('/me/bookings/:bookingId/check-in', async (req, res) => {
+    const parsed = checkInRequestSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
+    }
+    const { imageId, location } = parsed.data;
+    const result = await deps.mediator.send(new CheckInToBookingCommand(req.authClaims!.sub, req.params.bookingId, imageId, location));
+
+    // Exhaustive on purpose: adding an outcome without mapping it here fails compilation.
+    switch (result.outcome) {
+      case 'checked_in':
+      case 'replayed':
+        res.status(200).json(result.booking);
+        return;
+      case 'not_a_goalkeeper':
+        throw goalkeeperNotFound();
+      case 'booking_not_found':
+        throw new ApiError(404, 'booking_not_found', 'This booking does not exist or is not yours.');
+      case 'invalid_photo':
+        throw new ApiError(400, 'invalid_photo', 'Upload the photo first; it must be yours.');
+      case 'not_assigned':
+        throw new ApiError(409, 'booking_not_assigned', 'This booking is no longer assigned to you.', undefined, { status: result.status });
+      case 'too_early':
+        throw new ApiError(409, 'check_in_not_open', 'The check-in is not open yet.', undefined, { opensAt: result.opensAt });
+      case 'too_late':
+        throw new ApiError(409, 'check_in_closed', 'The check-in window has closed.', undefined, { closedAt: result.closedAt });
     }
   });
 

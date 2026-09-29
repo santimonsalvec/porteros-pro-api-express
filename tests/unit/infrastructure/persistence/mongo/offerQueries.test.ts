@@ -160,5 +160,26 @@ describe('feature 015 reads on existing repositories (mocked driver)', () => {
     await repository.ensureIndexes();
     expect(collection.createIndex).toHaveBeenCalledWith({ contactsRevealedAt: 1, startsAt: 1 }, { name: 'contactsReveal_due' });
   });
-});
 
+  it('reads the assigned bookings around their check-in window, and marks a notice once (feature 020)', async () => {
+    const collection = createFakeCollection();
+    const cursor = toArrayCursor([]);
+    collection.find.mockReturnValue(cursor);
+    collection.updateOne.mockResolvedValueOnce({ modifiedCount: 1 }).mockResolvedValueOnce({ modifiedCount: 0 });
+    const repository = new BookingRepository(dbOf(collection));
+
+    await repository.findForCheckInWatch(now, 500);
+    expect(collection.find).toHaveBeenCalledWith({
+      status: 'assigned',
+      startsAt: { $gt: new Date('2026-10-04T17:00:00.000Z'), $lte: new Date('2026-10-04T20:00:00.000Z') },
+    });
+    expect(cursor.sort).toHaveBeenCalledWith({ startsAt: 1, _id: 1 });
+    expect(cursor.limit).toHaveBeenCalledWith(500);
+
+    expect(await repository.markCheckInNotice('b-1', 'checkInMissedAt', now)).toBe(true);
+    expect(await repository.markCheckInNotice('b-1', 'checkInMissedAt', now)).toBe(false);
+    expect(collection.updateOne).toHaveBeenCalledWith({ _id: 'b-1', checkInMissedAt: null }, { $set: { checkInMissedAt: now } });
+    await repository.ensureIndexes();
+    expect(collection.createIndex).toHaveBeenCalledWith({ status: 1, startsAt: 1 }, { name: 'status_startsAt' });
+  });
+});
