@@ -131,4 +131,34 @@ describe('feature 015 reads on existing repositories (mocked driver)', () => {
     await new GoalkeeperRequestRepository(dbOf(collection)).ensureIndexes();
     expect(collection.createIndex).toHaveBeenCalledWith({ partialFulfillment: 1, cancelAllEvaluatedAt: 1, startsAt: 1 }, { name: 'cancelAll_due' });
   });
+
+  it('reads the requests whose contacts became visible and were not announced, not started (feature 019)', async () => {
+    const collection = createFakeCollection();
+    // now is 2026-10-04T18:00Z: visible from start − 60.
+    const due = buildRequest('due', new Date('2026-10-04T18:59:00.000Z'));
+    const notYet = buildRequest('not-yet', new Date('2026-10-04T19:30:00.000Z'));
+    collection.find.mockReturnValue(toArrayCursor([requestToDocument(due), requestToDocument(notYet)]));
+
+    const found = await new GoalkeeperRequestRepository(dbOf(collection)).findDueForContactsReveal(now, 10);
+
+    expect(collection.find).toHaveBeenCalledWith({
+      active: true,
+      contactsRevealedAt: null,
+      startsAt: { $gt: now, $lte: new Date('2026-10-05T18:00:00.000Z') },
+    });
+    expect(found.map((request) => request.id)).toEqual(['due']);
+  });
+
+  it('marks a request revealed once, and creates the contactsReveal_due index', async () => {
+    const collection = createFakeCollection();
+    collection.updateOne.mockResolvedValueOnce({ modifiedCount: 1 }).mockResolvedValueOnce({ modifiedCount: 0 });
+    const repository = new GoalkeeperRequestRepository(dbOf(collection));
+
+    expect(await repository.markContactsRevealed('r-1', now)).toBe(true);
+    expect(await repository.markContactsRevealed('r-1', now)).toBe(false);
+    expect(collection.updateOne).toHaveBeenCalledWith({ _id: 'r-1', contactsRevealedAt: null }, { $set: { contactsRevealedAt: now } });
+    await repository.ensureIndexes();
+    expect(collection.createIndex).toHaveBeenCalledWith({ contactsRevealedAt: 1, startsAt: 1 }, { name: 'contactsReveal_due' });
+  });
 });
+

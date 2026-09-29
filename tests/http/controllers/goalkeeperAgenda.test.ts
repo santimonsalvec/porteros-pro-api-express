@@ -21,6 +21,7 @@ describe('GET /api/goalkeepers/me/bookings — US6: the goalkeeper\'s agenda', (
     const [first, second] = created.bookings.map((booking: { bookingId: string }) => booking.bookingId);
     await request(context.app).post(`/api/goalkeepers/me/bookings/${first}/accept`).set('Authorization', `Bearer ${mine.token}`);
     await request(context.app).post(`/api/goalkeepers/me/bookings/${second}/accept`).set('Authorization', `Bearer ${other.token}`);
+    context.clock.set('2026-09-21T19:00:00.000Z'); // the client's contact shows from one hour before (feature 019)
 
     const response = await agenda(context, mine.token);
 

@@ -64,7 +64,8 @@ describe('AcceptBookingCommandHandler — US2: accepting assigns and charges, al
 
     expect(result).toMatchObject({
       outcome: 'accepted',
-      booking: { bookingId, status: 'assigned', earnings: 60000, commission: 7000, client: { firstName: 'Ana', lastName: 'Cliente', whatsApp: '+57 300 111 2222' } },
+      // More than one hour before the match: the client's contact isn't shown yet (feature 019).
+      booking: { bookingId, status: 'assigned', earnings: 60000, commission: 7000, client: null, clientContactVisibleFrom: expect.any(String) },
     });
     expect(await balance()).toBe(13000);
     expect(charges().map((movement) => [movement.amount, movement.references])).toEqual([[-7000, { bookingId, requestId: uuid(1) }]]);

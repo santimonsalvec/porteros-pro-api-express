@@ -17,7 +17,7 @@ function accept(context: TestApp, token: string, bookingId: string) {
 }
 
 describe('POST /api/goalkeepers/me/bookings/:bookingId/accept — US2: assign and charge, all or nothing', () => {
-  it('201 with the agenda item and the client contact; the commission is charged', async () => {
+  it('201 with the agenda item (client contact hidden until one hour before); the commission is charged', async () => {
     const { context, client, goalkeeper } = await setUp();
     const created = await createRequestAsClient(context, client.token);
     const bookingId = created.bookings[0]!.bookingId;
@@ -31,8 +31,12 @@ describe('POST /api/goalkeepers/me/bookings/:bookingId/accept — US2: assign an
       status: 'assigned',
       earnings: 60000,
       commission: 7000,
-      client: { firstName: 'Ana', lastName: 'Portera', whatsApp: expect.stringMatching(/^\+57 /) },
+      client: null,
+      clientContactVisibleFrom: '2026-09-21T19:00:00.000Z',
     });
+    context.clock.set('2026-09-21T19:00:00.000Z');
+    const agenda = await request(context.app).get('/api/goalkeepers/me/bookings').set('Authorization', `Bearer ${goalkeeper.token}`);
+    expect(agenda.body.items[0].client).toEqual({ firstName: 'Ana', lastName: 'Portera', whatsApp: expect.stringMatching(/^\+57 /) });
     const movements = await request(context.app).get('/api/goalkeepers/me/wallet/movements').set('Authorization', `Bearer ${goalkeeper.token}`);
     expect(movements.body.items[0]).toMatchObject({ type: 'commission_charge', amount: -7000, balanceAfter: 13000, references: { bookingId } });
   });

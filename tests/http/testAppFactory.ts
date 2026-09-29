@@ -154,6 +154,8 @@ import { ReverseWithdrawalPenaltyCommand } from '../../src/application/features/
 import { ReverseWithdrawalPenaltyCommandHandler } from '../../src/application/features/bookingLifecycle/commands/reverseWithdrawalPenalty/reverseWithdrawalPenaltyCommandHandler.js';
 import { WithdrawFromBookingCommand } from '../../src/application/features/bookingLifecycle/commands/withdrawFromBooking/withdrawFromBookingCommand.js';
 import { WithdrawFromBookingCommandHandler } from '../../src/application/features/bookingLifecycle/commands/withdrawFromBooking/withdrawFromBookingCommandHandler.js';
+import { ContactsRevealJob } from '../../src/application/features/bookingLifecycle/jobs/contactsRevealJob.js';
+import { CLIENT_ASSIGNMENT_EVENT_TYPES, ClientAssignmentNoticeHandler } from '../../src/application/features/bookingLifecycle/handlers/clientAssignmentNoticeHandler.js';
 import { WITHDRAWAL_NOTICE_EVENT_TYPES, WithdrawalNoticeHandler } from '../../src/application/features/bookingLifecycle/handlers/withdrawalNoticeHandler.js';
 import { FakeGoalkeeperIncidentRepository } from '../fakes/fakeGoalkeeperIncidentRepository.js';
 import { CancelBookingsByClientCommandHandler } from '../../src/application/features/bookingLifecycle/commands/cancelBookingsByClient/cancelBookingsByClientCommandHandler.js';
@@ -370,6 +372,22 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
   );
   registerSubscribers(mediator, [
     ...CLIENT_OUTCOME_EVENT_TYPES.map((type) => ({ type, handler: clientOutcomeNotices })),
+    ...CLIENT_ASSIGNMENT_EVENT_TYPES.map((type) => ({
+      type,
+      handler: new ClientAssignmentNoticeHandler({
+        requestRepository,
+        bookingRepository,
+        userRepository,
+        zoneRepository,
+        cityRepository,
+        notifications: notificationRepository,
+        pushNotifier,
+        processed: new FakeProcessedEventStore(),
+        idGenerator: lifecycleIds,
+        clock,
+        logger: offersLogger,
+      }),
+    })),
     ...WITHDRAWAL_NOTICE_EVENT_TYPES.map((type) => ({
       type,
       handler: new WithdrawalNoticeHandler({
@@ -413,7 +431,23 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
         logger: eventLogger,
         batchLimit: 200,
         pendingWarningMinutes: 5,
-        jobs: [cancelAllJob, bookingExpiryJob, new OfferRemindersJob({ bookingRepository, eligibility: offerEligibility, sender: offerSender, logger: offersLogger, roundCap: 2000 })],
+        jobs: [
+          cancelAllJob,
+          bookingExpiryJob,
+          new OfferRemindersJob({ bookingRepository, eligibility: offerEligibility, sender: offerSender, logger: offersLogger, roundCap: 2000 }),
+          new ContactsRevealJob({
+            requestRepository,
+            bookingRepository,
+            userRepository,
+            zoneRepository,
+            cityRepository,
+            notifications: notificationRepository,
+            pushNotifier,
+            idGenerator: lifecycleIds,
+            clock,
+            logger: offersLogger,
+          }),
+        ],
         jobLocks: new FakeJobLockStore(),
       }),
     },

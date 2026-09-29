@@ -23,6 +23,8 @@ interface GoalkeeperRequestProps {
   createdAt: Date;
   /** When the "cancel all" evaluation ran (feature 016); absent on older documents. */
   cancelAllEvaluatedAt?: Date | null;
+  /** When the contacts-visible notices were sent (feature 019); absent on older documents. */
+  contactsRevealedAt?: Date | null;
 }
 
 /**
@@ -41,6 +43,8 @@ export class GoalkeeperRequest extends Entity<string> {
   readonly freeCancellationMinutes: number;
   /** Set once by the "cancel all" evaluation, whatever its outcome (feature 016). */
   readonly cancelAllEvaluatedAt: Date | null;
+  /** Set once the one-hour-before contact notices were sent (feature 019). */
+  readonly contactsRevealedAt: Date | null;
   /** Fixed at quote time; copied to each booking (012, clarification 1). */
   readonly commission: number;
   readonly travelBufferMinutes: number;
@@ -65,6 +69,7 @@ export class GoalkeeperRequest extends Entity<string> {
     this.quoteIssuedAt = new Date(props.quoteIssuedAt);
     this.createdAt = new Date(props.createdAt);
     this.cancelAllEvaluatedAt = props.cancelAllEvaluatedAt ? new Date(props.cancelAllEvaluatedAt) : null;
+    this.contactsRevealedAt = props.contactsRevealedAt ? new Date(props.contactsRevealedAt) : null;
   }
 
   static fromQuote(

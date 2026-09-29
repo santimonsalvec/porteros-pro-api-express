@@ -1,6 +1,7 @@
 import type { IClock } from '../../../common/clock.js';
 import type { INotificationHandler } from '../../../common/mediator/types.js';
 import type { Booking } from '../../../../domain/bookings/booking.js';
+import { completionRound } from '../../../../domain/bookings/contactVisibility.js';
 import type { BookingCancelledPayload } from '../../../../domain/events/bookingEvents.js';
 import type { DomainEvent } from '../../../../domain/events/domainEvent.js';
 import {
@@ -101,8 +102,6 @@ export class ClientOutcomeNoticeHandler implements INotificationHandler<DomainEv
  * replacement that expires after an earlier outcome still gets its own final notice.
  */
 function outcomeKey(requestId: string, bookings: readonly Booking[]): string {
-  const latest = bookings
-    .filter((booking) => booking.replacesBookingId !== null)
-    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? 1 : -1))[0];
-  return latest ? `request-outcome:${requestId}:${latest.id}` : `request-outcome:${requestId}`;
+  const round = completionRound(bookings);
+  return round ? `request-outcome:${requestId}:${round}` : `request-outcome:${requestId}`;
 }

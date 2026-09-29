@@ -58,7 +58,8 @@ describe('"Cancel all" — US2: applied automatically when the match is not comp
     const agenda = await request(context.app).get('/api/goalkeepers/me/bookings').set('Authorization', `Bearer ${goalkeeper.token}`);
     expect(agenda.body.items.find((item: { bookingId: string }) => item.bookingId === taken!.bookingId)).toMatchObject({ status: 'cancelled' });
 
-    const notices = context.notificationRepository.all().filter((item) => item.dedupeKey);
+    // 016's outcome notices (019's assignment notice is left aside).
+    const notices = context.notificationRepository.all().filter((item) => item.dedupeKey && !item.dedupeKey.startsWith('goalkeeper-assigned:'));
     expect(notices.map((item) => [item.userId, item.type]).sort()).toEqual(
       [
         [client.userId, 'request.cancelled'],

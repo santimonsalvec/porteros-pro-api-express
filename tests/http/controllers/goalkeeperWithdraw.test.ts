@@ -60,7 +60,7 @@ describe('goalkeeper withdrawal — US1: withdraw, and a replacement is searched
 
     const offersToH = context.notificationRepository.all().filter((item) => item.userId === h.userId && item.type === 'booking.available');
     expect(offersToH.map((offer) => offer.data.bookingId)).toEqual([replacementId]);
-    const clientNotices = context.notificationRepository.all().filter((item) => item.userId === client.userId);
+    const clientNotices = context.notificationRepository.all().filter((item) => item.userId === client.userId && item.type === 'booking.goalkeeper_withdrew');
     expect(clientNotices).toEqual([expect.objectContaining({ type: 'booking.goalkeeper_withdrew', body: expect.stringContaining('Ya estamos buscando otro portero.') })]);
 
     const again = await withdraw(context, g.token, bookingId);

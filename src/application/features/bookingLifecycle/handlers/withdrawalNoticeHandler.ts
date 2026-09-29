@@ -12,6 +12,7 @@ import type { IGoalkeeperRequestRepository } from '../../goalkeeperRequests/comm
 import type { ICityRepository } from '../../locations/common/ports.js';
 import type { INotificationRepository } from '../../notifications/common/ports.js';
 import type { IZoneRepository } from '../../zones/common/ports.js';
+import { notifyOnce } from '../common/notifyOnce.js';
 import type { ILifecycleLogger } from '../common/ports.js';
 
 export const WITHDRAWAL_NOTICE_EVENT_TYPES = ['goalkeeper.withdrew'] as const;
@@ -61,21 +62,8 @@ export class WithdrawalNoticeHandler implements INotificationHandler<DomainEvent
   }
 
   private async send(userId: string, message: PushMessage, dedupeKey: string, bookingId: string): Promise<void> {
-    const created = await this.deps.notifications.createIfAbsent({
-      id: this.deps.idGenerator.newId(),
-      userId,
-      type: message.data.type!,
-      title: message.title,
-      body: message.body,
-      data: message.data,
-      createdAt: this.deps.clock.now(),
-      dedupeKey,
-    });
-    if (!created) return;
-    const result = await this.deps.pushNotifier.sendToUsers([userId], message);
-    this.deps.logger.info(
-      { outcome: 'withdrawal_notice_sent', type: message.data.type, bookingId, reached: result.totals.reached },
-      'Withdrawal notice sent',
-    );
+    const reached = await notifyOnce(this.deps, { userId, message, dedupeKey });
+    if (reached === null) return;
+    this.deps.logger.info({ outcome: 'withdrawal_notice_sent', type: message.data.type, bookingId, reached }, 'Withdrawal notice sent');
   }
 }

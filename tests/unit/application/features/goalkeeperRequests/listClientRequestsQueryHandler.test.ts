@@ -318,7 +318,8 @@ describe('ListClientRequestsQueryHandler — 012 US5: the assigned goalkeeper\'s
   it('shows name and WhatsApp on the assigned booking and null on the pending one, with one user read per page', async () => {
     goalkeeper('gk-1', 'Camilo', '3001234567');
     goalkeeper('gk-2', 'David', '3007654321');
-    const pair = requestAt('r-pair', at(DAY), { goalkeeperCount: 2 });
+    // The pair starts within the hour (contacts visible); the single one in 2 days (hidden, feature 019).
+    const pair = requestAt('r-pair', at(HOUR / 2), { goalkeeperCount: 2 });
     const single = requestAt('r-single', at(2 * DAY), { zoneId: 'zone-2' });
     seed(pair);
     seed(single);
@@ -341,6 +342,9 @@ describe('ListClientRequestsQueryHandler — 012 US5: the assigned goalkeeper\'s
     });
     expect(Object.keys(assigned.goalkeeper!).sort()).toEqual(['firstName', 'lastName', 'whatsApp']);
     expect(pending).toMatchObject({ status: 'pending_assignment', goalkeeper: null, assignedAt: null });
+    const singleItem = result.items.find((item) => item.requestId === 'r-single')!;
+    expect(singleItem.bookings[0]).toMatchObject({ status: 'assigned', goalkeeper: null });
+    expect(singleItem.contactsVisibleFrom).toBe(new Date(at(2 * DAY).getTime() - HOUR).toISOString());
     expect(getByIds).toHaveBeenCalledTimes(1);
     expect(getByIds.mock.calls[0]![0].sort()).toEqual(['gk-1', 'gk-2']);
   });

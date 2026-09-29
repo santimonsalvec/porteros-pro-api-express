@@ -154,6 +154,8 @@ import { ReverseWithdrawalPenaltyCommand } from '../application/features/booking
 import { ReverseWithdrawalPenaltyCommandHandler } from '../application/features/bookingLifecycle/commands/reverseWithdrawalPenalty/reverseWithdrawalPenaltyCommandHandler.js';
 import { WithdrawFromBookingCommand } from '../application/features/bookingLifecycle/commands/withdrawFromBooking/withdrawFromBookingCommand.js';
 import { WithdrawFromBookingCommandHandler } from '../application/features/bookingLifecycle/commands/withdrawFromBooking/withdrawFromBookingCommandHandler.js';
+import { ContactsRevealJob } from '../application/features/bookingLifecycle/jobs/contactsRevealJob.js';
+import { CLIENT_ASSIGNMENT_EVENT_TYPES, ClientAssignmentNoticeHandler } from '../application/features/bookingLifecycle/handlers/clientAssignmentNoticeHandler.js';
 import { WITHDRAWAL_NOTICE_EVENT_TYPES, WithdrawalNoticeHandler } from '../application/features/bookingLifecycle/handlers/withdrawalNoticeHandler.js';
 import { NotifyBookingOffersHandler, OFFER_EVENT_TYPES } from '../application/features/notifications/handlers/notifyBookingOffersHandler.js';
 import { MongoNotificationRepository } from './persistence/mongo/notificationRepository.js';
@@ -353,6 +355,24 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   registerSubscribers(
     mediator,
     WITHDRAWAL_NOTICE_EVENT_TYPES.map((type) => ({ type, handler: withdrawalNotices })),
+  );
+  // Assignment and completion notices to the client (feature 019).
+  const clientAssignmentNotices = new ClientAssignmentNoticeHandler({
+      requestRepository,
+      bookingRepository,
+      userRepository,
+      zoneRepository,
+      cityRepository,
+      notifications: notificationRepository,
+      pushNotifier,
+      processed: processedEventStore,
+      idGenerator: idGenerator,
+      clock,
+      logger: logger,
+    });
+  registerSubscribers(
+    mediator,
+    CLIENT_ASSIGNMENT_EVENT_TYPES.map((type) => ({ type, handler: clientAssignmentNotices })),
   );
   registerSubscribers(
     mediator,
@@ -582,7 +602,20 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         logger,
         batchLimit: config.events.sweepBatchLimit,
         pendingWarningMinutes: config.events.pendingWarningMinutes,
-        jobs: [cancelAllJob, bookingExpiryJob, new OfferRemindersJob({ bookingRepository, eligibility: offerEligibility, sender: offerSender, logger: logger, roundCap: config.offers.roundCap })],
+        jobs: [cancelAllJob, bookingExpiryJob, new OfferRemindersJob({ bookingRepository, eligibility: offerEligibility, sender: offerSender, logger: logger, roundCap: config.offers.roundCap }),
+          new ContactsRevealJob({
+          requestRepository,
+          bookingRepository,
+          userRepository,
+          zoneRepository,
+          cityRepository,
+          notifications: notificationRepository,
+          pushNotifier,
+          idGenerator: idGenerator,
+          clock,
+          logger: logger,
+        }),
+        ],
         jobLocks: jobLockStore,
       }),
     },

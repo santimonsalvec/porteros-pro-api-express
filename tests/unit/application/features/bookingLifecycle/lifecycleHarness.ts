@@ -23,6 +23,8 @@ import { WithdrawFromBookingCommand } from '../../../../../src/application/featu
 import { WithdrawFromBookingCommandHandler } from '../../../../../src/application/features/bookingLifecycle/commands/withdrawFromBooking/withdrawFromBookingCommandHandler.js';
 import { ReverseWithdrawalPenaltyCommand } from '../../../../../src/application/features/bookingLifecycle/commands/reverseWithdrawalPenalty/reverseWithdrawalPenaltyCommand.js';
 import { ReverseWithdrawalPenaltyCommandHandler } from '../../../../../src/application/features/bookingLifecycle/commands/reverseWithdrawalPenalty/reverseWithdrawalPenaltyCommandHandler.js';
+import { ContactsRevealJob } from '../../../../../src/application/features/bookingLifecycle/jobs/contactsRevealJob.js';
+import { ClientAssignmentNoticeHandler } from '../../../../../src/application/features/bookingLifecycle/handlers/clientAssignmentNoticeHandler.js';
 import { WithdrawalNoticeHandler } from '../../../../../src/application/features/bookingLifecycle/handlers/withdrawalNoticeHandler.js';
 import { FakeBookingSettingsRepository } from '../../../../fakes/fakeBookingSettingsRepository.js';
 import { FakeGoalkeeperIncidentRepository } from '../../../../fakes/fakeGoalkeeperIncidentRepository.js';
@@ -140,6 +142,33 @@ export function lifecycleHarness() {
     logger: h.silent,
   });
   const incidents = new FakeGoalkeeperIncidentRepository(store);
+  // Assignment notices to the client (feature 019).
+  const users = new FakeUserRepository();
+  const assignmentNotices = new ClientAssignmentNoticeHandler({
+    requestRepository: h.requestRepository,
+    bookingRepository: h.bookingRepository,
+    userRepository: users,
+    zoneRepository: h.zoneRepository,
+    cityRepository: h.cityRepository,
+    notifications: h.notifications,
+    pushNotifier: h.pushNotifier,
+    processed: new FakeProcessedEventStore(),
+    idGenerator,
+    clock: h.clock,
+    logger: h.silent,
+  });
+  const contactsRevealJob = new ContactsRevealJob({
+    requestRepository: h.requestRepository,
+    bookingRepository: h.bookingRepository,
+    userRepository: users,
+    zoneRepository: h.zoneRepository,
+    cityRepository: h.cityRepository,
+    notifications: h.notifications,
+    pushNotifier: h.pushNotifier,
+    idGenerator,
+    clock: h.clock,
+    logger: h.silent,
+  });
   const reverser = new ReverseWithdrawalPenaltyCommandHandler({ walletContext, store, idGenerator, clock: h.clock, audit, logger: lifecycleLogger });
   /** An administrator reverses the goalkeeper's withdrawal: `refund` the money and/or `lift` the suspensions. */
   const reverse = (goalkeeperId: string, withdrawalId: string, what: { refund?: boolean; lift?: boolean }, reason = 'Incapacidad médica') =>
@@ -170,6 +199,9 @@ export function lifecycleHarness() {
     withdraw,
     withdrawalNotices,
     incidents,
+    users,
+    assignmentNotices,
+    contactsRevealJob,
     reverse,
     ledger,
     owner,
