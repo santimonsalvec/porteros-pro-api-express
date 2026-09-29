@@ -90,6 +90,16 @@ La cotización trae `cancelAllAvailable` y `cancelAllUntil`: cuando `cancelAllAv
 
 - **Calificaciones pendientes: sin push.** Al abrir la app, pedir `GET /api/ratings/pending` y mostrar cada una (cliente: "¿Llegó tu portero?"; portero: "¿Recibiste el pago?", estrellas 1–5 y comentario opcional). Se envían con `POST /api/ratings/bookings/{bookingId}`; vencen a los 7 días del partido. Son privadas.
 
+### Recargas de la billetera (feature 022)
+
+| `type` | Para | Cuándo | Qué abre la app |
+|---|---|---|---|
+| `wallet.top_up_approved` | portero | La pasarela confirmó el pago y se acreditó: "Recarga aprobada: +18.536 COP. Tu saldo es 38.536 COP." (`topUpId`) | La billetera |
+| `wallet.top_up_failed` | portero | La recarga fue rechazada, anulada, falló o venció a las 48 h sin respuesta: "Tu recarga de 20.000 COP no se completó…" (`topUpId`) | La billetera |
+
+- Cada aviso se envía una sola vez por recarga, aunque la confirmación llegue repetida o la encuentre la conciliación.
+- La página de retorno (`/pagos/retorno/{reference}`) solo muestra el estado; el saldo cambia únicamente con la confirmación de la pasarela o la conciliación. Ver [payments.md](./payments.md).
+
 ### Ofertas a porteros (feature 015)
 
 | `type` | Cuándo | Qué abre la app |

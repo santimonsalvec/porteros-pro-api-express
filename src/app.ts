@@ -18,6 +18,8 @@ import { createRatingsController } from './controllers/ratingsController.js';
 import { createInternalController } from './controllers/internalController.js';
 import { createDevicesController } from './controllers/devicesController.js';
 import { createNotificationsController } from './controllers/notificationsController.js';
+import { createPaymentWebhooksController } from './controllers/paymentWebhooksController.js';
+import { createPaymentReturnController } from './controllers/paymentReturnController.js';
 import { openapiSpec } from './infrastructure/openapi/openapiSpec.js';
 
 /**
@@ -46,6 +48,10 @@ export function createApp(deps: AppDependencies): Express {
   app.use('/health', createHealthController(deps));
   // Platform-only endpoints (feature 013): outside /api and not in the OpenAPI document.
   app.use('/internal', createInternalController(deps));
+  // Payment gateways' events (feature 022): outside /api, verified by each event's signature.
+  app.use('/webhooks/payments', createPaymentWebhooksController(deps));
+  // The page the gateway returns to, and the app link files that open it in the app (feature 022).
+  app.use(createPaymentReturnController(deps));
 
   app.get('/openapi.json', (_req, res) => res.json(openapiSpec));
   app.use('/swagger', swaggerServe, swaggerSetup(openapiSpec));

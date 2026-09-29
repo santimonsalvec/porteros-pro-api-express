@@ -38,6 +38,24 @@ export const config = {
     termsVersion: optionalEnv('LEGAL_TERMS_VERSION', '1.0'),
     privacyPolicyVersion: optionalEnv('LEGAL_PRIVACY_POLICY_VERSION', '1.0'),
   },
+  /**
+   * Wallet top-ups (feature 022). Gateway secrets are NOT here: they are read per gateway and
+   * country from environment variables that App Hosting resolves from Secret Manager
+   * (`WOMPI_CO_PRIVATE_KEY`, `WOMPI_CO_EVENTS_SECRET`, `WOMPI_CO_INTEGRITY_SECRET`).
+   */
+  payments: {
+    /** The API's public HTTPS base, for the gateway's return address. */
+    publicBaseUrl: optionalEnv('PAYMENTS_PUBLIC_BASE_URL', ''),
+    /** Where the return page's "Volver a PorterosPRO" button points. */
+    appOpenUrl: optionalEnv('PAYMENTS_APP_OPEN_URL', ''),
+    /** App link association (empty = not served). */
+    androidPackage: optionalEnv('ANDROID_APP_PACKAGE', ''),
+    androidCertSha256: optionalEnv('ANDROID_CERT_SHA256', '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter((value) => value !== ''),
+    iosAppId: optionalEnv('IOS_APP_ID', ''),
+  },
   otel: {
     otlpEndpoint: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
   },

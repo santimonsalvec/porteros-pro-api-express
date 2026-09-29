@@ -1,6 +1,6 @@
 # porteros-pro-api Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-09-28
+Auto-generated from all feature plans. Last updated: 2026-09-29
 
 ## Active Technologies
 - TypeScript ~6.x on Node.js 24 LTS — unchanged, same runtime as the rest of this repository (see `specs/001-porteros-api-migration/plan.md`). + Existing stack (Express 5.2.x, `mongodb` 7.x, `zod`, `uuid`, `pino`) plus three new dependencies scoped to this feature: `cloudinary` 2.x (official Node SDK — the storage provider adapter, see research.md §1); `multer` 2.x with in-memory storage (Express does not parse `multipart/form-data` itself — see research.md §2); `file-type` 22.x (magic-byte content sniffing, so an upload is validated by its actual bytes, not its claimed MIME type or file extension — see research.md §3). (002-cloudinary-image-storage)
@@ -39,6 +39,8 @@ Auto-generated from all feature plans. Last updated: 2026-09-28
 - MongoDB. No new collection. `bookings` gains `checkIn`, `checkInOpenNoticeAt`, `checkInLastCallAt`, `checkInMissedAt` and the index `status_startsAt`; `bookingSettings` gains `checkInWindow`. (020-goalkeeper-check-in)
 - TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. Reused: 018 (incidents, penalty policy, reversal), 020 (check-in, country resolver), 019 (`notifyOnce`), 013 (sweep, outbox, consumers). No new dependency. (021-match-close-rating-no-show)
 - MongoDB (Atlas, transactions). New collections `ratings` and `cases`; `bookings` gains `completedAt`, `attendance`, `noShowAt` and indexes `status_endsAt`, `client_endsAt`; incidents gain kind `no_show`; `bookingSettings.noShowGraceMinutes`. (021-match-close-rating-no-show)
+- TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. Wompi via `node:crypto` (SHA-256) and the global `fetch`; secrets from Secret Manager through App Hosting environment variables. No new dependency. (022-wallet-topups-gateway)
+- MongoDB (Atlas, transactions). New collections `topUps` and `paymentGatewaySettings`; movement type `gateway_fee`; Wompi Web Checkout + events + transactions API; Google Secret Manager. (022-wallet-topups-gateway)
 
 - TypeScript ~6.x (last JavaScript-hosted compiler generation) on Node.js 24 LTS (Active LTS as of Aug 2026; Node 22 remains Maintenance LTS as a fallback). TypeScript 7.0 (Go-native compiler) is intentionally *not* adopted yet — see research.md for rationale. + Express 5.2.x (web framework); official `mongodb` driver 7.x (no ODM, mirrors the source's raw `MongoDB.Driver` usage); `google-auth-library` 11.x (`OAuth2Client.verifyIdToken`, official equivalent of `Google.Apis.Auth`); `jose` (JWT sign/verify, chosen over legacy `jsonwebtoken` — see research.md); `zod` (request DTO shape validation); `uuid` v9+ (`v7()` for entity ids, matching the source's UUIDv7 convention); `pino` (structured logging, audit-log equivalent); `@opentelemetry/sdk-node` + HTTP/Express auto-instrumentation + OTLP/console exporters (observability parity) (001-porteros-api-migration)
 
@@ -59,9 +61,9 @@ npm test && npm run lint
 TypeScript ~6.x (last JavaScript-hosted compiler generation) on Node.js 24 LTS (Active LTS as of Aug 2026; Node 22 remains Maintenance LTS as a fallback). TypeScript 7.0 (Go-native compiler) is intentionally *not* adopted yet — see research.md for rationale.: Follow standard conventions
 
 ## Recent Changes
+- 022-wallet-topups-gateway: Added TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. Wompi via `node:crypto` (SHA-256) and the global `fetch`; secrets from Secret Manager through App Hosting environment variables. No new dependency.
 - 021-match-close-rating-no-show: Added TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. Reused: 018 (incidents, penalty policy, reversal), 020 (check-in, country resolver), 019 (`notifyOnce`), 013 (sweep, outbox, consumers). No new dependency.
 - 020-goalkeeper-check-in: Added TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. Reused: 002 (image upload), 013 (outbox, consumers, sweep), 019 (`notifyOnce`, contact rules), 016–018 (lifecycle store). No new dependency.
-- 019-client-request-notices: Added TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. Reused: 013 (consumers, sweep), 014 (push), 015/016 (inbox, dedupe keys), 012 (contacts). No new dependency.
 
 
 <!-- MANUAL ADDITIONS START -->

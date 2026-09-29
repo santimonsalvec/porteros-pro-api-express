@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { ISender } from '../application/common/mediator/types.js';
 import { CompleteProfileCommand } from '../application/features/profile/commands/completeProfile/completeProfileCommand.js';
+import { AcceptCurrentTermsCommand } from '../application/features/profile/commands/acceptCurrentTerms/acceptCurrentTermsCommand.js';
 import { requireAuth } from '../infrastructure/auth/middleware/requireAuth.js';
 import type { AccessTokenClaims } from '../application/features/auth/common/accessTokenClaims.js';
 import { completeProfileRequestSchema } from './requests/profile/completeProfileRequest.js';
@@ -48,6 +49,14 @@ export function createProfileController(deps: ProfileControllerDependencies): Ro
           "This account's profile has already been completed; no changes were made.",
         );
     }
+  });
+
+  // Accepting the current terms again after a new version (feature 022).
+  router.post('/terms/accept', requireAuth(deps.verifyAccessToken), async (req, res) => {
+    const result = await deps.mediator.send(
+      new AcceptCurrentTermsCommand(req.authClaims!.sub, req.ip ?? null, req.header('user-agent') ?? null),
+    );
+    res.status(201).json(result);
   });
 
   return router;

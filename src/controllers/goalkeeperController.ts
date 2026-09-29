@@ -27,6 +27,7 @@ import { offersAvailabilityRequestSchema } from './requests/goalkeepers/offersAv
 import { SetOffersAvailabilityCommand } from '../application/features/notifications/commands/setOffersAvailability/setOffersAvailabilityCommand.js';
 import { ApiError } from './apiError.js';
 import { goalkeeperNotFound, sendMovements, sendWallet } from './wallet/walletHttp.js';
+import { sendTopUp, sendTopUpOptions, sendTopUps, startTopUp } from './payments/topUpHttp.js';
 import { AcceptBookingCommand } from '../application/features/goalkeeperRequests/commands/acceptBooking/acceptBookingCommand.js';
 import { ListAvailableBookingsQuery } from '../application/features/goalkeeperRequests/queries/listAvailableBookings/listAvailableBookingsQuery.js';
 import { ListGoalkeeperAgendaQuery } from '../application/features/goalkeeperRequests/queries/listGoalkeeperAgenda/listGoalkeeperAgendaQuery.js';
@@ -466,6 +467,23 @@ export function createGoalkeeperController(deps: GoalkeeperControllerDependencie
 
   router.get('/me/wallet/movements', async (req, res) => {
     await sendMovements(deps.mediator, req.authClaims!.sub, 'goalkeeper', req, res);
+  });
+
+  // Top-ups through the country's payment gateway (feature 022).
+  router.get('/me/wallet/top-up-options', async (req, res) => {
+    await sendTopUpOptions(deps.mediator, req.authClaims!.sub, res);
+  });
+
+  router.post('/me/wallet/top-ups', async (req, res) => {
+    await startTopUp(deps.mediator, req.authClaims!.sub, req, res);
+  });
+
+  router.get('/me/wallet/top-ups', async (req, res) => {
+    await sendTopUps(deps.mediator, req.authClaims!.sub, req, res);
+  });
+
+  router.get('/me/wallet/top-ups/:topUpId', async (req, res) => {
+    await sendTopUp(deps.mediator, req.authClaims!.sub, req.params.topUpId, res);
   });
 
   return router;
