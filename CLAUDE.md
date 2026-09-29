@@ -41,6 +41,8 @@ Auto-generated from all feature plans. Last updated: 2026-09-29
 - MongoDB (Atlas, transactions). New collections `ratings` and `cases`; `bookings` gains `completedAt`, `attendance`, `noShowAt` and indexes `status_endsAt`, `client_endsAt`; incidents gain kind `no_show`; `bookingSettings.noShowGraceMinutes`. (021-match-close-rating-no-show)
 - TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. Wompi via `node:crypto` (SHA-256) and the global `fetch`; secrets from Secret Manager through App Hosting environment variables. No new dependency. (022-wallet-topups-gateway)
 - MongoDB (Atlas, transactions). New collections `topUps` and `paymentGatewaySettings`; movement type `gateway_fee`; Wompi Web Checkout + events + transactions API; Google Secret Manager. (022-wallet-topups-gateway)
+- TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. Siigo over REST with the global `fetch`; secrets from Secret Manager (as in 022); reuses 013 (outbox, consumers, sweep) and 011 (ledger). No new dependency. (023-electronic-invoicing)
+- MongoDB (Atlas, transactions). New collections `invoicingDocuments`, `invoicingSettings` (provider per country) and `taxSettings`; VAT movement types and `taxRateBps`; events `commission.charged/refunded`, `penalty.charged/reversed`; DANE codes on `cities`; Siigo (DIAN stamping and email). (023-electronic-invoicing)
 
 - TypeScript ~6.x (last JavaScript-hosted compiler generation) on Node.js 24 LTS (Active LTS as of Aug 2026; Node 22 remains Maintenance LTS as a fallback). TypeScript 7.0 (Go-native compiler) is intentionally *not* adopted yet — see research.md for rationale. + Express 5.2.x (web framework); official `mongodb` driver 7.x (no ODM, mirrors the source's raw `MongoDB.Driver` usage); `google-auth-library` 11.x (`OAuth2Client.verifyIdToken`, official equivalent of `Google.Apis.Auth`); `jose` (JWT sign/verify, chosen over legacy `jsonwebtoken` — see research.md); `zod` (request DTO shape validation); `uuid` v9+ (`v7()` for entity ids, matching the source's UUIDv7 convention); `pino` (structured logging, audit-log equivalent); `@opentelemetry/sdk-node` + HTTP/Express auto-instrumentation + OTLP/console exporters (observability parity) (001-porteros-api-migration)
 
@@ -61,9 +63,9 @@ npm test && npm run lint
 TypeScript ~6.x (last JavaScript-hosted compiler generation) on Node.js 24 LTS (Active LTS as of Aug 2026; Node 22 remains Maintenance LTS as a fallback). TypeScript 7.0 (Go-native compiler) is intentionally *not* adopted yet — see research.md for rationale.: Follow standard conventions
 
 ## Recent Changes
+- 023-electronic-invoicing: Added TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. Siigo over REST with the global `fetch`; secrets from Secret Manager (as in 022); reuses 013 (outbox, consumers, sweep) and 011 (ledger). No new dependency.
 - 022-wallet-topups-gateway: Added TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. Wompi via `node:crypto` (SHA-256) and the global `fetch`; secrets from Secret Manager through App Hosting environment variables. No new dependency.
 - 021-match-close-rating-no-show: Added TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. Reused: 018 (incidents, penalty policy, reversal), 020 (check-in, country resolver), 019 (`notifyOnce`), 013 (sweep, outbox, consumers). No new dependency.
-- 020-goalkeeper-check-in: Added TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. Reused: 002 (image upload), 013 (outbox, consumers, sweep), 019 (`notifyOnce`, contact rules), 016–018 (lifecycle store). No new dependency.
 
 
 <!-- MANUAL ADDITIONS START -->
