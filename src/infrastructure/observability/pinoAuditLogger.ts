@@ -31,6 +31,12 @@ export class PinoAuditLogger implements IAuditLogger, IBookingAuditLogger, IAcce
     else logger.warn(record, 'Withdrawal penalty reversal refused');
   }
 
+  logCheckIn(entry: { outcome: string; goalkeeperId: string; bookingId: string; requestId?: string }): void {
+    const record = { audit: 'goalkeeper_check_in', ...entry };
+    if (entry.outcome === 'checked_in' || entry.outcome === 'replayed') logger.info(record, 'Goalkeeper check-in');
+    else logger.warn(record, 'Goalkeeper check-in refused');
+  }
+
   logBookingConfirmation(entry: BookingConfirmationEntry): void {
     const succeeded = entry.outcome === 'created' || entry.outcome === 'replayed';
     const record = { audit: 'booking_confirmation', ...entry };

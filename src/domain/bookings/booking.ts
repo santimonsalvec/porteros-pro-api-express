@@ -34,6 +34,16 @@ export function normalizeCancellationNote(raw?: string | null): string | null {
   return note;
 }
 
+/** The goalkeeper's proof of arrival (feature 020). The location never blocks it; the client never sees it. */
+export interface CheckIn {
+  at: Date;
+  imageId: string;
+  photoUrl: string;
+  location: { latitude: number; longitude: number; accuracyMeters: number | null } | null;
+  /** From the phone to the match point, when there was a location. */
+  distanceMeters: number | null;
+}
+
 export interface BookingProps {
   id: string;
   requestId: string;
@@ -59,6 +69,12 @@ export interface BookingProps {
   replacesBookingId?: string | null;
   /** Goalkeepers who can never take it: those who withdrew from the bookings it replaces. */
   excludedGoalkeeperIds?: readonly string[];
+  /** Feature 020: the check-in, and when each check-in notice was sent. */
+  checkIn?: CheckIn | null;
+  checkInOpenNoticeAt?: Date | null;
+  checkInLastCallAt?: Date | null;
+  /** No check-in by the window close: the client was told. The attendance fact 021 reads. */
+  checkInMissedAt?: Date | null;
 }
 
 /**
@@ -87,6 +103,10 @@ export class Booking extends Entity<string> {
   readonly cancellationNote: string | null;
   readonly replacesBookingId: string | null;
   readonly excludedGoalkeeperIds: readonly string[];
+  readonly checkIn: CheckIn | null;
+  readonly checkInOpenNoticeAt: Date | null;
+  readonly checkInLastCallAt: Date | null;
+  readonly checkInMissedAt: Date | null;
 
   private constructor(props: BookingProps) {
     super(props.id);
@@ -115,6 +135,10 @@ export class Booking extends Entity<string> {
     this.cancellationNote = props.cancellationNote ?? null;
     this.replacesBookingId = props.replacesBookingId ?? null;
     this.excludedGoalkeeperIds = [...(props.excludedGoalkeeperIds ?? [])];
+    this.checkIn = props.checkIn ? { ...props.checkIn, at: new Date(props.checkIn.at) } : null;
+    this.checkInOpenNoticeAt = props.checkInOpenNoticeAt ? new Date(props.checkInOpenNoticeAt) : null;
+    this.checkInLastCallAt = props.checkInLastCallAt ? new Date(props.checkInLastCallAt) : null;
+    this.checkInMissedAt = props.checkInMissedAt ? new Date(props.checkInMissedAt) : null;
   }
 
   /** A new place for one goalkeeper, at the request's per-goalkeeper price, awaiting assignment. */

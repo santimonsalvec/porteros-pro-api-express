@@ -70,6 +70,10 @@ describe('BookingRepository (mocked driver)', () => {
       cancellationNote: null,
       replacesBookingId: null,
       excludedGoalkeeperIds: [],
+      checkIn: null,
+      checkInOpenNoticeAt: null,
+      checkInLastCallAt: null,
+      checkInMissedAt: null,
     });
     expect(bookingFromDocument(doc)).toEqual(booking);
   });

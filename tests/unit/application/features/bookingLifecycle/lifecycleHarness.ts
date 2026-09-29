@@ -23,6 +23,13 @@ import { WithdrawFromBookingCommand } from '../../../../../src/application/featu
 import { WithdrawFromBookingCommandHandler } from '../../../../../src/application/features/bookingLifecycle/commands/withdrawFromBooking/withdrawFromBookingCommandHandler.js';
 import { ReverseWithdrawalPenaltyCommand } from '../../../../../src/application/features/bookingLifecycle/commands/reverseWithdrawalPenalty/reverseWithdrawalPenaltyCommand.js';
 import { ReverseWithdrawalPenaltyCommandHandler } from '../../../../../src/application/features/bookingLifecycle/commands/reverseWithdrawalPenalty/reverseWithdrawalPenaltyCommandHandler.js';
+import { CheckInToBookingCommand, type CheckInLocation } from '../../../../../src/application/features/bookingLifecycle/commands/checkInToBooking/checkInToBookingCommand.js';
+import { CheckInToBookingCommandHandler } from '../../../../../src/application/features/bookingLifecycle/commands/checkInToBooking/checkInToBookingCommandHandler.js';
+import { createCheckInWindowResolver } from '../../../../../src/application/features/bookingLifecycle/common/checkInWindowResolver.js';
+import { StoredImage } from '../../../../../src/domain/images/storedImage.js';
+import { FakeImageRepository } from '../../../../fakes/fakeImageRepository.js';
+import { CheckInNoticeHandler } from '../../../../../src/application/features/bookingLifecycle/handlers/checkInNoticeHandler.js';
+import { CheckInWatchJob } from '../../../../../src/application/features/bookingLifecycle/jobs/checkInWatchJob.js';
 import { ContactsRevealJob } from '../../../../../src/application/features/bookingLifecycle/jobs/contactsRevealJob.js';
 import { ClientAssignmentNoticeHandler } from '../../../../../src/application/features/bookingLifecycle/handlers/clientAssignmentNoticeHandler.js';
 import { WithdrawalNoticeHandler } from '../../../../../src/application/features/bookingLifecycle/handlers/withdrawalNoticeHandler.js';
@@ -169,6 +176,59 @@ export function lifecycleHarness() {
     clock: h.clock,
     logger: h.silent,
   });
+  // Check-in (feature 020).
+  const imageRepository = new FakeImageRepository();
+  const windowResolver = () =>
+    createCheckInWindowResolver({ cityRepository: h.cityRepository, regionRepository, bookingSettingsRepository, logger: lifecycleLogger });
+  const checkInHandler = new CheckInToBookingCommandHandler({
+    goalkeeperProfileRepository: h.goalkeeperProfileRepository,
+    imageRepository,
+    bookingRepository: h.bookingRepository,
+    requestRepository: h.requestRepository,
+    zoneRepository: h.zoneRepository,
+    cityRepository: h.cityRepository,
+    userRepository: users,
+    windowResolver,
+    store,
+    relay,
+    idGenerator,
+    clock: h.clock,
+    audit,
+  });
+  let photos = 0;
+  /** A photo uploaded by the user; returns its id. */
+  const photo = (userId: string) => {
+    const id = `img-${++photos}`;
+    imageRepository.seed(new StoredImage({ id, externalId: id, url: `https://img.example/${id}.jpg`, format: 'jpg', bytes: 1000, width: 10, height: 10, uploadedBy: userId, createdAt: h.clock.now() }));
+    return id;
+  };
+  /** The goalkeeper checks in to the booking with the photo and, optionally, a location. */
+  const checkIn = (bookingId: string, goalkeeperId: string, imageId: string, location?: CheckInLocation) =>
+    checkInHandler.handle(new CheckInToBookingCommand(goalkeeperId, bookingId, imageId, location));
+  const checkInNotices = new CheckInNoticeHandler({
+    requestRepository: h.requestRepository,
+    zoneRepository: h.zoneRepository,
+    cityRepository: h.cityRepository,
+    notifications: h.notifications,
+    pushNotifier: h.pushNotifier,
+    processed: new FakeProcessedEventStore(),
+    idGenerator,
+    clock: h.clock,
+    logger: h.silent,
+  });
+  const checkInWatchJob = new CheckInWatchJob({
+    bookingRepository: h.bookingRepository,
+    requestRepository: h.requestRepository,
+    userRepository: users,
+    zoneRepository: h.zoneRepository,
+    cityRepository: h.cityRepository,
+    notifications: h.notifications,
+    pushNotifier: h.pushNotifier,
+    idGenerator,
+    clock: h.clock,
+    logger: h.silent,
+    windowResolver,
+  });
   const reverser = new ReverseWithdrawalPenaltyCommandHandler({ walletContext, store, idGenerator, clock: h.clock, audit, logger: lifecycleLogger });
   /** An administrator reverses the goalkeeper's withdrawal: `refund` the money and/or `lift` the suspensions. */
   const reverse = (goalkeeperId: string, withdrawalId: string, what: { refund?: boolean; lift?: boolean }, reason = 'Incapacidad médica') =>
@@ -202,6 +262,13 @@ export function lifecycleHarness() {
     users,
     assignmentNotices,
     contactsRevealJob,
+    imageRepository,
+    regionRepository,
+    windowResolver,
+    photo,
+    checkIn,
+    checkInNotices,
+    checkInWatchJob,
     reverse,
     ledger,
     owner,

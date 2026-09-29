@@ -1,8 +1,8 @@
-# Feature Specification: Device Registration for Push Notifications
+# Feature Specification: Device Registration for Push Notifications ✅
 
 **Feature Branch**: `014-fcm-device-registration`
 **Created**: 2026-09-28
-**Status**: Draft
+**Status**: ✅ Implemented — merged into `main` on 2026-09-28. Manual checks deferred to the end of the roadmap (`_temp_pruebas.md`).
 **Input**: User description: "Spec 014 de _temp_plan.md" — "Registro de dispositivos para notificaciones push con Firebase Cloud Messaging, para clientes y porteros. Requisitos: (1) Endpoint autenticado para registrar o actualizar el token FCM del dispositivo (token, plataforma ios/android). Un usuario puede tener varios dispositivos; un token pertenece a un solo usuario (si otro usuario inicia sesión en el mismo teléfono, el token pasa a él). Registrar el mismo token varias veces es idempotente y actualiza su último uso. (2) Endpoint para eliminar el token al cerrar sesión. (3) El backend puede obtener los tokens vigentes de un conjunto de usuarios y eliminar los que FCM reporte como inválidos; los tokens sin uso por mucho tiempo se eliminan solos. (4) Documentar el lado Flutter: permisos, obtención del token tras el login, reenvío en onTokenRefresh, borrado al cerrar sesión, clave APNs en Firebase y capacidad Push Notifications en iOS, y manejo de onMessage / onMessageOpenedApp / getInitialMessage para abrir la pantalla correcta."
 
 **Context**: Step 014 of the goalkeeper-guarantee roadmap (repository-root `_temp_plan.md`, section 4.4). It has no dependency on earlier roadmap steps. The features that notify people depend on it:

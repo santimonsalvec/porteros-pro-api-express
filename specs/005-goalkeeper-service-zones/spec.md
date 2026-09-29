@@ -1,8 +1,8 @@
-# Feature Specification: Goalkeeper Service Zones (Zone-Based Availability)
+# Feature Specification: Goalkeeper Service Zones (Zone-Based Availability) ✅
 
 **Feature Branch**: `005-goalkeeper-service-zones`
 **Created**: 2026-09-14
-**Status**: Draft
+**Status**: ✅ Implemented — merged into `main` on 2026-09-18. Manual checks deferred to the end of the roadmap (`_temp_pruebas.md`).
 **Input**: User description: "Backend para la pantalla de \"Disponibilidad\" de un portero (fútbol amateur), reemplazando el viejo sistema de radio en KM por selección de zonas poligonales. Mockup de referencia: portero-editar-disponibilidad.html. El portero busca su ciudad (aún no la tiene asignada), ve un mapa con las zonas de esa ciudad, selecciona una o varias, y al guardar se persisten ciudad + zonas juntas. `zones` y `cities` ya existen en MongoDB; `cities` tiene `zoneCityId` (autorreferencia a la ciudad ancla que realmente tiene zonas). Se agrega búsqueda de ciudades (`GET /api/locations/cities?q=`), un endpoint de zonas por ciudad (`GET /api/zones?cityId=`), y se cambia el contrato de `PATCH /api/goalkeepers/me/availability` de `{ radiusKm }` a `{ cityId, zoneIds }` con las validaciones correspondientes."
 
 ## User Scenarios & Testing *(mandatory)*

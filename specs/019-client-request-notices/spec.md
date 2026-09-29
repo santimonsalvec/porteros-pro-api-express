@@ -1,8 +1,8 @@
-# Feature Specification: Client Request Notices
+# Feature Specification: Client Request Notices ✅
 
 **Feature Branch**: `019-client-request-notices`
 **Created**: 2026-09-28
-**Status**: Draft
+**Status**: ✅ Implemented — merged into `main` on 2026-09-28. Manual checks deferred to the end of the roadmap (`_temp_pruebas.md`).
 **Input**: User description: "Spec 019 de _temp_plan.md" — "Notificaciones al cliente sobre sus solicitudes, como consumidores de los eventos (feature 013) enviados por FCM (feature 014) y guardados en su bandeja. Avisar cuando: se asigna un portero a una de sus reservas; la solicitud tiene todos sus porteros; un portero se retira (invitando a hacer una nueva búsqueda); y cuando a inicio + 15 min el portero no ha hecho check-in (con el WhatsApp del portero). Cada aviso es idempotente y lleva datos para abrir la solicitud en la app."
 
 **Context**: Step 019 of the goalkeeper-guarantee roadmap (repository-root `_temp_plan.md`, §2.10). Some client notices already ship:

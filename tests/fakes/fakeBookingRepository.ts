@@ -1,5 +1,5 @@
-import type { IBookingRepository } from '../../src/application/features/goalkeeperRequests/common/ports.js';
-import type { Booking } from '../../src/domain/bookings/booking.js';
+import type { CheckInNoticeField, IBookingRepository } from '../../src/application/features/goalkeeperRequests/common/ports.js';
+import { Booking } from '../../src/domain/bookings/booking.js';
 
 export class FakeBookingRepository implements IBookingRepository {
   private readonly bookings = new Map<string, Booking>();
@@ -58,6 +58,22 @@ export class FakeBookingRepository implements IBookingRepository {
       .filter((booking) => booking.status === 'pending_assignment' && booking.isSearchOpenAt(now))
       .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime() || a.id.localeCompare(b.id))
       .slice(0, cap);
+  }
+
+  async findForCheckInWatch(now: Date, cap: number): Promise<Booking[]> {
+    const from = now.getTime() - 60 * 60_000;
+    const to = now.getTime() + 120 * 60_000;
+    return this.all()
+      .filter((booking) => booking.status === 'assigned' && booking.startsAt.getTime() > from && booking.startsAt.getTime() <= to)
+      .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime() || a.id.localeCompare(b.id))
+      .slice(0, cap);
+  }
+
+  async markCheckInNotice(bookingId: string, field: CheckInNoticeField, now: Date): Promise<boolean> {
+    const booking = this.all().find((item) => item.id === bookingId);
+    if (!booking || booking[field] !== null) return false;
+    this.seed(Booking.rehydrate({ ...booking, [field]: now }));
+    return true;
   }
 
   async findAssignedToGoalkeeper(goalkeeperId: string): Promise<Booking[]> {

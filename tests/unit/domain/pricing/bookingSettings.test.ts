@@ -80,6 +80,13 @@ describe('BookingSettings', () => {
     expect(new BookingSettings(base).goalkeeperPenalties).toBeNull();
   });
 
+  it('accepts an optional check-in window and rejects values out of range (feature 020)', () => {
+    expect(new BookingSettings({ ...base, checkInWindow: { closesMinutesAfter: 10 } }).checkInWindow).toEqual({ closesMinutesAfter: 10 });
+    expect(new BookingSettings(base).checkInWindow).toBeNull();
+    expect(() => new BookingSettings({ ...base, checkInWindow: { opensMinutesBefore: 121 } })).toThrow(/checkInWindow.opensMinutesBefore/);
+    expect(() => new BookingSettings({ ...base, checkInWindow: { closesMinutesAfter: 0 } })).toThrow(/checkInWindow.closesMinutesAfter/);
+  });
+
   it.each([0, -1, 2.5])('rejects a penalty value of %s', (value) => {
     expect(() => new BookingSettings({ ...base, goalkeeperPenalties: { weeklyLimit: value } })).toThrow(/goalkeeperPenalties.weeklyLimit/);
   });

@@ -36,6 +36,8 @@ export interface AgendaItem extends AvailableBookingItem {
   client: Contact | null;
   /** From when the client's name and WhatsApp are shown (start − 60 min). */
   clientContactVisibleFrom: string;
+  /** The goalkeeper's check-in (feature 020), with their distance to the pitch. */
+  checkIn: { at: string; photoUrl: string; distanceMeters: number | null } | null;
 }
 
 /** What building items needs besides the bookings: their requests and the current names. */
@@ -95,5 +97,8 @@ export function toAgendaItem(booking: Booking, context: BookingItemContext, clie
     longitude: request.match.longitude,
     client: visible ? client : null,
     clientContactVisibleFrom: contactsVisibleFrom(request).toISOString(),
+    checkIn: booking.checkIn
+      ? { at: booking.checkIn.at.toISOString(), photoUrl: booking.checkIn.photoUrl, distanceMeters: booking.checkIn.distanceMeters }
+      : null,
   };
 }

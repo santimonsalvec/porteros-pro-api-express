@@ -35,6 +35,8 @@ Auto-generated from all feature plans. Last updated: 2026-09-28
 - MongoDB (Atlas, transactions). New collection `goalkeeperIncidents` (withdrawals with embedded penalties; indexes `goalkeeper_occurred`, `kind_booking_unique`). New fields `bookings.replacesBookingId/excludedGoalkeeperIds`, `goalkeeperProfiles.penaltiesUpdatedAt`, `bookingSettings.goalkeeperPenalties`; offers become renewable. (018-goalkeeper-withdrawal-penalties)
 - TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. Reused: 013 (consumers, sweep), 014 (push), 015/016 (inbox, dedupe keys), 012 (contacts). No new dependency. (019-client-request-notices)
 - MongoDB. No new collection. `goalkeeperRequests` gains `contactsRevealedAt` and the index `contactsReveal_due`. (019-client-request-notices)
+- TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. Reused: 002 (image upload), 013 (outbox, consumers, sweep), 019 (`notifyOnce`, contact rules), 016–018 (lifecycle store). No new dependency. (020-goalkeeper-check-in)
+- MongoDB. No new collection. `bookings` gains `checkIn`, `checkInOpenNoticeAt`, `checkInLastCallAt`, `checkInMissedAt` and the index `status_startsAt`; `bookingSettings` gains `checkInWindow`. (020-goalkeeper-check-in)
 
 - TypeScript ~6.x (last JavaScript-hosted compiler generation) on Node.js 24 LTS (Active LTS as of Aug 2026; Node 22 remains Maintenance LTS as a fallback). TypeScript 7.0 (Go-native compiler) is intentionally *not* adopted yet — see research.md for rationale. + Express 5.2.x (web framework); official `mongodb` driver 7.x (no ODM, mirrors the source's raw `MongoDB.Driver` usage); `google-auth-library` 11.x (`OAuth2Client.verifyIdToken`, official equivalent of `Google.Apis.Auth`); `jose` (JWT sign/verify, chosen over legacy `jsonwebtoken` — see research.md); `zod` (request DTO shape validation); `uuid` v9+ (`v7()` for entity ids, matching the source's UUIDv7 convention); `pino` (structured logging, audit-log equivalent); `@opentelemetry/sdk-node` + HTTP/Express auto-instrumentation + OTLP/console exporters (observability parity) (001-porteros-api-migration)
 
@@ -55,9 +57,9 @@ npm test && npm run lint
 TypeScript ~6.x (last JavaScript-hosted compiler generation) on Node.js 24 LTS (Active LTS as of Aug 2026; Node 22 remains Maintenance LTS as a fallback). TypeScript 7.0 (Go-native compiler) is intentionally *not* adopted yet — see research.md for rationale.: Follow standard conventions
 
 ## Recent Changes
+- 020-goalkeeper-check-in: Added TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. Reused: 002 (image upload), 013 (outbox, consumers, sweep), 019 (`notifyOnce`, contact rules), 016–018 (lifecycle store). No new dependency.
 - 019-client-request-notices: Added TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. Reused: 013 (consumers, sweep), 014 (push), 015/016 (inbox, dedupe keys), 012 (contacts). No new dependency.
 - 018-goalkeeper-withdrawal-penalties: Added TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. Reused: 016's lifecycle store and notices, 015's eligibility and offer sender, 011's refund draft, 013's relay. No new dependency.
-- 017-client-cancel-booking: Added TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. Reused: 016's lifecycle store and notices, 011's refund draft, 013's relay. No new dependency.
 
 
 <!-- MANUAL ADDITIONS START -->

@@ -15,7 +15,7 @@ export interface PersonContact {
 }
 
 /** "Juan Pérez · WhatsApp +57 300 1234567", falling back to `fallback` without a name. */
-function describe(contact: PersonContact, fallback: string): string {
+export function describeContact(contact: PersonContact, fallback: string): string {
   const name = [contact.firstName, contact.lastName].filter((part) => part && part.trim() !== '').join(' ') || fallback;
   return contact.whatsApp ? `${name} · WhatsApp ${contact.whatsApp}` : name;
 }
@@ -37,7 +37,7 @@ export function goalkeeperAssignedMessage(
 ): PushMessage {
   // The time already ends in "a. m." / "p. m.", so no extra period after it.
   const lead = options.replacement ? `Encontramos otro portero para tu partido ${where(match)}` : `Un portero tomó tu partido ${where(match)}`;
-  const who = options.contact ? ` Es ${describe(options.contact, 'tu portero')}.` : '';
+  const who = options.contact ? ` Es ${describeContact(options.contact, 'tu portero')}.` : '';
   return {
     title: options.replacement ? 'Encontramos otro portero' : 'Portero confirmado',
     body: `${lead}${who} Seguimos buscando el otro.`,
@@ -59,7 +59,7 @@ export function requestCompleteMessage(
   const lead = goalkeeperCount > 1 ? `¡Listo! Tus ${goalkeeperCount} porteros están confirmados` : '¡Listo! Tu portero está confirmado';
   const tail =
     contacts && contacts.length > 0
-      ? ` ${goalkeeperCount > 1 ? 'Son' : 'Es'} ${list(contacts.map((contact) => describe(contact, 'tu portero')))}.`
+      ? ` ${goalkeeperCount > 1 ? 'Son' : 'Es'} ${list(contacts.map((contact) => describeContact(contact, 'tu portero')))}.`
       : ` Verás sus datos 1 hora antes.`;
   return {
     title: 'Solicitud completa',
@@ -73,7 +73,7 @@ export function contactsVisibleMessage(match: OutcomeMatch, requestId: string, c
   const many = contacts.length > 1;
   return {
     title: many ? 'Tus porteros' : 'Tu portero',
-    body: `${many ? 'Tus porteros' : 'Tu portero'} para el partido ${where(match)}: ${list(contacts.map((contact) => describe(contact, 'tu portero')))}.`,
+    body: `${many ? 'Tus porteros' : 'Tu portero'} para el partido ${where(match)}: ${list(contacts.map((contact) => describeContact(contact, 'tu portero')))}.`,
     data: { type: CONTACTS_VISIBLE_TYPE, requestId },
   };
 }
@@ -82,7 +82,7 @@ export function contactsVisibleMessage(match: OutcomeMatch, requestId: string, c
 export function clientContactVisibleMessage(match: OutcomeMatch, requestId: string, bookingId: string, contact: PersonContact): PushMessage {
   return {
     title: 'Tu cliente',
-    body: `Tu cliente para el partido ${where(match)}: ${describe(contact, 'el cliente')}.`,
+    body: `Tu cliente para el partido ${where(match)}: ${describeContact(contact, 'el cliente')}.`,
     data: { type: CLIENT_CONTACT_VISIBLE_TYPE, requestId, bookingId },
   };
 }

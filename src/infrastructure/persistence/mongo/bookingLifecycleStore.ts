@@ -3,12 +3,13 @@ import type {
   CancelAllResult,
   ClientCancelResult,
   ExpireResult,
+  CheckInResult,
   IBookingLifecycleStore,
   ReversalOutcome,
   WithdrawResult,
 } from '../../../application/features/bookingLifecycle/common/ports.js';
 import { commissionRefundDraft, type LedgerOwner } from '../../../application/features/wallet/common/walletLedger.js';
-import { Booking } from '../../../domain/bookings/booking.js';
+import { Booking, type CheckIn } from '../../../domain/bookings/booking.js';
 import type { DomainEvent } from '../../../domain/events/domainEvent.js';
 import { GoalkeeperIncident, suspensionEndOf } from '../../../domain/goalkeepers/goalkeeperIncident.js';
 import { isLate, penaltiesFor, windowStart, type GoalkeeperPenaltyConfig } from '../../../domain/goalkeepers/penaltyPolicy.js';
@@ -365,6 +366,39 @@ export class MongoBookingLifecycleStore implements IBookingLifecycleStore {
       if (error instanceof LifecycleAbort) return error.result as ReversalOutcome;
       throw error;
     }
+  }
+
+  checkIn(args: {
+    bookingId: string;
+    goalkeeperId: string;
+    now: Date;
+    window: { opensAt: Date; closesAt: Date };
+    checkIn: Omit<CheckIn, 'at'>;
+    buildEvents: (booking: Booking) => DomainEvent[];
+  }): Promise<CheckInResult> {
+    const { bookingId, goalkeeperId, now, window } = args;
+    return this.inTransaction(async (session): Promise<CheckInResult> => {
+      const bookings = this.db.collection(BOOKINGS_COLLECTION);
+      const doc = await bookings.findOne({ _id: bookingId } as Document, { session });
+      const booking = doc ? bookingFromDocument(doc) : null;
+      if (!booking || booking.goalkeeperId !== goalkeeperId) return { kind: 'not_found' };
+      // A repeat answers the recorded check-in, even once the window closed.
+      if (booking.checkIn) return { kind: 'replayed', booking };
+      if (booking.status !== 'assigned') return { kind: 'not_assigned', status: booking.status };
+      if (now.getTime() < window.opensAt.getTime()) return { kind: 'too_early', opensAt: window.opensAt };
+      if (now.getTime() > window.closesAt.getTime()) return { kind: 'too_late', closedAt: window.closesAt };
+
+      const checkIn: CheckIn = { at: now, ...args.checkIn };
+      await bookings.updateOne(
+        { _id: bookingId, status: 'assigned', goalkeeperId, checkIn: null } as Document,
+        { $set: { checkIn } },
+        { session },
+      );
+      const checkedIn = Booking.rehydrate({ ...booking, checkIn });
+      const events = args.buildEvents(checkedIn);
+      await appendEventsInSession(this.db, session, events, now);
+      return { kind: 'checked_in', booking: checkedIn, events };
+    });
   }
 
   /**

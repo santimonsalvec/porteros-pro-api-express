@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ClientSession, Collection, Db, Document } from 'mongodb';
-import { bookingCancelled, bookingCreated, bookingExpired, goalkeeperWithdrew } from '../../../../../src/domain/events/bookingEvents.js';
+import { bookingCancelled, bookingCreated, bookingExpired, goalkeeperCheckedIn, goalkeeperWithdrew } from '../../../../../src/domain/events/bookingEvents.js';
 import { DEFAULT_GOALKEEPER_PENALTIES } from '../../../../../src/domain/goalkeepers/penaltyPolicy.js';
 import { MongoBookingLifecycleStore } from '../../../../../src/infrastructure/persistence/mongo/bookingLifecycleStore.js';
 import { bookingToDocument } from '../../../../../src/infrastructure/persistence/mongo/bookingRepository.js';
@@ -513,6 +513,61 @@ describe('MongoBookingLifecycleStore (mocked driver)', () => {
       other.movements.findOne.mockResolvedValue(null);
       expect(await reverse(other, { refund: true, liftSuspension: true })).toEqual({ kind: 'missing_charge', bookingId: second!.id });
       expect(other.incidents.replaceOne).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('checkIn (feature 020)', () => {
+    // The match starts at 20:00Z; the window is 19:30Z–20:15Z.
+    const window = { opensAt: new Date('2026-09-28T19:30:00.000Z'), closesAt: new Date('2026-09-28T20:15:00.000Z') };
+    const photo = { imageId: 'img-1', photoUrl: 'https://img/1', location: { latitude: 3.45, longitude: -76.5, accuracyMeters: 12 }, distanceMeters: 40 };
+
+    function checkIn(h: ReturnType<typeof harness>, when: Date) {
+      return h.store.checkIn({
+        bookingId: second!.id,
+        goalkeeperId: 'gk-1',
+        now: when,
+        window,
+        checkIn: photo,
+        buildEvents: (booking) => [goalkeeperCheckedIn('ev-ci', booking, when)],
+      });
+    }
+
+    it('records the check-in once with its event', async () => {
+      const h = harness();
+      h.bookings.findOne.mockResolvedValue(assignedDoc);
+      const when = new Date('2026-09-28T19:50:00.000Z');
+
+      const result = await checkIn(h, when);
+
+      expect(h.bookings.updateOne).toHaveBeenCalledWith(
+        { _id: second!.id, status: 'assigned', goalkeeperId: 'gk-1', checkIn: null },
+        { $set: { checkIn: { at: when, ...photo } } },
+        { session: h.session },
+      );
+      expect(h.outbox.insertMany.mock.calls[0]![0]).toMatchObject([{ type: 'goalkeeper.checked_in', bookingId: second!.id }]);
+      expect(result).toMatchObject({ kind: 'checked_in', booking: { checkIn: { at: when, photoUrl: 'https://img/1', distanceMeters: 40 } } });
+    });
+
+    it('answers a repeat with the recorded check-in, even after the close, without writing', async () => {
+      const h = harness();
+      h.bookings.findOne.mockResolvedValue({ ...assignedDoc, checkIn: { at: new Date('2026-09-28T19:40:00.000Z'), ...photo } });
+
+      expect(await checkIn(h, new Date('2026-09-28T21:00:00.000Z'))).toMatchObject({ kind: 'replayed' });
+      expect(h.bookings.updateOne).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['another goalkeeper', { ...assignedDoc, goalkeeperId: 'gk-2' }, '2026-09-28T19:50:00.000Z', { kind: 'not_found' }],
+      ['a booking no longer assigned', { ...assignedDoc, status: 'goalkeeper_withdrew' }, '2026-09-28T19:50:00.000Z', { kind: 'not_assigned', status: 'goalkeeper_withdrew' }],
+      ['too early', assignedDoc, '2026-09-28T19:29:59.999Z', { kind: 'too_early', opensAt: new Date('2026-09-28T19:30:00.000Z') }],
+      ['too late', assignedDoc, '2026-09-28T20:15:00.001Z', { kind: 'too_late', closedAt: new Date('2026-09-28T20:15:00.000Z') }],
+    ])('refuses %s without writing', async (_label, doc, when, expected) => {
+      const h = harness();
+      h.bookings.findOne.mockResolvedValue(doc);
+
+      expect(await checkIn(h, new Date(when))).toEqual(expected);
+      expect(h.bookings.updateOne).not.toHaveBeenCalled();
+      expect(h.outbox.insertMany).not.toHaveBeenCalled();
     });
   });
 });

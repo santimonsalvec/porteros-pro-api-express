@@ -69,6 +69,19 @@ La cotización trae `cancelAllAvailable` y `cancelAllUntil`: cuando `cancelAllAv
 - **Regla de visibilidad:** el cliente y el portero solo ven el nombre y el WhatsApp del otro desde **1 hora antes** del partido (el fin de la cancelación gratuita). Antes, la solicitud muestra `goalkeeper: null` y la agenda `client: null`; ambas respuestas traen desde cuándo se verán (`contactsVisibleFrom` / `clientContactVisibleFrom`).
 - Antes de ese momento, ningún aviso lleva el nombre ni el contacto de la otra parte. Si la reserva se toma en la última hora, los datos se ven de inmediato: el aviso de asignación al cliente ya los trae y no llega un aviso aparte de "datos visibles".
 
+### Check-in del portero (feature 020)
+
+| `type` | Para | Cuándo | Qué abre la app |
+|---|---|---|---|
+| `booking.check_in_open` | portero | Se abre la ventana de check-in (inicio − 30 min), o de inmediato si la reserva se asigna ya abierta | La reserva (`bookingId`) con el botón de check-in |
+| `booking.check_in_last_call` | portero | Inicio + 5 min sin check-in ("Te quedan 10 minutos") | La reserva |
+| `booking.goalkeeper_arrived` | cliente | El portero hizo check-in | La solicitud (`requestId`) |
+| `booking.check_in_missed` | cliente | Inicio + 15 min sin check-in, con el nombre y WhatsApp del portero | La solicitud |
+
+- **Flujo en la app del portero:** tomar la foto → `POST /api/images` (multipart `image`) → `POST /api/goalkeepers/me/bookings/{bookingId}/check-in` con `{ imageId, location? }`. La ubicación es opcional (si el permiso se niega, se envía sin ella) y nunca bloquea.
+- **Ventana:** de inicio − 30 min a inicio + 15 min (por país). Fuera de ella responde `409 check_in_not_open` / `check_in_closed`; después de inicio + 15 min no hay check-in.
+- El cliente ve en su solicitud `checkIn { at, photoUrl }`, nunca la ubicación.
+
 ### Ofertas a porteros (feature 015)
 
 | `type` | Cuándo | Qué abre la app |

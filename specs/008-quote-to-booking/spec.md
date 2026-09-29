@@ -1,8 +1,8 @@
-# Feature Specification: Persisted Quotes and Idempotent Booking Creation
+# Feature Specification: Persisted Quotes and Idempotent Booking Creation ✅
 
 **Feature Branch**: `008-quote-to-booking`
 **Created**: 2026-09-25
-**Status**: Draft
+**Status**: ✅ Implemented — merged into `main` on 2026-09-25. Manual checks deferred to the end of the roadmap (`_temp_pruebas.md`).
 **Input**: User description: "Persistencia de Cotizaciones y Creación Idempotente de Reservas. Actualmente la aplicación calcula las cotizaciones al vuelo sin guardarlas. Se requiere: (1) modificar el servicio de cotización para que almacene cada cotización en MongoDB con un estado inicial (`PENDING`) y un tiempo de vida (15 minutos desde su creación), devolviendo el `quoteId` al cliente; (2) crear la funcionalidad para convertir una cotización en una reserva (Booking) garantizando idempotencia, seguridad financiera y atomicidad con las capacidades nativas de MongoDB (sin Redis). La cotización guarda: usuario, estado [`PENDING`, `CONSUMED`, `EXPIRED`], detalles del partido (fecha, hora, cantidad de porteros, ubicación…), foto exacta del precio (precio base, recargo, total, moneda), `expires_at`, `created_at` y `consumed_at`. El cliente móvil únicamente envía el `quoteId` para confirmar la reserva. Para evitar condiciones de carrera (dos clics rápidos) o reservas duplicadas por reintentos de red, la cotización se consume con una única operación atómica condicionada a `status = PENDING` y `expires_at > ahora`, que la pasa a `CONSUMED` con `consumed_at`."
 
 ## Clarifications

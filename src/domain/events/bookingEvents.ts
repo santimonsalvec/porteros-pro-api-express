@@ -58,17 +58,28 @@ export interface GoalkeeperWithdrewPayload {
   penalties: Array<{ kind: PenaltyKind; days: number; endsAt: Date }>;
 }
 
+export interface GoalkeeperCheckedInPayload {
+  goalkeeperId: string;
+  clientId: string;
+  zoneId: string;
+  startsAt: Date;
+  checkedInAt: Date;
+  distanceMeters: number | null;
+}
+
 export type BookingCreatedEvent = DomainEvent<'booking.created', BookingCreatedPayload>;
 export type BookingExpiredEvent = DomainEvent<'booking.expired', BookingExpiredPayload>;
 export type BookingCancelledEvent = DomainEvent<'booking.cancelled', BookingCancelledPayload>;
 export type GoalkeeperAssignedEvent = DomainEvent<'goalkeeper.assigned', GoalkeeperAssignedPayload>;
 export type GoalkeeperWithdrewEvent = DomainEvent<'goalkeeper.withdrew', GoalkeeperWithdrewPayload>;
+export type GoalkeeperCheckedInEvent = DomainEvent<'goalkeeper.checked_in', GoalkeeperCheckedInPayload>;
 export type BookingEvent =
   | BookingCreatedEvent
   | GoalkeeperAssignedEvent
   | BookingExpiredEvent
   | BookingCancelledEvent
-  | GoalkeeperWithdrewEvent;
+  | GoalkeeperWithdrewEvent
+  | GoalkeeperCheckedInEvent;
 
 /** One per booking created by a confirmation (spec clarification 1). */
 export function bookingCreated(id: string, booking: Booking, request: GoalkeeperRequest, at: Date): BookingCreatedEvent {
@@ -186,6 +197,27 @@ export function goalkeeperWithdrew(
       replacementBookingId: incident.replacementBookingId,
       suspendedUntil: incident.penalties.length > 0 ? suspendedUntil : null,
       penalties: incident.penalties.map((penalty) => ({ kind: penalty.kind, days: penalty.days, endsAt: penalty.endsAt })),
+    },
+  };
+}
+
+/** The goalkeeper checked in at the pitch (feature 020). The booking must carry its check-in. */
+export function goalkeeperCheckedIn(id: string, booking: Booking, at: Date): GoalkeeperCheckedInEvent {
+  if (!booking.checkIn || !booking.goalkeeperId) throw new Error(`Booking ${booking.id} has no check-in`);
+  return {
+    id,
+    type: 'goalkeeper.checked_in',
+    version: 1,
+    occurredAt: at,
+    bookingId: booking.id,
+    requestId: booking.requestId,
+    payload: {
+      goalkeeperId: booking.goalkeeperId,
+      clientId: booking.clientId,
+      zoneId: booking.zoneId,
+      startsAt: booking.startsAt,
+      checkedInAt: booking.checkIn.at,
+      distanceMeters: booking.checkIn.distanceMeters,
     },
   };
 }

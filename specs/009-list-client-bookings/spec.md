@@ -1,8 +1,8 @@
-# Feature Specification: List the Client's Own Bookings (Paginated)
+# Feature Specification: List the Client's Own Bookings (Paginated) ✅
 
 **Feature Branch**: `009-list-client-bookings`
 **Created**: 2026-09-25
-**Status**: Draft
+**Status**: ✅ Implemented — merged into `main` on 2026-09-25.
 **Input**: User description: "Acabamos de implementar la funcionalidad para crear reservas ahora necesito el endpoint para que el cliente que hizo la reservas reservas pueda ver las reservas que ha realizado, el endpoint debe ser paginado. Esten nuevo endpoint es solo para el usuario por lo cual el id del usuario lo debe tomar del token."
 
 ## Clarifications

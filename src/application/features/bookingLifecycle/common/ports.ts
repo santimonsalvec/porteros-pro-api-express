@@ -1,4 +1,4 @@
-import type { Booking, BookingStatus } from '../../../../domain/bookings/booking.js';
+import type { Booking, BookingStatus, CheckIn } from '../../../../domain/bookings/booking.js';
 import type { DomainEvent } from '../../../../domain/events/domainEvent.js';
 import type { GoalkeeperIncident } from '../../../../domain/goalkeepers/goalkeeperIncident.js';
 import type { GoalkeeperPenaltyConfig } from '../../../../domain/goalkeepers/penaltyPolicy.js';
@@ -50,6 +50,16 @@ export type WithdrawResult =
   | { kind: 'not_found' }
   | { kind: 'not_withdrawable'; status: BookingStatus }
   | { kind: 'match_started'; startsAt: Date };
+
+export type CheckInResult =
+  | { kind: 'checked_in'; booking: Booking; events: DomainEvent[] }
+  /** Already checked in: the recorded check-in, even after the window closed (idempotent). */
+  | { kind: 'replayed'; booking: Booking }
+  /** No such booking, or not this goalkeeper's. */
+  | { kind: 'not_found' }
+  | { kind: 'not_assigned'; status: BookingStatus }
+  | { kind: 'too_early'; opensAt: Date }
+  | { kind: 'too_late'; closedAt: Date };
 
 export type ReversalOutcome =
   | { kind: 'reversed'; incident: GoalkeeperIncident; suspendedUntil: Date | null }
@@ -117,6 +127,18 @@ export interface IBookingLifecycleStore {
     owner: LedgerOwner | null;
     newId: () => string;
   }): Promise<ReversalOutcome>;
+  /**
+   * The goalkeeper checks in (feature 020), once, inside the window: records the check-in and its
+   * event together. Refusals change nothing.
+   */
+  checkIn(args: {
+    bookingId: string;
+    goalkeeperId: string;
+    now: Date;
+    window: { opensAt: Date; closesAt: Date };
+    checkIn: Omit<CheckIn, 'at'>;
+    buildEvents: (booking: Booking) => DomainEvent[];
+  }): Promise<CheckInResult>;
 }
 
 /** A goalkeeper's withdrawals (and, from 021, no-shows), newest first. */

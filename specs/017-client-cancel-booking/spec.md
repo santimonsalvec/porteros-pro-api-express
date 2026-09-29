@@ -1,8 +1,8 @@
-# Feature Specification: Client Cancels Bookings
+# Feature Specification: Client Cancels Bookings ✅
 
 **Feature Branch**: `017-client-cancel-booking`
 **Created**: 2026-09-28
-**Status**: Draft
+**Status**: ✅ Implemented — merged into `main` on 2026-09-28. Manual checks deferred to the end of the roadmap (`_temp_pruebas.md`).
 **Input**: User description: "Spec 017 de _temp_plan.md" — "El cliente cancela porteros. Requisitos: (1) El cliente puede cancelar una reserva individual (p. ej. un amigo cubrirá uno de los arcos) o la solicitud completa. (2) Una reserva sin portero se puede cancelar en cualquier momento, sin costo. (3) Una reserva con portero asignado se puede cancelar hasta inicio − plazo de cancelación gratuita (configurable, hoy 60 min): se devuelve la comisión al portero (movimiento tipificado con el detalle: quién canceló, cuándo, motivo), el portero recibe aviso (push y bandeja) y el partido sale de su agenda. (4) Dentro del plazo (última hora), cancelar una reserva asignada se rechaza con un mensaje claro: el cliente debe usar al portero o, en todo caso, pagarle. (5) La cancelación es idempotente y atómica frente a una aceptación simultánea: si un portero acepta mientras el cliente cancela, el resultado es coherente (o queda cancelada con devolución, o queda asignada y la cancelación se evalúa con las reglas de reserva asignada). (6) Emite los eventos correspondientes."
 
 **Context**: Step 017 of the goalkeeper-guarantee roadmap (repository-root `_temp_plan.md`, §2.5). It builds on:
