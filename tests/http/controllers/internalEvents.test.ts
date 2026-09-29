@@ -108,6 +108,8 @@ describe('POST /internal/sweep — US4: the every-minute sweep', () => {
       jobs: [
         { name: 'cancel-all', outcome: 'succeeded', detail: '0 cancelled, 0 kept, 0 refunds, 0 skipped, 0 failed' },
         { name: 'booking-expiry', outcome: 'succeeded', detail: '0 bookings expired in 0 requests, 0 failed' },
+        { name: 'booking-completion', outcome: 'succeeded', detail: '0 bookings completed in 0 requests, 0 failed' },
+        { name: 'no-show-watch', outcome: 'succeeded', detail: '0 no-shows, 0 attended, 0 failed' },
         { name: 'offer-reminders', outcome: 'succeeded', detail: '0 open bookings' },
         { name: 'contacts-reveal', outcome: 'succeeded', detail: '0 revealed, 0 without goalkeepers, 0 notices, 0 failed' },
         { name: 'check-in-watch', outcome: 'succeeded', detail: '0 opened, 0 last calls, 0 missed, 0 failed' },

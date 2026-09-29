@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ClientSession, Collection, Db, Document } from 'mongodb';
-import { bookingCancelled, bookingCreated, bookingExpired, goalkeeperCheckedIn, goalkeeperWithdrew } from '../../../../../src/domain/events/bookingEvents.js';
+import { bookingCancelled, bookingCompleted, bookingCreated, bookingExpired, goalkeeperCheckedIn, goalkeeperNoShow, goalkeeperWithdrew } from '../../../../../src/domain/events/bookingEvents.js';
 import { DEFAULT_GOALKEEPER_PENALTIES } from '../../../../../src/domain/goalkeepers/penaltyPolicy.js';
 import { MongoBookingLifecycleStore } from '../../../../../src/infrastructure/persistence/mongo/bookingLifecycleStore.js';
 import { bookingToDocument } from '../../../../../src/infrastructure/persistence/mongo/bookingRepository.js';
@@ -24,6 +24,8 @@ function harness() {
   const outbox = createFakeCollection();
   const incidents = createFakeCollection();
   const profiles = createFakeCollection();
+  const ratings = createFakeCollection();
+  const cases = createFakeCollection();
   const collections: Record<string, unknown> = {
     bookings,
     goalkeeperRequests: requests,
@@ -32,6 +34,8 @@ function harness() {
     outbox,
     goalkeeperIncidents: incidents,
     goalkeeperProfiles: profiles,
+    ratings,
+    cases,
   };
   const db = { collection: (name: string) => collections[name] as Collection<Document> } as unknown as Db;
   const session = {
@@ -59,7 +63,9 @@ function harness() {
   incidents.replaceOne.mockResolvedValue({});
   incidents.countDocuments.mockResolvedValue(0);
   profiles.updateOne.mockResolvedValue({});
-  return { bookings, requests, movements, outbox, incidents, profiles, session, store, cancelAll };
+  ratings.insertOne.mockResolvedValue({});
+  cases.insertOne.mockResolvedValue({});
+  return { bookings, requests, movements, outbox, incidents, profiles, ratings, cases, session, store, cancelAll };
 }
 
 describe('MongoBookingLifecycleStore (mocked driver)', () => {
@@ -568,6 +574,109 @@ describe('MongoBookingLifecycleStore (mocked driver)', () => {
       expect(await checkIn(h, new Date(when))).toEqual(expected);
       expect(h.bookings.updateOne).not.toHaveBeenCalled();
       expect(h.outbox.insertMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('complete (feature 021)', () => {
+    it('completes the ended assigned bookings, attends the checked-in ones, records events and deactivates', async () => {
+      const h = harness();
+      const when = new Date('2026-09-28T21:30:00.000Z');
+      const checkedIn = { ...assignedDoc, _id: 'b-ci', checkIn: { at: new Date('2026-09-28T19:50:00.000Z'), imageId: 'i', photoUrl: 'u', location: null, distanceMeters: null } };
+      h.bookings.find.mockReturnValue(toArrayResult([assignedDoc, checkedIn]));
+      h.bookings.countDocuments.mockResolvedValue(0);
+
+      const result = await h.store.complete('r-1', when, (completed) => completed.map((b) => bookingCompleted(`ev-${b.id}`, b, when)));
+
+      expect(h.bookings.find).toHaveBeenCalledWith({ requestId: 'r-1', status: 'assigned', endsAt: { $lte: when } }, { session: h.session });
+      expect(h.bookings.updateOne).toHaveBeenCalledWith({ _id: second!.id, status: 'assigned' }, { $set: { status: 'completed', completedAt: when } }, { session: h.session });
+      expect(h.bookings.updateOne).toHaveBeenCalledWith({ _id: 'b-ci', status: 'assigned' }, { $set: { status: 'completed', completedAt: when, attendance: 'attended' } }, { session: h.session });
+      expect(h.outbox.insertMany.mock.calls[0]![0]).toHaveLength(2);
+      expect(h.requests.updateOne).toHaveBeenCalledWith({ _id: 'r-1' }, { $set: { active: false } }, { session: h.session });
+      expect(result.completed.map((b) => b.status)).toEqual(['completed', 'completed']);
+    });
+
+    it('does nothing when nothing is due', async () => {
+      const h = harness();
+      h.bookings.find.mockReturnValue(toArrayResult([]));
+
+      expect(await h.store.complete('r-1', new Date(), () => [])).toEqual({ completed: [], events: [] });
+      expect(h.bookings.updateOne).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('rate and settleAttendance (feature 021)', () => {
+    const completedDoc = { ...assignedDoc, status: 'completed', completedAt: new Date('2026-09-28T21:30:00.000Z'), attendance: null };
+    const when = new Date('2026-09-28T21:40:00.000Z');
+    const config = DEFAULT_GOALKEEPER_PENALTIES;
+    let ids = 0;
+    const rate = (h: ReturnType<typeof harness>, userId: string, answer: boolean) =>
+      h.store.rate({
+        bookingId: second!.id,
+        userId,
+        now: when,
+        answer,
+        stars: 3,
+        comment: null,
+        newId: () => `id-${++ids}`,
+        noShowConfig: config,
+        buildEvents: (noShow) => [goalkeeperNoShow('ev-ns', noShow.booking, noShow.incident, noShow.suspendedUntil, when)],
+      });
+
+    it('records the client\u2019s "no" with the no-show and its case, in one transaction', async () => {
+      const h = harness();
+      h.bookings.findOne.mockResolvedValue(completedDoc);
+      h.ratings.findOne.mockResolvedValue(null);
+      h.cases.findOne.mockResolvedValue(null);
+      h.incidents.find.mockImplementation(() => toArrayResult(h.incidents.insertOne.mock.calls.map((call) => call[0])));
+
+      const result = await rate(h, request.clientId, false);
+
+      expect(h.ratings.insertOne.mock.calls[0]![0]).toMatchObject({ bookingId: second!.id, side: 'client', answer: false, subjectId: 'gk-1' });
+      expect(h.incidents.insertOne.mock.calls[0]![0]).toMatchObject({ kind: 'no_show', late: true, noticeMinutes: 0 });
+      expect(h.bookings.updateOne).toHaveBeenCalledWith({ _id: second!.id }, { $set: { attendance: 'no_show', noShowAt: when } }, { session: h.session });
+      expect(h.cases.insertOne.mock.calls[0]![0]).toMatchObject({ type: 'goalkeeper_no_show', status: 'open' });
+      expect(h.outbox.insertMany.mock.calls[0]![0]).toMatchObject([{ type: 'goalkeeper.no_show' }]);
+      expect(result).toMatchObject({ kind: 'rated', caseOpened: 'goalkeeper_no_show' });
+    });
+
+    it('refuses a stranger, a repeat, or a booking not rateable, without writing', async () => {
+      const h = harness();
+      h.bookings.findOne.mockResolvedValue(completedDoc);
+      expect(await rate(h, 'stranger', true)).toEqual({ kind: 'not_found' });
+      h.ratings.findOne.mockResolvedValue({ _id: 'existing' });
+      expect(await rate(h, 'gk-1', true)).toEqual({ kind: 'already_rated' });
+      h.bookings.findOne.mockResolvedValue(assignedDoc);
+      expect(await rate(h, 'gk-1', true)).toEqual({ kind: 'not_rateable', reason: 'not_finished' });
+      expect(h.ratings.insertOne).not.toHaveBeenCalled();
+    });
+
+    it('maps a concurrent duplicate rating to already_rated', async () => {
+      const h = harness();
+      h.bookings.findOne.mockResolvedValue(completedDoc);
+      h.ratings.findOne.mockResolvedValue(null);
+      h.ratings.insertOne.mockRejectedValue(Object.assign(new Error('E11000'), { code: 11000 }));
+
+      expect(await rate(h, 'gk-1', true)).toEqual({ kind: 'already_rated' });
+    });
+
+    it('settles attendance: the client\u2019s "yes" attends, silence is a no-show, anything else is skipped', async () => {
+      const settle = (h: ReturnType<typeof harness>) =>
+        h.store.settleAttendance({ bookingId: second!.id, now: when, config, newId: () => `id-${++ids}`, buildEvents: () => [] });
+      const yes = harness();
+      yes.bookings.findOne.mockResolvedValue(completedDoc);
+      yes.ratings.findOne.mockResolvedValue({ answer: true });
+      expect(await settle(yes)).toEqual({ kind: 'attended' });
+      expect(yes.bookings.updateOne).toHaveBeenCalledWith({ _id: second!.id, attendance: null }, { $set: { attendance: 'attended' } }, { session: yes.session });
+
+      const silence = harness();
+      silence.bookings.findOne.mockResolvedValue(completedDoc);
+      silence.ratings.findOne.mockResolvedValue(null);
+      silence.incidents.find.mockReturnValue(toArrayResult([]));
+      expect(await settle(silence)).toMatchObject({ kind: 'no_show' });
+
+      const settled = harness();
+      settled.bookings.findOne.mockResolvedValue({ ...completedDoc, attendance: 'attended' });
+      expect(await settle(settled)).toEqual({ kind: 'skipped' });
     });
   });
 });

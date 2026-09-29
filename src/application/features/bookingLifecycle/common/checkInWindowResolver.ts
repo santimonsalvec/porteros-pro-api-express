@@ -1,13 +1,9 @@
 import { CHECK_IN_DEFAULTS, type CheckInWindowConfig } from '../../../../domain/bookings/checkInWindow.js';
 import type { GoalkeeperRequest } from '../../../../domain/bookings/goalkeeperRequest.js';
-import type { IBookingSettingsRepository } from '../../goalkeeperRequests/common/ports.js';
-import type { ICityRepository, IRegionRepository } from '../../locations/common/ports.js';
+import { createCountrySettingsResolver, type CountrySettingsResolverDependencies } from './countrySettingsResolver.js';
 import type { ILifecycleLogger } from './ports.js';
 
-export interface CheckInWindowResolverDependencies {
-  cityRepository: ICityRepository;
-  regionRepository: IRegionRepository;
-  bookingSettingsRepository: IBookingSettingsRepository;
+export interface CheckInWindowResolverDependencies extends CountrySettingsResolverDependencies {
   logger: ILifecycleLogger;
 }
 
@@ -16,18 +12,16 @@ export type CheckInWindowResolver = (request: GoalkeeperRequest) => Promise<Chec
 const FIELDS = ['opensMinutesBefore', 'closesMinutesAfter'] as const;
 
 /**
- * The check-in window values of the match's country (research §4): the country-level booking
- * settings over the Colombia defaults, with a warning naming what was defaulted. Never fails.
- * Cached per city for the resolver's lifetime — create one per request or per sweep run.
+ * The check-in window values of the match's country (feature 020, research §4): the country-level
+ * booking settings over the Colombia defaults, with a warning naming what was defaulted. Never
+ * fails. Cached per city for the resolver's lifetime.
  */
 export function createCheckInWindowResolver(deps: CheckInWindowResolverDependencies): CheckInWindowResolver {
-  const cache = new Map<string, Promise<CheckInWindowConfig>>();
-  const resolve = async (cityId: string): Promise<CheckInWindowConfig> => {
-    const city = await deps.cityRepository.getById(cityId);
-    const region = city ? (await deps.regionRepository.getByIds([city.regionId]))[0] : undefined;
-    const countryId = region?.countryId ?? null;
-    const configured = (await deps.bookingSettingsRepository.findFor(cityId, countryId)).country?.checkInWindow ?? {};
-
+  const country = createCountrySettingsResolver(deps);
+  return async (request) => {
+    const cityId = request.match.cityId;
+    const { countryId, settings } = await country(cityId);
+    const configured = settings?.checkInWindow ?? {};
     const config: CheckInWindowConfig = { ...CHECK_IN_DEFAULTS };
     const defaulted: string[] = [];
     for (const field of FIELDS) {
@@ -40,13 +34,19 @@ export function createCheckInWindowResolver(deps: CheckInWindowResolverDependenc
     }
     return config;
   };
-  return (request) => {
+}
+
+/** Minutes after the end before a no-show, by default (feature 021). */
+export const NO_SHOW_GRACE_DEFAULT_MINUTES = 60;
+
+/** The no-show grace period of the match's country (feature 021), default 60 with a warning. */
+export function createNoShowGraceResolver(deps: CheckInWindowResolverDependencies): (request: GoalkeeperRequest) => Promise<number> {
+  const country = createCountrySettingsResolver(deps);
+  return async (request) => {
     const cityId = request.match.cityId;
-    let found = cache.get(cityId);
-    if (!found) {
-      found = resolve(cityId);
-      cache.set(cityId, found);
-    }
-    return found;
+    const { countryId, settings } = await country(cityId);
+    if (settings?.noShowGraceMinutes != null) return settings.noShowGraceMinutes;
+    deps.logger.warn({ outcome: 'no_show_grace_defaulted', cityId, countryId }, 'No-show grace period missing for the country; using the default');
+    return NO_SHOW_GRACE_DEFAULT_MINUTES;
   };
 }

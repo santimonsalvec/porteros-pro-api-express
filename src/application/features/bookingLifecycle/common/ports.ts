@@ -2,6 +2,8 @@ import type { Booking, BookingStatus, CheckIn } from '../../../../domain/booking
 import type { DomainEvent } from '../../../../domain/events/domainEvent.js';
 import type { GoalkeeperIncident } from '../../../../domain/goalkeepers/goalkeeperIncident.js';
 import type { GoalkeeperPenaltyConfig } from '../../../../domain/goalkeepers/penaltyPolicy.js';
+import type { CaseType } from '../../../../domain/cases/case.js';
+import type { Rating } from '../../../../domain/ratings/rating.js';
 import type { LedgerOwner } from '../../wallet/common/walletLedger.js';
 
 export interface ExpireResult {
@@ -60,6 +62,26 @@ export type CheckInResult =
   | { kind: 'not_assigned'; status: BookingStatus }
   | { kind: 'too_early'; opensAt: Date }
   | { kind: 'too_late'; closedAt: Date };
+
+/** A no-show just recorded (feature 021), for the events. */
+export interface RecordedNoShow {
+  booking: Booking;
+  incident: GoalkeeperIncident;
+  suspendedUntil: Date | null;
+}
+
+export type RateResult =
+  | { kind: 'rated'; rating: Rating; caseOpened: CaseType | null; noShow: RecordedNoShow | null; events: DomainEvent[] }
+  /** No such booking, or the caller is neither its client nor its goalkeeper. */
+  | { kind: 'not_found' }
+  | { kind: 'not_rateable'; reason: 'not_finished' | 'expired' | 'no_goalkeeper' }
+  | { kind: 'already_rated' };
+
+export type SettleAttendanceResult =
+  | { kind: 'no_show'; noShow: RecordedNoShow; events: DomainEvent[] }
+  | { kind: 'attended' }
+  /** Nothing to settle: not completed, already settled, or checked in. */
+  | { kind: 'skipped' };
 
 export type ReversalOutcome =
   | { kind: 'reversed'; incident: GoalkeeperIncident; suspendedUntil: Date | null }
@@ -131,6 +153,35 @@ export interface IBookingLifecycleStore {
    * The goalkeeper checks in (feature 020), once, inside the window: records the check-in and its
    * event together. Refusals change nothing.
    */
+  /**
+   * Completes the request's assigned bookings whose match ended (feature 021), once: checked-in
+   * ones are also marked attended. Deactivates the request when nothing is live.
+   */
+  complete(requestId: string, now: Date, buildEvents: (completed: readonly Booking[]) => DomainEvent[]): Promise<{ completed: Booking[]; events: DomainEvent[] }>;
+  /**
+   * One side rates the booking (feature 021), with its consequences in the same transaction: the
+   * client's answer settles attendance (a "no" without a check-in records the no-show at once,
+   * clarification 1), and "no" answers or a late "yes" open a case.
+   */
+  rate(args: {
+    bookingId: string;
+    userId: string;
+    now: Date;
+    answer: boolean;
+    stars: number;
+    comment: string | null;
+    newId: () => string;
+    noShowConfig: GoalkeeperPenaltyConfig;
+    buildEvents: (noShow: RecordedNoShow) => DomainEvent[];
+  }): Promise<RateResult>;
+  /** At end + grace: a completed booking without a check-in or the client's "yes" is a no-show (feature 021). */
+  settleAttendance(args: {
+    bookingId: string;
+    now: Date;
+    config: GoalkeeperPenaltyConfig;
+    newId: () => string;
+    buildEvents: (noShow: RecordedNoShow) => DomainEvent[];
+  }): Promise<SettleAttendanceResult>;
   checkIn(args: {
     bookingId: string;
     goalkeeperId: string;

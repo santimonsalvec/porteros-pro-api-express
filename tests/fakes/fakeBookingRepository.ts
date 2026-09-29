@@ -69,6 +69,31 @@ export class FakeBookingRepository implements IBookingRepository {
       .slice(0, cap);
   }
 
+  async findDueForCompletion(now: Date, cap: number): Promise<Booking[]> {
+    return this.all()
+      .filter((booking) => booking.status === 'assigned' && booking.endsAt.getTime() <= now.getTime())
+      .sort((a, b) => a.endsAt.getTime() - b.endsAt.getTime() || a.id.localeCompare(b.id))
+      .slice(0, cap);
+  }
+
+  async findRateable(userId: string, now: Date): Promise<{ asClient: Booking[]; asGoalkeeper: Booking[] }> {
+    const since = now.getTime() - 7 * 86_400_000;
+    const recent = this.all().filter((booking) => booking.endsAt.getTime() >= since);
+    return {
+      asClient: recent.filter(
+        (booking) => booking.clientId === userId && (booking.status === 'completed' || (booking.status === 'assigned' && booking.checkIn !== null)),
+      ),
+      asGoalkeeper: recent.filter((booking) => booking.goalkeeperId === userId && booking.status === 'completed'),
+    };
+  }
+
+  async findDueForAttendance(now: Date, cap: number): Promise<Booking[]> {
+    return this.all()
+      .filter((booking) => booking.status === 'completed' && booking.attendance === null && booking.endsAt.getTime() <= now.getTime() - 15 * 60_000)
+      .sort((a, b) => a.endsAt.getTime() - b.endsAt.getTime() || a.id.localeCompare(b.id))
+      .slice(0, cap);
+  }
+
   async markCheckInNotice(bookingId: string, field: CheckInNoticeField, now: Date): Promise<boolean> {
     const booking = this.all().find((item) => item.id === bookingId);
     if (!booking || booking[field] !== null) return false;

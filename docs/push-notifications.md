@@ -82,6 +82,14 @@ La cotización trae `cancelAllAvailable` y `cancelAllUntil`: cuando `cancelAllAv
 - **Ventana:** de inicio − 30 min a inicio + 15 min (por país). Fuera de ella responde `409 check_in_not_open` / `check_in_closed`; después de inicio + 15 min no hay check-in.
 - El cliente ve en su solicitud `checkIn { at, photoUrl }`, nunca la ubicación.
 
+### Cierre, calificación e inasistencia (feature 021)
+
+| `type` | Para | Cuándo | Qué abre la app |
+|---|---|---|---|
+| `goalkeeper.no_show` | portero | Se registró una inasistencia (sin check-in y sin el "sí llegó" del cliente a fin + 60 min, o el cliente respondió "no llegó"), con el fin de la suspensión | Su historial de retiros e inasistencias (`GET /api/goalkeepers/me/withdrawals`, `kind: "no_show"`) |
+
+- **Calificaciones pendientes: sin push.** Al abrir la app, pedir `GET /api/ratings/pending` y mostrar cada una (cliente: "¿Llegó tu portero?"; portero: "¿Recibiste el pago?", estrellas 1–5 y comentario opcional). Se envían con `POST /api/ratings/bookings/{bookingId}`; vencen a los 7 días del partido. Son privadas.
+
 ### Ofertas a porteros (feature 015)
 
 | `type` | Cuándo | Qué abre la app |

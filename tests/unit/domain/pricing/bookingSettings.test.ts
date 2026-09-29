@@ -80,6 +80,13 @@ describe('BookingSettings', () => {
     expect(new BookingSettings(base).goalkeeperPenalties).toBeNull();
   });
 
+  it('accepts an optional no-show grace period in 15–240 minutes (feature 021)', () => {
+    expect(new BookingSettings({ ...base, noShowGraceMinutes: 30 }).noShowGraceMinutes).toBe(30);
+    expect(new BookingSettings(base).noShowGraceMinutes).toBeNull();
+    expect(() => new BookingSettings({ ...base, noShowGraceMinutes: 10 })).toThrow(/noShowGraceMinutes/);
+    expect(() => new BookingSettings({ ...base, noShowGraceMinutes: 241 })).toThrow(/noShowGraceMinutes/);
+  });
+
   it('accepts an optional check-in window and rejects values out of range (feature 020)', () => {
     expect(new BookingSettings({ ...base, checkInWindow: { closesMinutesAfter: 10 } }).checkInWindow).toEqual({ closesMinutesAfter: 10 });
     expect(new BookingSettings(base).checkInWindow).toBeNull();

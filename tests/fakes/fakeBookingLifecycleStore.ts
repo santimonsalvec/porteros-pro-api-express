@@ -4,6 +4,9 @@ import type {
   ExpireResult,
   CheckInResult,
   IBookingLifecycleStore,
+  RateResult,
+  RecordedNoShow,
+  SettleAttendanceResult,
   ReversalOutcome,
   WithdrawResult,
 } from '../../src/application/features/bookingLifecycle/common/ports.js';
@@ -12,9 +15,11 @@ import { commissionRefundDraft, type LedgerOwner } from '../../src/application/f
 import { Booking, type CheckIn } from '../../src/domain/bookings/booking.js';
 import { GoalkeeperRequest } from '../../src/domain/bookings/goalkeeperRequest.js';
 import type { DomainEvent } from '../../src/domain/events/domainEvent.js';
-import { GoalkeeperIncident, suspensionEndOf } from '../../src/domain/goalkeepers/goalkeeperIncident.js';
+import { GoalkeeperIncident, suspensionEndOf, type IncidentKind } from '../../src/domain/goalkeepers/goalkeeperIncident.js';
 import { isLate, penaltiesFor, windowStart, type GoalkeeperPenaltyConfig } from '../../src/domain/goalkeepers/penaltyPolicy.js';
 import type { FakeGoalkeeperProfileRepository } from './fakeGoalkeeperProfileRepository.js';
+import { SupportCase, type CaseType } from '../../src/domain/cases/case.js';
+import { Rating, ratingWindowFor, type RatingSide } from '../../src/domain/ratings/rating.js';
 import type { FakeBookingRepository } from './fakeBookingRepository.js';
 import type { FakeGoalkeeperRequestRepository } from './fakeGoalkeeperRequestRepository.js';
 import type { FakeOutboxStore } from './fakeOutboxStore.js';
@@ -40,6 +45,23 @@ export class FakeBookingLifecycleStore implements IBookingLifecycleStore {
   incidents(): GoalkeeperIncident[] {
     return [...this.incidentList];
   }
+
+  /** The `ratings` and `cases` collections (feature 021). */
+  private readonly ratingList: Rating[] = [];
+  private readonly caseList: SupportCase[] = [];
+
+  ratings(): Rating[] {
+    return [...this.ratingList];
+  }
+
+  /** The cases, with a way for the fake case repository to write a resolution back. */
+  readonly cases = {
+    all: (): SupportCase[] => [...this.caseList],
+    replace: (item: SupportCase): void => {
+      const index = this.caseList.findIndex((candidate) => candidate.id === item.id);
+      if (index >= 0) this.caseList[index] = item;
+    },
+  };
 
   async expire(requestId: string, now: Date, buildEvents: (expired: readonly Booking[]) => DomainEvent[]): Promise<ExpireResult> {
     const due = this.bookings
@@ -200,30 +222,19 @@ export class FakeBookingLifecycleStore implements IBookingLifecycleStore {
     const replacement = booking.isSearchOpenAt(now) ? Booking.replacementFor(booking, args.newId(), goalkeeperId, now) : null;
     if (replacement) this.bookings.seed(replacement);
 
-    const since = windowStart(now, config).getTime();
-    const recentCount = this.incidentList.filter(
-      (incident) => incident.goalkeeperId === goalkeeperId && incident.countsTowardLimit() && incident.occurredAt.getTime() > since,
-    ).length;
     const noticeMinutes = booking.withdrawalNoticeMinutes(now);
-    const late = isLate(noticeMinutes, config);
-    const incident = GoalkeeperIncident.rehydrate({
-      id: args.newId(),
+    const { incident, suspendedUntil } = this.recordIncident({
       kind: 'withdrawal',
+      booking,
       goalkeeperId,
-      bookingId,
-      requestId: booking.requestId,
-      startsAt: booking.startsAt,
-      occurredAt: now,
+      now,
+      late: isLate(noticeMinutes, config),
       noticeMinutes,
-      late,
       reason: args.note,
       replacementBookingId: replacement?.id ?? null,
-      penalties: penaltiesFor({ occurredAt: now, late, recentCount, config, newId: args.newId }).map((penalty) => ({ ...penalty, reversal: null })),
-      moneyReversal: null,
-      forgivenAt: null,
+      config,
+      newId: args.newId,
     });
-    this.incidentList.push(incident);
-    const suspendedUntil = this.writeSuspension(goalkeeperId, now);
 
     const events = args.buildEvents(withdrawn, incident, replacement, suspendedUntil);
     this.outbox.append(events, now);
@@ -279,6 +290,126 @@ export class FakeBookingLifecycleStore implements IBookingLifecycleStore {
     return { kind: 'reversed', incident: reversed, suspendedUntil: this.writeSuspension(goalkeeperId, now) };
   }
 
+  async complete(requestId: string, now: Date, buildEvents: (completed: readonly Booking[]) => DomainEvent[]): Promise<{ completed: Booking[]; events: DomainEvent[] }> {
+    const due = this.bookings
+      .all()
+      .filter((booking) => booking.requestId === requestId && booking.status === 'assigned' && booking.endsAt.getTime() <= now.getTime());
+    if (due.length === 0) return { completed: [], events: [] };
+    const completed = due.map((booking) =>
+      Booking.rehydrate({ ...booking, status: 'completed', completedAt: now, attendance: booking.checkIn ? 'attended' : booking.attendance }),
+    );
+    completed.forEach((booking) => this.bookings.seed(booking));
+    const events = buildEvents(completed);
+    this.outbox.append(events, now);
+    this.deactivateIfEnded(requestId);
+    return { completed, events };
+  }
+
+  async rate(args: {
+    bookingId: string;
+    userId: string;
+    now: Date;
+    answer: boolean;
+    stars: number;
+    comment: string | null;
+    newId: () => string;
+    noShowConfig: GoalkeeperPenaltyConfig;
+    buildEvents: (noShow: RecordedNoShow) => DomainEvent[];
+  }): Promise<RateResult> {
+    const { now, answer } = args;
+    const booking = this.bookings.all().find((item) => item.id === args.bookingId);
+    if (!booking) return { kind: 'not_found' };
+    const side: RatingSide | null = booking.clientId === args.userId ? 'client' : booking.goalkeeperId === args.userId ? 'goalkeeper' : null;
+    if (!side) return { kind: 'not_found' };
+    const window = ratingWindowFor(booking, side, now);
+    if (!window.ok) return { kind: 'not_rateable', reason: window.reason };
+    if (this.ratingList.some((rating) => rating.bookingId === booking.id && rating.side === side)) return { kind: 'already_rated' };
+    const rating = Rating.create({
+      id: args.newId(),
+      bookingId: booking.id,
+      requestId: booking.requestId,
+      side,
+      authorId: args.userId,
+      subjectId: side === 'client' ? booking.goalkeeperId! : booking.clientId,
+      answer,
+      stars: args.stars,
+      comment: args.comment,
+      createdAt: now,
+    });
+    this.ratingList.push(rating);
+
+    let caseType: CaseType | null = null;
+    let noShow: RecordedNoShow | null = null;
+    if (side === 'client' && answer && !booking.checkIn) {
+      if (booking.attendance === 'no_show') caseType = 'late_attendance_claim';
+      else if (booking.attendance === null) this.bookings.seed(Booking.rehydrate({ ...booking, attendance: 'attended' }));
+    } else if (side === 'client' && !answer) {
+      caseType = 'goalkeeper_no_show';
+      if (!booking.checkIn && booking.attendance !== 'no_show') noShow = this.recordNoShow(booking, now, args.noShowConfig, args.newId);
+    } else if (side === 'goalkeeper' && !answer) {
+      caseType = 'payment_not_received';
+    }
+    if (caseType && !this.caseList.some((item) => item.bookingId === booking.id && item.type === caseType)) {
+      const noShowIncidentId =
+        noShow?.incident.id ?? this.incidentList.find((incident) => incident.kind === 'no_show' && incident.bookingId === booking.id)?.id ?? null;
+      this.caseList.push(
+        SupportCase.open({
+          id: args.newId(),
+          type: caseType,
+          bookingId: booking.id,
+          requestId: booking.requestId,
+          clientId: booking.clientId,
+          goalkeeperId: booking.goalkeeperId!,
+          ratingId: rating.id,
+          checkIn: booking.checkIn,
+          noShowIncidentId,
+          createdAt: now,
+        }),
+      );
+    }
+    const events = noShow ? args.buildEvents(noShow) : [];
+    this.outbox.append(events, now);
+    return { kind: 'rated', rating, caseOpened: caseType, noShow, events };
+  }
+
+  async settleAttendance(args: {
+    bookingId: string;
+    now: Date;
+    config: GoalkeeperPenaltyConfig;
+    newId: () => string;
+    buildEvents: (noShow: RecordedNoShow) => DomainEvent[];
+  }): Promise<SettleAttendanceResult> {
+    const booking = this.bookings.all().find((item) => item.id === args.bookingId);
+    if (!booking || booking.status !== 'completed' || booking.attendance !== null || booking.checkIn) return { kind: 'skipped' };
+    const rating = this.ratingList.find((item) => item.bookingId === booking.id && item.side === 'client');
+    if (rating?.answer === true) {
+      this.bookings.seed(Booking.rehydrate({ ...booking, attendance: 'attended' }));
+      return { kind: 'attended' };
+    }
+    const noShow = this.recordNoShow(booking, args.now, args.config, args.newId);
+    const events = args.buildEvents(noShow);
+    this.outbox.append(events, args.now);
+    return { kind: 'no_show', noShow, events };
+  }
+
+  private recordNoShow(booking: Booking, now: Date, config: GoalkeeperPenaltyConfig, newId: () => string): RecordedNoShow {
+    const { incident, suspendedUntil } = this.recordIncident({
+      kind: 'no_show',
+      booking,
+      goalkeeperId: booking.goalkeeperId!,
+      now,
+      late: true,
+      noticeMinutes: 0,
+      reason: null,
+      replacementBookingId: null,
+      config,
+      newId,
+    });
+    const updated = Booking.rehydrate({ ...booking, attendance: 'no_show', noShowAt: now });
+    this.bookings.seed(updated);
+    return { booking: updated, incident, suspendedUntil };
+  }
+
   async checkIn(args: {
     bookingId: string;
     goalkeeperId: string;
@@ -299,6 +430,44 @@ export class FakeBookingLifecycleStore implements IBookingLifecycleStore {
     const events = args.buildEvents(checkedIn);
     this.outbox.append(events, now);
     return { kind: 'checked_in', booking: checkedIn, events };
+  }
+
+  /** 018/021's shared incident step, synchronous so the fake stays atomic. */
+  private recordIncident(args: {
+    kind: IncidentKind;
+    booking: Booking;
+    goalkeeperId: string;
+    now: Date;
+    late: boolean;
+    noticeMinutes: number;
+    reason: string | null;
+    replacementBookingId: string | null;
+    config: GoalkeeperPenaltyConfig;
+    newId: () => string;
+  }): { incident: GoalkeeperIncident; suspendedUntil: Date | null } {
+    const { goalkeeperId, now, config, late } = args;
+    const since = windowStart(now, config).getTime();
+    const recentCount = this.incidentList.filter(
+      (incident) => incident.goalkeeperId === goalkeeperId && incident.countsTowardLimit() && incident.occurredAt.getTime() > since,
+    ).length;
+    const incident = GoalkeeperIncident.rehydrate({
+      id: args.newId(),
+      kind: args.kind,
+      goalkeeperId,
+      bookingId: args.booking.id,
+      requestId: args.booking.requestId,
+      startsAt: args.booking.startsAt,
+      occurredAt: now,
+      noticeMinutes: args.noticeMinutes,
+      late,
+      reason: args.reason,
+      replacementBookingId: args.replacementBookingId,
+      penalties: penaltiesFor({ occurredAt: now, late, recentCount, config, newId: args.newId }).map((penalty) => ({ ...penalty, reversal: null })),
+      moneyReversal: null,
+      forgivenAt: null,
+    });
+    this.incidentList.push(incident);
+    return { incident, suspendedUntil: this.writeSuspension(goalkeeperId, now) };
   }
 
   private writeSuspension(goalkeeperId: string, now: Date): Date | null {

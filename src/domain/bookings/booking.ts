@@ -44,6 +44,9 @@ export interface CheckIn {
   distanceMeters: number | null;
 }
 
+/** Whether the goalkeeper attended (feature 021): by check-in, the client's answer, or the no-show rule. */
+export type BookingAttendance = 'attended' | 'no_show';
+
 export interface BookingProps {
   id: string;
   requestId: string;
@@ -75,6 +78,10 @@ export interface BookingProps {
   checkInLastCallAt?: Date | null;
   /** No check-in by the window close: the client was told. The attendance fact 021 reads. */
   checkInMissedAt?: Date | null;
+  /** Feature 021: when the match ended with the booking assigned, and whether the goalkeeper came. */
+  completedAt?: Date | null;
+  attendance?: BookingAttendance | null;
+  noShowAt?: Date | null;
 }
 
 /**
@@ -107,6 +114,9 @@ export class Booking extends Entity<string> {
   readonly checkInOpenNoticeAt: Date | null;
   readonly checkInLastCallAt: Date | null;
   readonly checkInMissedAt: Date | null;
+  readonly completedAt: Date | null;
+  readonly attendance: BookingAttendance | null;
+  readonly noShowAt: Date | null;
 
   private constructor(props: BookingProps) {
     super(props.id);
@@ -139,6 +149,9 @@ export class Booking extends Entity<string> {
     this.checkInOpenNoticeAt = props.checkInOpenNoticeAt ? new Date(props.checkInOpenNoticeAt) : null;
     this.checkInLastCallAt = props.checkInLastCallAt ? new Date(props.checkInLastCallAt) : null;
     this.checkInMissedAt = props.checkInMissedAt ? new Date(props.checkInMissedAt) : null;
+    this.completedAt = props.completedAt ? new Date(props.completedAt) : null;
+    this.attendance = props.attendance ?? null;
+    this.noShowAt = props.noShowAt ? new Date(props.noShowAt) : null;
   }
 
   /** A new place for one goalkeeper, at the request's per-goalkeeper price, awaiting assignment. */

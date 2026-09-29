@@ -267,6 +267,7 @@ export const openapiSpec = {
         type: 'object',
         properties: {
           withdrawalId: { type: 'string' },
+          kind: { type: 'string', enum: ['withdrawal', 'no_show'], description: 'A withdrawal (018) or a no-show (021)' },
           bookingId: { type: 'string' },
           requestId: { type: 'string' },
           startsAt: { type: 'string', format: 'date-time' },
@@ -285,7 +286,7 @@ export const openapiSpec = {
           },
           forgiven: { type: 'boolean', description: 'Reversed in any way: no longer counts toward the weekly limit' },
         },
-        required: ['withdrawalId', 'bookingId', 'requestId', 'startsAt', 'occurredAt', 'noticeMinutes', 'late', 'reason', 'replacementCreated', 'penalties', 'moneyReversal', 'forgiven'],
+        required: ['withdrawalId', 'kind', 'bookingId', 'requestId', 'startsAt', 'occurredAt', 'noticeMinutes', 'late', 'reason', 'replacementCreated', 'penalties', 'moneyReversal', 'forgiven'],
       },
       WithdrawalPage: {
         type: 'object',
@@ -1537,6 +1538,149 @@ export const openapiSpec = {
           '404': { description: 'goalkeeper_not_found or withdrawal_not_found' },
           '409': { description: 'missing_charge (bookingId): the booking has no commission charge to refund; nothing changed' },
           '422': { description: 'wallet_not_configured: a refund is asked but the goalkeeper wallet context cannot be resolved' },
+        },
+      },
+    },
+    '/api/ratings/pending': {
+      get: {
+        summary: "The caller's ratings still to give (feature 021), shown when the app opens (no push)",
+        tags: ['Ratings'],
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': {
+            description: 'Newest match first. side client → question goalkeeper_arrived; side goalkeeper → question payment_received',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    items: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          bookingId: { type: 'string' },
+                          requestId: { type: 'string' },
+                          side: { type: 'string', enum: ['client', 'goalkeeper'] },
+                          question: { type: 'string', enum: ['goalkeeper_arrived', 'payment_received'] },
+                          zoneName: { type: 'string', nullable: true },
+                          cityName: { type: 'string', nullable: true },
+                          startsAt: { type: 'string', format: 'date-time' },
+                          startsAtLocal: { type: 'string' },
+                          otherParty: { type: 'object', nullable: true, properties: { firstName: { type: 'string', nullable: true }, lastName: { type: 'string', nullable: true } } },
+                          dueUntil: { type: 'string', format: 'date-time' },
+                        },
+                      },
+                    },
+                  },
+                  required: ['items'],
+                },
+              },
+            },
+          },
+          '401': { description: 'Not signed in' },
+        },
+      },
+    },
+    '/api/ratings/bookings/{bookingId}': {
+      post: {
+        summary: 'Rate the other side of a booking, once (feature 021; private)',
+        description:
+          'The client answers whether the goalkeeper came; the goalkeeper whether they were paid. A client "no" without a check-in records a no-show at once (3-day suspension) and opens a case; other "no" answers open a case. Open from the end of the match (the client also from the check-in) until 7 days after.',
+        tags: ['Ratings'],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'bookingId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: { answer: { type: 'boolean' }, stars: { type: 'integer', minimum: 1, maximum: 5 }, comment: { type: 'string', maxLength: 500 } },
+                required: ['answer', 'stars'],
+              },
+            },
+          },
+        },
+        responses: {
+          '201': { description: 'The rating (ratingId, bookingId, side, answer, stars, comment, createdAt)' },
+          '400': { description: 'validation_failed' },
+          '401': { description: 'Not signed in' },
+          '404': { description: 'booking_not_found (unknown, or not the caller\u2019s)', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '409': { description: 'already_rated, or not_rateable (reason: not_finished, expired, no_goalkeeper)', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/api/admin/cases': {
+      get: {
+        summary: 'Cases for manual review, open first (administrators only; feature 021)',
+        tags: ['Admin'],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'status', in: 'query', required: false, schema: { type: 'string', enum: ['open', 'resolved'] } }, ...PAGING],
+        responses: {
+          '200': {
+            description: 'A page of cases',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: { items: { type: 'array', items: {
+                type: 'object',
+                properties: {
+                  caseId: { type: 'string' },
+                  type: { type: 'string', enum: ['goalkeeper_no_show', 'payment_not_received', 'late_attendance_claim'] },
+                  status: { type: 'string', enum: ['open', 'resolved'] },
+                  bookingId: { type: 'string' },
+                  requestId: { type: 'string' },
+                  clientId: { type: 'string' },
+                  goalkeeperId: { type: 'string' },
+                  noShowIncidentId: { type: 'string', nullable: true, description: 'Reverse it with the withdrawal reversal (018) if fair' },
+                  createdAt: { type: 'string', format: 'date-time' },
+                  resolution: { type: 'object', nullable: true, properties: { by: { type: 'string' }, at: { type: 'string', format: 'date-time' }, note: { type: 'string' } } },
+                },
+              } }, page: { type: 'integer' }, pageSize: { type: 'integer' }, totalItems: { type: 'integer' }, totalPages: { type: 'integer' } },
+                },
+              },
+            },
+          },
+          '400': { description: 'validation_failed' },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'Not an administrator' },
+        },
+      },
+    },
+    '/api/admin/cases/{caseId}': {
+      get: {
+        summary: 'One case with the rating that opened it and the check-in evidence (location included)',
+        tags: ['Admin'],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'caseId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          '200': { description: 'The case, plus rating and checkIn' },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'Not an administrator' },
+          '404': { description: 'case_not_found', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/api/admin/cases/{caseId}/resolve': {
+      post: {
+        summary: 'Close a case with a mandatory note (administrators only)',
+        description: 'Resolving undoes nothing by itself: to lift a no-show penalty, reverse its incident (noShowIncidentId) with the withdrawal reversal.',
+        tags: ['Admin'],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'caseId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { type: 'object', properties: { note: { type: 'string', minLength: 3, maxLength: 500 } }, required: ['note'] } } },
+        },
+        responses: {
+          '200': { description: 'The resolved case' },
+          '400': { description: 'validation_failed: note' },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'Not an administrator' },
+          '404': { description: 'case_not_found', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '409': { description: 'case_already_resolved', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
         },
       },
     },

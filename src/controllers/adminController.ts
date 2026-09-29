@@ -11,6 +11,10 @@ import { goalkeeperNotFound, sendMovements, sendWallet, walletNotConfigured } fr
 import { ReverseWithdrawalPenaltyCommand } from '../application/features/bookingLifecycle/commands/reverseWithdrawalPenalty/reverseWithdrawalPenaltyCommand.js';
 import { reverseWithdrawalRequestSchema } from './requests/withdrawals/reverseWithdrawalRequest.js';
 import { sendWithdrawals } from './withdrawals/withdrawalsHttp.js';
+import { ListCasesQuery } from '../application/features/cases/queries/listCases/listCasesQuery.js';
+import { GetCaseQuery } from '../application/features/cases/queries/getCase/getCaseQuery.js';
+import { ResolveCaseCommand } from '../application/features/cases/commands/resolveCase/resolveCaseCommand.js';
+import { listCasesQuerySchema, resolveCaseRequestSchema } from './requests/cases/caseRequests.js';
 
 export interface AdminControllerDependencies {
   mediator: ISender;
@@ -94,6 +98,54 @@ export function createAdminController(deps: AdminControllerDependencies): Router
         throw walletNotConfigured(result.cityId);
       case 'missing_charge':
         throw new ApiError(409, 'missing_charge', 'This booking has no commission charge to refund.', undefined, { bookingId: result.bookingId });
+    }
+  });
+
+  // Cases for manual review (feature 021).
+  router.get('/cases', async (req, res) => {
+    const parsed = listCasesQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
+    }
+    const result = await deps.mediator.send(new ListCasesQuery(parsed.data.status ?? null, parsed.data.page, parsed.data.pageSize));
+    res.status(200).json({
+      items: result.items,
+      page: result.page,
+      pageSize: result.pageSize,
+      totalItems: result.totalItems,
+      totalPages: result.totalPages,
+    });
+  });
+
+  router.get('/cases/:caseId', async (req, res) => {
+    const result = await deps.mediator.send(new GetCaseQuery(req.params.caseId));
+    switch (result.outcome) {
+      case 'ok':
+        res.status(200).json(result.case);
+        return;
+      case 'case_not_found':
+        throw new ApiError(404, 'case_not_found', 'This case does not exist.');
+    }
+  });
+
+  router.post('/cases/:caseId/resolve', async (req, res) => {
+    const parsed = resolveCaseRequestSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
+    }
+    const result = await deps.mediator.send(new ResolveCaseCommand(req.authClaims!.sub, req.params.caseId, parsed.data.note));
+
+    // Exhaustive on purpose: adding an outcome without mapping it here fails compilation.
+    switch (result.outcome) {
+      case 'resolved':
+        res.status(200).json(result.case);
+        return;
+      case 'case_not_found':
+        throw new ApiError(404, 'case_not_found', 'This case does not exist.');
+      case 'case_already_resolved':
+        throw new ApiError(409, 'case_already_resolved', 'This case is already resolved.');
+      case 'invalid_note':
+        throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', { note: result.message });
     }
   });
 

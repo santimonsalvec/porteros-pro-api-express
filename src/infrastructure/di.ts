@@ -144,6 +144,8 @@ import { BookingExpiryJob } from '../application/features/bookingLifecycle/jobs/
 import { CLIENT_OUTCOME_EVENT_TYPES, ClientOutcomeNoticeHandler } from '../application/features/bookingLifecycle/handlers/clientOutcomeNoticeHandler.js';
 import { MongoBookingLifecycleStore } from './persistence/mongo/bookingLifecycleStore.js';
 import { GoalkeeperIncidentRepository } from './persistence/mongo/goalkeeperIncidentRepository.js';
+import { RatingRepository } from './persistence/mongo/ratingRepository.js';
+import { CaseRepository } from './persistence/mongo/caseRepository.js';
 import { CancelAllJob } from '../application/features/bookingLifecycle/jobs/cancelAllJob.js';
 import { GOALKEEPER_CANCELLATION_EVENT_TYPES, GoalkeeperCancellationNoticeHandler } from '../application/features/bookingLifecycle/handlers/goalkeeperCancellationNoticeHandler.js';
 import { CancelBookingsByClientCommand } from '../application/features/bookingLifecycle/commands/cancelBookingsByClient/cancelBookingsByClientCommand.js';
@@ -158,6 +160,20 @@ import { createCheckInWindowResolver } from '../application/features/bookingLife
 import { WithdrawFromBookingCommand } from '../application/features/bookingLifecycle/commands/withdrawFromBooking/withdrawFromBookingCommand.js';
 import { WithdrawFromBookingCommandHandler } from '../application/features/bookingLifecycle/commands/withdrawFromBooking/withdrawFromBookingCommandHandler.js';
 import { CHECK_IN_NOTICE_EVENT_TYPES, CheckInNoticeHandler } from '../application/features/bookingLifecycle/handlers/checkInNoticeHandler.js';
+import { RateBookingCommand } from '../application/features/ratings/commands/rateBooking/rateBookingCommand.js';
+import { RateBookingCommandHandler } from '../application/features/ratings/commands/rateBooking/rateBookingCommandHandler.js';
+import { ListPendingRatingsQuery } from '../application/features/ratings/queries/listPendingRatings/listPendingRatingsQuery.js';
+import { ListPendingRatingsQueryHandler } from '../application/features/ratings/queries/listPendingRatings/listPendingRatingsQueryHandler.js';
+import { ListCasesQuery } from '../application/features/cases/queries/listCases/listCasesQuery.js';
+import { ListCasesQueryHandler } from '../application/features/cases/queries/listCases/listCasesQueryHandler.js';
+import { GetCaseQuery } from '../application/features/cases/queries/getCase/getCaseQuery.js';
+import { GetCaseQueryHandler } from '../application/features/cases/queries/getCase/getCaseQueryHandler.js';
+import { ResolveCaseCommand } from '../application/features/cases/commands/resolveCase/resolveCaseCommand.js';
+import { ResolveCaseCommandHandler } from '../application/features/cases/commands/resolveCase/resolveCaseCommandHandler.js';
+import { NoShowWatchJob } from '../application/features/bookingLifecycle/jobs/noShowWatchJob.js';
+import { NO_SHOW_NOTICE_EVENT_TYPES, NoShowNoticeHandler } from '../application/features/bookingLifecycle/handlers/noShowNoticeHandler.js';
+import { createNoShowGraceResolver } from '../application/features/bookingLifecycle/common/checkInWindowResolver.js';
+import { BookingCompletionJob } from '../application/features/bookingLifecycle/jobs/bookingCompletionJob.js';
 import { CheckInWatchJob } from '../application/features/bookingLifecycle/jobs/checkInWatchJob.js';
 import { ContactsRevealJob } from '../application/features/bookingLifecycle/jobs/contactsRevealJob.js';
 import { CLIENT_ASSIGNMENT_EVENT_TYPES, ClientAssignmentNoticeHandler } from '../application/features/bookingLifecycle/handlers/clientAssignmentNoticeHandler.js';
@@ -209,6 +225,10 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   await bookingRepository.ensureIndexes();
   const goalkeeperIncidentRepository = new GoalkeeperIncidentRepository(db);
   await goalkeeperIncidentRepository.ensureIndexes();
+  const ratingRepository = new RatingRepository(db);
+  await ratingRepository.ensureIndexes();
+  const caseRepository = new CaseRepository(db);
+  await caseRepository.ensureIndexes();
   const quoteConfirmationStore = new MongoQuoteConfirmationStore(() => connectionProvider.startSession(), db);
   const walletRepository = new WalletRepository(db);
   const walletMovementRepository = new WalletMovementRepository(db);
@@ -367,6 +387,24 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     CHECK_IN_NOTICE_EVENT_TYPES.map((type) => ({
       type,
       handler: new CheckInNoticeHandler({
+        requestRepository,
+        zoneRepository,
+        cityRepository,
+        notifications: notificationRepository,
+        pushNotifier,
+        processed: processedEventStore,
+        idGenerator: idGenerator,
+        clock,
+        logger: logger,
+      }),
+    })),
+  );
+  // The no-show notice to the goalkeeper (feature 021).
+  registerSubscribers(
+    mediator,
+    NO_SHOW_NOTICE_EVENT_TYPES.map((type) => ({
+      type,
+      handler: new NoShowNoticeHandler({
         requestRepository,
         zoneRepository,
         cityRepository,
@@ -628,6 +666,19 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         jobs: [
           cancelAllJob,
           bookingExpiryJob,
+          new BookingCompletionJob({ bookingRepository, store: lifecycleStore, relay: eventRelay, idGenerator, logger }),
+          new NoShowWatchJob({
+            walletContext,
+            bookingSettingsRepository,
+            logger: logger,
+            bookingRepository,
+            requestRepository,
+            store: lifecycleStore,
+            relay: eventRelay,
+            idGenerator: idGenerator,
+            clock,
+            graceResolver: () => createNoShowGraceResolver({ cityRepository, regionRepository, bookingSettingsRepository, logger: logger }),
+          }),
           new OfferRemindersJob({ bookingRepository, eligibility: offerEligibility, sender: offerSender, logger: logger, roundCap: config.offers.roundCap }),
           new ContactsRevealJob({
             requestRepository,
@@ -710,6 +761,27 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         audit: auditLogger,
       }),
     },
+    {
+      requestType: RateBookingCommand,
+      handler: new RateBookingCommandHandler({
+        walletContext,
+        bookingSettingsRepository,
+        logger: logger,
+        bookingRepository,
+        store: lifecycleStore,
+        relay: eventRelay,
+        idGenerator: idGenerator,
+        clock,
+        audit: auditLogger,
+      }),
+    },
+    {
+      requestType: ListPendingRatingsQuery,
+      handler: new ListPendingRatingsQueryHandler({ bookingRepository, ratingRepository: ratingRepository, requestRepository, zoneRepository, cityRepository, userRepository, clock }),
+    },
+    { requestType: ListCasesQuery, handler: new ListCasesQueryHandler(caseRepository) },
+    { requestType: GetCaseQuery, handler: new GetCaseQueryHandler(caseRepository, ratingRepository) },
+    { requestType: ResolveCaseCommand, handler: new ResolveCaseCommandHandler(caseRepository, ratingRepository, clock, auditLogger) },
     {
       requestType: WithdrawFromBookingCommand,
       handler: new WithdrawFromBookingCommandHandler({
