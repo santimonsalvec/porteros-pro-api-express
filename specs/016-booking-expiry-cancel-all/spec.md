@@ -1,8 +1,8 @@
-# Feature Specification: Booking Expiry and "Cancel All"
+# Feature Specification: Booking Expiry and "Cancel All" ✅
 
 **Feature Branch**: `016-booking-expiry-cancel-all`
 **Created**: 2026-09-28
-**Status**: Draft
+**Status**: ✅ Implemented — merged into `main` on 2026-09-28. Manual checks deferred to the end of the roadmap (`_temp_pruebas.md`).
 **Input**: User description: "Spec 016 de _temp_plan.md" — "Vencimiento de la búsqueda de porteros y aplicación automática de la preferencia del cliente. Requisitos (ejecutados por el barrido programado de la feature 013): (1) A inicio − plazo de cancelación gratuita (configurable, hoy 60 min), en solicitudes con preferencia "cancelar todo": si no todas sus reservas están asignadas, se cancelan todas; a los porteros asignados se les devuelve la comisión (movimiento tipificado con el detalle) y se les avisa; el cliente recibe aviso. Desde ese momento las reservas asignadas quedan firmes. (2) A inicio − margen de traslado (configurable, hoy 30 min), toda reserva todavía sin portero pasa a vencida, deja de aparecer en partidos disponibles y el cliente recibe el aviso "no logramos hallar un portero para tu partido". En solicitudes "quedarme con los confirmados" las reservas asignadas siguen normalmente. (3) Cada transición ocurre exactamente una vez aunque el barrido se ejecute varias veces o en paralelo, y emite su evento."
 
 **Context**: Step 016 of the goalkeeper-guarantee roadmap (repository-root `_temp_plan.md`, §2.4 and §3). It builds on:

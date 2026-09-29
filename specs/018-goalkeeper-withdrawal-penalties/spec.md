@@ -1,8 +1,8 @@
-# Feature Specification: Goalkeeper Withdrawal, Penalties and Suspensions
+# Feature Specification: Goalkeeper Withdrawal, Penalties and Suspensions ✅
 
 **Feature Branch**: `018-goalkeeper-withdrawal-penalties`
 **Created**: 2026-09-28
-**Status**: Draft
+**Status**: ✅ Implemented — merged into `main` on 2026-09-28. Manual checks deferred to the end of the roadmap (`_temp_pruebas.md`).
 **Input**: User description: "Spec 018 de _temp_plan.md" — "El portero se retira de una reserva que aceptó. Requisitos: (1) El portero puede retirarse en cualquier momento antes del partido (incluida fuerza mayor). La comisión cobrada no se devuelve. La reserva termina en estado "retiro del portero" y no se reabre; al cliente no se le cobra nada y recibe aviso para que haga una nueva búsqueda. (2) Penalidades (valores configurables por país): retiro con menos de 2 h de anticipación → 3 días sin ver partidos ni recibir ofertas; con más de 2 h → sin suspensión; al 3.er retiro en cualquier ventana de 7 días consecutivos → además, 7 días sin recibir ofertas. Las suspensiones no se suman: rige la que termina más tarde. (3) Registro de cada retiro con su anticipación y las penalidades aplicadas. (4) Endpoints de administración (rol admin, sin interfaz todavía) para listar retiros y penalidades de un portero y revertir una penalidad (devolución tipificada en la billetera y/o levantar la suspensión), con motivo obligatorio. (5) La regla de penalidades es una política de dominio reutilizable: la feature de inasistencia la aplicará igual que un retiro con menos de 2 h."
 
 **Context**: Step 018 of the goalkeeper-guarantee roadmap (repository-root `_temp_plan.md`, §2.6). It builds on:

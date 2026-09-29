@@ -1,8 +1,8 @@
-# Feature Specification: Goalkeeper Service Quote
+# Feature Specification: Goalkeeper Service Quote ✅
 
 **Feature Branch**: `007-goalkeeper-service-quote`
 **Created**: 2026-09-20
-**Status**: Draft
+**Status**: ✅ Implemented — merged into `main` on 2026-09-25. Manual checks deferred to the end of the roadmap (`_temp_pruebas.md`).
 **Input**: User description: "Endpoint de cotización de servicio de porteros: calcular el costo total de la renta de porteros a partir de la ubicación (latitud/longitud), la fecha y hora del partido (en intervalos exactos de 30 minutos, dentro de una ventana de días futuros configurable en base de datos con valor por defecto de 2 días), la cantidad de porteros (1 o 2) y la duración (60, 90 o 120 minutos). La tarifa base se determina por zona (prioridad 1) o, si la zona no tiene precio para esa duración, por ciudad (fallback), y se multiplica por la cantidad de porteros. Se suma un recargo por anticipación (menos de 60 min: 10.000 COP; 60–119 min: 5.000 COP; 120 min o más: 0 COP) cuyos rangos y valores se configuran en base de datos. Ubicaciones fuera de cobertura se rechazan. La respuesta devuelve el desglose: subtotal por porteros, recargo, total y moneda."
 
 ## Clarifications

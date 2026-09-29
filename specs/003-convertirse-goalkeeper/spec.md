@@ -1,8 +1,8 @@
-# Feature Specification: Become a Goalkeeper — Progressive Registration & Activation
+# Feature Specification: Become a Goalkeeper — Progressive Registration & Activation ✅
 
 **Feature Branch**: `003-convertirse-goalkeeper`
 **Created**: 2026-08-30
-**Status**: Draft
+**Status**: ✅ Implemented — merged into `main` on 2026-08-31. Manual checks deferred to the end of the roadmap (`_temp_pruebas.md`).
 **Input**: User description: "Necesito diseñar y construir los servicios backend para el flujo de \"Convertirse en goalkeeper\". Es un registro PROGRESIVO: el cliente completa 4 secciones de datos a su propio ritmo (puede guardar una sección hoy y otra la próxima semana), y solo cuando las 4 están completas puede \"activar\" su perfil de goalkeeper. También debe poder cancelar el registro en cualquier momento y perder el progreso guardado, para esto necesitamos una entidad aparte por si decide cancelar el proceso entonces se borran los datos capturados. Contexto: un cliente ya autenticado (el perfil de cliente y su auth ya existen) decide registrarse ADEMÁS como goalkeeper. No reemplaza su cuenta de cliente, la complementa. Las 4 secciones: Identificación (tipo/número de documento, fecha de expedición, fecha de nacimiento, foto de documento lado A y lado B), Datos físicos (estatura, peso), Ubicación (latitud, longitud, ciudad, departamento/estado, país, barrio opcional, dirección formateada de uso interno no expuesta), Disponibilidad (radio de cobertura en km, 10-50). Incluye un diseño de endpoints propuesto (GET/PATCH del recurso, subida de fotos de documento, activar, cancelar) y reglas de validación por campo."
 
 ## Clarifications

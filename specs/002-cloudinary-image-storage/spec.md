@@ -1,8 +1,8 @@
-# Feature Specification: Cloudinary Image Storage Integration
+# Feature Specification: Cloudinary Image Storage Integration ✅
 
 **Feature Branch**: `002-cloudinary-image-storage`
 **Created**: 2026-08-30
-**Status**: Draft
+**Status**: ✅ Implemented — merged into `main` on 2026-08-30. Manual checks deferred to the end of the roadmap (`_temp_pruebas.md`).
 **Input**: User description: "vamos a integrar a cloudinary como proveedor de almacenamiento de imagenes y tambien vamos a crear en infraestructura un servicio para gestion de imagenes... es importante que podamos conservar las imagenes pero optimizadas en peso sin perder calidad, el ideal es que la optimización se resuelva dentro de la implementacion del proveedor... tambien es importante que cada vez que almacenemos una imagen almacenemos esta en nuestra base de datos de mongo para poder gestionarlas mas adelante, guardemos una entidad generica no acoplada a la respuesta del proveedor y no te llenes de datos, solo los relevantes... por ultimo, en mi servicio de imagenes no quiero implementar todas las caracteristicas que ofrece el proveedor como por ejemplo la de transformacion, lo unico que quiero es el almacenamiento y todo lo relacionado con el almacenamiento"
 
 ## Clarifications

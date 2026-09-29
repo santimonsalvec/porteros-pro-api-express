@@ -1,8 +1,8 @@
-# Feature Specification: Notify Eligible Goalkeepers of Available Matches
+# Feature Specification: Notify Eligible Goalkeepers of Available Matches ✅
 
 **Feature Branch**: `015-notify-eligible-goalkeepers`
 **Created**: 2026-09-28
-**Status**: Draft
+**Status**: ✅ Implemented — merged into `main` on 2026-09-28. Manual checks deferred to the end of the roadmap (`_temp_pruebas.md`).
 **Input**: User description: "Spec 015 de _temp_plan.md" — "Notificar a los porteros elegibles cuando hay partidos disponibles. Requisitos: (1) Al recibir el evento de reserva creada (feature 013), determinar los porteros elegibles con las mismas reglas que "partidos disponibles" de la feature 012: activos, con la zona habilitada, no suspendidos, con fondos para esa comisión, sin choque de horario, y que no sean el cliente. (2) Registrar una notificación por portero en su bandeja (colección de notificaciones), de forma idempotente, y enviarle un push por FCM (feature 014) con texto legible (zona, fecha y hora local, duración) y datos para abrir el partido en la app. (3) Mientras una reserva siga sin portero y su búsqueda no haya terminado, reenviar cada 5 minutos (configurable) a los elegibles, con UN solo push por portero y por ronda que agrupe todas sus solicitudes abiertas ("Hay 3 partidos disponibles en tus zonas"); no reenviar a un portero una solicitud que ya abrió o descartó. (4) Endpoints para que el usuario consulte su bandeja (paginada), la marque como leída y descarte una oferta. (5) Eliminar los tokens que FCM reporte como inválidos. La lógica de elegibilidad vive en un command de la capa de aplicación; el endpoint que recibe de Pub/Sub solo lo invoca. El envío por FCM queda detrás de un puerto." Draft success criteria from the roadmap: 0 notifications to non-eligible goalkeepers; the same event N times → 1 notification per goalkeeper; in each round each goalkeeper receives at most 1 push.
 
 **Context**: Step 015 of the goalkeeper-guarantee roadmap (repository-root `_temp_plan.md`, §2.3). It builds on:

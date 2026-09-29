@@ -1,8 +1,8 @@
-# Feature Specification: Migración del Backend PorterosPRO a Express + TypeScript
+# Feature Specification: Migración del Backend PorterosPRO a Express + TypeScript ✅
 
 **Feature Branch**: `001-porteros-api-migration`
 **Created**: 2026-08-29
-**Status**: Draft
+**Status**: ✅ Implemented — merged into `main` on 2026-08-29.
 **Input**: User description: "en el proyecto /Users/santiagomonsalve/Documents/Projects/net/SMC.PorterosPRO.Backend tengo el backend e mi aplicación en .net, pero no quiero continuar con .net, quiero hacerlo con express y typescript entonces tu objetivo es replicar ese proyecto aqui. debemos incluir el servicio de bases de datos con el patron repositorio y todos los demás servicios que hay allá al igual que las pruebas unitarias. en conclusión quiero tener esa misma api pero en express con typescript"
 
 ## Clarifications

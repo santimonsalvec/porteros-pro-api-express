@@ -1,8 +1,8 @@
-# Feature Specification: Align Code with Renamed Location Collections
+# Feature Specification: Align Code with Renamed Location Collections ✅
 
 **Feature Branch**: `004-rename-location-collections`
 **Created**: 2026-09-13
-**Status**: Draft
+**Status**: ✅ Implemented — merged into `main` on 2026-09-13. Manual checks deferred to the end of the roadmap (`_temp_pruebas.md`).
 **Input**: User description: "en la base de datos he realizado algunos cambios y necesito que no haya ningun problema con el codigo, si hay cosas que aún no usamos por favor omítelo y lo veremos en el futuro, aquí van los cambios: la colección \"Countries\" ahora se llama \"countries\"; la colección \"Cities\" ahora se llama \"cities\"; la colección \"States\" ahora se llama \"regions\"; en la colección \"cities\" había una propiedad llamada \"stateId\", ahora esta se llama \"regionId\"."
 
 ## User Scenarios & Testing *(mandatory)*
