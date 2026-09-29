@@ -1,3 +1,4 @@
+import type { TaxSetting } from '../../../../domain/wallet/taxSetting.js';
 import type { CommissionSetting } from '../../../../domain/wallet/commissionSetting.js';
 import type { Wallet } from '../../../../domain/wallet/wallet.js';
 import type { WalletMovement, WalletMovementProps } from '../../../../domain/wallet/walletMovement.js';
@@ -31,6 +32,7 @@ export interface IWalletRepository {
 
 export interface IWalletMovementRepository {
   findByCauseKey(causeKey: string): Promise<WalletMovement | null>;
+  findById(id: string): Promise<WalletMovement | null>;
   /** Newest first (sequence descending). */
   listForWallet(walletId: string, skip: number, limit: number): Promise<WalletMovement[]>;
 }
@@ -43,4 +45,17 @@ export interface ICommissionSettingRepository {
 /** The effective commission of each zone (zone → anchor city → country), `null` when none is configured. */
 export interface ICommissionResolver {
   resolveForZones(zoneIds: string[]): Promise<Map<string, number | null>>;
+}
+
+/** Each country's VAT rate (feature 023), set by administrators. */
+export interface ITaxSettingsRepository {
+  getByCountry(countryId: string): Promise<TaxSetting | null>;
+  save(setting: TaxSetting): Promise<void>;
+}
+
+/** The VAT rate charged on top of commissions and penalties in a country (0 when not configured). */
+export interface IVatRateResolver {
+  forCountry(countryId: string): Promise<number>;
+  /** The rate of the country a city belongs to (city → region → country); 0 when unresolved. */
+  forCity(cityId: string): Promise<number>;
 }

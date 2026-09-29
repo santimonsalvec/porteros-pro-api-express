@@ -1,10 +1,10 @@
 import { IQuery } from '../../../../common/mediator/types.js';
-import type { AvailableBookingItem } from '../../common/goalkeeperBookingResponse.js';
+import type { AvailableListItem } from '../../common/goalkeeperBookingResponse.js';
 
 export type ListAvailableBookingsResult =
   | {
       outcome: 'success';
-      items: AvailableBookingItem[];
+      items: AvailableListItem[];
       page: number;
       pageSize: number;
       totalItems: number;

@@ -11,6 +11,8 @@ export interface OfferSnapshot {
   balance: number;
   /** 012's rule (a): the balance covers the lowest commission of the enabled zones. */
   canSeeOffers: boolean;
+  /** The goalkeeper's country VAT rate (feature 023): matches must be affordable with their VAT. */
+  vatRateBps: number;
   /** The bookings the goalkeeper holds (assigned). */
   held: readonly Commitment[];
 }
@@ -22,7 +24,7 @@ export interface OfferSnapshot {
 export function isEligible(snapshot: OfferSnapshot, booking: Booking, now: Date): boolean {
   if (!snapshot.availableForOffers) return false;
   if (snapshot.suspendedUntil && snapshot.suspendedUntil > now) return false;
-  if (!snapshot.canSeeOffers || !canAfford(snapshot.balance, booking.commission)) return false;
+  if (!snapshot.canSeeOffers || !canAfford(snapshot.balance, booking.commission, snapshot.vatRateBps)) return false;
   if (!snapshot.zoneIds.includes(booking.zoneId)) return false;
   if (booking.status !== 'pending_assignment' || !booking.isSearchOpenAt(now)) return false;
   if (booking.clientId === snapshot.goalkeeperId) return false;

@@ -14,6 +14,18 @@ const envelopeFields = {
   requestId: z.string().min(1),
 };
 
+
+const billingPayload = z.object({
+  goalkeeperId: z.string(),
+  movementId: z.string(),
+  vatMovementId: z.string().nullable(),
+  base: z.number().int(),
+  vat: z.number().int(),
+  vatRateBps: z.number().int(),
+  currency: z.string(),
+  originalMovementId: z.string().optional(),
+});
+
 const eventSchema = z.discriminatedUnion('type', [
   z.object({
     ...envelopeFields,
@@ -110,6 +122,11 @@ const eventSchema = z.discriminatedUnion('type', [
       penalties: z.array(z.object({ kind: z.enum(['late', 'weekly_limit']), days: z.number().int(), endsAt: isoDate })),
     }),
   }),
+  // Billing events (feature 023).
+  z.object({ ...envelopeFields, type: z.literal('commission.charged'), payload: billingPayload }),
+  z.object({ ...envelopeFields, type: z.literal('commission.refunded'), payload: billingPayload }),
+  z.object({ ...envelopeFields, type: z.literal('penalty.charged'), payload: billingPayload }),
+  z.object({ ...envelopeFields, type: z.literal('penalty.reversed'), payload: billingPayload }),
 ]);
 
 /**

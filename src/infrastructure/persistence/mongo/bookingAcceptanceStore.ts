@@ -6,6 +6,7 @@ import type {
 import type { MovementDraft } from '../../../application/features/wallet/common/ports.js';
 import type { Booking } from '../../../domain/bookings/booking.js';
 import type { DomainEvent } from '../../../domain/events/domainEvent.js';
+import type { WalletMovement } from '../../../domain/wallet/walletMovement.js';
 import { firstConflict, holdsSameRequest } from '../../../domain/bookings/schedulePolicy.js';
 import { BOOKINGS_COLLECTION, bookingFromDocument } from './bookingRepository.js';
 import { appendEventsInSession } from './outboxStore.js';
@@ -23,7 +24,7 @@ class AcceptanceAbort extends Error {
  *   1. claim it — a conditional update that only matches while it is pending, its search is open
  *      and it is not the goalkeeper's own request (so two goalkeepers can never both get it);
  *   2. check it against the bookings the goalkeeper already holds (clash, same request);
- *   3. charge its commission through the wallet (011) — which always writes the goalkeeper's
+ *   3. charge its commission, and its VAT (feature 023), through the wallet (011) — which always writes the goalkeeper's
  *      wallet document, so two acceptances by the same goalkeeper conflict there: the driver
  *      retries the loser, whose snapshot then includes the winner's assignment, and step 2
  *      refuses it. Concurrent clashes are therefore impossible.
@@ -39,8 +40,8 @@ export class MongoBookingAcceptanceStore implements IBookingAcceptanceStore {
     bookingId: string;
     goalkeeperId: string;
     now: Date;
-    commissionDraft: (booking: Booking) => MovementDraft;
-    event: (booking: Booking) => DomainEvent;
+    chargeDrafts: (booking: Booking) => MovementDraft[];
+    events: (booking: Booking, charged: readonly WalletMovement[]) => DomainEvent[];
   }): Promise<AcceptanceResult> {
     const { bookingId, goalkeeperId, now } = args;
     const bookings = this.db.collection(BOOKINGS_COLLECTION);
@@ -67,12 +68,21 @@ export class MongoBookingAcceptanceStore implements IBookingAcceptanceStore {
           const conflict = firstConflict(booking, held);
           if (conflict) throw new AcceptanceAbort({ kind: 'schedule_conflict', conflictingBookingId: conflict.id });
 
-          const charge = await appendMovementInSession(this.db, session, args.commissionDraft(booking), now);
-          if (charge.kind === 'insufficient_funds') throw new AcceptanceAbort({ kind: 'insufficient_funds', balance: charge.balance });
+          const charged: WalletMovement[] = [];
+          for (const draft of args.chargeDrafts(booking)) {
+            const charge = await appendMovementInSession(this.db, session, draft, now);
+            if (charge.kind === 'insufficient_funds') {
+              // Report the balance before this acceptance: add back what it already debited.
+              const debited = charged.reduce((sum, movement) => sum - movement.amount, 0);
+              throw new AcceptanceAbort({ kind: 'insufficient_funds', balance: charge.balance + debited });
+            }
+            if (charge.kind !== 'recorded') throw new Error(`Acceptance of ${booking.id}: ${draft.type} was a duplicate`);
+            charged.push(charge.movement);
+          }
 
-          const event = args.event(booking);
-          await appendEventsInSession(this.db, session, [event], now);
-          return { kind: 'accepted', booking, event };
+          const events = args.events(booking, charged);
+          await appendEventsInSession(this.db, session, events, now);
+          return { kind: 'accepted', booking, events };
         },
         { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority' }, readPreference: 'primary' },
       );

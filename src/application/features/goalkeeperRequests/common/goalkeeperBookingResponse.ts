@@ -26,6 +26,12 @@ export interface AvailableBookingItem {
   currency: string;
 }
 
+/** An available match with what taking it debits (feature 023): the commission plus its VAT. */
+export interface AvailableListItem extends AvailableBookingItem {
+  vat: number;
+  totalCharge: number;
+}
+
 /** A booking in the goalkeeper's agenda: the listed fields plus status, pitch and client contact. */
 export interface AgendaItem extends AvailableBookingItem {
   status: string;

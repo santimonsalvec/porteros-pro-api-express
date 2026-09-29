@@ -6,7 +6,7 @@ import {
   resolveGoalkeeperWalletContext,
   type GoalkeeperWalletContextDependencies,
 } from '../../common/goalkeeperWalletContext.js';
-import type { ICommissionResolver, IWalletRepository } from '../../common/ports.js';
+import type { ICommissionResolver, IVatRateResolver, IWalletRepository } from '../../common/ports.js';
 import { GetGoalkeeperWalletQuery, type GetGoalkeeperWalletResult } from './getGoalkeeperWalletQuery.js';
 
 /**
@@ -19,6 +19,7 @@ export class GetGoalkeeperWalletQueryHandler implements IQueryHandler<GetGoalkee
     private readonly walletRepository: IWalletRepository,
     private readonly commissionResolver: ICommissionResolver,
     private readonly clock: IClock,
+    private readonly vatRates: IVatRateResolver,
   ) {}
 
   async handle(query: GetGoalkeeperWalletQuery): Promise<GetGoalkeeperWalletResult> {
@@ -26,9 +27,10 @@ export class GetGoalkeeperWalletQueryHandler implements IQueryHandler<GetGoalkee
     if (context.kind === 'not_a_goalkeeper') return { outcome: 'not_a_goalkeeper' };
     if (context.kind === 'wallet_not_configured') return { outcome: 'wallet_not_configured', cityId: context.cityId };
 
-    const [stored, commissions] = await Promise.all([
+    const [stored, commissions, vatRateBps] = await Promise.all([
       this.walletRepository.findByGoalkeeperId(query.goalkeeperId),
       this.commissionResolver.resolveForZones(context.profile.zoneIds),
+      this.vatRates.forCountry(context.countryId),
     ]);
     const wallet = stored ?? Wallet.empty(query.goalkeeperId, context.currency, this.clock.now());
 
@@ -37,7 +39,7 @@ export class GetGoalkeeperWalletQueryHandler implements IQueryHandler<GetGoalkee
       wallet: {
         balance: wallet.balance,
         currency: wallet.currency,
-        offers: offersStatus(wallet.balance, [...commissions.values()]),
+        offers: offersStatus(wallet.balance, [...commissions.values()], vatRateBps),
         movementCount: wallet.lastSequence,
       },
       unconfiguredZoneIds: [...commissions].filter(([, commission]) => commission === null).map(([zoneId]) => zoneId),

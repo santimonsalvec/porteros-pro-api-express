@@ -33,7 +33,7 @@ function harness() {
   const draft = (booking: Booking) =>
     commissionChargeDraft({ goalkeeperId: 'gk-1', currency: 'COP', invoicing: COLOMBIA_INVOICING }, { bookingId: booking.id, requestId: booking.requestId, amount: booking.commission }, 'm-1', now);
   const accept = () =>
-    store.accept({ bookingId: pending!.id, goalkeeperId: 'gk-1', now, commissionDraft: draft, event: (booking) => goalkeeperAssigned('ev-1', booking, now) });
+    store.accept({ bookingId: pending!.id, goalkeeperId: 'gk-1', now, chargeDrafts: (booking) => [draft(booking)], events: (booking) => [goalkeeperAssigned('ev-1', booking, now)] });
   return { bookings, wallets, movements, outbox, session, accept };
 }
 
@@ -48,7 +48,7 @@ describe('MongoBookingAcceptanceStore (mocked driver)', () => {
     // Feature 013: the goalkeeper.assigned event is recorded in the same transaction.
     expect(outbox.insertMany.mock.calls[0]![0]).toMatchObject([{ _id: 'ev-1', type: 'goalkeeper.assigned', bookingId: pending!.id }]);
     expect(outbox.insertMany.mock.calls[0]![1]).toEqual({ session });
-    expect(result).toMatchObject({ event: { id: 'ev-1', payload: { goalkeeperId: 'gk-1' } } });
+    expect(result).toMatchObject({ events: [{ id: 'ev-1', payload: { goalkeeperId: 'gk-1' } }] });
 
     expect(bookings.findOneAndUpdate).toHaveBeenCalledWith(
       { _id: pending!.id, status: 'pending_assignment', searchEndsAt: { $gt: now }, clientId: { $ne: 'gk-1' } },

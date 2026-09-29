@@ -11,7 +11,8 @@ import type {
   ReversalOutcome,
   WithdrawResult,
 } from '../../../application/features/bookingLifecycle/common/ports.js';
-import { commissionRefundDraft, type LedgerOwner } from '../../../application/features/wallet/common/walletLedger.js';
+import { commissionRefundDraft, commissionVatRefundDraft, type LedgerOwner } from '../../../application/features/wallet/common/walletLedger.js';
+import { commissionRefunded } from '../../../domain/events/billingEvents.js';
 import { Booking, type CheckIn } from '../../../domain/bookings/booking.js';
 import type { DomainEvent } from '../../../domain/events/domainEvent.js';
 import { GoalkeeperIncident, suspensionEndOf, type IncidentKind } from '../../../domain/goalkeepers/goalkeeperIncident.js';
@@ -45,7 +46,9 @@ class LifecycleAbort<T> extends Error {
 
 /**
  * Gives back exactly what was charged for the booking, once: the cause key is shared by every
- * path that refunds (016's "cancel all", 017's client cancellation, 011's `refundCommission`).
+ * path that refunds (016's "cancel all", 017's client cancellation, 018's reversal, 011's
+ * `refundCommission`). Since feature 023 it also gives back the VAT charged with it (at the rate
+ * it was charged) and records the `commission.refunded` billing event in the same transaction.
  * Aborts with `missing_charge` when the booking has no charge to give back.
  */
 export async function refundCommissionInSession(
@@ -60,7 +63,7 @@ export async function refundCommissionInSession(
     now: Date;
     actor?: MovementActor;
   },
-): Promise<{ amount: number; currency: string }> {
+): Promise<{ amount: number; vat: number; currency: string }> {
   const movements = db.collection(WALLET_MOVEMENTS_COLLECTION);
   const charge = await movements.findOne({ causeKey: `commission:${booking.id}` } as Document, { session });
   if (!charge) throw new LifecycleAbort({ kind: 'missing_charge' as const, bookingId: booking.id });
@@ -68,17 +71,49 @@ export async function refundCommissionInSession(
   const currency = charge.currency as string;
 
   const refunded = await movements.findOne({ causeKey: `commission_refund:${booking.id}` } as Document, { session });
-  if (refunded) return { amount: refunded.amount as number, currency };
+  if (refunded) return { amount: refunded.amount as number, vat: 0, currency };
 
-  const draft = commissionRefundDraft(
-    args.owner,
-    { bookingId: booking.id, requestId: args.requestId, amount, cancellation: args.cancellation },
-    args.newId(),
+  const refund = await appendMovementInSession(
+    db,
+    session,
+    commissionRefundDraft(
+      args.owner,
+      { bookingId: booking.id, requestId: args.requestId, amount, cancellation: args.cancellation },
+      args.newId(),
+      args.now,
+      args.actor,
+    ),
     args.now,
-    args.actor,
   );
-  await appendMovementInSession(db, session, draft, args.now);
-  return { amount, currency };
+  if (refund.kind !== 'recorded') throw new Error(`Refund of ${booking.id} was not recorded (${refund.kind})`);
+
+  const vatCharge = await movements.findOne({ causeKey: `commission_vat:${booking.id}` } as Document, { session });
+  const vat = vatCharge ? -(vatCharge.amount as number) : 0;
+  const rateBps = (vatCharge?.taxRateBps as number | undefined) ?? 0;
+  let vatMovementId: string | null = null;
+  if (vatCharge) {
+    const vatRefund = await appendMovementInSession(
+      db,
+      session,
+      commissionVatRefundDraft(args.owner, { bookingId: booking.id, requestId: args.requestId, amount: vat, rateBps }, args.newId(), args.now, args.actor),
+      args.now,
+    );
+    if (vatRefund.kind !== 'recorded') throw new Error(`VAT refund of ${booking.id} was not recorded (${vatRefund.kind})`);
+    vatMovementId = vatRefund.movement.id;
+  }
+
+  const event = commissionRefunded(args.newId(), { bookingId: booking.id, requestId: args.requestId }, args.now, {
+    goalkeeperId: args.owner.goalkeeperId,
+    movementId: refund.movement.id,
+    vatMovementId,
+    base: amount,
+    vat,
+    vatRateBps: vatCharge ? rateBps : 0,
+    currency,
+    originalMovementId: String(charge._id),
+  });
+  await appendEventsInSession(db, session, [event], args.now);
+  return { amount, vat, currency };
 }
 
 /**

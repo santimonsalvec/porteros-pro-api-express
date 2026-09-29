@@ -56,6 +56,18 @@ export const config = {
       .filter((value) => value !== ''),
     iosAppId: optionalEnv('IOS_APP_ID', ''),
   },
+  /**
+   * Electronic invoicing (feature 023). Each country's provider and its non-secret configuration
+   * are set by administrators; each provider's credentials per country are environment variables
+   * from Secret Manager (e.g. `SIIGO_CO_USERNAME`, `SIIGO_CO_ACCESS_KEY`), never here.
+   */
+  invoicing: {
+    /** Off by default (local): documents are still created and wait, pending, until it's on. */
+    enabled: optionalEnv('INVOICING_ENABLED', 'false') === 'true',
+    siigoBaseUrl: optionalEnv('SIIGO_BASE_URL', 'https://api.siigo.com'),
+    /** Documents handled per sweep and step. */
+    issuerCap: Number(optionalEnv('INVOICING_ISSUER_CAP', '100')),
+  },
   otel: {
     otlpEndpoint: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
   },

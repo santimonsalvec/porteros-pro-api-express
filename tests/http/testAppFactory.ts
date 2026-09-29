@@ -71,6 +71,34 @@ import { SetGatewaySettingsCommandHandler } from '../../src/application/features
 import { GetGatewaySettingsQuery } from '../../src/application/features/payments/queries/getGatewaySettings/getGatewaySettingsQuery.js';
 import { GetGatewaySettingsQueryHandler } from '../../src/application/features/payments/queries/getGatewaySettings/getGatewaySettingsQueryHandler.js';
 import type { PaymentReturnSettings } from '../../src/controllers/paymentReturnController.js';
+import { FakeTaxSettingsRepository } from '../fakes/fakeTaxSettingsRepository.js';
+import { createVatRateResolver } from '../../src/application/features/wallet/common/vatRateResolver.js';
+import { CreateInvoicingDocumentHandler } from '../../src/application/features/invoicing/handlers/createInvoicingDocument.js';
+import { InvoicingIssuerJob } from '../../src/application/features/invoicing/jobs/invoicingIssuerJob.js';
+import { BILLING_EVENT_TYPES } from '../../src/domain/events/billingEvents.js';
+import { FakeInvoicingProvider, FakeInvoicingProviderRegistry } from '../fakes/fakeInvoicingProvider.js';
+import { FakeInvoicingSecrets } from '../fakes/fakeInvoicingSecrets.js';
+import { FakeInvoicingSettingsRepository } from '../fakes/fakeInvoicingSettingsRepository.js';
+import { FakeInvoicingDocumentRepository } from '../fakes/fakeInvoicingDocumentRepository.js';
+import { FakeBillableMovementScanner } from '../fakes/fakeBillableMovementScanner.js';
+import { ListMyDocumentsQuery } from '../../src/application/features/invoicing/queries/listMyDocuments/listMyDocumentsQuery.js';
+import { ListMyDocumentsQueryHandler } from '../../src/application/features/invoicing/queries/listMyDocuments/listMyDocumentsQueryHandler.js';
+import { GetMyDocumentQuery } from '../../src/application/features/invoicing/queries/getMyDocument/getMyDocumentQuery.js';
+import { GetMyDocumentQueryHandler } from '../../src/application/features/invoicing/queries/getMyDocument/getMyDocumentQueryHandler.js';
+import { GetDocumentFileQuery } from '../../src/application/features/invoicing/queries/getDocumentFile/getDocumentFileQuery.js';
+import { GetDocumentFileQueryHandler } from '../../src/application/features/invoicing/queries/getDocumentFile/getDocumentFileQueryHandler.js';
+import { SetTaxSettingsCommand } from '../../src/application/features/invoicing/commands/setTaxSettings/setTaxSettingsCommand.js';
+import { SetTaxSettingsCommandHandler } from '../../src/application/features/invoicing/commands/setTaxSettings/setTaxSettingsCommandHandler.js';
+import { GetTaxSettingsQuery } from '../../src/application/features/invoicing/queries/getTaxSettings/getTaxSettingsQuery.js';
+import { GetTaxSettingsQueryHandler } from '../../src/application/features/invoicing/queries/getTaxSettings/getTaxSettingsQueryHandler.js';
+import { SetInvoicingSettingsCommand } from '../../src/application/features/invoicing/commands/setInvoicingSettings/setInvoicingSettingsCommand.js';
+import { SetInvoicingSettingsCommandHandler } from '../../src/application/features/invoicing/commands/setInvoicingSettings/setInvoicingSettingsCommandHandler.js';
+import { GetInvoicingSettingsQuery } from '../../src/application/features/invoicing/queries/getInvoicingSettings/getInvoicingSettingsQuery.js';
+import { GetInvoicingSettingsQueryHandler } from '../../src/application/features/invoicing/queries/getInvoicingSettings/getInvoicingSettingsQueryHandler.js';
+import { ListDocumentsForAdminQuery } from '../../src/application/features/invoicing/queries/listDocumentsForAdmin/listDocumentsForAdminQuery.js';
+import { ListDocumentsForAdminQueryHandler } from '../../src/application/features/invoicing/queries/listDocumentsForAdmin/listDocumentsForAdminQueryHandler.js';
+import { RetryDocumentCommand } from '../../src/application/features/invoicing/commands/retryDocument/retryDocumentCommand.js';
+import { RetryDocumentCommandHandler } from '../../src/application/features/invoicing/commands/retryDocument/retryDocumentCommandHandler.js';
 import { GetTopUpOptionsQuery } from '../../src/application/features/payments/queries/getTopUpOptions/getTopUpOptionsQuery.js';
 import { GetTopUpOptionsQueryHandler } from '../../src/application/features/payments/queries/getTopUpOptions/getTopUpOptionsQueryHandler.js';
 import { StartTopUpCommand } from '../../src/application/features/payments/commands/startTopUp/startTopUpCommand.js';
@@ -266,6 +294,13 @@ export interface TestAppContext {
   /** Every user's inbox, offers included (feature 015). */
   notificationRepository: FakeNotificationRepository;
   offerPushState: FakeOfferPushState;
+  /** Each country's VAT rate (feature 023); empty = 0 % everywhere. */
+  taxSettingsRepository: FakeTaxSettingsRepository;
+  /** Invoicing (feature 023): the fake provider (scripted answers), credentials, settings (empty) and documents. */
+  invoicingProvider: FakeInvoicingProvider;
+  invoicingSecrets: FakeInvoicingSecrets;
+  invoicingSettingsRepository: FakeInvoicingSettingsRepository;
+  invoicingDocumentRepository: FakeInvoicingDocumentRepository;
   /** Wallet top-ups (feature 022): the gateway signs like Wompi; its transactions query answers from a queue. */
   paymentGateway: FakePaymentGateway;
   paymentSecrets: FakePaymentSecrets;
@@ -345,6 +380,9 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
   const commissionSettingRepository = new FakeCommissionSettingRepository();
   const walletLedger = new WalletLedger(walletStore, walletStore, { newId: () => uuidv7() }, clock);
   const walletContext = { goalkeeperProfileRepository, cityRepository, regionRepository, countryLookup: quoteCountryRepository };
+  // VAT on top of commissions (feature 023): 0 % until a test seeds a rate.
+  const taxSettingsRepository = new FakeTaxSettingsRepository();
+  const vatRates = createVatRateResolver(taxSettingsRepository, { cityRepository, regionRepository }, { warn: () => undefined });
   const commissionResolver = new CommissionResolver(commissionSettingRepository, zoneRepository, cityRepository, regionRepository);
   const paymentGateway = new FakePaymentGateway();
   const paymentGatewayRegistry = new FakePaymentGatewayRegistry([paymentGateway]);
@@ -366,6 +404,31 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     mediator,
     DELIVERY_LOG_EVENT_TYPES.map((type) => ({ type, handler: deliveryLogHandler })),
   );
+  // Invoicing (feature 023), with a fake provider that answers like Siigo.
+  const invoicingProvider = new FakeInvoicingProvider();
+  const invoicingSecrets = new FakeInvoicingSecrets();
+  const invoicingSettingsRepository = new FakeInvoicingSettingsRepository();
+  const invoicingDocumentRepository = new FakeInvoicingDocumentRepository();
+  const invoicingDeps = {
+    documents: invoicingDocumentRepository,
+    settings: invoicingSettingsRepository,
+    providers: new FakeInvoicingProviderRegistry([invoicingProvider]),
+    secrets: invoicingSecrets,
+    countryLookup: quoteCountryRepository,
+    cityRepository,
+    logger: { info: () => undefined, warn: () => undefined },
+    enabled: true,
+    movements: walletStore,
+    users: userRepository,
+    walletContext,
+    idGenerator: { newId: () => uuidv7() },
+    clock,
+  };
+  const invoicingHandler = new CreateInvoicingDocumentHandler(invoicingDeps);
+  registerSubscribers(
+    mediator,
+    BILLING_EVENT_TYPES.map((type) => ({ type, handler: invoicingHandler })),
+  );
   const quoteConfirmationStore = new FakeQuoteConfirmationStore(quoteRepository, requestRepository, bookingRepository, outboxStore);
   const bookingAuditLogger = new FakeBookingAuditLogger();
   const deviceRepository = new FakeDeviceRepository();
@@ -380,6 +443,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     walletRepository: walletStore,
     commissionResolver,
     bookingRepository,
+    vatRates,
   });
   const offerSender = new OfferSender({
     notifications: notificationRepository,
@@ -519,7 +583,8 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       requestType: RunSweepCommand,
       handler: new RunSweepCommandHandler({
         outbox: outboxStore,
-        publisher: eventPublisher,
+        // As in production: in local mode the sweep delivers pending events to the in-process consumers.
+        publisher: relayPublisher,
         clock,
         logger: eventLogger,
         batchLimit: 200,
@@ -576,6 +641,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
             secrets: paymentSecrets,
             countryLookup: quoteCountryRepository,
           }),
+          new InvoicingIssuerJob({ ...invoicingDeps, scanner: new FakeBillableMovementScanner(walletStore, invoicingDocumentRepository), cap: 100 }),
         ],
         jobLocks: new FakeJobLockStore(),
       }),
@@ -690,7 +756,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     },
     {
       requestType: GetGoalkeeperWalletQuery,
-      handler: new GetGoalkeeperWalletQueryHandler(walletContext, walletStore, commissionResolver, clock),
+      handler: new GetGoalkeeperWalletQueryHandler(walletContext, walletStore, commissionResolver, clock, vatRates),
     },
     {
       requestType: GetTopUpOptionsQuery,
@@ -733,6 +799,24 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       handler: new SetGatewaySettingsCommandHandler(quoteCountryRepository, paymentGatewaySettingsRepository, clock, offersLogger),
     },
     { requestType: GetGatewaySettingsQuery, handler: new GetGatewaySettingsQueryHandler(paymentGatewaySettingsRepository) },
+    { requestType: ListMyDocumentsQuery, handler: new ListMyDocumentsQueryHandler(goalkeeperProfileRepository, invoicingDocumentRepository) },
+    { requestType: GetMyDocumentQuery, handler: new GetMyDocumentQueryHandler(invoicingDocumentRepository) },
+    { requestType: GetDocumentFileQuery, handler: new GetDocumentFileQueryHandler(invoicingDeps) },
+    {
+      requestType: SetTaxSettingsCommand,
+      handler: new SetTaxSettingsCommandHandler(quoteCountryRepository, taxSettingsRepository, clock, invoicingDeps.logger),
+    },
+    { requestType: GetTaxSettingsQuery, handler: new GetTaxSettingsQueryHandler(taxSettingsRepository) },
+    {
+      requestType: SetInvoicingSettingsCommand,
+      handler: new SetInvoicingSettingsCommandHandler(quoteCountryRepository, invoicingSettingsRepository, invoicingDeps.secrets, clock, invoicingDeps.logger),
+    },
+    { requestType: GetInvoicingSettingsQuery, handler: new GetInvoicingSettingsQueryHandler(invoicingSettingsRepository, invoicingDeps.secrets, quoteCountryRepository) },
+    { requestType: ListDocumentsForAdminQuery, handler: new ListDocumentsForAdminQueryHandler(invoicingDocumentRepository, clock) },
+    {
+      requestType: RetryDocumentCommand,
+      handler: new RetryDocumentCommandHandler({ ...invoicingDeps, profiles: goalkeeperProfileRepository }),
+    },
     {
       requestType: AcceptCurrentTermsCommand,
       handler: new AcceptCurrentTermsCommandHandler(termsAcceptanceRepository, { newId: () => uuidv7() }, clock, {
@@ -759,11 +843,13 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
         clock,
         audit: new FakeAcceptanceAuditLogger(),
         relay: eventRelay,
+        vatRates,
       }),
     },
     {
       requestType: ListAvailableBookingsQuery,
       handler: new ListAvailableBookingsQueryHandler({
+        vatRates,
         goalkeeperProfileRepository,
         walletRepository: walletStore,
         commissionResolver,
@@ -1001,6 +1087,11 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     pushSender,
     notificationRepository,
     offerPushState,
+    taxSettingsRepository,
+    invoicingProvider,
+    invoicingSecrets,
+    invoicingSettingsRepository,
+    invoicingDocumentRepository,
     paymentGateway,
     paymentSecrets,
     paymentGatewaySettingsRepository,

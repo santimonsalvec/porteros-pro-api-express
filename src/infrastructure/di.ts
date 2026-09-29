@@ -84,6 +84,35 @@ import { SetGatewaySettingsCommand } from '../application/features/payments/comm
 import { SetGatewaySettingsCommandHandler } from '../application/features/payments/commands/setGatewaySettings/setGatewaySettingsCommandHandler.js';
 import { GetGatewaySettingsQuery } from '../application/features/payments/queries/getGatewaySettings/getGatewaySettingsQuery.js';
 import { GetGatewaySettingsQueryHandler } from '../application/features/payments/queries/getGatewaySettings/getGatewaySettingsQueryHandler.js';
+import { TaxSettingsRepository } from './persistence/mongo/taxSettingsRepository.js';
+import { createVatRateResolver } from '../application/features/wallet/common/vatRateResolver.js';
+import { InvoicingDocumentRepository } from './persistence/mongo/invoicingDocumentRepository.js';
+import { InvoicingSettingsRepository } from './persistence/mongo/invoicingSettingsRepository.js';
+import { BillableMovementScanner } from './persistence/mongo/billableMovementScanner.js';
+import { InvoicingProviderRegistry } from './invoicing/invoicingProviderRegistry.js';
+import { SiigoInvoicingProvider } from './invoicing/siigoInvoicingProvider.js';
+import { EnvInvoicingSecrets } from './invoicing/envInvoicingSecrets.js';
+import { CreateInvoicingDocumentHandler } from '../application/features/invoicing/handlers/createInvoicingDocument.js';
+import { InvoicingIssuerJob } from '../application/features/invoicing/jobs/invoicingIssuerJob.js';
+import { BILLING_EVENT_TYPES } from '../domain/events/billingEvents.js';
+import { ListMyDocumentsQuery } from '../application/features/invoicing/queries/listMyDocuments/listMyDocumentsQuery.js';
+import { ListMyDocumentsQueryHandler } from '../application/features/invoicing/queries/listMyDocuments/listMyDocumentsQueryHandler.js';
+import { GetMyDocumentQuery } from '../application/features/invoicing/queries/getMyDocument/getMyDocumentQuery.js';
+import { GetMyDocumentQueryHandler } from '../application/features/invoicing/queries/getMyDocument/getMyDocumentQueryHandler.js';
+import { GetDocumentFileQuery } from '../application/features/invoicing/queries/getDocumentFile/getDocumentFileQuery.js';
+import { GetDocumentFileQueryHandler } from '../application/features/invoicing/queries/getDocumentFile/getDocumentFileQueryHandler.js';
+import { SetTaxSettingsCommand } from '../application/features/invoicing/commands/setTaxSettings/setTaxSettingsCommand.js';
+import { SetTaxSettingsCommandHandler } from '../application/features/invoicing/commands/setTaxSettings/setTaxSettingsCommandHandler.js';
+import { GetTaxSettingsQuery } from '../application/features/invoicing/queries/getTaxSettings/getTaxSettingsQuery.js';
+import { GetTaxSettingsQueryHandler } from '../application/features/invoicing/queries/getTaxSettings/getTaxSettingsQueryHandler.js';
+import { SetInvoicingSettingsCommand } from '../application/features/invoicing/commands/setInvoicingSettings/setInvoicingSettingsCommand.js';
+import { SetInvoicingSettingsCommandHandler } from '../application/features/invoicing/commands/setInvoicingSettings/setInvoicingSettingsCommandHandler.js';
+import { GetInvoicingSettingsQuery } from '../application/features/invoicing/queries/getInvoicingSettings/getInvoicingSettingsQuery.js';
+import { GetInvoicingSettingsQueryHandler } from '../application/features/invoicing/queries/getInvoicingSettings/getInvoicingSettingsQueryHandler.js';
+import { ListDocumentsForAdminQuery } from '../application/features/invoicing/queries/listDocumentsForAdmin/listDocumentsForAdminQuery.js';
+import { ListDocumentsForAdminQueryHandler } from '../application/features/invoicing/queries/listDocumentsForAdmin/listDocumentsForAdminQueryHandler.js';
+import { RetryDocumentCommand } from '../application/features/invoicing/commands/retryDocument/retryDocumentCommand.js';
+import { RetryDocumentCommandHandler } from '../application/features/invoicing/commands/retryDocument/retryDocumentCommandHandler.js';
 import { GetTopUpOptionsQuery } from '../application/features/payments/queries/getTopUpOptions/getTopUpOptionsQuery.js';
 import { GetTopUpOptionsQueryHandler } from '../application/features/payments/queries/getTopUpOptions/getTopUpOptionsQueryHandler.js';
 import { StartTopUpCommand } from '../application/features/payments/commands/startTopUp/startTopUpCommand.js';
@@ -262,6 +291,16 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   await commissionSettingRepository.ensureIndexes();
   const commissionResolver = new CommissionResolver(commissionSettingRepository, zoneRepository, cityRepository, regionRepository);
   const walletContext = { goalkeeperProfileRepository, cityRepository, regionRepository, countryLookup: countryRepository };
+  // VAT on top of commissions (feature 023).
+  const taxSettingsRepository = new TaxSettingsRepository(db);
+  const vatRates = createVatRateResolver(taxSettingsRepository, { cityRepository, regionRepository }, logger);
+  // Electronic invoicing (feature 023): providers per country, credentials from Secret Manager.
+  const invoicingDocumentRepository = new InvoicingDocumentRepository(db);
+  await invoicingDocumentRepository.ensureIndexes();
+  const invoicingSettingsRepository = new InvoicingSettingsRepository(db);
+  const billableMovementScanner = new BillableMovementScanner(db);
+  const invoicingProviders = new InvoicingProviderRegistry([new SiigoInvoicingProvider(config.invoicing.siigoBaseUrl)]);
+  const invoicingSecrets = new EnvInvoicingSecrets(process.env);
   // Wallet top-ups (feature 022). Secrets come from the environment (Secret Manager), never the database.
   const topUpRepository = new TopUpRepository(db);
   await topUpRepository.ensureIndexes();
@@ -317,6 +356,27 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     mediator,
     DELIVERY_LOG_EVENT_TYPES.map((type) => ({ type, handler: deliveryLogHandler })),
   );
+  // Invoicing (feature 023): a separate consumer of billing events, plus the issuer sweep job.
+  const invoicingDeps = {
+    documents: invoicingDocumentRepository,
+    settings: invoicingSettingsRepository,
+    providers: invoicingProviders,
+    secrets: invoicingSecrets,
+    countryLookup: countryRepository,
+    cityRepository,
+    logger,
+    enabled: config.invoicing.enabled,
+    movements: walletMovementRepository,
+    users: userRepository,
+    walletContext,
+    idGenerator,
+    clock,
+  };
+  const invoicingHandler = new CreateInvoicingDocumentHandler(invoicingDeps);
+  registerSubscribers(
+    mediator,
+    BILLING_EVENT_TYPES.map((type) => ({ type, handler: invoicingHandler })),
+  );
   const oidcVerifier = new GoogleOidcVerifier(config.internalAuth.audience, config.internalAuth.allowedInvokers);
   const verifyInternalCaller = async (token: string): Promise<boolean> => {
     const verdict = await oidcVerifier.verify(token);
@@ -340,7 +400,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   const notificationRepository = new MongoNotificationRepository(db);
   await notificationRepository.ensureIndexes();
   const offerPushState = new MongoOfferPushStateStore(db);
-  const offerEligibility = new OfferEligibilityService({ goalkeeperProfileRepository, walletRepository, commissionResolver, bookingRepository });
+  const offerEligibility = new OfferEligibilityService({ goalkeeperProfileRepository, walletRepository, commissionResolver, bookingRepository, vatRates });
   const offerSender = new OfferSender({
     notifications: notificationRepository,
     pushState: offerPushState,
@@ -589,7 +649,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     },
     {
       requestType: GetGoalkeeperWalletQuery,
-      handler: new GetGoalkeeperWalletQueryHandler(walletContext, walletRepository, commissionResolver, clock),
+      handler: new GetGoalkeeperWalletQueryHandler(walletContext, walletRepository, commissionResolver, clock, vatRates),
     },
     {
       requestType: GetTopUpOptionsQuery,
@@ -632,6 +692,24 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       handler: new SetGatewaySettingsCommandHandler(countryRepository, paymentGatewaySettingsRepository, clock, logger),
     },
     { requestType: GetGatewaySettingsQuery, handler: new GetGatewaySettingsQueryHandler(paymentGatewaySettingsRepository) },
+    { requestType: ListMyDocumentsQuery, handler: new ListMyDocumentsQueryHandler(goalkeeperProfileRepository, invoicingDocumentRepository) },
+    { requestType: GetMyDocumentQuery, handler: new GetMyDocumentQueryHandler(invoicingDocumentRepository) },
+    { requestType: GetDocumentFileQuery, handler: new GetDocumentFileQueryHandler(invoicingDeps) },
+    {
+      requestType: SetTaxSettingsCommand,
+      handler: new SetTaxSettingsCommandHandler(countryRepository, taxSettingsRepository, clock, invoicingDeps.logger),
+    },
+    { requestType: GetTaxSettingsQuery, handler: new GetTaxSettingsQueryHandler(taxSettingsRepository) },
+    {
+      requestType: SetInvoicingSettingsCommand,
+      handler: new SetInvoicingSettingsCommandHandler(countryRepository, invoicingSettingsRepository, invoicingDeps.secrets, clock, invoicingDeps.logger),
+    },
+    { requestType: GetInvoicingSettingsQuery, handler: new GetInvoicingSettingsQueryHandler(invoicingSettingsRepository, invoicingDeps.secrets, countryRepository) },
+    { requestType: ListDocumentsForAdminQuery, handler: new ListDocumentsForAdminQueryHandler(invoicingDocumentRepository, clock) },
+    {
+      requestType: RetryDocumentCommand,
+      handler: new RetryDocumentCommandHandler({ ...invoicingDeps, profiles: goalkeeperProfileRepository }),
+    },
     {
       requestType: AcceptCurrentTermsCommand,
       handler: new AcceptCurrentTermsCommandHandler(termsAcceptanceRepository, idGenerator, clock, config.legal),
@@ -655,11 +733,13 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         clock,
         audit: auditLogger,
         relay: eventRelay,
+        vatRates,
       }),
     },
     {
       requestType: ListAvailableBookingsQuery,
       handler: new ListAvailableBookingsQueryHandler({
+        vatRates,
         goalkeeperProfileRepository,
         walletRepository: walletRepository,
         commissionResolver,
@@ -792,6 +872,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
             secrets: paymentSecrets,
             countryLookup: countryRepository,
           }),
+          new InvoicingIssuerJob({ ...invoicingDeps, scanner: billableMovementScanner, cap: config.invoicing.issuerCap }),
         ],
         jobLocks: jobLockStore,
       }),

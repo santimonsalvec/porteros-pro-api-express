@@ -18,6 +18,13 @@ import { listCasesQuerySchema, resolveCaseRequestSchema } from './requests/cases
 import { SetGatewaySettingsCommand } from '../application/features/payments/commands/setGatewaySettings/setGatewaySettingsCommand.js';
 import { GetGatewaySettingsQuery } from '../application/features/payments/queries/getGatewaySettings/getGatewaySettingsQuery.js';
 import { gatewaySettingsRequestSchema } from './requests/payments/gatewaySettingsRequest.js';
+import { SetTaxSettingsCommand } from '../application/features/invoicing/commands/setTaxSettings/setTaxSettingsCommand.js';
+import { GetTaxSettingsQuery } from '../application/features/invoicing/queries/getTaxSettings/getTaxSettingsQuery.js';
+import { SetInvoicingSettingsCommand } from '../application/features/invoicing/commands/setInvoicingSettings/setInvoicingSettingsCommand.js';
+import { GetInvoicingSettingsQuery } from '../application/features/invoicing/queries/getInvoicingSettings/getInvoicingSettingsQuery.js';
+import { ListDocumentsForAdminQuery } from '../application/features/invoicing/queries/listDocumentsForAdmin/listDocumentsForAdminQuery.js';
+import { RetryDocumentCommand } from '../application/features/invoicing/commands/retryDocument/retryDocumentCommand.js';
+import { invoicingSettingsRequestSchema, listDocumentsQuerySchema, taxSettingsRequestSchema } from './requests/invoicing/invoicingRequests.js';
 
 export interface AdminControllerDependencies {
   mediator: ISender;
@@ -181,6 +188,88 @@ export function createAdminController(deps: AdminControllerDependencies): Router
         throw new ApiError(404, 'country_not_found', 'No country exists with this id.');
       case 'invalid':
         throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', result.fieldErrors);
+    }
+  });
+
+  // VAT per country (feature 023): charged on top of commissions and penalties.
+  router.get('/tax-settings/:countryId', async (req, res) => {
+    const result = await deps.mediator.send(new GetTaxSettingsQuery(req.params.countryId));
+    switch (result.outcome) {
+      case 'success':
+        res.status(200).json(result.settings);
+        return;
+      case 'not_found':
+        throw new ApiError(404, 'settings_not_found', 'No VAT rate is configured for this country (0 % applies).');
+    }
+  });
+
+  router.put('/tax-settings/:countryId', async (req, res) => {
+    const parsed = taxSettingsRequestSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
+    }
+    const result = await deps.mediator.send(new SetTaxSettingsCommand(req.authClaims!.sub, req.params.countryId, parsed.data.vatRateBps));
+    switch (result.outcome) {
+      case 'saved':
+        res.status(200).json(result.settings);
+        return;
+      case 'country_not_found':
+        throw new ApiError(404, 'country_not_found', 'No country exists with this id.');
+      case 'invalid':
+        throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', result.fieldErrors);
+    }
+  });
+
+  // The invoicing provider of each country (feature 023). Credentials live in Secret Manager.
+  router.get('/invoicing/settings/:countryId', async (req, res) => {
+    const result = await deps.mediator.send(new GetInvoicingSettingsQuery(req.params.countryId));
+    switch (result.outcome) {
+      case 'success':
+        res.status(200).json(result.settings);
+        return;
+      case 'not_found':
+        throw new ApiError(404, 'settings_not_found', 'No invoicing provider is configured for this country.');
+    }
+  });
+
+  router.put('/invoicing/settings/:countryId', async (req, res) => {
+    const parsed = invoicingSettingsRequestSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
+    }
+    const result = await deps.mediator.send(
+      new SetInvoicingSettingsCommand(req.authClaims!.sub, req.params.countryId, parsed.data.provider, parsed.data.config),
+    );
+    switch (result.outcome) {
+      case 'saved':
+        res.status(200).json(result.settings);
+        return;
+      case 'country_not_found':
+        throw new ApiError(404, 'country_not_found', 'No country exists with this id.');
+      case 'invalid':
+        throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', result.fieldErrors);
+    }
+  });
+
+  router.get('/invoicing/documents', async (req, res) => {
+    const parsed = listDocumentsQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
+    }
+    const result = await deps.mediator.send(new ListDocumentsForAdminQuery(parsed.data.status ?? null, parsed.data.page, parsed.data.pageSize));
+    res.status(200).json(result);
+  });
+
+  router.post('/invoicing/documents/:documentId/retry', async (req, res) => {
+    const result = await deps.mediator.send(new RetryDocumentCommand(req.authClaims!.sub, req.params.documentId));
+    switch (result.outcome) {
+      case 'retried':
+        res.status(202).json(result.document);
+        return;
+      case 'not_found':
+        throw new ApiError(404, 'invoicing_document_not_found', 'No invoicing document exists with this id.');
+      case 'not_retryable':
+        throw new ApiError(409, 'document_not_retryable', 'Only a rejected document can be retried.', undefined, { status: result.status });
     }
   });
 

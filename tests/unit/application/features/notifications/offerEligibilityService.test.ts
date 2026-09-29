@@ -7,6 +7,7 @@ import { FakeBookingRepository } from '../../../../fakes/fakeBookingRepository.j
 import { FakeGoalkeeperProfileRepository } from '../../../../fakes/fakeGoalkeeperProfileRepository.js';
 import { buildBooking, OFFER_NOW } from '../../../../fixtures/offerFixtures.js';
 import { buildGoalkeeperProfile } from '../../../../fixtures/walletFixtures.js';
+import { fixedVatRates } from '../../../../fakes/fakeVatRates.js';
 
 const at = (iso: string) => new Date(iso);
 
@@ -23,7 +24,7 @@ function world() {
     resolveForZones: async (zoneIds: string[]) =>
       new Map(zoneIds.map((zoneId) => [zoneId, zoneId === 'zone-unconfigured' ? null : 7000] as const)),
   };
-  const service = new OfferEligibilityService({ goalkeeperProfileRepository: profiles, walletRepository, commissionResolver, bookingRepository: bookings });
+  const service = new OfferEligibilityService({ goalkeeperProfileRepository: profiles, walletRepository, commissionResolver, bookingRepository: bookings, vatRates: fixedVatRates(0) });
   const goalkeeper = (id: string, balance: number, overrides: Parameters<typeof buildGoalkeeperProfile>[1] = {}) => {
     profiles.seed(buildGoalkeeperProfile(id, { zoneIds: ['zone-bello'], ...overrides }));
     balances.set(id, balance);

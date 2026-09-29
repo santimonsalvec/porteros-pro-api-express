@@ -5,13 +5,15 @@ import { offersStatus } from '../../../../domain/wallet/fundsPolicy.js';
 import { AVAILABLE_CANDIDATES_CAP } from '../../goalkeeperRequests/common/bookingLimits.js';
 import type { IBookingRepository } from '../../goalkeeperRequests/common/ports.js';
 import type { IGoalkeeperProfileRepository } from '../../goalkeepers/common/ports.js';
-import type { ICommissionResolver, IWalletRepository } from '../../wallet/common/ports.js';
+import type { ICommissionResolver, IVatRateResolver, IWalletRepository } from '../../wallet/common/ports.js';
 
 export interface OfferEligibilityDependencies {
   goalkeeperProfileRepository: IGoalkeeperProfileRepository;
   walletRepository: IWalletRepository;
   commissionResolver: ICommissionResolver;
   bookingRepository: IBookingRepository;
+  /** Matches must be affordable with their VAT (feature 023). */
+  vatRates: IVatRateResolver;
 }
 
 /** Why a goalkeeper sees no matches at all, checked in this order (clarification 3 first). */
@@ -26,7 +28,7 @@ interface SnapshotWithFunds {
 export type AvailableBookingsResult =
   | { kind: 'not_a_goalkeeper' }
   | { kind: 'unavailable'; reason: UnavailableReason; missingAmount: number | null; suspendedUntil: Date | null }
-  | { kind: 'ok'; bookings: Booking[]; capReached: boolean };
+  | { kind: 'ok'; bookings: Booking[]; capReached: boolean; vatRateBps: number };
 
 /**
  * "Can this goalkeeper take this booking now", in both directions (research §1): per goalkeeper
@@ -62,6 +64,7 @@ export class OfferEligibilityService {
       kind: 'ok',
       bookings: candidates.filter((booking) => isEligible(snapshot, booking, now)),
       capReached: candidates.length === AVAILABLE_CANDIDATES_CAP,
+      vatRateBps: snapshot.vatRateBps,
     };
   }
 
@@ -83,15 +86,19 @@ export class OfferEligibilityService {
   private async snapshotsFor(profiles: readonly GoalkeeperProfile[]): Promise<SnapshotWithFunds[]> {
     if (profiles.length === 0) return [];
     const ids = profiles.map((profile) => profile.userId);
-    const [wallets, commissions, held] = await Promise.all([
+    const cityIds = [...new Set(profiles.map((profile) => profile.cityId))];
+    const [wallets, commissions, held, cityRates] = await Promise.all([
       this.deps.walletRepository.findByGoalkeeperIds(ids),
       this.deps.commissionResolver.resolveForZones([...new Set(profiles.flatMap((profile) => profile.zoneIds))]),
       this.deps.bookingRepository.findAssignedToGoalkeepers(ids),
+      Promise.all(cityIds.map(async (cityId) => [cityId, await this.deps.vatRates.forCity(cityId)] as const)),
     ]);
+    const rates = new Map(cityRates);
     const balances = new Map(wallets.map((wallet) => [wallet.goalkeeperId, wallet.balance]));
     return profiles.map((profile) => {
       const balance = balances.get(profile.userId) ?? 0;
-      const funds = offersStatus(balance, profile.zoneIds.map((zoneId) => commissions.get(zoneId) ?? null));
+      const vatRateBps = rates.get(profile.cityId) ?? 0;
+      const funds = offersStatus(balance, profile.zoneIds.map((zoneId) => commissions.get(zoneId) ?? null), vatRateBps);
       return {
         snapshot: {
           goalkeeperId: profile.userId,
@@ -100,6 +107,7 @@ export class OfferEligibilityService {
           suspendedUntil: profile.suspendedUntil,
           balance,
           canSeeOffers: funds.canSeeOffers,
+          vatRateBps,
           held: held.filter((booking) => booking.goalkeeperId === profile.userId),
         },
         missingAmount: funds.missingAmount,

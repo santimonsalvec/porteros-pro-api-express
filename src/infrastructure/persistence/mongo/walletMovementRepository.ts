@@ -27,6 +27,7 @@ export function movementToDocument(movement: WalletMovement): Document {
     cancellation: movement.cancellation,
     reason: movement.reason,
     invoicing: movement.invoicing,
+    ...(movement.taxRateBps !== null ? { taxRateBps: movement.taxRateBps } : {}),
   };
 }
 
@@ -46,6 +47,7 @@ export function movementFromDocument(doc: Document): WalletMovement {
     cancellation: (doc.cancellation as CancellationDetails | null | undefined) ?? null,
     reason: (doc.reason as string | null | undefined) ?? null,
     invoicing: doc.invoicing as InvoicingSnapshot,
+    taxRateBps: (doc.taxRateBps as number | null | undefined) ?? null,
   });
 }
 
@@ -65,6 +67,13 @@ export class WalletMovementRepository implements IWalletMovementRepository {
   async ensureIndexes(): Promise<void> {
     await this.collection.createIndex({ causeKey: 1 }, { name: 'causeKey_unique', unique: true });
     await this.collection.createIndex({ walletId: 1, sequence: -1 }, { name: 'wallet_sequence_unique', unique: true });
+    // The invoicing safety net's scan of billable movements (feature 023).
+    await this.collection.createIndex({ type: 1, occurredAt: 1 }, { name: 'billable_occurred' });
+  }
+
+  async findById(id: string): Promise<WalletMovement | null> {
+    const doc = await this.collection.findOne({ _id: id } as Document);
+    return doc ? movementFromDocument(doc) : null;
   }
 
   async findByCauseKey(causeKey: string): Promise<WalletMovement | null> {

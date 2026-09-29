@@ -28,6 +28,7 @@ import { SetOffersAvailabilityCommand } from '../application/features/notificati
 import { ApiError } from './apiError.js';
 import { goalkeeperNotFound, sendMovements, sendWallet } from './wallet/walletHttp.js';
 import { sendTopUp, sendTopUpOptions, sendTopUps, startTopUp } from './payments/topUpHttp.js';
+import { sendDocumentFile, sendMyDocument, sendMyDocuments } from './invoicing/invoicingHttp.js';
 import { AcceptBookingCommand } from '../application/features/goalkeeperRequests/commands/acceptBooking/acceptBookingCommand.js';
 import { ListAvailableBookingsQuery } from '../application/features/goalkeeperRequests/queries/listAvailableBookings/listAvailableBookingsQuery.js';
 import { ListGoalkeeperAgendaQuery } from '../application/features/goalkeeperRequests/queries/listGoalkeeperAgenda/listGoalkeeperAgendaQuery.js';
@@ -484,6 +485,23 @@ export function createGoalkeeperController(deps: GoalkeeperControllerDependencie
 
   router.get('/me/wallet/top-ups/:topUpId', async (req, res) => {
     await sendTopUp(deps.mediator, req.authClaims!.sub, req.params.topUpId, res);
+  });
+
+  // Electronic invoices and credit notes (feature 023).
+  router.get('/me/invoices', async (req, res) => {
+    await sendMyDocuments(deps.mediator, req.authClaims!.sub, req, res);
+  });
+
+  router.get('/me/invoices/:documentId', async (req, res) => {
+    await sendMyDocument(deps.mediator, req.authClaims!.sub, req.params.documentId, res);
+  });
+
+  router.get('/me/invoices/:documentId/pdf', async (req, res) => {
+    await sendDocumentFile(deps.mediator, req.authClaims!.sub, req.params.documentId, 'pdf', res);
+  });
+
+  router.get('/me/invoices/:documentId/xml', async (req, res) => {
+    await sendDocumentFile(deps.mediator, req.authClaims!.sub, req.params.documentId, 'xml', res);
   });
 
   return router;
