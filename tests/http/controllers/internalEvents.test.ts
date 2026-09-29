@@ -114,6 +114,7 @@ describe('POST /internal/sweep — US4: the every-minute sweep', () => {
         { name: 'contacts-reveal', outcome: 'succeeded', detail: '0 revealed, 0 without goalkeepers, 0 notices, 0 failed' },
         { name: 'check-in-watch', outcome: 'succeeded', detail: '0 opened, 0 last calls, 0 missed, 0 failed' },
         { name: 'top-up-reconcile', outcome: 'succeeded', detail: '0 checked, 0 applied, 0 expired, 0 failed' },
+        { name: 'invoicing-issuer', outcome: 'succeeded', detail: '0 issued, 0 awaiting, 0 rejected, 0 retried, 0 recovered' },
       ],
     });
     expect(context.eventPublisher.published().map((event) => event.id)).toEqual(['ev-9']);

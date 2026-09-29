@@ -36,6 +36,7 @@ export function eligibleSnapshot(overrides: Partial<OfferSnapshot> = {}): OfferS
     suspendedUntil: null,
     balance: 20000,
     canSeeOffers: true,
+    vatRateBps: 0,
     held: [],
     ...overrides,
   };

@@ -79,9 +79,11 @@ export const openapiSpec = {
             properties: {
               canSeeOffers: { type: 'boolean', description: 'false → the goalkeeper sees no matches and receives no offers' },
               lowestCommission: { type: 'integer', nullable: true, example: 7000, description: 'Lowest configured commission among the enabled zones' },
-              missingAmount: { type: 'integer', example: 0, description: 'max(0, lowestCommission − balance)' },
+              lowestCharge: { type: 'integer', nullable: true, example: 8330, description: 'That commission plus its VAT: what accepting such a match debits (feature 023)' },
+              vatRateBps: { type: 'integer', example: 1900, description: "The goalkeeper's country VAT rate, in basis points" },
+              missingAmount: { type: 'integer', example: 0, description: 'max(0, lowestCharge − balance)' },
             },
-            required: ['canSeeOffers', 'lowestCommission', 'missingAmount'],
+            required: ['canSeeOffers', 'lowestCommission', 'lowestCharge', 'vatRateBps', 'missingAmount'],
           },
           movementCount: { type: 'integer', example: 2 },
         },
@@ -92,7 +94,7 @@ export const openapiSpec = {
         properties: {
           movementId: { type: 'string' },
           sequence: { type: 'integer', example: 1 },
-          type: { type: 'string', enum: ['top_up', 'commission_charge', 'commission_refund', 'penalty', 'penalty_reversal', 'admin_adjustment', 'gateway_fee'] },
+          type: { type: 'string', enum: ['top_up', 'commission_charge', 'commission_refund', 'penalty', 'penalty_reversal', 'admin_adjustment', 'gateway_fee', 'commission_vat', 'commission_vat_refund', 'penalty_vat', 'penalty_vat_reversal'] },
           amount: { type: 'integer', example: -7000, description: 'Signed: credits > 0, debits < 0' },
           currency: { type: 'string', example: 'COP' },
           balanceAfter: { type: 'integer', example: 13000 },
@@ -168,6 +170,8 @@ export const openapiSpec = {
           goalkeeperCount: { type: 'integer', description: 'How many goalkeepers the request asked for' },
           earnings: { type: 'integer', example: 60000, description: 'What the client pays the goalkeeper for this booking (rate + surcharge)' },
           commission: { type: 'integer', example: 7000, description: 'The platform commission charged on acceptance, fixed when the quote was issued' },
+          vat: { type: 'integer', example: 1330, description: 'Available list only (feature 023): the VAT charged on top of the commission, at the current rate' },
+          totalCharge: { type: 'integer', example: 8330, description: 'Available list only: commission + VAT, what accepting debits' },
           currency: { type: 'string', example: 'COP' },
         },
         required: ['bookingId', 'requestId', 'zoneId', 'zoneName', 'cityId', 'cityName', 'startsAt', 'startsAtLocal', 'timeZone', 'durationMinutes', 'goalkeeperCount', 'earnings', 'commission', 'currency'],
@@ -404,6 +408,69 @@ export const openapiSpec = {
           costs: { type: 'object', properties: { percentBps: { type: 'integer' }, fixed: { type: 'integer' }, vatBps: { type: 'integer' } } },
           amounts: { type: 'array', items: { type: 'integer' } },
           options: { type: 'array', items: { $ref: '#/components/schemas/TopUpOption' } },
+          updatedAt: { type: 'string', format: 'date-time' },
+          updatedBy: { type: 'string' },
+        },
+      },
+      InvoicingDocumentItem: {
+        type: 'object',
+        properties: {
+          documentId: { type: 'string' },
+          kind: { type: 'string', enum: ['invoice', 'credit_note'] },
+          concept: { type: 'string', enum: ['commission', 'penalty'] },
+          status: { type: 'string', enum: ['pending', 'awaiting_authority', 'issued', 'rejected'] },
+          number: { type: 'string', nullable: true, example: 'FV-2-22' },
+          cufe: { type: 'string', nullable: true },
+          base: { type: 'integer', example: 7000 },
+          vat: { type: 'integer', example: 1330 },
+          total: { type: 'integer', example: 8330 },
+          currency: { type: 'string', example: 'COP' },
+          vatRatePercent: { type: 'number', example: 19 },
+          bookingId: { type: 'string', nullable: true },
+          originalDocumentId: { type: 'string', nullable: true, description: 'Credit notes: the invoice they correct' },
+          occurredAt: { type: 'string', format: 'date-time', description: 'When the charge or refund happened' },
+          issuedAt: { type: 'string', format: 'date-time', nullable: true },
+          downloadable: { type: 'boolean' },
+        },
+      },
+      InvoicingDocumentsPage: {
+        type: 'object',
+        properties: {
+          items: { type: 'array', items: { $ref: '#/components/schemas/InvoicingDocumentItem' } },
+          page: { type: 'integer' },
+          pageSize: { type: 'integer' },
+          totalItems: { type: 'integer' },
+          totalPages: { type: 'integer' },
+        },
+      },
+      AdminInvoicingDocumentItem: {
+        allOf: [
+          { $ref: '#/components/schemas/InvoicingDocumentItem' },
+          {
+            type: 'object',
+            properties: {
+              goalkeeperId: { type: 'string' },
+              countryId: { type: 'string' },
+              provider: { type: 'string', nullable: true },
+              buyer: { type: 'object', additionalProperties: { type: 'string' } },
+              attempts: { type: 'integer' },
+              lastError: { type: 'object', nullable: true, properties: { kind: { type: 'string' }, code: { type: 'string' }, message: { type: 'string' }, at: { type: 'string', format: 'date-time' } } },
+              stale: { type: 'boolean', description: 'Pending or awaiting the authority for more than 24 hours' },
+            },
+          },
+        ],
+      },
+      TaxSettingsResponse: {
+        type: 'object',
+        properties: { countryId: { type: 'string' }, vatRateBps: { type: 'integer' }, vatRatePercent: { type: 'number' }, updatedAt: { type: 'string', format: 'date-time' }, updatedBy: { type: 'string' } },
+      },
+      InvoicingSettingsResponse: {
+        type: 'object',
+        properties: {
+          countryId: { type: 'string' },
+          provider: { type: 'string', enum: ['siigo'] },
+          config: { type: 'object', description: "The provider's non-secret identifiers (for Siigo: document types, seller, products, tax and payment ids, partnerId)" },
+          credentialsPresent: { type: 'boolean', description: "Whether the provider's credentials for the country exist in Secret Manager; never their values" },
           updatedAt: { type: 'string', format: 'date-time' },
           updatedBy: { type: 'string' },
         },
@@ -1548,6 +1615,144 @@ export const openapiSpec = {
         tags: ['Payments (non-API)'],
         parameters: [{ name: 'reference', in: 'path', required: true, schema: { type: 'string' } }],
         responses: { '200': { description: 'HTML page (also for an unknown reference)', content: { 'text/html': { schema: { type: 'string' } } } } },
+      },
+    },
+    '/api/goalkeepers/me/invoices': {
+      get: {
+        summary: "The goalkeeper's invoices and credit notes, newest first (feature 023)",
+        tags: ['Invoicing'],
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'page', in: 'query', required: false, schema: { type: 'integer', minimum: 1, default: 1 } },
+          { name: 'pageSize', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 50, default: 20 } },
+        ],
+        responses: {
+          '200': { description: 'One page', content: { 'application/json': { schema: { $ref: '#/components/schemas/InvoicingDocumentsPage' } } } },
+          '400': { description: 'validation_failed' },
+          '401': { description: 'Not signed in' },
+          '404': { description: 'goalkeeper_not_found' },
+        },
+      },
+    },
+    '/api/goalkeepers/me/invoices/{documentId}': {
+      get: {
+        summary: 'One of the goalkeeper\'s documents (feature 023)',
+        tags: ['Invoicing'],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'documentId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          '200': { description: 'The document', content: { 'application/json': { schema: { $ref: '#/components/schemas/InvoicingDocumentItem' } } } },
+          '404': { description: "invoicing_document_not_found (also another goalkeeper's)" },
+        },
+      },
+    },
+    '/api/goalkeepers/me/invoices/{documentId}/{format}': {
+      get: {
+        summary: 'Downloads the PDF or XML of an issued document, from its provider (feature 023)',
+        tags: ['Invoicing'],
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'documentId', in: 'path', required: true, schema: { type: 'string' } },
+          { name: 'format', in: 'path', required: true, schema: { type: 'string', enum: ['pdf', 'xml'] } },
+        ],
+        responses: {
+          '200': { description: 'The file (attachment)', content: { 'application/pdf': { schema: { type: 'string', format: 'binary' } }, 'application/xml': { schema: { type: 'string' } } } },
+          '404': { description: 'invoicing_document_not_found, or file_not_available' },
+          '409': { description: 'document_not_issued' },
+          '503': { description: 'provider_unavailable' },
+        },
+      },
+    },
+    '/api/admin/tax-settings/{countryId}': {
+      get: {
+        summary: "A country's VAT rate (administrators only, feature 023)",
+        tags: ['Admin'],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'countryId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          '200': { description: 'The rate', content: { 'application/json': { schema: { $ref: '#/components/schemas/TaxSettingsResponse' } } } },
+          '403': { description: 'Not an administrator' },
+          '404': { description: 'settings_not_found (0 % applies)' },
+        },
+      },
+      put: {
+        summary: "Sets a country's VAT rate, charged on top of commissions and penalties from now on (administrators only, feature 023)",
+        tags: ['Admin'],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'countryId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { type: 'object', additionalProperties: false, properties: { vatRateBps: { type: 'integer', minimum: 0, maximum: 10000, example: 1900 } }, required: ['vatRateBps'] } } },
+        },
+        responses: {
+          '200': { description: 'Saved', content: { 'application/json': { schema: { $ref: '#/components/schemas/TaxSettingsResponse' } } } },
+          '400': { description: 'validation_failed' },
+          '403': { description: 'Not an administrator' },
+          '404': { description: 'country_not_found' },
+        },
+      },
+    },
+    '/api/admin/invoicing/settings/{countryId}': {
+      get: {
+        summary: "A country's invoicing provider (administrators only, feature 023)",
+        tags: ['Admin'],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'countryId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          '200': { description: 'The settings, never credentials', content: { 'application/json': { schema: { $ref: '#/components/schemas/InvoicingSettingsResponse' } } } },
+          '403': { description: 'Not an administrator' },
+          '404': { description: 'settings_not_found' },
+        },
+      },
+      put: {
+        summary: "Sets a country's invoicing provider and its non-secret configuration (administrators only, feature 023)",
+        description: 'Documents already sent keep their provider. Credentials are set in Secret Manager ({PROVIDER}_{COUNTRY}_USERNAME / _ACCESS_KEY).',
+        tags: ['Admin'],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'countryId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { type: 'object', additionalProperties: false, properties: { provider: { type: 'string', enum: ['siigo'] }, config: { type: 'object' } }, required: ['provider', 'config'] } } },
+        },
+        responses: {
+          '200': { description: 'Saved', content: { 'application/json': { schema: { $ref: '#/components/schemas/InvoicingSettingsResponse' } } } },
+          '400': { description: 'validation_failed (unsupported provider, missing or unknown config field)' },
+          '403': { description: 'Not an administrator' },
+          '404': { description: 'country_not_found' },
+        },
+      },
+    },
+    '/api/admin/invoicing/documents': {
+      get: {
+        summary: 'Invoicing documents by status, oldest first, with reasons (administrators only, feature 023)',
+        tags: ['Admin'],
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'status', in: 'query', required: false, schema: { type: 'string', enum: ['pending', 'awaiting_authority', 'issued', 'rejected'] } },
+          { name: 'page', in: 'query', required: false, schema: { type: 'integer', minimum: 1, default: 1 } },
+          { name: 'pageSize', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 50, default: 20 } },
+        ],
+        responses: {
+          '200': {
+            description: 'One page',
+            content: { 'application/json': { schema: { type: 'object', properties: { items: { type: 'array', items: { $ref: '#/components/schemas/AdminInvoicingDocumentItem' } }, page: { type: 'integer' }, pageSize: { type: 'integer' }, totalItems: { type: 'integer' }, totalPages: { type: 'integer' } } } } },
+          },
+          '403': { description: 'Not an administrator' },
+        },
+      },
+    },
+    '/api/admin/invoicing/documents/{documentId}/retry': {
+      post: {
+        summary: 'Retries a rejected document with the buyer\'s current data (administrators only, feature 023)',
+        tags: ['Admin'],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'documentId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          '202': { description: 'Retried at once', content: { 'application/json': { schema: { $ref: '#/components/schemas/AdminInvoicingDocumentItem' } } } },
+          '403': { description: 'Not an administrator' },
+          '404': { description: 'invoicing_document_not_found' },
+          '409': { description: 'document_not_retryable' },
+        },
       },
     },
     '/api/admin/goalkeepers/{userId}/wallet': {

@@ -20,7 +20,7 @@ describe('GET /api/goalkeepers/me/wallet — US2: the goalkeeper sees their bala
     expect(response.body).toEqual({
       balance: 13000,
       currency: 'COP',
-      offers: { canSeeOffers: true, lowestCommission: 7000, missingAmount: 0 },
+      offers: { canSeeOffers: true, lowestCommission: 7000, lowestCharge: 7000, vatRateBps: 0, missingAmount: 0 },
       movementCount: 2,
     });
   });
@@ -34,7 +34,7 @@ describe('GET /api/goalkeepers/me/wallet — US2: the goalkeeper sees their bala
     expect(response.body).toEqual({
       balance: 0,
       currency: 'COP',
-      offers: { canSeeOffers: false, lowestCommission: 7000, missingAmount: 7000 },
+      offers: { canSeeOffers: false, lowestCommission: 7000, lowestCharge: 7000, vatRateBps: 0, missingAmount: 7000 },
       movementCount: 0,
     });
   });

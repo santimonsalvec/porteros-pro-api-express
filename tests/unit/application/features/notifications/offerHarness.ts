@@ -20,6 +20,7 @@ import { FakeNotificationRepository } from '../../../../fakes/fakeNotificationRe
 import { FakeOfferPushState } from '../../../../fakes/fakeOfferPushState.js';
 import { FakePushSender } from '../../../../fakes/fakePushSender.js';
 import { buildRequest, buildRequestBookings } from '../../../../fixtures/quoteFixtures.js';
+import { fixedVatRates } from '../../../../fakes/fakeVatRates.js';
 
 /** 13:00 in Bogotá on a Sunday; matches start later that day or the next. */
 export const OFFERS_NOW = '2026-10-04T18:00:00.000Z';
@@ -77,6 +78,7 @@ export function offerHarness() {
     walletRepository,
     commissionResolver: { resolveForZones: async (zoneIds: string[]) => new Map(zoneIds.map((zoneId) => [zoneId, 7000] as const)) },
     bookingRepository,
+    vatRates: fixedVatRates(0),
   });
 
   /** An active Bello goalkeeper with 20.000 COP (override anything). */

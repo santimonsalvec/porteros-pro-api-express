@@ -1,3 +1,4 @@
+import type { WalletMovement } from '../../src/domain/wallet/walletMovement.js';
 import type {
   AcceptanceResult,
   IBookingAcceptanceStore,
@@ -61,11 +62,20 @@ export class FakeBookingAcceptanceStore implements IBookingAcceptanceStore {
     const conflict = firstConflict(booking, held);
     if (conflict) return { kind: 'schedule_conflict', conflictingBookingId: conflict.id };
 
-    const charge = await this.wallet.append(args.commissionDraft(booking));
-    if (charge.kind === 'insufficient_funds') return { kind: 'insufficient_funds', balance: charge.balance };
+    // All drafts or none: check the whole debit before writing anything.
+    const drafts = args.chargeDrafts(booking);
+    const balance = (await this.wallet.findByGoalkeeperId(args.goalkeeperId))?.balance ?? 0;
+    const debit = drafts.reduce((sum, draft) => sum - draft.amount, 0);
+    if (balance < debit) return { kind: 'insufficient_funds', balance };
+    const charged: WalletMovement[] = [];
+    for (const draft of drafts) {
+      const charge = await this.wallet.append(draft);
+      if (charge.kind !== 'recorded') throw new Error(`fake acceptance: ${draft.type} was ${charge.kind}`);
+      charged.push(charge.movement);
+    }
     this.bookings.seed(booking);
-    const event = args.event(booking);
-    this.outbox?.append([event], args.now);
-    return { kind: 'accepted', booking, event };
+    const events = args.events(booking, charged);
+    this.outbox?.append(events, args.now);
+    return { kind: 'accepted', booking, events };
   }
 }

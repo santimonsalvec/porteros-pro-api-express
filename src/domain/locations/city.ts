@@ -8,6 +8,9 @@ export class City extends Entity<string> {
   readonly zoneCityId: string | null;
   /** IANA time-zone identifier (e.g. `America/Bogota`). `null` when the data owner has not set one — such a city cannot be quoted. */
   readonly timeZone: string | null;
+  /** Official codes of the city and its department (DANE in Colombia), for electronic invoicing (feature 023). */
+  readonly daneStateCode: string | null;
+  readonly daneCityCode: string | null;
 
   constructor(params: {
     id: string;
@@ -15,11 +18,15 @@ export class City extends Entity<string> {
     regionId: string;
     zoneCityId: string | null;
     timeZone?: string | null;
+    daneStateCode?: string | null;
+    daneCityCode?: string | null;
   }) {
     super(params.id);
     this.name = params.name;
     this.regionId = params.regionId;
     this.zoneCityId = params.zoneCityId;
     this.timeZone = params.timeZone ?? null;
+    this.daneStateCode = params.daneStateCode ?? null;
+    this.daneCityCode = params.daneCityCode ?? null;
   }
 }

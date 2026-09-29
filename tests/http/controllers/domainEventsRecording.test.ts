@@ -33,7 +33,7 @@ describe('Domain events are recorded with the change (013 US1)', () => {
     );
   });
 
-  it('an acceptance records one goalkeeper.assigned; a repeat records none', async () => {
+  it('an acceptance records one goalkeeper.assigned and its commission.charged (023); a repeat records none', async () => {
     const { context, client } = await setUp();
     const goalkeeper = await signInGoalkeeper(context, 'sub-0702');
     await context.walletLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo', operationKey: 'k-gk' });
@@ -44,7 +44,7 @@ describe('Domain events are recorded with the change (013 US1)', () => {
     await accept();
     await accept();
 
-    expect(types(context)).toEqual(['booking.created', 'booking.created', 'goalkeeper.assigned']);
+    expect(types(context)).toEqual(['booking.created', 'booking.created', 'goalkeeper.assigned', 'commission.charged']);
     expect(context.outboxStore.all()[2]!.event).toMatchObject({ bookingId, payload: { goalkeeperId: goalkeeper.userId, commission: 7000 } });
   });
 });

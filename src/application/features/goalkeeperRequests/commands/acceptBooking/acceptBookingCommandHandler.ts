@@ -8,12 +8,14 @@ import {
   type GoalkeeperWalletContextDependencies,
 } from '../../../wallet/common/goalkeeperWalletContext.js';
 import type { IWalletRepository } from '../../../wallet/common/ports.js';
-import { commissionChargeDraft } from '../../../wallet/common/walletLedger.js';
+import { commissionChargeDraft, commissionVatDraft } from '../../../wallet/common/walletLedger.js';
+import { commissionCharged } from '../../../../../domain/events/billingEvents.js';
+import type { IVatRateResolver } from '../../../wallet/common/ports.js';
 import type { IZoneRepository } from '../../../zones/common/ports.js';
 import type { IEventRelay } from '../../../events/common/ports.js';
 import type { Booking } from '../../../../../domain/bookings/booking.js';
 import { goalkeeperAssigned } from '../../../../../domain/events/bookingEvents.js';
-import { canAfford } from '../../../../../domain/wallet/fundsPolicy.js';
+import { canAfford, missingFor } from '../../../../../domain/wallet/fundsPolicy.js';
 import { loadContacts } from '../../common/contacts.js';
 import { loadBookingItemContext, toAgendaItem } from '../../common/goalkeeperBookingResponse.js';
 import type {
@@ -38,6 +40,8 @@ export interface AcceptBookingDependencies {
   audit: IAcceptanceAuditLogger;
   /** Publishes the recorded "goalkeeper assigned" event before responding (feature 013). */
   relay: IEventRelay;
+  /** The goalkeeper's country VAT rate, charged on top of the commission (feature 023). */
+  vatRates: IVatRateResolver;
 }
 
 /**
@@ -71,10 +75,13 @@ export class AcceptBookingCommandHandler implements ICommandHandler<AcceptBookin
     if (unclaimable) return this.finish(command, unclaimable, booking);
     if (context.kind === 'wallet_not_configured') return this.finish(command, { outcome: 'not_available' }, booking);
 
-    const wallet = await this.deps.walletRepository.findByGoalkeeperId(goalkeeperId);
+    const [wallet, vatRateBps] = await Promise.all([
+      this.deps.walletRepository.findByGoalkeeperId(goalkeeperId),
+      this.deps.vatRates.forCountry(context.countryId),
+    ]);
     const balance = wallet?.balance ?? 0;
-    if (!canAfford(balance, booking.commission)) {
-      return this.finish(command, { outcome: 'insufficient_funds', missingAmount: booking.commission - balance }, booking);
+    if (!canAfford(balance, booking.commission, vatRateBps)) {
+      return this.finish(command, { outcome: 'insufficient_funds', missingAmount: missingFor(balance, booking.commission, vatRateBps) }, booking);
     }
 
     const owner = { goalkeeperId, currency: context.currency, invoicing: context.invoicing };
@@ -82,20 +89,39 @@ export class AcceptBookingCommandHandler implements ICommandHandler<AcceptBookin
       bookingId,
       goalkeeperId,
       now,
-      commissionDraft: (claimed) =>
-        commissionChargeDraft(owner, { bookingId: claimed.id, requestId: claimed.requestId, amount: claimed.commission }, this.deps.idGenerator.newId(), now),
-      event: (assigned) => goalkeeperAssigned(this.deps.idGenerator.newId(), assigned, now),
+      chargeDrafts: (claimed) => {
+        const refs = { bookingId: claimed.id, requestId: claimed.requestId };
+        const commission = commissionChargeDraft(owner, { ...refs, amount: claimed.commission }, this.deps.idGenerator.newId(), now);
+        const vat = commissionVatDraft(owner, { ...refs, base: claimed.commission, rateBps: vatRateBps }, this.deps.idGenerator.newId(), now);
+        return vat ? [commission, vat] : [commission];
+      },
+      // The assignment (013) and the billable charge (023), recorded with the movements.
+      events: (assigned, charged) => {
+        const [commission, vat] = charged;
+        return [
+          goalkeeperAssigned(this.deps.idGenerator.newId(), assigned, now),
+          commissionCharged(this.deps.idGenerator.newId(), { bookingId: assigned.id, requestId: assigned.requestId }, now, {
+            goalkeeperId,
+            movementId: commission!.id,
+            vatMovementId: vat?.id ?? null,
+            base: -commission!.amount,
+            vat: vat ? -vat.amount : 0,
+            vatRateBps: vat ? vatRateBps : 0,
+            currency: commission!.currency,
+          }),
+        ];
+      },
     });
     switch (result.kind) {
       case 'accepted':
-        await this.deps.relay.relay([result.event]);
+        await this.deps.relay.relay(result.events);
         return this.finish(command, { outcome: 'accepted', booking: await this.item(result.booking) }, result.booking);
       case 'same_request':
         return this.finish(command, { outcome: 'same_request' }, booking);
       case 'schedule_conflict':
         return this.finish(command, { outcome: 'schedule_conflict', conflictingBookingId: result.conflictingBookingId }, booking);
       case 'insufficient_funds':
-        return this.finish(command, { outcome: 'insufficient_funds', missingAmount: booking.commission - result.balance }, booking);
+        return this.finish(command, { outcome: 'insufficient_funds', missingAmount: missingFor(result.balance, booking.commission, vatRateBps) }, booking);
       case 'not_claimed': {
         // A concurrent change won the race: look again to say which.
         const current = await this.deps.bookingRepository.findById(bookingId);

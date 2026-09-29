@@ -3,13 +3,14 @@ import { GetGoalkeeperWalletQuery } from '../../../../../src/application/feature
 import { GetGoalkeeperWalletQueryHandler } from '../../../../../src/application/features/wallet/queries/getGoalkeeperWallet/getGoalkeeperWalletQueryHandler.js';
 import { buildGoalkeeperProfile } from '../../../../fixtures/walletFixtures.js';
 import { WalletHarness } from './walletHarness.js';
+import { fixedVatRates } from '../../../../fakes/fakeVatRates.js';
 
 let h: WalletHarness;
 let handler: GetGoalkeeperWalletQueryHandler;
 
 beforeEach(() => {
   h = new WalletHarness();
-  handler = new GetGoalkeeperWalletQueryHandler(h.context, h.store, h.resolver, h.clock);
+  handler = new GetGoalkeeperWalletQueryHandler(h.context, h.store, h.resolver, h.clock, fixedVatRates(0));
 });
 
 const get = (goalkeeperId = 'gk-1') => handler.handle(new GetGoalkeeperWalletQuery(goalkeeperId));
@@ -25,10 +26,20 @@ describe('GetGoalkeeperWalletQueryHandler — US2: the goalkeeper sees their bal
       wallet: {
         balance: 13000,
         currency: 'COP',
-        offers: { canSeeOffers: true, lowestCommission: 7000, missingAmount: 0 },
+        offers: { canSeeOffers: true, lowestCommission: 7000, lowestCharge: 7000, vatRateBps: 0, missingAmount: 0 },
         movementCount: 2,
       },
       unconfiguredZoneIds: [],
+    });
+  });
+
+  it('counts the VAT on top of the commission (feature 023)', async () => {
+    h.profiles.seed(buildGoalkeeperProfile('gk-1', { zoneIds: ['zone-cali-norte'] }));
+    await h.credit('gk-1', 7500);
+    const withVat = new GetGoalkeeperWalletQueryHandler(h.context, h.store, h.resolver, h.clock, fixedVatRates(1900));
+
+    expect(await withVat.handle(new GetGoalkeeperWalletQuery('gk-1'))).toMatchObject({
+      wallet: { offers: { canSeeOffers: false, lowestCommission: 7000, lowestCharge: 8330, vatRateBps: 1900, missingAmount: 830 } },
     });
   });
 

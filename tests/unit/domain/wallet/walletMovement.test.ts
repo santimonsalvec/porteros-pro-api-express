@@ -37,6 +37,10 @@ describe('WalletMovement', () => {
     ['admin_adjustment', 50000, { reason: 'Saldo inicial de pruebas' }],
     ['admin_adjustment', -10000, { reason: 'Corrección' }],
     ['gateway_fee', -1500, { causeKey: 'gateway_fee:t-1' }],
+    ['commission_vat', -1330, { taxRateBps: 1900 }],
+    ['commission_vat_refund', 1330, { taxRateBps: 1900 }],
+    ['penalty_vat', -1330, { taxRateBps: 1900 }],
+    ['penalty_vat_reversal', 1330, { taxRateBps: 0 }],
   ])('accepts a %s of %i', (type, amount, extra) => {
     expect(WalletMovement.rehydrate(props({ type, amount, ...extra }))).toMatchObject({ type, amount });
   });
@@ -48,6 +52,10 @@ describe('WalletMovement', () => {
     ['a positive commission charge', { type: 'commission_charge', amount: 7000 }, /negative/],
     ['a positive penalty', { type: 'penalty', amount: 7000 }, /negative/],
     ['a positive gateway fee', { type: 'gateway_fee', amount: 1500 }, /negative/],
+    ['a positive commission VAT', { type: 'commission_vat', amount: 1330, taxRateBps: 1900 }, /negative/],
+    ['a VAT movement without its rate', { type: 'commission_vat', amount: -1330 }, /taxRateBps/],
+    ['a VAT rate above 100 %', { type: 'penalty_vat', amount: -1330, taxRateBps: 10001 }, /taxRateBps/],
+    ['a rate outside a VAT movement', { taxRateBps: 1900 }, /taxRateBps/],
     ['a lower-case currency', { currency: 'cop' }, /currency/],
     ['a sequence of 0', { sequence: 0 }, /sequence/],
     ['cancellation details outside a refund', { cancellation: { by: 'client', at: new Date(), reason: 'x' } }, /cancellation/],
@@ -63,6 +71,8 @@ describe('WalletMovement', () => {
     expect(isGuardedDebit('admin_adjustment', -10000)).toBe(true);
     expect(isGuardedDebit('penalty', -7000)).toBe(false);
     expect(isGuardedDebit('gateway_fee', -1500)).toBe(false);
+    expect(isGuardedDebit('penalty_vat', -1330)).toBe(false);
+    expect(isGuardedDebit('commission_vat', -1330)).toBe(true);
     expect(isGuardedDebit('admin_adjustment', 10000)).toBe(false);
     expect(isGuardedDebit('top_up', 20000)).toBe(false);
   });

@@ -120,3 +120,18 @@ Mientras no se configure, el backend desplegado corre en modo `local`: registra 
   ```
 - **Retención**: los eventos publicados se borran a los 7 días (índice TTL). `processedEvents` y `eventDeliveryLog` se borran a los 30 días. Los pendientes nunca se borran.
 - **Emulador de Pub/Sub** (opcional): el modo local no lo necesita. Solo sirve para probar el cliente real contra `gcloud beta emulators pubsub start`.
+
+## Eventos de facturación (feature 023)
+
+Viajan por el mismo topic `booking-events`, con el mismo sobre (`bookingId` y `requestId`):
+
+| Tipo | Lo registra | Consumidor |
+|---|---|---|
+| `commission.charged` | la aceptación de una reserva (012), junto con la comisión y su IVA | facturación: crea y emite la factura |
+| `commission.refunded` | toda devolución de comisión (016, 017, 018), junto con la devolución del IVA | facturación: crea y emite la nota crédito |
+| `penalty.charged`, `penalty.reversed` | ninguna función todavía (no hay penalidades en dinero) | facturación |
+
+El consumidor de facturación nunca falla por el proveedor: deja el documento pendiente y el job
+`invoicing-issuer` lo reintenta, así que un corte de Siigo no llena el dead-letter. Ver
+[invoicing.md](./invoicing.md).
+

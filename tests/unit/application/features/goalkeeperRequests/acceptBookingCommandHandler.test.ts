@@ -8,6 +8,7 @@ import { FakeBookingAcceptanceStore } from '../../../../fakes/fakeBookingAccepta
 import { FakeOutboxStore } from '../../../../fakes/fakeOutboxStore.js';
 import { FakeEventRelay } from '../../../../fakes/fakeEventRelay.js';
 import { GoalkeeperBookingHarness, inHours } from './goalkeeperBookingHarness.js';
+import { fixedVatRates } from '../../../../fakes/fakeVatRates.js';
 
 let h: GoalkeeperBookingHarness;
 let store: FakeBookingAcceptanceStore;
@@ -20,8 +21,11 @@ let ids: number;
 /** Booking and request ids must be UUIDs for the handler. */
 const uuid = (n: number) => `01925c00-0000-7000-8000-${String(n).padStart(12, '0')}`;
 
+let vatRates: ReturnType<typeof fixedVatRates>;
+
 beforeEach(async () => {
   h = new GoalkeeperBookingHarness();
+  vatRates = fixedVatRates(0);
   outbox = new FakeOutboxStore();
   relay = new FakeEventRelay();
   store = new FakeBookingAcceptanceStore(h.bookings, h.wallet, outbox);
@@ -40,6 +44,7 @@ beforeEach(async () => {
     clock: h.clock,
     audit,
     relay,
+    vatRates,
   });
   await h.credit(20000);
 });
@@ -276,6 +281,12 @@ describe('AcceptBookingCommandHandler — 013 US1: an acceptance records its eve
         occurredAt: h.clock.now(),
         payload: expect.objectContaining({ goalkeeperId: 'gk-1', clientId: 'client-a', commission: 7000 }),
       }),
+      // Feature 023: the billable charge, recorded with the movements.
+      expect.objectContaining({
+        type: 'commission.charged',
+        bookingId,
+        payload: { goalkeeperId: 'gk-1', movementId: expect.any(String), vatMovementId: null, base: 7000, vat: 0, vatRateBps: 0, currency: 'COP' },
+      }),
     ]);
   });
 
@@ -290,8 +301,39 @@ describe('AcceptBookingCommandHandler — 013 US1: an acceptance records its eve
     await accept(bookingId!, 'gk-2'); // taken
     await accept(clash!); // schedule conflict
 
-    expect(events()).toHaveLength(1);
+    expect(events()).toHaveLength(2);
     // 013 US2: only the successful acceptance was relayed.
-    expect(relay.calls.map((batch) => batch.map((event) => event.type))).toEqual([['goalkeeper.assigned']]);
+    expect(relay.calls.map((batch) => batch.map((event) => event.type))).toEqual([['goalkeeper.assigned', 'commission.charged']]);
+  });
+});
+
+describe('AcceptBookingCommandHandler — 023: VAT on top of the commission', () => {
+  const events = () => outbox.all().map((entry) => entry.event);
+
+  it('debits the commission and its VAT together, and records them in the billing event', async () => {
+    vatRates.rateBps = 1900;
+    const [bookingId] = match(1, 5);
+
+    expect(await accept(bookingId!)).toMatchObject({ outcome: 'accepted' });
+
+    const movements = h.wallet.movements().filter((movement) => movement.references.bookingId === bookingId);
+    expect(movements.map((movement) => [movement.type, movement.amount, movement.taxRateBps])).toEqual([
+      ['commission_charge', -7000, null],
+      ['commission_vat', -1330, 1900],
+    ]);
+    expect(events()[1]).toMatchObject({
+      type: 'commission.charged',
+      payload: { movementId: movements[0]!.id, vatMovementId: movements[1]!.id, base: 7000, vat: 1330, vatRateBps: 1900 },
+    });
+  });
+
+  it('refuses when the balance covers the commission but not its VAT, and charges nothing', async () => {
+    vatRates.rateBps = 1900;
+    h.addGoalkeeper('gk-3');
+    await h.credit(7500, 'gk-3');
+    const [bookingId] = match(1, 5);
+
+    expect(await accept(bookingId!, 'gk-3')).toMatchObject({ outcome: 'insufficient_funds', missingAmount: 830 });
+    expect(h.wallet.movements().filter((movement) => movement.walletId === 'gk-3' && movement.type !== 'admin_adjustment')).toEqual([]);
   });
 });

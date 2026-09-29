@@ -8,6 +8,7 @@ import type {
   MovementType,
 } from '../../../../domain/wallet/walletMovement.js';
 import { assertMovementShape } from '../../../../domain/wallet/walletMovement.js';
+import { vatFor } from '../../../../domain/wallet/vat.js';
 import type { AppendResult, IWalletMovementRepository, IWalletStore, MovementDraft } from './ports.js';
 
 /** Who and in which currency — what every movement needs besides its own fields. */
@@ -75,6 +76,79 @@ export function commissionRefundDraft(
     reason: null,
     invoicing: owner.invoicing,
   };
+}
+
+/**
+ * The VAT charged on top of a booking's commission (feature 023), or `null` at 0 %. Guarded like
+ * the commission, so the acceptance aborts when the balance can't cover both.
+ */
+export function commissionVatDraft(
+  owner: LedgerOwner,
+  args: { bookingId: string; requestId: string; base: number; rateBps: number },
+  id: string,
+  occurredAt: Date,
+): MovementDraft | null {
+  const vat = vatFor(args.base, args.rateBps);
+  if (vat === 0) return null;
+  return {
+    id,
+    goalkeeperId: owner.goalkeeperId,
+    type: 'commission_vat',
+    amount: -vat,
+    currency: owner.currency,
+    occurredAt,
+    causeKey: `commission_vat:${args.bookingId}`,
+    actor: SYSTEM,
+    references: { bookingId: args.bookingId, requestId: args.requestId },
+    cancellation: null,
+    reason: null,
+    invoicing: owner.invoicing,
+    taxRateBps: args.rateBps,
+  };
+}
+
+/** Gives back the VAT charged with a booking's commission, at the rate it was charged (feature 023). */
+export function commissionVatRefundDraft(
+  owner: LedgerOwner,
+  args: { bookingId: string; requestId: string; amount: number; rateBps: number },
+  id: string,
+  occurredAt: Date,
+  actor: MovementActor = SYSTEM,
+): MovementDraft {
+  return {
+    id,
+    goalkeeperId: owner.goalkeeperId,
+    type: 'commission_vat_refund',
+    amount: args.amount,
+    currency: owner.currency,
+    occurredAt,
+    causeKey: `commission_vat_refund:${args.bookingId}`,
+    actor,
+    references: { bookingId: args.bookingId, requestId: args.requestId },
+    cancellation: null,
+    reason: null,
+    invoicing: owner.invoicing,
+    taxRateBps: args.rateBps,
+  };
+}
+
+/**
+ * A money penalty and its VAT (feature 023). No feature charges one yet (research §0): the one
+ * that does must append both inside its transaction, with a `penalty.charged` event.
+ */
+export function penaltyChargeDrafts(
+  owner: LedgerOwner,
+  args: { penaltyEventId: string; amount: number; rateBps: number; references: MovementReferences },
+  ids: [string, string],
+  occurredAt: Date,
+): MovementDraft[] {
+  const common = { goalkeeperId: owner.goalkeeperId, currency: owner.currency, occurredAt, actor: SYSTEM, references: args.references, cancellation: null, reason: null, invoicing: owner.invoicing };
+  const drafts: MovementDraft[] = [{ ...common, id: ids[0], type: 'penalty', amount: -args.amount, causeKey: `penalty:${args.penaltyEventId}` }];
+  const vat = vatFor(args.amount, args.rateBps);
+  if (vat > 0) {
+    drafts.push({ ...common, id: ids[1], type: 'penalty_vat', amount: -vat, causeKey: `penalty_vat:${args.penaltyEventId}`, taxRateBps: args.rateBps });
+  }
+  return drafts;
 }
 
 /**

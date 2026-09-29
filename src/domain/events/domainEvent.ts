@@ -7,7 +7,11 @@ export type DomainEventType =
   | 'goalkeeper.withdrew'
   | 'goalkeeper.checked_in'
   | 'booking.completed'
-  | 'goalkeeper.no_show';
+  | 'goalkeeper.no_show'
+  | 'commission.charged'
+  | 'commission.refunded'
+  | 'penalty.charged'
+  | 'penalty.reversed';
 
 /**
  * A past fact about a booking, recorded in the same transaction as the change that produced it

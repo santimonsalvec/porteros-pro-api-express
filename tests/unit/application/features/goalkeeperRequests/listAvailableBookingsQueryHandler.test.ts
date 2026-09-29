@@ -3,6 +3,7 @@ import { ListAvailableBookingsQuery } from '../../../../../src/application/featu
 import { ListAvailableBookingsQueryHandler } from '../../../../../src/application/features/goalkeeperRequests/queries/listAvailableBookings/listAvailableBookingsQueryHandler.js';
 import { buildGoalkeeperProfile } from '../../../../fixtures/walletFixtures.js';
 import { GoalkeeperBookingHarness, inHours, NOW } from './goalkeeperBookingHarness.js';
+import { fixedVatRates } from '../../../../fakes/fakeVatRates.js';
 
 let h: GoalkeeperBookingHarness;
 let handler: ListAvailableBookingsQueryHandler;
@@ -17,6 +18,7 @@ beforeEach(async () => {
     requestRepository: h.requests,
     zoneRepository: h.zones,
     cityRepository: h.cities,
+    vatRates: fixedVatRates(0),
     clock: h.clock,
   });
   await h.credit(50000);
@@ -52,6 +54,8 @@ describe('ListAvailableBookingsQueryHandler — US1: a goalkeeper sees the match
       goalkeeperCount: 1,
       earnings: 60000,
       commission: 9000,
+      vat: 0,
+      totalCharge: 9000,
       currency: 'COP',
     });
   });
@@ -87,6 +91,7 @@ describe('ListAvailableBookingsQueryHandler — US1: a goalkeeper sees the match
       requestRepository: fresh.requests,
       zoneRepository: fresh.zones,
       cityRepository: fresh.cities,
+      vatRates: fixedVatRates(0),
       clock: fresh.clock,
     });
 
@@ -107,6 +112,7 @@ describe('ListAvailableBookingsQueryHandler — US1: a goalkeeper sees the match
       requestRepository: poor.requests,
       zoneRepository: poor.zones,
       cityRepository: poor.cities,
+      vatRates: fixedVatRates(0),
       clock: poor.clock,
     });
 

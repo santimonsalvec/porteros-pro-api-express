@@ -34,6 +34,9 @@ export class CityRepository implements ICityRepository {
       regionId: doc.regionId as string,
       zoneCityId: (doc.zoneCityId as string | undefined) ?? null,
       timeZone,
+      // Seeded by the data owner, possibly as numbers: always read as text (leading zeros kept when stored as text).
+      daneStateCode: doc.daneStateCode === undefined || doc.daneStateCode === null ? null : String(doc.daneStateCode),
+      daneCityCode: doc.daneCityCode === undefined || doc.daneCityCode === null ? null : String(doc.daneCityCode),
     });
   }
 

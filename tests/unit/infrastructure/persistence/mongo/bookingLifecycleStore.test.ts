@@ -138,7 +138,8 @@ describe('MongoBookingLifecycleStore (mocked driver)', () => {
       bookings.find.mockReturnValue(toArrayResult([pendingDoc, assignedDoc]));
       bookings.countDocuments.mockResolvedValue(0);
       movements.findOne
-        .mockResolvedValueOnce({ causeKey: `commission:${second!.id}`, amount: -7000, currency: 'COP' })
+        .mockResolvedValueOnce({ _id: 'm-charge', causeKey: `commission:${second!.id}`, amount: -7000, currency: 'COP' })
+        .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(null);
 
       const result = await cancelAll();
@@ -160,12 +161,39 @@ describe('MongoBookingLifecycleStore (mocked driver)', () => {
         causeKey: `commission_refund:${second!.id}`,
         cancellation: { by: 'system', at: now, reason: 'cancel_all' },
       });
+      // Feature 023: the refund's billing event, recorded in the same transaction.
       expect(outbox.insertMany.mock.calls[0]![0]).toMatchObject([
+        { type: 'commission.refunded', bookingId: second!.id, payload: { goalkeeperId: 'gk-1', base: 7000, vat: 0, vatMovementId: null, originalMovementId: 'm-charge' } },
+      ]);
+      expect(outbox.insertMany.mock.calls[0]![1]).toEqual({ session });
+      expect(outbox.insertMany.mock.calls[1]![0]).toMatchObject([
         { type: 'booking.cancelled', payload: { goalkeeperId: null, refundedAmount: null } },
         { type: 'booking.cancelled', payload: { goalkeeperId: 'gk-1', refundedAmount: 7000 } },
       ]);
       expect(requests.updateOne).toHaveBeenCalledWith({ _id: 'r-1' }, { $set: { active: false } }, { session });
       expect(result.kind === 'cancelled' && result.cancelled.map((booking) => booking.status)).toEqual(['cancelled', 'cancelled']);
+    });
+
+    it('gives back the VAT charged with the commission, at its rate (feature 023)', async () => {
+      const { bookings, requests, movements, outbox, cancelAll } = harness();
+      requests.findOneAndUpdate.mockResolvedValue({ _id: 'r-1' });
+      // A pending booking too: a fully assigned request is kept, not cancelled.
+      bookings.find.mockReturnValue(toArrayResult([pendingDoc, assignedDoc]));
+      bookings.countDocuments.mockResolvedValue(0);
+      movements.findOne
+        .mockResolvedValueOnce({ _id: 'm-charge', amount: -7000, currency: 'COP' })
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ _id: 'm-vat', amount: -1330, currency: 'COP', taxRateBps: 1900 });
+
+      await cancelAll();
+
+      expect(movements.insertOne.mock.calls.map((call) => call[0])).toMatchObject([
+        { type: 'commission_refund', amount: 7000 },
+        { type: 'commission_vat_refund', amount: 1330, taxRateBps: 1900, causeKey: `commission_vat_refund:${second!.id}` },
+      ]);
+      expect(outbox.insertMany.mock.calls[0]![0]).toMatchObject([
+        { type: 'commission.refunded', payload: { base: 7000, vat: 1330, vatRateBps: 1900, vatMovementId: expect.any(String) } },
+      ]);
     });
 
     it('never refunds twice: an existing refund is reused', async () => {

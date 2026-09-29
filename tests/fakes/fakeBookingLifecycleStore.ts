@@ -1,3 +1,4 @@
+import { commissionRefunded } from '../../src/domain/events/billingEvents.js';
 import type {
   CancelAllResult,
   ClientCancelResult,
@@ -10,8 +11,8 @@ import type {
   ReversalOutcome,
   WithdrawResult,
 } from '../../src/application/features/bookingLifecycle/common/ports.js';
-import type { CancellationDetails } from '../../src/domain/wallet/walletMovement.js';
-import { commissionRefundDraft, type LedgerOwner } from '../../src/application/features/wallet/common/walletLedger.js';
+import type { CancellationDetails, MovementActor } from '../../src/domain/wallet/walletMovement.js';
+import { commissionVatRefundDraft, commissionRefundDraft, type LedgerOwner } from '../../src/application/features/wallet/common/walletLedger.js';
 import { Booking, type CheckIn } from '../../src/domain/bookings/booking.js';
 import { GoalkeeperRequest } from '../../src/domain/bookings/goalkeeperRequest.js';
 import type { DomainEvent } from '../../src/domain/events/domainEvent.js';
@@ -108,19 +109,9 @@ export class FakeBookingLifecycleStore implements IBookingLifecycleStore {
     for (const booking of toCancel) {
       let refund: { amount: number; currency: string } | null = null;
       if (booking.status === 'assigned') {
-        const charge = movements.find((movement) => movement.causeKey === `commission:${booking.id}`)!;
-        refund = { amount: -charge.amount, currency: charge.currency };
         const owner = args.owners.get(booking.goalkeeperId!);
         if (!owner) throw new Error(`No ledger owner resolved for goalkeeper ${booking.goalkeeperId}`);
-        // The fake wallet store records synchronously and ignores a known cause key.
-        void this.wallet.append(
-          commissionRefundDraft(
-            owner,
-            { bookingId: booking.id, requestId, amount: refund.amount, cancellation: { by: 'system', at: now, reason: 'cancel_all' } },
-            args.newId(),
-            now,
-          ),
-        );
+        refund = this.refund(booking.id, requestId, owner, { by: 'system', at: now, reason: 'cancel_all' }, args.newId, now);
         refunds += 1;
       }
       this.bookings.seed(Booking.rehydrate({ ...booking, status: 'cancelled', endedAt: now, endReason: 'cancel_all', cancelledBy: 'system' }));
@@ -177,7 +168,7 @@ export class FakeBookingLifecycleStore implements IBookingLifecycleStore {
     for (const booking of targets) {
       let refund: { amount: number; currency: string } | null = null;
       if (booking.status === 'assigned') {
-        refund = this.refund(booking, requestId, args.owners.get(booking.goalkeeperId!)!, cancellation, args.newId, now);
+        refund = this.refund(booking.id, requestId, args.owners.get(booking.goalkeeperId!)!, cancellation, args.newId, now);
         refunds += 1;
       }
       this.bookings.seed(
@@ -264,24 +255,10 @@ export class FakeBookingLifecycleStore implements IBookingLifecycleStore {
       const movements = this.wallet.movements();
       const charge = movements.find((movement) => movement.causeKey === `commission:${incident.bookingId}`);
       if (!charge) return { kind: 'missing_charge', bookingId: incident.bookingId };
-      const known = movements.find((movement) => movement.causeKey === `commission_refund:${incident.bookingId}`);
-      refund = { amount: -charge.amount, currency: charge.currency };
-      if (!known) {
-        void this.wallet.append(
-          commissionRefundDraft(
-            args.owner,
-            {
-              bookingId: incident.bookingId,
-              requestId: incident.requestId,
-              amount: refund.amount,
-              cancellation: { by: 'admin', at: now, reason: args.reason },
-            },
-            args.newId(),
-            now,
-            { kind: 'admin', userId: args.adminId },
-          ),
-        );
-      }
+      refund = this.refund(incident.bookingId, incident.requestId, args.owner, { by: 'admin', at: now, reason: args.reason }, args.newId, now, {
+        kind: 'admin',
+        userId: args.adminId,
+      });
     }
 
     const { incident: reversed, changed } = incident.reverse({ by: args.adminId, at: now, reason: args.reason }, { refund, liftSuspension: args.liftSuspension });
@@ -480,18 +457,51 @@ export class FakeBookingLifecycleStore implements IBookingLifecycleStore {
   }
 
   /** Records the refund synchronously (the fake wallet ignores a known cause key). */
+  /**
+   * The commission and its VAT (feature 023) given back once, with the `commission.refunded` event,
+   * as `refundCommissionInSession` does. A known refund is answered without writing anything.
+   */
   private refund(
-    booking: Booking,
+    bookingId: string,
     requestId: string,
     owner: LedgerOwner,
     cancellation: CancellationDetails,
     newId: () => string,
     now: Date,
-  ): { amount: number; currency: string } {
-    const charge = this.wallet.movements().find((movement) => movement.causeKey === `commission:${booking.id}`)!;
+    actor?: MovementActor,
+  ): { amount: number; vat: number; currency: string } {
+    const movements = this.wallet.movements();
+    const charge = movements.find((movement) => movement.causeKey === `commission:${bookingId}`)!;
     const amount = -charge.amount;
-    void this.wallet.append(commissionRefundDraft(owner, { bookingId: booking.id, requestId, amount, cancellation }, newId(), now));
-    return { amount, currency: charge.currency };
+    const known = movements.find((movement) => movement.causeKey === `commission_refund:${bookingId}`);
+    if (known) return { amount: known.amount, vat: 0, currency: charge.currency };
+    const vatCharge = movements.find((movement) => movement.causeKey === `commission_vat:${bookingId}`);
+    const vat = vatCharge ? -vatCharge.amount : 0;
+    const rateBps = vatCharge?.taxRateBps ?? 0;
+    const refundId = newId();
+    // The fake wallet store records synchronously.
+    void this.wallet.append(commissionRefundDraft(owner, { bookingId, requestId, amount, cancellation }, refundId, now, actor));
+    let vatMovementId: string | null = null;
+    if (vatCharge) {
+      vatMovementId = newId();
+      void this.wallet.append(commissionVatRefundDraft(owner, { bookingId, requestId, amount: vat, rateBps }, vatMovementId, now, actor));
+    }
+    this.outbox.append(
+      [
+        commissionRefunded(newId(), { bookingId, requestId }, now, {
+          goalkeeperId: owner.goalkeeperId,
+          movementId: refundId,
+          vatMovementId,
+          base: amount,
+          vat,
+          vatRateBps: vatCharge ? rateBps : 0,
+          currency: charge.currency,
+          originalMovementId: charge.id,
+        }),
+      ],
+      now,
+    );
+    return { amount, vat, currency: charge.currency };
   }
 
   private deactivateIfEnded(requestId: string): boolean {

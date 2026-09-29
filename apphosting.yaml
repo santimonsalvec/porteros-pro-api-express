@@ -17,3 +17,10 @@ env:
     value: https://REPLACE-with-the-api-public-url
   - variable: PAYMENTS_APP_OPEN_URL
     value: https://REPLACE-with-the-app-link
+  # Electronic invoicing (feature 023): one pair of secrets per provider and country.
+  - variable: SIIGO_CO_USERNAME
+    secret: siigo-co-username
+  - variable: SIIGO_CO_ACCESS_KEY
+    secret: siigo-co-access-key
+  - variable: INVOICING_ENABLED
+    value: "false"

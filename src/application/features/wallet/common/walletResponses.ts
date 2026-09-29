@@ -21,6 +21,8 @@ export interface MovementItemResponse {
   references: WalletMovement['references'];
   cancellation: { by: string; at: string; reason: string } | null;
   reason: string | null;
+  /** Only on VAT movements (feature 023): the rate charged, in basis points. */
+  taxRateBps?: number;
 }
 
 /** A movement as an administrator sees it (contracts/admin-wallet.md). */
@@ -44,6 +46,7 @@ export function toMovementItem(movement: WalletMovement): MovementItemResponse {
       ? { by: movement.cancellation.by, at: movement.cancellation.at.toISOString(), reason: movement.cancellation.reason }
       : null,
     reason: movement.reason,
+    ...(movement.taxRateBps !== null ? { taxRateBps: movement.taxRateBps } : {}),
   };
 }
 

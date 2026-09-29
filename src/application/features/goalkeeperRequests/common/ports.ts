@@ -1,3 +1,4 @@
+import type { WalletMovement } from '../../../../domain/wallet/walletMovement.js';
 import type { DomainEvent } from '../../../../domain/events/domainEvent.js';
 import type { Booking } from '../../../../domain/bookings/booking.js';
 import type { GoalkeeperRequest } from '../../../../domain/bookings/goalkeeperRequest.js';
@@ -112,7 +113,7 @@ export interface IBookingRepository {
 
 export type AcceptanceResult =
   /** Assigned, charged, and `event` recorded in the same transaction (feature 013). */
-  | { kind: 'accepted'; booking: Booking; event: DomainEvent }
+  | { kind: 'accepted'; booking: Booking; events: DomainEvent[] }
   /** The booking was not pending, its search had ended, or it is the goalkeeper's own request. Nothing written. */
   | { kind: 'not_claimed' }
   /** The goalkeeper already holds another booking of the same request. Nothing written. */
@@ -131,9 +132,13 @@ export interface IBookingAcceptanceStore {
     bookingId: string;
     goalkeeperId: string;
     now: Date;
-    commissionDraft: (booking: Booking) => MovementDraft;
-    /** The "goalkeeper assigned" event, recorded with the assignment (feature 013). */
-    event: (booking: Booking) => DomainEvent;
+    /** The commission and, when VAT applies, its VAT (feature 023), all appended or none. */
+    chargeDrafts: (booking: Booking) => MovementDraft[];
+    /**
+     * The events recorded with the assignment: "goalkeeper assigned" (013) and "commission
+     * charged" (023), built from the movements actually recorded.
+     */
+    events: (booking: Booking, charged: readonly WalletMovement[]) => DomainEvent[];
   }): Promise<AcceptanceResult>;
 }
 

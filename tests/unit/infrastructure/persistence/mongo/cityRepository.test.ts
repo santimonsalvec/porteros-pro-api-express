@@ -73,6 +73,16 @@ describe('CityRepository (mocked driver)', () => {
     expect(found?.timeZone).toBe('America/Bogota');
   });
 
+  it('maps the DANE codes as text, and null when absent (feature 023)', async () => {
+    const collection = createFakeCollection();
+    collection.findOne.mockResolvedValueOnce({ _id: 'city-medellin', name: 'Medellín', regionId: 'region-antioquia', daneStateCode: '05', daneCityCode: 5001 });
+    collection.findOne.mockResolvedValueOnce({ _id: 'city-x', name: 'X', regionId: 'region-antioquia' });
+    const repository = repositoryWith(collection);
+
+    expect(await repository.getById('city-medellin')).toMatchObject({ daneStateCode: '05', daneCityCode: '5001' });
+    expect(await repository.getById('city-x')).toMatchObject({ daneStateCode: null, daneCityCode: null });
+  });
+
   it('defaults timeZone to null when absent', async () => {
     const collection = createFakeCollection();
     collection.findOne.mockResolvedValue({ _id: 'city-medellin', name: 'Medellín', regionId: 'region-antioquia' });

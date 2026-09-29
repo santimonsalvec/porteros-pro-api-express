@@ -3,7 +3,8 @@ import type { IQueryHandler } from '../../../../common/mediator/types.js';
 import type { IGoalkeeperProfileRepository } from '../../../goalkeepers/common/ports.js';
 import type { ICityRepository } from '../../../locations/common/ports.js';
 import { OfferEligibilityService } from '../../../notifications/common/offerEligibilityService.js';
-import type { ICommissionResolver, IWalletRepository } from '../../../wallet/common/ports.js';
+import type { ICommissionResolver, IVatRateResolver, IWalletRepository } from '../../../wallet/common/ports.js';
+import { vatFor } from '../../../../../domain/wallet/vat.js';
 import type { IZoneRepository } from '../../../zones/common/ports.js';
 import { loadBookingItemContext, toAvailableItem } from '../../common/goalkeeperBookingResponse.js';
 import type { IBookingRepository, IGoalkeeperRequestRepository } from '../../common/ports.js';
@@ -17,6 +18,7 @@ export interface ListAvailableBookingsDependencies {
   requestRepository: IGoalkeeperRequestRepository;
   zoneRepository: IZoneRepository;
   cityRepository: ICityRepository;
+  vatRates: IVatRateResolver;
   clock: IClock;
   /** Called when the candidate cap is reached (logged by infrastructure). */
   onCapReached?: (goalkeeperId: string) => void;
@@ -59,7 +61,10 @@ export class ListAvailableBookingsQueryHandler implements IQueryHandler<ListAvai
         const context = await loadBookingItemContext(this.deps, pageOf);
         return {
           outcome: 'success',
-          items: pageOf.map((booking) => toAvailableItem(booking, context)),
+          items: pageOf.map((booking) => {
+            const vat = vatFor(booking.commission, available.vatRateBps);
+            return { ...toAvailableItem(booking, context), vat, totalCharge: booking.commission + vat };
+          }),
           page,
           pageSize,
           totalItems: available.bookings.length,
