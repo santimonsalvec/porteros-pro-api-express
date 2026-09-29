@@ -52,8 +52,8 @@ describe('ListGoalkeeperAgendaQueryHandler — US6: the goalkeeper\'s agenda', (
     expect(await agenda('gk-1', 2, 2)).toMatchObject({ totalItems: 3, totalPages: 2 });
   });
 
-  it('shows the pitch, the status and the client\'s contact, and nothing else about the client', async () => {
-    const booking = held('tomorrow', 24);
+  it('shows the pitch, the status and, in the last hour, the client\'s contact, and nothing else about the client', async () => {
+    const booking = held('in-half-hour', 0.5);
 
     const result = await agenda();
 
@@ -68,8 +68,20 @@ describe('ListGoalkeeperAgendaQueryHandler — US6: the goalkeeper\'s agenda', (
       earnings: 60000,
       commission: 7000,
       client: { firstName: 'Ana', lastName: 'Cliente', whatsApp: '+57 300 111 2222' },
+      clientContactVisibleFrom: new Date(inHours(0.5).getTime() - 3_600_000).toISOString(),
     });
     expect(JSON.stringify(result)).not.toMatch(/@example\.com/);
+  });
+
+  it("hides the client's contact until one hour before the match (feature 019)", async () => {
+    held('tomorrow', 24);
+
+    const result = await agenda();
+
+    expect(result.outcome === 'success' && result.items[0]).toMatchObject({
+      client: null,
+      clientContactVisibleFrom: inHours(23).toISOString(),
+    });
   });
 
   it("never shows another goalkeeper's bookings, nor pending ones", async () => {

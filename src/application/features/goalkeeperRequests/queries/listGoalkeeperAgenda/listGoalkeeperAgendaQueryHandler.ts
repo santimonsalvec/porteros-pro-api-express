@@ -54,7 +54,7 @@ export class ListGoalkeeperAgendaQueryHandler implements IQueryHandler<ListGoalk
     const totalItems = counts.upcoming + counts.past;
     return {
       outcome: 'success',
-      items: bookings.map((booking) => toAgendaItem(booking, context, contacts.get(booking.clientId) ?? null)),
+      items: bookings.map((booking) => toAgendaItem(booking, context, contacts.get(booking.clientId) ?? null, now)),
       page,
       pageSize,
       totalItems,

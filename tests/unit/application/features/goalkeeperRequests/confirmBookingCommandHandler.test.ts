@@ -84,6 +84,7 @@ describe('ConfirmBookingCommandHandler — Story 1: book at exactly the quoted p
         total: 120000,
         currency: 'COP',
         cancellation: { freeCancellationUntil: '2026-09-21T19:00:00.000Z', freeCancellationAvailable: true },
+        contactsVisibleFrom: '2026-09-21T19:00:00.000Z',
         createdAt: '2026-09-21T18:01:00.000Z',
         bookings: ['id-2', 'id-3'].map((bookingId) => ({
           bookingId,
@@ -277,14 +278,19 @@ describe('ConfirmBookingCommandHandler — US2: a replay shows the bookings as t
     h.users.seed(user);
     await h.confirm();
     const [first] = h.bookings.all();
-    h.bookings.seed(first!.assign('gk-1', h.clock.now()));
+    const assignedAt = h.clock.now();
+    h.bookings.seed(first!.assign('gk-1', assignedAt));
+
+    const early = await h.confirm();
+    expect(early.outcome === 'replayed' && early.request.bookings[0]).toMatchObject({ goalkeeper: null }); // feature 019
+    h.clock.set('2026-09-21T19:00:00.000Z');
 
     const replay = await h.confirm();
 
     expect(replay.outcome === 'replayed' && replay.request.bookings).toEqual([
       expect.objectContaining({
         goalkeeper: { firstName: 'Camilo', lastName: 'Portero', whatsApp: '+57 3001234567' },
-        assignedAt: h.clock.now().toISOString(),
+        assignedAt: assignedAt.toISOString(),
       }),
       expect.objectContaining({ goalkeeper: null, assignedAt: null }),
     ]);

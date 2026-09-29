@@ -59,6 +59,10 @@ export interface IGoalkeeperRequestRepository {
    * (feature 016), at most `cap`.
    */
   findDueForCancelAll(now: Date, cap: number): Promise<GoalkeeperRequest[]>;
+  /** Active requests whose contacts became visible and weren't announced yet, not started (feature 019). */
+  findDueForContactsReveal(now: Date, cap: number): Promise<GoalkeeperRequest[]>;
+  /** Marks the contacts-visible notices as sent; false when another run already did. */
+  markContactsRevealed(requestId: string, now: Date): Promise<boolean>;
 }
 
 /** Bookings (one per goalkeeper). */

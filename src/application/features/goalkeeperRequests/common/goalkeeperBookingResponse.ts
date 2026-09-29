@@ -1,5 +1,6 @@
 import type { Booking } from '../../../../domain/bookings/booking.js';
 import type { GoalkeeperRequest } from '../../../../domain/bookings/goalkeeperRequest.js';
+import { contactsVisibleAt, contactsVisibleFrom } from '../../../../domain/bookings/contactVisibility.js';
 import type { ICityRepository } from '../../locations/common/ports.js';
 import type { IZoneRepository } from '../../zones/common/ports.js';
 import type { Contact } from './contacts.js';
@@ -31,7 +32,10 @@ export interface AgendaItem extends AvailableBookingItem {
   assignedAt: string | null;
   latitude: number;
   longitude: number;
+  /** The client's contact: only for a booking the goalkeeper holds, from `clientContactVisibleFrom` (feature 019). */
   client: Contact | null;
+  /** From when the client's name and WhatsApp are shown (start − 60 min). */
+  clientContactVisibleFrom: string;
 }
 
 /** What building items needs besides the bookings: their requests and the current names. */
@@ -80,14 +84,16 @@ export function toAvailableItem(booking: Booking, context: BookingItemContext): 
   };
 }
 
-export function toAgendaItem(booking: Booking, context: BookingItemContext, client: Contact | null): AgendaItem {
+export function toAgendaItem(booking: Booking, context: BookingItemContext, client: Contact | null, now: Date): AgendaItem {
   const request = context.requests.get(booking.requestId)!;
+  const visible = booking.status === 'assigned' && contactsVisibleAt(request, now);
   return {
     ...toAvailableItem(booking, context),
     status: booking.status,
     assignedAt: booking.assignedAt?.toISOString() ?? null,
     latitude: request.match.latitude,
     longitude: request.match.longitude,
-    client,
+    client: visible ? client : null,
+    clientContactVisibleFrom: contactsVisibleFrom(request).toISOString(),
   };
 }

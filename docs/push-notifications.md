@@ -57,6 +57,18 @@ La cotización trae `cancelAllAvailable` y `cancelAllUntil`: cuando `cancelAllAv
 
 - La reserva de reemplazo se ofrece como un partido nuevo, pero **reabre** la oferta que cada portero ya tenía de esa solicitud: vuelve a quedar sin leer, arriba en la bandeja y con un push nuevo, aunque la hubiera descartado. El portero que se retiró nunca la recibe.
 
+### Asignación y datos de contacto (feature 019)
+
+| `type` | Para | Cuándo | Qué abre la app |
+|---|---|---|---|
+| `booking.goalkeeper_assigned` | cliente | Un portero tomó una de sus reservas y aún hay otras buscando ("Un portero tomó tu partido…", o "Encontramos otro portero…" si es un reemplazo) | La solicitud (`requestId`) |
+| `request.complete` | cliente | Esa aceptación dejó la solicitud sin reservas buscando; reemplaza al aviso anterior para esa aceptación ("¡Listo! Tus 2 porteros están confirmados…") | La solicitud |
+| `request.contacts_visible` | cliente | A inicio − 60 min: nombre y WhatsApp de sus porteros | La solicitud |
+| `booking.client_contact_visible` | portero | A inicio − 60 min: nombre y WhatsApp del cliente | Su agenda (`bookingId`) |
+
+- **Regla de visibilidad:** el cliente y el portero solo ven el nombre y el WhatsApp del otro desde **1 hora antes** del partido (el fin de la cancelación gratuita). Antes, la solicitud muestra `goalkeeper: null` y la agenda `client: null`; ambas respuestas traen desde cuándo se verán (`contactsVisibleFrom` / `clientContactVisibleFrom`).
+- Antes de ese momento, ningún aviso lleva el nombre ni el contacto de la otra parte. Si la reserva se toma en la última hora, los datos se ven de inmediato: el aviso de asignación al cliente ya los trae y no llega un aviso aparte de "datos visibles".
+
 ### Ofertas a porteros (feature 015)
 
 | `type` | Cuándo | Qué abre la app |

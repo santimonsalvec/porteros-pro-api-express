@@ -1,6 +1,7 @@
 import type { Collection, Db, Document } from 'mongodb';
 import type { IGoalkeeperRequestRepository } from '../../../application/features/goalkeeperRequests/common/ports.js';
 import { GoalkeeperRequest, type PartialFulfillment } from '../../../domain/bookings/goalkeeperRequest.js';
+import { contactsVisibleAt } from '../../../domain/bookings/contactVisibility.js';
 import { matchFromDocument, matchToDocument, pricingFromDocument, pricingToDocument } from './quoteRepository.js';
 
 export const GOALKEEPER_REQUESTS_COLLECTION = 'goalkeeperRequests';
@@ -26,6 +27,7 @@ export function requestToDocument(request: GoalkeeperRequest): Document {
     quoteIssuedAt: request.quoteIssuedAt,
     createdAt: request.createdAt,
     cancelAllEvaluatedAt: request.cancelAllEvaluatedAt,
+    contactsRevealedAt: request.contactsRevealedAt,
   };
 }
 
@@ -45,6 +47,7 @@ export function requestFromDocument(doc: Document): GoalkeeperRequest {
     quoteIssuedAt: doc.quoteIssuedAt as Date,
     createdAt: doc.createdAt as Date,
     cancelAllEvaluatedAt: (doc.cancelAllEvaluatedAt as Date | null | undefined) ?? null,
+    contactsRevealedAt: (doc.contactsRevealedAt as Date | null | undefined) ?? null,
   });
 }
 
@@ -70,6 +73,7 @@ export class GoalkeeperRequestRepository implements IGoalkeeperRequestRepository
     );
     await this.collection.createIndex({ clientId: 1, startsAt: 1, _id: 1 }, { name: 'client_startsAt' });
     await this.collection.createIndex({ partialFulfillment: 1, cancelAllEvaluatedAt: 1, startsAt: 1 }, { name: 'cancelAll_due' });
+    await this.collection.createIndex({ contactsRevealedAt: 1, startsAt: 1 }, { name: 'contactsReveal_due' });
   }
 
   async findDueForCancelAll(now: Date, cap: number): Promise<GoalkeeperRequest[]> {
@@ -90,6 +94,32 @@ export class GoalkeeperRequestRepository implements IGoalkeeperRequestRepository
       .map(requestFromDocument)
       .filter((request) => now.getTime() >= request.cancelAllUntil().getTime())
       .slice(0, cap);
+  }
+
+  async findDueForContactsReveal(now: Date, cap: number): Promise<GoalkeeperRequest[]> {
+    // Like "cancel all": the database narrows to the next day, the exact moment (each request's
+    // own free-cancellation deadline) is checked here. Started matches are never due.
+    const docs = await this.collection
+      .find({
+        active: true,
+        contactsRevealedAt: null,
+        startsAt: { $gt: now, $lte: new Date(now.getTime() + CANCEL_ALL_LOOKAHEAD_MS) },
+      })
+      .sort({ startsAt: 1, _id: 1 })
+      .limit(cap * 4)
+      .toArray();
+    return docs
+      .map(requestFromDocument)
+      .filter((request) => contactsVisibleAt(request, now))
+      .slice(0, cap);
+  }
+
+  async markContactsRevealed(requestId: string, now: Date): Promise<boolean> {
+    const result = await this.collection.updateOne(
+      { _id: requestId, contactsRevealedAt: null } as Document,
+      { $set: { contactsRevealedAt: now } },
+    );
+    return result.modifiedCount === 1;
   }
 
   async findByQuoteForClient(quoteId: string, clientId: string): Promise<GoalkeeperRequest | null> {

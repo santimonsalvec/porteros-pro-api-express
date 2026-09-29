@@ -117,6 +117,10 @@ export class WithdrawFromBookingCommandHandler implements ICommandHandler<Withdr
   private async answer(outcome: 'withdrawn' | 'replayed', booking: Booking, incident: GoalkeeperIncident, suspendedUntil: Date | null): Promise<WithdrawFromBookingResult> {
     const context = await loadBookingItemContext(this.deps, [booking]);
     // The goalkeeper no longer covers the match: the client's contact isn't shown any more.
-    return { outcome, booking: toAgendaItem(booking, context, null), withdrawal: toWithdrawalSummary(incident, suspendedUntil) };
+    return {
+      outcome,
+      booking: toAgendaItem(booking, context, null, this.deps.clock.now()),
+      withdrawal: toWithdrawalSummary(incident, suspendedUntil),
+    };
   }
 }

@@ -234,6 +234,7 @@ describe('GET /api/goalkeeper-requests/bookings — 012 US5: the assigned goalke
     const created = await createRequestAsClient(context, client.token);
     const taken = created.bookings[0]!.bookingId;
     await request(context.app).post(`/api/goalkeepers/me/bookings/${taken}/accept`).set('Authorization', `Bearer ${goalkeeper.token}`);
+    context.clock.set('2026-09-21T19:00:00.000Z'); // the goalkeeper's contact shows from one hour before (feature 019)
 
     const response = await request(context.app).get('/api/goalkeeper-requests/bookings').set('Authorization', `Bearer ${client.token}`);
 

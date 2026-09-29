@@ -1,5 +1,6 @@
 import type { IGoalkeeperRequestRepository } from '../../src/application/features/goalkeeperRequests/common/ports.js';
-import type { GoalkeeperRequest } from '../../src/domain/bookings/goalkeeperRequest.js';
+import { contactsVisibleAt } from '../../src/domain/bookings/contactVisibility.js';
+import { GoalkeeperRequest } from '../../src/domain/bookings/goalkeeperRequest.js';
 
 export class FakeGoalkeeperRequestRepository implements IGoalkeeperRequestRepository {
   private readonly requests = new Map<string, GoalkeeperRequest>();
@@ -23,6 +24,26 @@ export class FakeGoalkeeperRequestRepository implements IGoalkeeperRequestReposi
       )
       .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime() || a.id.localeCompare(b.id))
       .slice(0, cap);
+  }
+
+  async findDueForContactsReveal(now: Date, cap: number): Promise<GoalkeeperRequest[]> {
+    return this.all()
+      .filter(
+        (request) =>
+          request.active &&
+          request.contactsRevealedAt === null &&
+          request.startsAt.getTime() > now.getTime() &&
+          contactsVisibleAt(request, now),
+      )
+      .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime() || a.id.localeCompare(b.id))
+      .slice(0, cap);
+  }
+
+  async markContactsRevealed(requestId: string, now: Date): Promise<boolean> {
+    const request = this.requests.get(requestId);
+    if (!request || request.contactsRevealedAt !== null) return false;
+    this.requests.set(requestId, GoalkeeperRequest.rehydrate({ ...request, contactsRevealedAt: now }));
+    return true;
   }
 
   async findByQuoteForClient(quoteId: string, clientId: string): Promise<GoalkeeperRequest | null> {

@@ -1,5 +1,6 @@
 import type { Booking } from '../../../../domain/bookings/booking.js';
 import type { GoalkeeperRequest } from '../../../../domain/bookings/goalkeeperRequest.js';
+import { contactsVisibleAt, contactsVisibleFrom } from '../../../../domain/bookings/contactVisibility.js';
 import { requestStatusOf } from '../../../../domain/bookings/requestStatus.js';
 import type { Contact } from './contacts.js';
 
@@ -12,7 +13,10 @@ export interface BookingItemResponse {
   total: number;
   currency: string;
   createdAt: string;
-  /** The assigned goalkeeper's contact (012 FR-013); `null` while nobody holds the booking. */
+  /**
+   * The assigned goalkeeper's contact (012 FR-013). `null` while nobody holds the booking, and
+   * until `contactsVisibleFrom` (feature 019).
+   */
   goalkeeper: Contact | null;
   assignedAt: string | null;
 }
@@ -39,6 +43,8 @@ export interface RequestResponse {
   total: number;
   currency: string;
   cancellation: { freeCancellationUntil: string; freeCancellationAvailable: boolean };
+  /** From when the assigned goalkeepers' name and WhatsApp are shown (start − 60 min, feature 019). */
+  contactsVisibleFrom: string;
   createdAt: string;
   bookings: BookingItemResponse[];
 }
@@ -57,7 +63,8 @@ export function assignedGoalkeeperIds(bookings: readonly Booking[]): string[] {
 }
 
 /**
- * `now` decides whether free cancellation is still available (FR-015). `contacts` holds the
+ * `now` decides whether free cancellation is still available (FR-015) and whether the goalkeepers'
+ * contacts are visible yet (feature 019: only from the end of free cancellation). `contacts` holds the
  * assigned goalkeepers' contacts (see `loadContacts`); an assigned booking whose goalkeeper is
  * missing from it answers `goalkeeper: null`.
  */
@@ -69,6 +76,7 @@ export function toRequestResponse(
 ): RequestResponse {
   const { match, pricing } = request;
   const ordered = [...bookings].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const visible = contactsVisibleAt(request, now);
   return {
     requestId: request.id,
     quoteId: request.quoteId,
@@ -93,6 +101,7 @@ export function toRequestResponse(
       freeCancellationUntil: request.freeCancellationUntil().toISOString(),
       freeCancellationAvailable: request.canCancelFreeAt(now),
     },
+    contactsVisibleFrom: contactsVisibleFrom(request).toISOString(),
     createdAt: request.createdAt.toISOString(),
     bookings: ordered.map((booking) => ({
       bookingId: booking.id,
@@ -102,7 +111,7 @@ export function toRequestResponse(
       total: booking.price.total,
       currency: booking.price.currency,
       createdAt: booking.createdAt.toISOString(),
-      goalkeeper: (booking.goalkeeperId && contacts.get(booking.goalkeeperId)) || null,
+      goalkeeper: (visible && booking.status === 'assigned' && booking.goalkeeperId && contacts.get(booking.goalkeeperId)) || null,
       assignedAt: booking.assignedAt?.toISOString() ?? null,
     })),
   };

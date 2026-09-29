@@ -61,9 +61,9 @@ describe('Booking expiry — US1: a booking nobody took expires, and the client 
     const listed = (await myRequests(context, client.token)).body.items[0];
     expect(listed.status).toBe('assigned');
     expect(listed.bookings.map((booking: { status: string }) => booking.status).sort()).toEqual(['assigned', 'expired']);
-    expect(context.notificationRepository.all().filter((item) => item.userId === client.userId).map((item) => item.type)).toEqual([
-      'request.partially_expired',
-    ]);
+    // The request outcome notice, next to 019's assignment and contacts notices.
+    const outcomes = context.notificationRepository.all().filter((item) => item.userId === client.userId && item.type.startsWith('request.') && item.type.endsWith('expired'));
+    expect(outcomes.map((item) => item.type)).toEqual(['request.partially_expired']);
     expect(context.walletStore.movements()).toHaveLength(movementsBefore);
   });
 });

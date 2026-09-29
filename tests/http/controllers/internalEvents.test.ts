@@ -104,11 +104,12 @@ describe('POST /internal/sweep — US4: the every-minute sweep', () => {
       published: 1,
       stillPending: 0,
       oldestPendingSeconds: null,
-      // Features 015 and 016 register their jobs on the sweep.
+      // Features 015, 016 and 019 register their jobs on the sweep.
       jobs: [
         { name: 'cancel-all', outcome: 'succeeded', detail: '0 cancelled, 0 kept, 0 refunds, 0 skipped, 0 failed' },
         { name: 'booking-expiry', outcome: 'succeeded', detail: '0 bookings expired in 0 requests, 0 failed' },
         { name: 'offer-reminders', outcome: 'succeeded', detail: '0 open bookings' },
+        { name: 'contacts-reveal', outcome: 'succeeded', detail: '0 revealed, 0 without goalkeepers, 0 notices, 0 failed' },
       ],
     });
     expect(context.eventPublisher.published().map((event) => event.id)).toEqual(['ev-9']);

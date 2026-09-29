@@ -116,13 +116,13 @@ export class AcceptBookingCommandHandler implements ICommandHandler<AcceptBookin
     return null;
   }
 
-  /** The booking as the goalkeeper's agenda shows it, with the client's contact. */
+  /** The booking as the goalkeeper's agenda shows it; the client's contact only in the last hour (feature 019). */
   private async item(booking: Booking) {
     const [context, contacts] = await Promise.all([
       loadBookingItemContext(this.deps, [booking]),
       loadContacts(this.deps.userRepository, [booking.clientId]),
     ]);
-    return toAgendaItem(booking, context, contacts.get(booking.clientId) ?? null);
+    return toAgendaItem(booking, context, contacts.get(booking.clientId) ?? null, this.deps.clock.now());
   }
 
   /** Every attempt is audited exactly once, whatever its outcome (FR-015). */

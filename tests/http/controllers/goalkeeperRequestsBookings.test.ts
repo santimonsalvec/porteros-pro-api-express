@@ -89,6 +89,7 @@ describe('POST /api/goalkeeper-requests/bookings — Story 1: book at exactly th
       total: 120000,
       currency: 'COP',
       cancellation: { freeCancellationUntil: '2026-09-21T19:00:00.000Z', freeCancellationAvailable: true },
+      contactsVisibleFrom: '2026-09-21T19:00:00.000Z',
       createdAt: NOW,
       bookings: [
         { bookingId: expect.any(String), status: 'pending_assignment', unitRate: 55000, unitSurcharge: 5000, total: 60000, currency: 'COP', createdAt: NOW, goalkeeper: null, assignedAt: null },
