@@ -1,8 +1,8 @@
 import { Entity } from '../common/entity.js';
 import type { PenaltyKind } from './penaltyPolicy.js';
 
-/** 021 adds `'no_show'`. */
-export type IncidentKind = 'withdrawal';
+/** A withdrawal (018) or a no-show (021): both go through the same penalty policy. */
+export type IncidentKind = 'withdrawal' | 'no_show';
 
 /** An administrator's decision (who, when, why). */
 export interface AdminDecision {

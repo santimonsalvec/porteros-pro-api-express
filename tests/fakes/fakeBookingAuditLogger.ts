@@ -31,4 +31,15 @@ export class FakeBookingAuditLogger implements IBookingAuditLogger {
   logCheckIn(entry: { outcome: string; goalkeeperId: string; bookingId: string; requestId?: string }): void {
     this.checkIns.push(entry);
   }
+
+  readonly ratings: Array<{ outcome: string; userId: string; bookingId: string; side?: string }> = [];
+  readonly caseResolutions: Array<{ outcome: string; adminId: string; caseId: string }> = [];
+
+  logRating(entry: { outcome: string; userId: string; bookingId: string; side?: string }): void {
+    this.ratings.push(entry);
+  }
+
+  logCaseResolution(entry: { outcome: string; adminId: string; caseId: string }): void {
+    this.caseResolutions.push(entry);
+  }
 }

@@ -1,6 +1,6 @@
 import type { Collection, Db, Document } from 'mongodb';
 import type { CheckInNoticeField, IBookingRepository } from '../../../application/features/goalkeeperRequests/common/ports.js';
-import { Booking, type BookingEndedBy, type BookingEndReason, type BookingStatus, type CheckIn } from '../../../domain/bookings/booking.js';
+import { Booking, type BookingEndedBy, type BookingEndReason, type BookingStatus, type CheckIn, type BookingAttendance } from '../../../domain/bookings/booking.js';
 import { GoalkeeperPrice } from '../../../domain/bookings/goalkeeperPrice.js';
 
 export const BOOKINGS_COLLECTION = 'bookings';
@@ -8,6 +8,10 @@ export const BOOKINGS_COLLECTION = 'bookings';
 /** The check-in watch covers the configurable window maximums (120 min before, 60 after). */
 const CHECK_IN_WATCH_BEFORE_MS = 60 * 60_000;
 const CHECK_IN_WATCH_AHEAD_MS = 120 * 60_000;
+/** Ratings stay due for 7 days after the end (feature 021). */
+const RATING_WINDOW_MS = 7 * 86_400_000;
+/** The smallest configurable no-show grace period: the query's lower bound (feature 021). */
+const MIN_NO_SHOW_GRACE_MS = 15 * 60_000;
 
 /**
  * Indexes of the pre-010 shape (one booking per match). Their rules moved to the request, and
@@ -47,6 +51,9 @@ export function bookingToDocument(booking: Booking): Document {
     checkInOpenNoticeAt: booking.checkInOpenNoticeAt,
     checkInLastCallAt: booking.checkInLastCallAt,
     checkInMissedAt: booking.checkInMissedAt,
+    completedAt: booking.completedAt,
+    attendance: booking.attendance,
+    noShowAt: booking.noShowAt,
   };
 }
 
@@ -82,6 +89,9 @@ export function bookingFromDocument(doc: Document): Booking {
     checkInOpenNoticeAt: (doc.checkInOpenNoticeAt as Date | null | undefined) ?? null,
     checkInLastCallAt: (doc.checkInLastCallAt as Date | null | undefined) ?? null,
     checkInMissedAt: (doc.checkInMissedAt as Date | null | undefined) ?? null,
+    completedAt: (doc.completedAt as Date | null | undefined) ?? null,
+    attendance: (doc.attendance as BookingAttendance | null | undefined) ?? null,
+    noShowAt: (doc.noShowAt as Date | null | undefined) ?? null,
   });
 }
 
@@ -109,6 +119,8 @@ export class BookingRepository implements IBookingRepository {
     await this.collection.createIndex({ goalkeeperId: 1, startsAt: 1, _id: 1 }, { name: 'goalkeeper_start' });
     await this.collection.createIndex({ status: 1, searchEndsAt: 1 }, { name: 'status_searchEnds' });
     await this.collection.createIndex({ status: 1, startsAt: 1 }, { name: 'status_startsAt' });
+    await this.collection.createIndex({ status: 1, endsAt: 1 }, { name: 'status_endsAt' });
+    await this.collection.createIndex({ clientId: 1, endsAt: -1 }, { name: 'client_endsAt' });
   }
 
   async findById(id: string): Promise<Booking | null> {
@@ -169,6 +181,35 @@ export class BookingRepository implements IBookingRepository {
         startsAt: { $gt: new Date(now.getTime() - CHECK_IN_WATCH_BEFORE_MS), $lte: new Date(now.getTime() + CHECK_IN_WATCH_AHEAD_MS) },
       })
       .sort({ startsAt: 1, _id: 1 })
+      .limit(cap)
+      .toArray();
+    return docs.map(bookingFromDocument);
+  }
+
+  async findDueForCompletion(now: Date, cap: number): Promise<Booking[]> {
+    const docs = await this.collection.find({ status: 'assigned', endsAt: { $lte: now } }).sort({ endsAt: 1, _id: 1 }).limit(cap).toArray();
+    return docs.map(bookingFromDocument);
+  }
+
+  async findRateable(userId: string, now: Date): Promise<{ asClient: Booking[]; asGoalkeeper: Booking[] }> {
+    const since = new Date(now.getTime() - RATING_WINDOW_MS);
+    const [asClient, asGoalkeeper] = await Promise.all([
+      this.collection
+        .find({
+          clientId: userId,
+          endsAt: { $gte: since },
+          $or: [{ status: 'completed' }, { status: 'assigned', checkIn: { $ne: null } }],
+        } as Document)
+        .toArray(),
+      this.collection.find({ goalkeeperId: userId, status: 'completed', endsAt: { $gte: since } }).toArray(),
+    ]);
+    return { asClient: asClient.map(bookingFromDocument), asGoalkeeper: asGoalkeeper.map(bookingFromDocument) };
+  }
+
+  async findDueForAttendance(now: Date, cap: number): Promise<Booking[]> {
+    const docs = await this.collection
+      .find({ status: 'completed', attendance: null, endsAt: { $lte: new Date(now.getTime() - MIN_NO_SHOW_GRACE_MS) } })
+      .sort({ endsAt: 1, _id: 1 })
       .limit(cap)
       .toArray();
     return docs.map(bookingFromDocument);

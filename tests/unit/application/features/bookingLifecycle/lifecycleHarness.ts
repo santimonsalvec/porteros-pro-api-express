@@ -29,6 +29,20 @@ import { createCheckInWindowResolver } from '../../../../../src/application/feat
 import { StoredImage } from '../../../../../src/domain/images/storedImage.js';
 import { FakeImageRepository } from '../../../../fakes/fakeImageRepository.js';
 import { CheckInNoticeHandler } from '../../../../../src/application/features/bookingLifecycle/handlers/checkInNoticeHandler.js';
+import { RateBookingCommand } from '../../../../../src/application/features/ratings/commands/rateBooking/rateBookingCommand.js';
+import { RateBookingCommandHandler } from '../../../../../src/application/features/ratings/commands/rateBooking/rateBookingCommandHandler.js';
+import { ListPendingRatingsQuery } from '../../../../../src/application/features/ratings/queries/listPendingRatings/listPendingRatingsQuery.js';
+import { ListPendingRatingsQueryHandler } from '../../../../../src/application/features/ratings/queries/listPendingRatings/listPendingRatingsQueryHandler.js';
+import { ListCasesQuery } from '../../../../../src/application/features/cases/queries/listCases/listCasesQuery.js';
+import { ListCasesQueryHandler } from '../../../../../src/application/features/cases/queries/listCases/listCasesQueryHandler.js';
+import { ResolveCaseCommand } from '../../../../../src/application/features/cases/commands/resolveCase/resolveCaseCommand.js';
+import { ResolveCaseCommandHandler } from '../../../../../src/application/features/cases/commands/resolveCase/resolveCaseCommandHandler.js';
+import { NoShowWatchJob } from '../../../../../src/application/features/bookingLifecycle/jobs/noShowWatchJob.js';
+import { NoShowNoticeHandler } from '../../../../../src/application/features/bookingLifecycle/handlers/noShowNoticeHandler.js';
+import { createNoShowGraceResolver } from '../../../../../src/application/features/bookingLifecycle/common/checkInWindowResolver.js';
+import { FakeRatingRepository } from '../../../../fakes/fakeRatingRepository.js';
+import { FakeCaseRepository } from '../../../../fakes/fakeCaseRepository.js';
+import { BookingCompletionJob } from '../../../../../src/application/features/bookingLifecycle/jobs/bookingCompletionJob.js';
 import { CheckInWatchJob } from '../../../../../src/application/features/bookingLifecycle/jobs/checkInWatchJob.js';
 import { ContactsRevealJob } from '../../../../../src/application/features/bookingLifecycle/jobs/contactsRevealJob.js';
 import { ClientAssignmentNoticeHandler } from '../../../../../src/application/features/bookingLifecycle/handlers/clientAssignmentNoticeHandler.js';
@@ -229,6 +243,50 @@ export function lifecycleHarness() {
     logger: h.silent,
     windowResolver,
   });
+  const completionJob = new BookingCompletionJob({ bookingRepository: h.bookingRepository, store, relay, idGenerator, logger: h.silent });
+  // Ratings, no-shows and cases (feature 021).
+  const ratingRepository = new FakeRatingRepository(() => store.ratings());
+  const caseRepository = new FakeCaseRepository(store.cases);
+  const penaltyDeps = { walletContext, bookingSettingsRepository, logger: lifecycleLogger };
+  const rater = new RateBookingCommandHandler({ ...penaltyDeps, bookingRepository: h.bookingRepository, store, relay, idGenerator, clock: h.clock, audit });
+  /** The user (the booking's client or goalkeeper) rates it. */
+  const rate = (bookingId: string, userId: string, answer: boolean, stars = 4, comment?: string) =>
+    rater.handle(new RateBookingCommand(userId, bookingId, answer, stars, comment));
+  const pendingHandler = new ListPendingRatingsQueryHandler({
+    bookingRepository: h.bookingRepository,
+    ratingRepository,
+    requestRepository: h.requestRepository,
+    zoneRepository: h.zoneRepository,
+    cityRepository: h.cityRepository,
+    userRepository: users,
+    clock: h.clock,
+  });
+  const pending = async (userId: string) => (await pendingHandler.handle(new ListPendingRatingsQuery(userId))).items;
+  const noShowJob = new NoShowWatchJob({
+    ...penaltyDeps,
+    bookingRepository: h.bookingRepository,
+    requestRepository: h.requestRepository,
+    store,
+    relay,
+    idGenerator,
+    clock: h.clock,
+    graceResolver: () => createNoShowGraceResolver({ cityRepository: h.cityRepository, regionRepository, bookingSettingsRepository, logger: lifecycleLogger }),
+  });
+  const noShowNotices = new NoShowNoticeHandler({
+    requestRepository: h.requestRepository,
+    zoneRepository: h.zoneRepository,
+    cityRepository: h.cityRepository,
+    notifications: h.notifications,
+    pushNotifier: h.pushNotifier,
+    processed: new FakeProcessedEventStore(),
+    idGenerator,
+    clock: h.clock,
+    logger: h.silent,
+  });
+  const listCasesHandler = new ListCasesQueryHandler(caseRepository);
+  const listCases = (status: 'open' | 'resolved' | null = null, page = 1, pageSize = 20) => listCasesHandler.handle(new ListCasesQuery(status, page, pageSize));
+  const resolver = new ResolveCaseCommandHandler(caseRepository, ratingRepository, h.clock, audit);
+  const resolveCase = (caseId: string, note: string, adminId = 'admin-1') => resolver.handle(new ResolveCaseCommand(adminId, caseId, note));
   const reverser = new ReverseWithdrawalPenaltyCommandHandler({ walletContext, store, idGenerator, clock: h.clock, audit, logger: lifecycleLogger });
   /** An administrator reverses the goalkeeper's withdrawal: `refund` the money and/or `lift` the suspensions. */
   const reverse = (goalkeeperId: string, withdrawalId: string, what: { refund?: boolean; lift?: boolean }, reason = 'Incapacidad médica') =>
@@ -269,6 +327,14 @@ export function lifecycleHarness() {
     checkIn,
     checkInNotices,
     checkInWatchJob,
+    completionJob,
+    rate,
+    pending,
+    noShowJob,
+    noShowNotices,
+    caseRepository,
+    listCases,
+    resolveCase,
     reverse,
     ledger,
     owner,

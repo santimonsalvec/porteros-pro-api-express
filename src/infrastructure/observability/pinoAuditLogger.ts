@@ -37,6 +37,18 @@ export class PinoAuditLogger implements IAuditLogger, IBookingAuditLogger, IAcce
     else logger.warn(record, 'Goalkeeper check-in refused');
   }
 
+  logRating(entry: { outcome: string; userId: string; bookingId: string; side?: string }): void {
+    const record = { audit: 'rating', ...entry };
+    if (entry.outcome === 'rated') logger.info(record, 'Rating');
+    else logger.warn(record, 'Rating refused');
+  }
+
+  logCaseResolution(entry: { outcome: string; adminId: string; caseId: string }): void {
+    const record = { audit: 'case_resolution', ...entry };
+    if (entry.outcome === 'resolved') logger.info(record, 'Case resolved');
+    else logger.warn(record, 'Case resolution refused');
+  }
+
   logBookingConfirmation(entry: BookingConfirmationEntry): void {
     const succeeded = entry.outcome === 'created' || entry.outcome === 'replayed';
     const record = { audit: 'booking_confirmation', ...entry };

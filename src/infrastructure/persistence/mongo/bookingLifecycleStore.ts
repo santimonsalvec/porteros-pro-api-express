@@ -5,16 +5,23 @@ import type {
   ExpireResult,
   CheckInResult,
   IBookingLifecycleStore,
+  RateResult,
+  RecordedNoShow,
+  SettleAttendanceResult,
   ReversalOutcome,
   WithdrawResult,
 } from '../../../application/features/bookingLifecycle/common/ports.js';
 import { commissionRefundDraft, type LedgerOwner } from '../../../application/features/wallet/common/walletLedger.js';
 import { Booking, type CheckIn } from '../../../domain/bookings/booking.js';
 import type { DomainEvent } from '../../../domain/events/domainEvent.js';
-import { GoalkeeperIncident, suspensionEndOf } from '../../../domain/goalkeepers/goalkeeperIncident.js';
+import { GoalkeeperIncident, suspensionEndOf, type IncidentKind } from '../../../domain/goalkeepers/goalkeeperIncident.js';
 import { isLate, penaltiesFor, windowStart, type GoalkeeperPenaltyConfig } from '../../../domain/goalkeepers/penaltyPolicy.js';
 import type { CancellationDetails, MovementActor } from '../../../domain/wallet/walletMovement.js';
 import { BOOKINGS_COLLECTION, bookingFromDocument, bookingToDocument } from './bookingRepository.js';
+import { SupportCase, type CaseType } from '../../../domain/cases/case.js';
+import { Rating, ratingWindowFor, type RatingSide } from '../../../domain/ratings/rating.js';
+import { CASES_COLLECTION, caseToDocument } from './caseRepository.js';
+import { RATINGS_COLLECTION, ratingToDocument } from './ratingRepository.js';
 import { GOALKEEPER_INCIDENTS_COLLECTION, incidentFromDocument, incidentToDocument } from './goalkeeperIncidentRepository.js';
 import { GOALKEEPER_REQUESTS_COLLECTION, requestFromDocument } from './goalkeeperRequestRepository.js';
 import { appendEventsInSession } from './outboxStore.js';
@@ -289,30 +296,19 @@ export class MongoBookingLifecycleStore implements IBookingLifecycleStore {
       const replacement = booking.isSearchOpenAt(now) ? Booking.replacementFor(booking, args.newId(), goalkeeperId, now) : null;
       if (replacement) await bookings.insertOne(bookingToDocument(replacement), { session });
 
-      const recentCount = await incidents.countDocuments(
-        { goalkeeperId, forgivenAt: null, occurredAt: { $gt: windowStart(now, config) } } as Document,
-        { session },
-      );
       const noticeMinutes = booking.withdrawalNoticeMinutes(now);
-      const late = isLate(noticeMinutes, config);
-      const incident = GoalkeeperIncident.rehydrate({
-        id: args.newId(),
+      const { incident, suspendedUntil } = await this.recordIncidentInSession(session, {
         kind: 'withdrawal',
+        booking,
         goalkeeperId,
-        bookingId,
-        requestId: booking.requestId,
-        startsAt: booking.startsAt,
-        occurredAt: now,
+        now,
+        late: isLate(noticeMinutes, config),
         noticeMinutes,
-        late,
         reason: args.note,
         replacementBookingId: replacement?.id ?? null,
-        penalties: penaltiesFor({ occurredAt: now, late, recentCount, config, newId: args.newId }).map((penalty) => ({ ...penalty, reversal: null })),
-        moneyReversal: null,
-        forgivenAt: null,
+        config,
+        newId: args.newId,
       });
-      await incidents.insertOne(incidentToDocument(incident), { session });
-      const suspendedUntil = await this.writeSuspension(session, goalkeeperId, now);
 
       const events = args.buildEvents(withdrawn, incident, replacement, suspendedUntil);
       await appendEventsInSession(this.db, session, events, now);
@@ -368,6 +364,168 @@ export class MongoBookingLifecycleStore implements IBookingLifecycleStore {
     }
   }
 
+  complete(requestId: string, now: Date, buildEvents: (completed: readonly Booking[]) => DomainEvent[]): Promise<{ completed: Booking[]; events: DomainEvent[] }> {
+    return this.inTransaction(async (session) => {
+      const bookings = this.db.collection(BOOKINGS_COLLECTION);
+      const due = (await bookings.find({ requestId, status: 'assigned', endsAt: { $lte: now } } as Document, { session }).toArray()).map(bookingFromDocument);
+      if (due.length === 0) return { completed: [], events: [] };
+      const completed: Booking[] = [];
+      for (const booking of due) {
+        // The check-in is the proof of attendance (020): settled right away.
+        const changes = { status: 'completed', completedAt: now, ...(booking.checkIn ? { attendance: 'attended' } : {}) };
+        await bookings.updateOne({ _id: booking.id, status: 'assigned' } as Document, { $set: changes }, { session });
+        completed.push(bookingFromDocument({ ...bookingToDocument(booking), ...changes }));
+      }
+      const events = buildEvents(completed);
+      await appendEventsInSession(this.db, session, events, now);
+      await this.deactivateIfEnded(session, requestId);
+      return { completed, events };
+    });
+  }
+
+  async rate(args: {
+    bookingId: string;
+    userId: string;
+    now: Date;
+    answer: boolean;
+    stars: number;
+    comment: string | null;
+    newId: () => string;
+    noShowConfig: GoalkeeperPenaltyConfig;
+    buildEvents: (noShow: RecordedNoShow) => DomainEvent[];
+  }): Promise<RateResult> {
+    const { now, answer } = args;
+    try {
+      return await this.inTransaction(async (session): Promise<RateResult> => {
+        const bookings = this.db.collection(BOOKINGS_COLLECTION);
+        const doc = await bookings.findOne({ _id: args.bookingId } as Document, { session });
+        const booking = doc ? bookingFromDocument(doc) : null;
+        if (!booking) return { kind: 'not_found' };
+        const side: RatingSide | null = booking.clientId === args.userId ? 'client' : booking.goalkeeperId === args.userId ? 'goalkeeper' : null;
+        if (!side) return { kind: 'not_found' };
+        const window = ratingWindowFor(booking, side, now);
+        if (!window.ok) return { kind: 'not_rateable', reason: window.reason };
+        const ratings = this.db.collection(RATINGS_COLLECTION);
+        if (await ratings.findOne({ bookingId: booking.id, side } as Document, { session })) return { kind: 'already_rated' };
+
+        const rating = Rating.create({
+          id: args.newId(),
+          bookingId: booking.id,
+          requestId: booking.requestId,
+          side,
+          authorId: args.userId,
+          subjectId: side === 'client' ? booking.goalkeeperId! : booking.clientId,
+          answer,
+          stars: args.stars,
+          comment: args.comment,
+          createdAt: now,
+        });
+        await ratings.insertOne(ratingToDocument(rating), { session });
+
+        // The consequences (research §3).
+        let caseType: CaseType | null = null;
+        let noShow: RecordedNoShow | null = null;
+        if (side === 'client' && answer && !booking.checkIn) {
+          if (booking.attendance === 'no_show') caseType = 'late_attendance_claim';
+          else if (booking.attendance === null) {
+            await bookings.updateOne({ _id: booking.id, attendance: null } as Document, { $set: { attendance: 'attended' } }, { session });
+          }
+        } else if (side === 'client' && !answer) {
+          caseType = 'goalkeeper_no_show';
+          if (!booking.checkIn && booking.attendance !== 'no_show') noShow = await this.recordNoShowInSession(session, booking, now, args.noShowConfig, args.newId);
+        } else if (side === 'goalkeeper' && !answer) {
+          caseType = 'payment_not_received';
+        }
+        if (caseType) await this.openCaseInSession(session, { type: caseType, booking, rating, noShow, now, newId: args.newId });
+
+        const events = noShow ? args.buildEvents(noShow) : [];
+        await appendEventsInSession(this.db, session, events, now);
+        return { kind: 'rated', rating, caseOpened: caseType, noShow, events };
+      });
+    } catch (error) {
+      // A concurrent rating by the same side lost on the unique index.
+      if ((error as { code?: unknown }).code === 11000) return { kind: 'already_rated' };
+      throw error;
+    }
+  }
+
+  settleAttendance(args: {
+    bookingId: string;
+    now: Date;
+    config: GoalkeeperPenaltyConfig;
+    newId: () => string;
+    buildEvents: (noShow: RecordedNoShow) => DomainEvent[];
+  }): Promise<SettleAttendanceResult> {
+    const { now } = args;
+    return this.inTransaction(async (session): Promise<SettleAttendanceResult> => {
+      const bookings = this.db.collection(BOOKINGS_COLLECTION);
+      const doc = await bookings.findOne({ _id: args.bookingId } as Document, { session });
+      const booking = doc ? bookingFromDocument(doc) : null;
+      if (!booking || booking.status !== 'completed' || booking.attendance !== null || booking.checkIn) return { kind: 'skipped' };
+      const rating = await this.db.collection(RATINGS_COLLECTION).findOne({ bookingId: booking.id, side: 'client' } as Document, { session });
+      if (rating?.answer === true) {
+        await bookings.updateOne({ _id: booking.id, attendance: null } as Document, { $set: { attendance: 'attended' } }, { session });
+        return { kind: 'attended' };
+      }
+      const noShow = await this.recordNoShowInSession(session, booking, now, args.config, args.newId);
+      const events = args.buildEvents(noShow);
+      await appendEventsInSession(this.db, session, events, now);
+      return { kind: 'no_show', noShow, events };
+    });
+  }
+
+  /** The no-show incident (a late withdrawal for the policy, 018) and the booking's attendance. */
+  private async recordNoShowInSession(
+    session: ClientSession,
+    booking: Booking,
+    now: Date,
+    config: GoalkeeperPenaltyConfig,
+    newId: () => string,
+  ): Promise<RecordedNoShow> {
+    const { incident, suspendedUntil } = await this.recordIncidentInSession(session, {
+      kind: 'no_show',
+      booking,
+      goalkeeperId: booking.goalkeeperId!,
+      now,
+      late: true,
+      noticeMinutes: 0,
+      reason: null,
+      replacementBookingId: null,
+      config,
+      newId,
+    });
+    const changes = { attendance: 'no_show', noShowAt: now };
+    await this.db.collection(BOOKINGS_COLLECTION).updateOne({ _id: booking.id } as Document, { $set: changes }, { session });
+    return { booking: bookingFromDocument({ ...bookingToDocument(booking), ...changes }), incident, suspendedUntil };
+  }
+
+  /** One case per booking and type (feature 021); a second answer of the same type adds none. */
+  private async openCaseInSession(
+    session: ClientSession,
+    args: { type: CaseType; booking: Booking; rating: Rating; noShow: RecordedNoShow | null; now: Date; newId: () => string },
+  ): Promise<void> {
+    const cases = this.db.collection(CASES_COLLECTION);
+    if (await cases.findOne({ bookingId: args.booking.id, type: args.type } as Document, { session })) return;
+    let noShowIncidentId = args.noShow?.incident.id ?? null;
+    if (!noShowIncidentId && args.booking.attendance === 'no_show') {
+      const incident = await this.db.collection(GOALKEEPER_INCIDENTS_COLLECTION).findOne({ kind: 'no_show', bookingId: args.booking.id } as Document, { session });
+      noShowIncidentId = incident ? String(incident._id) : null;
+    }
+    const item = SupportCase.open({
+      id: args.newId(),
+      type: args.type,
+      bookingId: args.booking.id,
+      requestId: args.booking.requestId,
+      clientId: args.booking.clientId,
+      goalkeeperId: args.booking.goalkeeperId!,
+      ratingId: args.rating.id,
+      checkIn: args.booking.checkIn,
+      noShowIncidentId,
+      createdAt: args.now,
+    });
+    await cases.insertOne(caseToDocument(item), { session });
+  }
+
   checkIn(args: {
     bookingId: string;
     goalkeeperId: string;
@@ -399,6 +557,51 @@ export class MongoBookingLifecycleStore implements IBookingLifecycleStore {
       await appendEventsInSession(this.db, session, events, now);
       return { kind: 'checked_in', booking: checkedIn, events };
     });
+  }
+
+  /**
+   * One incident of the goalkeeper (a withdrawal, 018, or a no-show, 021) with the penalties the
+   * policy gives it, and the goalkeeper's suspension end recomputed — the shared part of both.
+   */
+  private async recordIncidentInSession(
+    session: ClientSession,
+    args: {
+      kind: IncidentKind;
+      booking: Booking;
+      goalkeeperId: string;
+      now: Date;
+      late: boolean;
+      noticeMinutes: number;
+      reason: string | null;
+      replacementBookingId: string | null;
+      config: GoalkeeperPenaltyConfig;
+      newId: () => string;
+    },
+  ): Promise<{ incident: GoalkeeperIncident; suspendedUntil: Date | null }> {
+    const { goalkeeperId, now, config, late } = args;
+    const incidents = this.db.collection(GOALKEEPER_INCIDENTS_COLLECTION);
+    const recentCount = await incidents.countDocuments(
+      { goalkeeperId, forgivenAt: null, occurredAt: { $gt: windowStart(now, config) } } as Document,
+      { session },
+    );
+    const incident = GoalkeeperIncident.rehydrate({
+      id: args.newId(),
+      kind: args.kind,
+      goalkeeperId,
+      bookingId: args.booking.id,
+      requestId: args.booking.requestId,
+      startsAt: args.booking.startsAt,
+      occurredAt: now,
+      noticeMinutes: args.noticeMinutes,
+      late,
+      reason: args.reason,
+      replacementBookingId: args.replacementBookingId,
+      penalties: penaltiesFor({ occurredAt: now, late, recentCount, config, newId: args.newId }).map((penalty) => ({ ...penalty, reversal: null })),
+      moneyReversal: null,
+      forgivenAt: null,
+    });
+    await incidents.insertOne(incidentToDocument(incident), { session });
+    return { incident, suspendedUntil: await this.writeSuspension(session, goalkeeperId, now) };
   }
 
   /**

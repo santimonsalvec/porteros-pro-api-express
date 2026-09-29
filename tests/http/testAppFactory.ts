@@ -158,6 +158,22 @@ import { createCheckInWindowResolver } from '../../src/application/features/book
 import { WithdrawFromBookingCommand } from '../../src/application/features/bookingLifecycle/commands/withdrawFromBooking/withdrawFromBookingCommand.js';
 import { WithdrawFromBookingCommandHandler } from '../../src/application/features/bookingLifecycle/commands/withdrawFromBooking/withdrawFromBookingCommandHandler.js';
 import { CHECK_IN_NOTICE_EVENT_TYPES, CheckInNoticeHandler } from '../../src/application/features/bookingLifecycle/handlers/checkInNoticeHandler.js';
+import { RateBookingCommand } from '../../src/application/features/ratings/commands/rateBooking/rateBookingCommand.js';
+import { RateBookingCommandHandler } from '../../src/application/features/ratings/commands/rateBooking/rateBookingCommandHandler.js';
+import { ListPendingRatingsQuery } from '../../src/application/features/ratings/queries/listPendingRatings/listPendingRatingsQuery.js';
+import { ListPendingRatingsQueryHandler } from '../../src/application/features/ratings/queries/listPendingRatings/listPendingRatingsQueryHandler.js';
+import { ListCasesQuery } from '../../src/application/features/cases/queries/listCases/listCasesQuery.js';
+import { ListCasesQueryHandler } from '../../src/application/features/cases/queries/listCases/listCasesQueryHandler.js';
+import { GetCaseQuery } from '../../src/application/features/cases/queries/getCase/getCaseQuery.js';
+import { GetCaseQueryHandler } from '../../src/application/features/cases/queries/getCase/getCaseQueryHandler.js';
+import { ResolveCaseCommand } from '../../src/application/features/cases/commands/resolveCase/resolveCaseCommand.js';
+import { ResolveCaseCommandHandler } from '../../src/application/features/cases/commands/resolveCase/resolveCaseCommandHandler.js';
+import { NoShowWatchJob } from '../../src/application/features/bookingLifecycle/jobs/noShowWatchJob.js';
+import { NO_SHOW_NOTICE_EVENT_TYPES, NoShowNoticeHandler } from '../../src/application/features/bookingLifecycle/handlers/noShowNoticeHandler.js';
+import { createNoShowGraceResolver } from '../../src/application/features/bookingLifecycle/common/checkInWindowResolver.js';
+import { FakeRatingRepository } from '../fakes/fakeRatingRepository.js';
+import { FakeCaseRepository } from '../fakes/fakeCaseRepository.js';
+import { BookingCompletionJob } from '../../src/application/features/bookingLifecycle/jobs/bookingCompletionJob.js';
 import { CheckInWatchJob } from '../../src/application/features/bookingLifecycle/jobs/checkInWatchJob.js';
 import { ContactsRevealJob } from '../../src/application/features/bookingLifecycle/jobs/contactsRevealJob.js';
 import { CLIENT_ASSIGNMENT_EVENT_TYPES, ClientAssignmentNoticeHandler } from '../../src/application/features/bookingLifecycle/handlers/clientAssignmentNoticeHandler.js';
@@ -337,6 +353,8 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
   });
   const lifecycleStore = new FakeBookingLifecycleStore(bookingRepository, requestRepository, walletStore, outboxStore, goalkeeperProfileRepository);
   const goalkeeperIncidentRepository = new FakeGoalkeeperIncidentRepository(lifecycleStore);
+  const ratingRepository = new FakeRatingRepository(() => lifecycleStore.ratings());
+  const caseRepository = new FakeCaseRepository(lifecycleStore.cases);
   const lifecycleIds = { newId: () => uuidv7() };
   const bookingExpiryJob = new BookingExpiryJob({ bookingRepository, store: lifecycleStore, relay: eventRelay, idGenerator: lifecycleIds, logger: offersLogger });
   const clientOutcomeNotices = new ClientOutcomeNoticeHandler({
@@ -377,6 +395,20 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
   );
   registerSubscribers(mediator, [
     ...CLIENT_OUTCOME_EVENT_TYPES.map((type) => ({ type, handler: clientOutcomeNotices })),
+    ...NO_SHOW_NOTICE_EVENT_TYPES.map((type) => ({
+      type,
+      handler: new NoShowNoticeHandler({
+        requestRepository,
+        zoneRepository,
+        cityRepository,
+        notifications: notificationRepository,
+        pushNotifier,
+        processed: new FakeProcessedEventStore(),
+        idGenerator: lifecycleIds,
+        clock,
+        logger: offersLogger,
+      }),
+    })),
     ...CHECK_IN_NOTICE_EVENT_TYPES.map((type) => ({
       type,
       handler: new CheckInNoticeHandler({
@@ -453,6 +485,19 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
         jobs: [
           cancelAllJob,
           bookingExpiryJob,
+          new BookingCompletionJob({ bookingRepository, store: lifecycleStore, relay: eventRelay, idGenerator: lifecycleIds, logger: offersLogger }),
+          new NoShowWatchJob({
+            walletContext,
+            bookingSettingsRepository,
+            logger: offersLogger,
+            bookingRepository,
+            requestRepository,
+            store: lifecycleStore,
+            relay: eventRelay,
+            idGenerator: lifecycleIds,
+            clock,
+            graceResolver: () => createNoShowGraceResolver({ cityRepository, regionRepository, bookingSettingsRepository, logger: offersLogger }),
+          }),
           new OfferRemindersJob({ bookingRepository, eligibility: offerEligibility, sender: offerSender, logger: offersLogger, roundCap: 2000 }),
           new ContactsRevealJob({
             requestRepository,
@@ -744,6 +789,27 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
         audit: bookingAuditLogger,
       }),
     },
+    {
+      requestType: RateBookingCommand,
+      handler: new RateBookingCommandHandler({
+        walletContext,
+        bookingSettingsRepository,
+        logger: offersLogger,
+        bookingRepository,
+        store: lifecycleStore,
+        relay: eventRelay,
+        idGenerator: lifecycleIds,
+        clock,
+        audit: bookingAuditLogger,
+      }),
+    },
+    {
+      requestType: ListPendingRatingsQuery,
+      handler: new ListPendingRatingsQueryHandler({ bookingRepository, ratingRepository: ratingRepository, requestRepository, zoneRepository, cityRepository, userRepository, clock }),
+    },
+    { requestType: ListCasesQuery, handler: new ListCasesQueryHandler(caseRepository) },
+    { requestType: GetCaseQuery, handler: new GetCaseQueryHandler(caseRepository, ratingRepository) },
+    { requestType: ResolveCaseCommand, handler: new ResolveCaseCommandHandler(caseRepository, ratingRepository, clock, bookingAuditLogger) },
     {
       requestType: WithdrawFromBookingCommand,
       handler: new WithdrawFromBookingCommandHandler({

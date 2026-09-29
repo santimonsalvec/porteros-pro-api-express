@@ -47,6 +47,8 @@ export class BookingSettings extends Entity<string> {
   readonly goalkeeperPenalties: Partial<GoalkeeperPenaltyConfig> | null;
   /** The check-in window (feature 020), read at the country level only; absent fields default. */
   readonly checkInWindow: Partial<CheckInWindowConfig> | null;
+  /** Minutes after the end to wait for the client's answer before a no-show (feature 021, country level). */
+  readonly noShowGraceMinutes: number | null;
 
   constructor(params: {
     id: string;
@@ -59,6 +61,7 @@ export class BookingSettings extends Entity<string> {
     travelBufferMinutes?: number | null;
     goalkeeperPenalties?: Partial<GoalkeeperPenaltyConfig> | null;
     checkInWindow?: Partial<CheckInWindowConfig> | null;
+    noShowGraceMinutes?: number | null;
   }) {
     super(params.id);
     const where = `bookingSettings document ${params.id}`;
@@ -93,6 +96,10 @@ export class BookingSettings extends Entity<string> {
     if (goalkeeperPenalties !== null) validatePenalties(goalkeeperPenalties, where);
     const checkInWindow = params.checkInWindow ?? null;
     if (checkInWindow !== null) validateCheckInWindow(checkInWindow, where);
+    const noShowGraceMinutes = params.noShowGraceMinutes ?? null;
+    if (noShowGraceMinutes !== null && (!Number.isInteger(noShowGraceMinutes) || noShowGraceMinutes < 15 || noShowGraceMinutes > 240)) {
+      throw new InvalidConfigurationError(`${where}: noShowGraceMinutes must be an integer between 15 and 240`);
+    }
 
     this.scope = params.scope;
     this.refId = params.refId;
@@ -103,6 +110,7 @@ export class BookingSettings extends Entity<string> {
     this.travelBufferMinutes = travelBufferMinutes;
     this.goalkeeperPenalties = goalkeeperPenalties;
     this.checkInWindow = checkInWindow;
+    this.noShowGraceMinutes = noShowGraceMinutes;
   }
 }
 

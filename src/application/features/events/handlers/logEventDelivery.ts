@@ -12,6 +12,8 @@ export const DELIVERY_LOG_EVENT_TYPES = [
   'booking.cancelled',
   'goalkeeper.withdrew',
   'goalkeeper.checked_in',
+  'booking.completed',
+  'goalkeeper.no_show',
 ] as const;
 
 /**

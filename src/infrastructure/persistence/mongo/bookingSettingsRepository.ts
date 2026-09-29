@@ -31,6 +31,7 @@ export class BookingSettingsRepository implements IBookingSettingsRepository {
       travelBufferMinutes: (doc.travelBufferMinutes as number | undefined | null) ?? null,
       goalkeeperPenalties: (doc.goalkeeperPenalties as Partial<GoalkeeperPenaltyConfig> | undefined | null) ?? null,
       checkInWindow: (doc.checkInWindow as Partial<CheckInWindowConfig> | undefined | null) ?? null,
+      noShowGraceMinutes: (doc.noShowGraceMinutes as number | undefined | null) ?? null,
       // Only the tiers are read: the currency is the country's. A leftover `currency` key inside
       // `leadTimeSurcharge` (from an earlier layout) is ignored.
       leadTimeSurcharge: doc.leadTimeSurcharge ? { tiers: doc.leadTimeSurcharge.tiers as SurchargeTier[] } : null,

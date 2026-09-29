@@ -33,6 +33,8 @@ export interface WithdrawalSummary {
 /** One withdrawal in a history (contracts/withdrawals.md §2–§3). */
 export interface WithdrawalItem {
   withdrawalId: string;
+  /** A withdrawal (018) or a no-show (021). */
+  kind: 'withdrawal' | 'no_show';
   bookingId: string;
   requestId: string;
   startsAt: string;
@@ -77,6 +79,7 @@ export function toWithdrawalItem(incident: GoalkeeperIncident, view: WithdrawalV
   const money = incident.moneyReversal;
   return {
     withdrawalId: incident.id,
+    kind: incident.kind,
     bookingId: incident.bookingId,
     requestId: incident.requestId,
     startsAt: incident.startsAt.toISOString(),

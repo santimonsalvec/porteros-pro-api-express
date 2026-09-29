@@ -85,6 +85,31 @@ const eventSchema = z.discriminatedUnion('type', [
       distanceMeters: z.number().nullable(),
     }),
   }),
+  z.object({
+    ...envelopeFields,
+    type: z.literal('booking.completed'),
+    payload: z.object({
+      clientId: z.string(),
+      goalkeeperId: z.string(),
+      zoneId: z.string(),
+      startsAt: isoDate,
+      completedAt: isoDate,
+      checkedIn: z.boolean(),
+    }),
+  }),
+  z.object({
+    ...envelopeFields,
+    type: z.literal('goalkeeper.no_show'),
+    payload: z.object({
+      goalkeeperId: z.string(),
+      clientId: z.string(),
+      zoneId: z.string(),
+      startsAt: isoDate,
+      incidentId: z.string(),
+      suspendedUntil: isoDate.nullable(),
+      penalties: z.array(z.object({ kind: z.enum(['late', 'weekly_limit']), days: z.number().int(), endsAt: isoDate })),
+    }),
+  }),
 ]);
 
 /**

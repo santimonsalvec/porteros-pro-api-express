@@ -94,6 +94,12 @@ export interface IBookingRepository {
   findOpenPending(now: Date, cap: number): Promise<Booking[]>;
   /** Assigned bookings around their check-in window (start in (now − 60 min, now + 120 min]), soonest first (feature 020). */
   findForCheckInWatch(now: Date, cap: number): Promise<Booking[]>;
+  /** Assigned bookings whose match ended, oldest end first (feature 021). */
+  findDueForCompletion(now: Date, cap: number): Promise<Booking[]>;
+  /** Bookings the user may still rate, as client and as goalkeeper (feature 021): ended within 7 days. */
+  findRateable(userId: string, now: Date): Promise<{ asClient: Booking[]; asGoalkeeper: Booking[] }>;
+  /** Completed bookings not settled yet whose end is at least 15 minutes ago (feature 021). */
+  findDueForAttendance(now: Date, cap: number): Promise<Booking[]>;
   /** Marks a check-in notice as sent; false when it already was (feature 020). */
   markCheckInNotice(bookingId: string, field: CheckInNoticeField, now: Date): Promise<boolean>;
   /** The goalkeeper's agenda (any status): how many start at or after `now` and before it. */
@@ -200,4 +206,8 @@ export interface IBookingAuditLogger {
   logPenaltyReversal(entry: { outcome: string; adminId: string; goalkeeperId: string; withdrawalId: string }): void;
   /** Every check-in attempt, whatever its outcome (feature 020). */
   logCheckIn(entry: { outcome: string; goalkeeperId: string; bookingId: string; requestId?: string }): void;
+  /** Every rating attempt (feature 021). */
+  logRating(entry: { outcome: string; userId: string; bookingId: string; side?: string }): void;
+  /** Every case resolution attempt (feature 021). */
+  logCaseResolution(entry: { outcome: string; adminId: string; caseId: string }): void;
 }

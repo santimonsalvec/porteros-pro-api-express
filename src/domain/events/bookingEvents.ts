@@ -67,19 +67,43 @@ export interface GoalkeeperCheckedInPayload {
   distanceMeters: number | null;
 }
 
+export interface BookingCompletedPayload {
+  clientId: string;
+  goalkeeperId: string;
+  zoneId: string;
+  startsAt: Date;
+  completedAt: Date;
+  checkedIn: boolean;
+}
+
+export interface GoalkeeperNoShowPayload {
+  goalkeeperId: string;
+  clientId: string;
+  zoneId: string;
+  startsAt: Date;
+  incidentId: string;
+  /** The goalkeeper's suspension end after the no-show. */
+  suspendedUntil: Date | null;
+  penalties: Array<{ kind: PenaltyKind; days: number; endsAt: Date }>;
+}
+
 export type BookingCreatedEvent = DomainEvent<'booking.created', BookingCreatedPayload>;
 export type BookingExpiredEvent = DomainEvent<'booking.expired', BookingExpiredPayload>;
 export type BookingCancelledEvent = DomainEvent<'booking.cancelled', BookingCancelledPayload>;
 export type GoalkeeperAssignedEvent = DomainEvent<'goalkeeper.assigned', GoalkeeperAssignedPayload>;
 export type GoalkeeperWithdrewEvent = DomainEvent<'goalkeeper.withdrew', GoalkeeperWithdrewPayload>;
 export type GoalkeeperCheckedInEvent = DomainEvent<'goalkeeper.checked_in', GoalkeeperCheckedInPayload>;
+export type BookingCompletedEvent = DomainEvent<'booking.completed', BookingCompletedPayload>;
+export type GoalkeeperNoShowEvent = DomainEvent<'goalkeeper.no_show', GoalkeeperNoShowPayload>;
 export type BookingEvent =
   | BookingCreatedEvent
   | GoalkeeperAssignedEvent
   | BookingExpiredEvent
   | BookingCancelledEvent
   | GoalkeeperWithdrewEvent
-  | GoalkeeperCheckedInEvent;
+  | GoalkeeperCheckedInEvent
+  | BookingCompletedEvent
+  | GoalkeeperNoShowEvent;
 
 /** One per booking created by a confirmation (spec clarification 1). */
 export function bookingCreated(id: string, booking: Booking, request: GoalkeeperRequest, at: Date): BookingCreatedEvent {
@@ -218,6 +242,48 @@ export function goalkeeperCheckedIn(id: string, booking: Booking, at: Date): Goa
       startsAt: booking.startsAt,
       checkedInAt: booking.checkIn.at,
       distanceMeters: booking.checkIn.distanceMeters,
+    },
+  };
+}
+
+/** The match ended with the booking assigned (feature 021). */
+export function bookingCompleted(id: string, booking: Booking, at: Date): BookingCompletedEvent {
+  if (booking.status !== 'completed' || !booking.goalkeeperId || !booking.completedAt) throw new Error(`Booking ${booking.id} is not completed`);
+  return {
+    id,
+    type: 'booking.completed',
+    version: 1,
+    occurredAt: at,
+    bookingId: booking.id,
+    requestId: booking.requestId,
+    payload: {
+      clientId: booking.clientId,
+      goalkeeperId: booking.goalkeeperId,
+      zoneId: booking.zoneId,
+      startsAt: booking.startsAt,
+      completedAt: booking.completedAt,
+      checkedIn: booking.checkIn !== null,
+    },
+  };
+}
+
+/** The goalkeeper didn't attend (feature 021): recorded as a late withdrawal by the penalty policy. */
+export function goalkeeperNoShow(id: string, booking: Booking, incident: GoalkeeperIncident, suspendedUntil: Date | null, at: Date): GoalkeeperNoShowEvent {
+  return {
+    id,
+    type: 'goalkeeper.no_show',
+    version: 1,
+    occurredAt: at,
+    bookingId: booking.id,
+    requestId: booking.requestId,
+    payload: {
+      goalkeeperId: incident.goalkeeperId,
+      clientId: booking.clientId,
+      zoneId: booking.zoneId,
+      startsAt: booking.startsAt,
+      incidentId: incident.id,
+      suspendedUntil,
+      penalties: incident.penalties.map((penalty) => ({ kind: penalty.kind, days: penalty.days, endsAt: penalty.endsAt })),
     },
   };
 }
