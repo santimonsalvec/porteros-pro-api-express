@@ -57,6 +57,31 @@ import { FakeAcceptanceAuditLogger } from '../fakes/fakeAcceptanceAuditLogger.js
 import { ListAvailableBookingsQueryHandler } from '../../src/application/features/goalkeeperRequests/queries/listAvailableBookings/listAvailableBookingsQueryHandler.js';
 import { RecordWalletAdjustmentCommand } from '../../src/application/features/wallet/commands/recordWalletAdjustment/recordWalletAdjustmentCommand.js';
 import { RecordWalletAdjustmentCommandHandler } from '../../src/application/features/wallet/commands/recordWalletAdjustment/recordWalletAdjustmentCommandHandler.js';
+import { ApplyGatewayEventCommand } from '../../src/application/features/payments/commands/applyGatewayEvent/applyGatewayEventCommand.js';
+import { ApplyGatewayEventCommandHandler } from '../../src/application/features/payments/commands/applyGatewayEvent/applyGatewayEventCommandHandler.js';
+import { TopUpReconcileJob } from '../../src/application/features/payments/jobs/topUpReconcileJob.js';
+import { ListTopUpsQuery } from '../../src/application/features/payments/queries/listTopUps/listTopUpsQuery.js';
+import { ListTopUpsQueryHandler } from '../../src/application/features/payments/queries/listTopUps/listTopUpsQueryHandler.js';
+import { GetTopUpQuery } from '../../src/application/features/payments/queries/getTopUp/getTopUpQuery.js';
+import { GetTopUpQueryHandler } from '../../src/application/features/payments/queries/getTopUp/getTopUpQueryHandler.js';
+import { GetTopUpByReferenceQuery } from '../../src/application/features/payments/queries/getTopUpByReference/getTopUpByReferenceQuery.js';
+import { GetTopUpByReferenceQueryHandler } from '../../src/application/features/payments/queries/getTopUpByReference/getTopUpByReferenceQueryHandler.js';
+import { SetGatewaySettingsCommand } from '../../src/application/features/payments/commands/setGatewaySettings/setGatewaySettingsCommand.js';
+import { SetGatewaySettingsCommandHandler } from '../../src/application/features/payments/commands/setGatewaySettings/setGatewaySettingsCommandHandler.js';
+import { GetGatewaySettingsQuery } from '../../src/application/features/payments/queries/getGatewaySettings/getGatewaySettingsQuery.js';
+import { GetGatewaySettingsQueryHandler } from '../../src/application/features/payments/queries/getGatewaySettings/getGatewaySettingsQueryHandler.js';
+import type { PaymentReturnSettings } from '../../src/controllers/paymentReturnController.js';
+import { GetTopUpOptionsQuery } from '../../src/application/features/payments/queries/getTopUpOptions/getTopUpOptionsQuery.js';
+import { GetTopUpOptionsQueryHandler } from '../../src/application/features/payments/queries/getTopUpOptions/getTopUpOptionsQueryHandler.js';
+import { StartTopUpCommand } from '../../src/application/features/payments/commands/startTopUp/startTopUpCommand.js';
+import { StartTopUpCommandHandler } from '../../src/application/features/payments/commands/startTopUp/startTopUpCommandHandler.js';
+import { AcceptCurrentTermsCommand } from '../../src/application/features/profile/commands/acceptCurrentTerms/acceptCurrentTermsCommand.js';
+import { AcceptCurrentTermsCommandHandler } from '../../src/application/features/profile/commands/acceptCurrentTerms/acceptCurrentTermsCommandHandler.js';
+import { FakePaymentGateway, FakePaymentGatewayRegistry } from '../fakes/fakePaymentGateway.js';
+import { FakePaymentSecrets } from '../fakes/fakePaymentSecrets.js';
+import { FakePaymentGatewaySettingsRepository } from '../fakes/fakePaymentGatewaySettingsRepository.js';
+import { FakeTopUpRepository } from '../fakes/fakeTopUpRepository.js';
+import { FakeTopUpStore } from '../fakes/fakeTopUpStore.js';
 import { GetGoalkeeperWalletQuery } from '../../src/application/features/wallet/queries/getGoalkeeperWallet/getGoalkeeperWalletQuery.js';
 import { GetGoalkeeperWalletQueryHandler } from '../../src/application/features/wallet/queries/getGoalkeeperWallet/getGoalkeeperWalletQueryHandler.js';
 import { ListWalletMovementsQuery } from '../../src/application/features/wallet/queries/listWalletMovements/listWalletMovementsQuery.js';
@@ -241,7 +266,16 @@ export interface TestAppContext {
   /** Every user's inbox, offers included (feature 015). */
   notificationRepository: FakeNotificationRepository;
   offerPushState: FakeOfferPushState;
+  /** Wallet top-ups (feature 022): the gateway signs like Wompi; its transactions query answers from a queue. */
+  paymentGateway: FakePaymentGateway;
+  paymentSecrets: FakePaymentSecrets;
+  /** Empty by default: `seed()` configures Colombia's Wompi settings. */
+  paymentGatewaySettingsRepository: FakePaymentGatewaySettingsRepository;
+  topUpRepository: FakeTopUpRepository;
 }
+
+/** The API's public base in HTTP tests: the gateway's return address starts with it. */
+export const TEST_PAYMENTS_BASE_URL = 'https://api.test.porterospro.co';
 
 /**
  * Fake-backed composition root for HTTP-level tests — the Node equivalent of the
@@ -254,6 +288,8 @@ export interface BuildTestAppOptions {
    * request, as in local development); by default the relay hands events to `eventPublisher`.
    */
   eventsMode?: 'fake' | 'local';
+  /** The return page's button and app link association; unset by default (the files answer 404). */
+  paymentReturn?: Partial<PaymentReturnSettings>;
 }
 
 /** The only token `/internal/*` accepts in HTTP tests (stands in for a platform OIDC token). */
@@ -310,6 +346,12 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
   const walletLedger = new WalletLedger(walletStore, walletStore, { newId: () => uuidv7() }, clock);
   const walletContext = { goalkeeperProfileRepository, cityRepository, regionRepository, countryLookup: quoteCountryRepository };
   const commissionResolver = new CommissionResolver(commissionSettingRepository, zoneRepository, cityRepository, regionRepository);
+  const paymentGateway = new FakePaymentGateway();
+  const paymentGatewayRegistry = new FakePaymentGatewayRegistry([paymentGateway]);
+  const paymentSecrets = new FakePaymentSecrets();
+  const paymentGatewaySettingsRepository = new FakePaymentGatewaySettingsRepository();
+  const topUpRepository = new FakeTopUpRepository();
+  const topUpStore = new FakeTopUpStore(topUpRepository, walletStore);
   const quoteRepository = new FakeQuoteRepository();
   const requestRepository = new FakeGoalkeeperRequestRepository();
   const bookingRepository = new FakeBookingRepository();
@@ -524,6 +566,16 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
             logger: offersLogger,
             windowResolver: () => createCheckInWindowResolver({ cityRepository, regionRepository, bookingSettingsRepository, logger: offersLogger }),
           }),
+          new TopUpReconcileJob({
+            walletContext,
+            store: topUpStore,
+            notices: { notifications: notificationRepository, pushNotifier, idGenerator: lifecycleIds, clock },
+            logger: offersLogger,
+            topUpRepository,
+            gateways: paymentGatewayRegistry,
+            secrets: paymentSecrets,
+            countryLookup: quoteCountryRepository,
+          }),
         ],
         jobLocks: new FakeJobLockStore(),
       }),
@@ -639,6 +691,54 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     {
       requestType: GetGoalkeeperWalletQuery,
       handler: new GetGoalkeeperWalletQueryHandler(walletContext, walletStore, commissionResolver, clock),
+    },
+    {
+      requestType: GetTopUpOptionsQuery,
+      handler: new GetTopUpOptionsQueryHandler(walletContext, paymentGatewaySettingsRepository, termsAcceptanceRepository, { termsVersion: '1.0' }),
+    },
+    {
+      requestType: StartTopUpCommand,
+      handler: new StartTopUpCommandHandler({
+        context: walletContext,
+        settingsRepository: paymentGatewaySettingsRepository,
+        termsRepository: termsAcceptanceRepository,
+        gateways: paymentGatewayRegistry,
+        secrets: paymentSecrets,
+        topUpRepository,
+        idGenerator: { newId: () => uuidv7() },
+        clock,
+        logger: offersLogger,
+        settings: { termsVersion: '1.0', publicBaseUrl: TEST_PAYMENTS_BASE_URL },
+      }),
+    },
+    {
+      requestType: ApplyGatewayEventCommand,
+      handler: new ApplyGatewayEventCommandHandler({
+        walletContext,
+        store: topUpStore,
+        notices: { notifications: notificationRepository, pushNotifier, idGenerator: lifecycleIds, clock },
+        logger: offersLogger,
+        gateways: paymentGatewayRegistry,
+        secrets: paymentSecrets,
+        topUpRepository,
+        countryLookup: quoteCountryRepository,
+        clock,
+      }),
+    },
+    { requestType: ListTopUpsQuery, handler: new ListTopUpsQueryHandler(goalkeeperProfileRepository, topUpRepository) },
+    { requestType: GetTopUpQuery, handler: new GetTopUpQueryHandler(topUpRepository) },
+    { requestType: GetTopUpByReferenceQuery, handler: new GetTopUpByReferenceQueryHandler(topUpRepository) },
+    {
+      requestType: SetGatewaySettingsCommand,
+      handler: new SetGatewaySettingsCommandHandler(quoteCountryRepository, paymentGatewaySettingsRepository, clock, offersLogger),
+    },
+    { requestType: GetGatewaySettingsQuery, handler: new GetGatewaySettingsQueryHandler(paymentGatewaySettingsRepository) },
+    {
+      requestType: AcceptCurrentTermsCommand,
+      handler: new AcceptCurrentTermsCommandHandler(termsAcceptanceRepository, { newId: () => uuidv7() }, clock, {
+        termsVersion: '1.0',
+        privacyPolicyVersion: '1.0',
+      }),
     },
     {
       requestType: RecordWalletAdjustmentCommand,
@@ -859,6 +959,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     checkHealth: async () => health,
     publisher: mediator,
     verifyInternalCaller: async (token) => token === TEST_INTERNAL_TOKEN,
+    paymentReturn: { appOpenUrl: '', androidPackage: '', androidCertSha256: [], iosAppId: '', ...options.paymentReturn },
   };
 
   return {
@@ -900,5 +1001,9 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     pushSender,
     notificationRepository,
     offerPushState,
+    paymentGateway,
+    paymentSecrets,
+    paymentGatewaySettingsRepository,
+    topUpRepository,
   };
 }

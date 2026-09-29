@@ -15,6 +15,9 @@ import { ListCasesQuery } from '../application/features/cases/queries/listCases/
 import { GetCaseQuery } from '../application/features/cases/queries/getCase/getCaseQuery.js';
 import { ResolveCaseCommand } from '../application/features/cases/commands/resolveCase/resolveCaseCommand.js';
 import { listCasesQuerySchema, resolveCaseRequestSchema } from './requests/cases/caseRequests.js';
+import { SetGatewaySettingsCommand } from '../application/features/payments/commands/setGatewaySettings/setGatewaySettingsCommand.js';
+import { GetGatewaySettingsQuery } from '../application/features/payments/queries/getGatewaySettings/getGatewaySettingsQuery.js';
+import { gatewaySettingsRequestSchema } from './requests/payments/gatewaySettingsRequest.js';
 
 export interface AdminControllerDependencies {
   mediator: ISender;
@@ -146,6 +149,38 @@ export function createAdminController(deps: AdminControllerDependencies): Router
         throw new ApiError(409, 'case_already_resolved', 'This case is already resolved.');
       case 'invalid_note':
         throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', { note: result.message });
+    }
+  });
+
+  // Each country's top-up gateway (feature 022). Secrets are never here: they live in Secret Manager.
+  router.get('/payment-gateways/:countryId', async (req, res) => {
+    const result = await deps.mediator.send(new GetGatewaySettingsQuery(req.params.countryId));
+    switch (result.outcome) {
+      case 'success':
+        res.status(200).json(result.settings);
+        return;
+      case 'not_found':
+        throw new ApiError(404, 'settings_not_found', 'No payment gateway is configured for this country.');
+    }
+  });
+
+  router.put('/payment-gateways/:countryId', async (req, res) => {
+    const parsed = gatewaySettingsRequestSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
+    }
+    const { gateway, publicConfig, costs, amounts } = parsed.data;
+    const result = await deps.mediator.send(
+      new SetGatewaySettingsCommand(req.authClaims!.sub, req.params.countryId, gateway, publicConfig, costs, amounts),
+    );
+    switch (result.outcome) {
+      case 'saved':
+        res.status(200).json(result.settings);
+        return;
+      case 'country_not_found':
+        throw new ApiError(404, 'country_not_found', 'No country exists with this id.');
+      case 'invalid':
+        throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', result.fieldErrors);
     }
   });
 

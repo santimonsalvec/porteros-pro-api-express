@@ -8,6 +8,7 @@ export const MOVEMENT_TYPES = [
   'penalty',
   'penalty_reversal',
   'admin_adjustment',
+  'gateway_fee',
 ] as const;
 export type MovementType = (typeof MOVEMENT_TYPES)[number];
 
@@ -19,6 +20,7 @@ const SIGN: Record<MovementType, 1 | -1 | 0> = {
   penalty: -1,
   penalty_reversal: 1,
   admin_adjustment: 0,
+  gateway_fee: -1,
 };
 
 export interface MovementActor {
@@ -66,10 +68,12 @@ export interface WalletMovementProps {
 
 /**
  * Only penalties may take a balance below zero (FR-008): every other debit is guarded by the
- * store so it is refused instead.
+ * store so it is refused instead. A top-up's gateway fee (feature 022) is exempt too: it always
+ * follows the larger credit of the same top-up, so it never creates a debt, but it must not be
+ * refused when that credit only partly covered an existing one.
  */
 export function isGuardedDebit(type: MovementType, amount: number): boolean {
-  return amount < 0 && type !== 'penalty';
+  return amount < 0 && type !== 'penalty' && type !== 'gateway_fee';
 }
 
 /** Validates the fields a movement of this type must (and must not) have; throws naming the field. */

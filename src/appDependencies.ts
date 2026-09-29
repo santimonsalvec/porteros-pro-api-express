@@ -1,6 +1,7 @@
 import type { IPublisher, ISender } from './application/common/mediator/types.js';
 import type { AccessTokenClaims } from './application/features/auth/common/accessTokenClaims.js';
 import type { HealthReportResponse } from './infrastructure/healthChecks/healthReport.js';
+import type { PaymentReturnSettings } from './controllers/paymentReturnController.js';
 
 /**
  * Everything `app.ts` needs to assemble routers, injected from the composition root
@@ -15,4 +16,6 @@ export interface AppDependencies {
   publisher: IPublisher;
   /** True only for a platform OIDC token allowed to call `/internal/*` (feature 013). */
   verifyInternalCaller: (token: string) => Promise<boolean>;
+  /** The payment return page's button and the app link association (feature 022). */
+  paymentReturn: PaymentReturnSettings;
 }

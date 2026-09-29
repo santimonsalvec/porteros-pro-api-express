@@ -56,4 +56,13 @@ describe('layering (Domain -> Application -> Infrastructure dependency rule)', (
   it('Application layer never imports from Infrastructure or controllers', () => {
     expect(() => assertNoForbiddenImports('src/application', ['/infrastructure/', '/controllers/'])).not.toThrow();
   });
+
+  it('hashing lives in infrastructure only: Domain and Application never import node:crypto (feature 022)', () => {
+    const cryptoModules = (specifier: string) => specifier === 'node:crypto' || specifier === 'crypto';
+    for (const dir of ['src/domain', 'src/application']) {
+      for (const file of listTsFiles(dir)) {
+        expect(importSpecifiersOf(file).filter(cryptoModules), file).toEqual([]);
+      }
+    }
+  });
 });

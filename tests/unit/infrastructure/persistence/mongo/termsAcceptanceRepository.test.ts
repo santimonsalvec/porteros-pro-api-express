@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Collection, Db, Document } from 'mongodb';
 import { TermsAcceptanceRepository } from '../../../../../src/infrastructure/persistence/mongo/termsAcceptanceRepository.js';
 import { TermsAcceptance } from '../../../../../src/domain/users/termsAcceptance.js';
-import { createFakeCollection } from '../../../../fakes/fakeMongoCollection.js';
+import { createFakeCollection, toArrayCursor } from '../../../../fakes/fakeMongoCollection.js';
 
 function repositoryWith(collection: ReturnType<typeof createFakeCollection>) {
   const db = { collection: () => collection as unknown as Collection<Document> } as unknown as Db;
@@ -49,5 +49,28 @@ describe('TermsAcceptanceRepository (mocked driver)', () => {
 
     expect(found?.ipAddress).toBe('1.2.3.4');
     expect(found?.userAgent).toBe('test-agent');
+  });
+
+  it('reads the user\'s latest acceptance, newest first', async () => {
+    const collection = createFakeCollection();
+    const cursor = toArrayCursor([
+      { _id: 'ta-3', userId: 'user-3', termsVersion: '2.0', privacyPolicyVersion: '1.0', acceptedAt: new Date('2026-09-29T00:00:00Z') },
+    ]);
+    collection.find.mockReturnValue(cursor);
+    const repository = repositoryWith(collection);
+
+    const latest = await repository.findLatestForUser('user-3');
+
+    expect(collection.find).toHaveBeenCalledWith({ userId: 'user-3' });
+    expect(cursor.sort).toHaveBeenCalledWith({ acceptedAt: -1 });
+    expect(cursor.limit).toHaveBeenCalledWith(1);
+    expect(latest?.termsVersion).toBe('2.0');
+  });
+
+  it('answers null for a user who never accepted', async () => {
+    const collection = createFakeCollection();
+    collection.find.mockReturnValue(toArrayCursor([]));
+
+    expect(await repositoryWith(collection).findLatestForUser('nobody')).toBeNull();
   });
 });

@@ -9,6 +9,11 @@ export class TermsAcceptanceRepository extends MongoRepository<TermsAcceptance, 
     super(db.collection('termsAcceptances'));
   }
 
+  async findLatestForUser(userId: string): Promise<TermsAcceptance | null> {
+    const docs = await this.collection.find({ userId }).sort({ acceptedAt: -1 }).limit(1).toArray();
+    return docs[0] ? this.fromDocument(docs[0]) : null;
+  }
+
   protected toDocument(entity: TermsAcceptance): Document {
     return stripNulls({
       _id: entity.id,

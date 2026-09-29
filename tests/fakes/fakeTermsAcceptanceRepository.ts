@@ -12,6 +12,11 @@ export class FakeTermsAcceptanceRepository implements ITermsAcceptanceRepository
     return this.records.find((r) => r.id === id) ?? null;
   }
 
+  async findLatestForUser(userId: string): Promise<TermsAcceptance | null> {
+    const own = this.records.filter((r) => r.userId === userId);
+    return own.reduce<TermsAcceptance | null>((latest, r) => (!latest || r.acceptedAt > latest.acceptedAt ? r : latest), null);
+  }
+
   async add(entity: TermsAcceptance): Promise<void> {
     this.records.push(entity);
   }

@@ -71,6 +71,25 @@ import { MongoBookingAcceptanceStore } from './persistence/mongo/bookingAcceptan
 import { ListAvailableBookingsQueryHandler } from '../application/features/goalkeeperRequests/queries/listAvailableBookings/listAvailableBookingsQueryHandler.js';
 import { RecordWalletAdjustmentCommand } from '../application/features/wallet/commands/recordWalletAdjustment/recordWalletAdjustmentCommand.js';
 import { RecordWalletAdjustmentCommandHandler } from '../application/features/wallet/commands/recordWalletAdjustment/recordWalletAdjustmentCommandHandler.js';
+import { ApplyGatewayEventCommand } from '../application/features/payments/commands/applyGatewayEvent/applyGatewayEventCommand.js';
+import { ApplyGatewayEventCommandHandler } from '../application/features/payments/commands/applyGatewayEvent/applyGatewayEventCommandHandler.js';
+import { TopUpReconcileJob } from '../application/features/payments/jobs/topUpReconcileJob.js';
+import { ListTopUpsQuery } from '../application/features/payments/queries/listTopUps/listTopUpsQuery.js';
+import { ListTopUpsQueryHandler } from '../application/features/payments/queries/listTopUps/listTopUpsQueryHandler.js';
+import { GetTopUpQuery } from '../application/features/payments/queries/getTopUp/getTopUpQuery.js';
+import { GetTopUpQueryHandler } from '../application/features/payments/queries/getTopUp/getTopUpQueryHandler.js';
+import { GetTopUpByReferenceQuery } from '../application/features/payments/queries/getTopUpByReference/getTopUpByReferenceQuery.js';
+import { GetTopUpByReferenceQueryHandler } from '../application/features/payments/queries/getTopUpByReference/getTopUpByReferenceQueryHandler.js';
+import { SetGatewaySettingsCommand } from '../application/features/payments/commands/setGatewaySettings/setGatewaySettingsCommand.js';
+import { SetGatewaySettingsCommandHandler } from '../application/features/payments/commands/setGatewaySettings/setGatewaySettingsCommandHandler.js';
+import { GetGatewaySettingsQuery } from '../application/features/payments/queries/getGatewaySettings/getGatewaySettingsQuery.js';
+import { GetGatewaySettingsQueryHandler } from '../application/features/payments/queries/getGatewaySettings/getGatewaySettingsQueryHandler.js';
+import { GetTopUpOptionsQuery } from '../application/features/payments/queries/getTopUpOptions/getTopUpOptionsQuery.js';
+import { GetTopUpOptionsQueryHandler } from '../application/features/payments/queries/getTopUpOptions/getTopUpOptionsQueryHandler.js';
+import { StartTopUpCommand } from '../application/features/payments/commands/startTopUp/startTopUpCommand.js';
+import { StartTopUpCommandHandler } from '../application/features/payments/commands/startTopUp/startTopUpCommandHandler.js';
+import { AcceptCurrentTermsCommand } from '../application/features/profile/commands/acceptCurrentTerms/acceptCurrentTermsCommand.js';
+import { AcceptCurrentTermsCommandHandler } from '../application/features/profile/commands/acceptCurrentTerms/acceptCurrentTermsCommandHandler.js';
 import { GetGoalkeeperWalletQuery } from '../application/features/wallet/queries/getGoalkeeperWallet/getGoalkeeperWalletQuery.js';
 import { GetGoalkeeperWalletQueryHandler } from '../application/features/wallet/queries/getGoalkeeperWallet/getGoalkeeperWalletQueryHandler.js';
 import { ListWalletMovementsQuery } from '../application/features/wallet/queries/listWalletMovements/listWalletMovementsQuery.js';
@@ -79,6 +98,12 @@ import { CommissionSettingRepository } from './persistence/mongo/commissionSetti
 import { WalletMovementRepository } from './persistence/mongo/walletMovementRepository.js';
 import { WalletRepository } from './persistence/mongo/walletRepository.js';
 import { logger } from './observability/logger.js';
+import { TopUpRepository } from './persistence/mongo/topUpRepository.js';
+import { MongoTopUpStore } from './persistence/mongo/topUpStore.js';
+import { PaymentGatewaySettingsRepository } from './persistence/mongo/paymentGatewaySettingsRepository.js';
+import { PaymentGatewayRegistry } from './payments/gatewayRegistry.js';
+import { EnvPaymentSecrets } from './payments/envPaymentSecrets.js';
+import { WompiGateway } from './payments/wompiGateway.js';
 import { MongoWalletStore } from './persistence/mongo/walletStore.js';
 import { CityRepository } from './persistence/mongo/cityRepository.js';
 import { RegionRepository } from './persistence/mongo/regionRepository.js';
@@ -237,6 +262,12 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   await commissionSettingRepository.ensureIndexes();
   const commissionResolver = new CommissionResolver(commissionSettingRepository, zoneRepository, cityRepository, regionRepository);
   const walletContext = { goalkeeperProfileRepository, cityRepository, regionRepository, countryLookup: countryRepository };
+  // Wallet top-ups (feature 022). Secrets come from the environment (Secret Manager), never the database.
+  const topUpRepository = new TopUpRepository(db);
+  await topUpRepository.ensureIndexes();
+  const paymentGatewaySettingsRepository = new PaymentGatewaySettingsRepository(db);
+  const paymentGatewayRegistry = new PaymentGatewayRegistry([new WompiGateway()]);
+  const paymentSecrets = new EnvPaymentSecrets(process.env);
 
   const imageStorageProvider = new CloudinaryImageStorageProvider({
     cloudinaryUrl: config.images.cloudinaryUrl,
@@ -261,6 +292,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   const clock = new SystemClock();
   const walletStore = new MongoWalletStore(() => connectionProvider.startSession(), db, () => clock.now());
   const walletLedger = new WalletLedger(walletStore, walletMovementRepository, idGenerator, clock);
+  const topUpStore = new MongoTopUpStore(() => connectionProvider.startSession(), db, () => idGenerator.newId());
   const refreshTokenLifetimeMs = config.jwt.refreshTokenLifetimeDays * 24 * 60 * 60 * 1000;
   const mongoHealthCheck = new MongoHealthCheck(db);
 
@@ -560,6 +592,51 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       handler: new GetGoalkeeperWalletQueryHandler(walletContext, walletRepository, commissionResolver, clock),
     },
     {
+      requestType: GetTopUpOptionsQuery,
+      handler: new GetTopUpOptionsQueryHandler(walletContext, paymentGatewaySettingsRepository, termsAcceptanceRepository, config.legal),
+    },
+    {
+      requestType: StartTopUpCommand,
+      handler: new StartTopUpCommandHandler({
+        context: walletContext,
+        settingsRepository: paymentGatewaySettingsRepository,
+        termsRepository: termsAcceptanceRepository,
+        gateways: paymentGatewayRegistry,
+        secrets: paymentSecrets,
+        topUpRepository,
+        idGenerator,
+        clock,
+        logger,
+        settings: { termsVersion: config.legal.termsVersion, publicBaseUrl: config.payments.publicBaseUrl },
+      }),
+    },
+    {
+      requestType: ApplyGatewayEventCommand,
+      handler: new ApplyGatewayEventCommandHandler({
+        walletContext,
+        store: topUpStore,
+        notices: { notifications: notificationRepository, pushNotifier, idGenerator: idGenerator, clock },
+        logger: logger,
+        gateways: paymentGatewayRegistry,
+        secrets: paymentSecrets,
+        topUpRepository,
+        countryLookup: countryRepository,
+        clock,
+      }),
+    },
+    { requestType: ListTopUpsQuery, handler: new ListTopUpsQueryHandler(goalkeeperProfileRepository, topUpRepository) },
+    { requestType: GetTopUpQuery, handler: new GetTopUpQueryHandler(topUpRepository) },
+    { requestType: GetTopUpByReferenceQuery, handler: new GetTopUpByReferenceQueryHandler(topUpRepository) },
+    {
+      requestType: SetGatewaySettingsCommand,
+      handler: new SetGatewaySettingsCommandHandler(countryRepository, paymentGatewaySettingsRepository, clock, logger),
+    },
+    { requestType: GetGatewaySettingsQuery, handler: new GetGatewaySettingsQueryHandler(paymentGatewaySettingsRepository) },
+    {
+      requestType: AcceptCurrentTermsCommand,
+      handler: new AcceptCurrentTermsCommandHandler(termsAcceptanceRepository, idGenerator, clock, config.legal),
+    },
+    {
       requestType: RecordWalletAdjustmentCommand,
       handler: new RecordWalletAdjustmentCommandHandler(walletContext, walletLedger, walletRepository),
     },
@@ -705,6 +782,16 @@ export async function buildDependencies(): Promise<CompositionRoot> {
             logger: logger,
             windowResolver: () => createCheckInWindowResolver({ cityRepository, regionRepository, bookingSettingsRepository, logger: logger }),
           }),
+          new TopUpReconcileJob({
+            walletContext,
+            store: topUpStore,
+            notices: { notifications: notificationRepository, pushNotifier, idGenerator: idGenerator, clock },
+            logger: logger,
+            topUpRepository,
+            gateways: paymentGatewayRegistry,
+            secrets: paymentSecrets,
+            countryLookup: countryRepository,
+          }),
         ],
         jobLocks: jobLockStore,
       }),
@@ -839,6 +926,12 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       checkHealth: () => mongoHealthCheck.check(),
       publisher: mediator,
       verifyInternalCaller,
+      paymentReturn: {
+        appOpenUrl: config.payments.appOpenUrl,
+        androidPackage: config.payments.androidPackage,
+        androidCertSha256: config.payments.androidCertSha256,
+        iosAppId: config.payments.iosAppId,
+      },
     },
     close: async () => {
       await connectionProvider.close();

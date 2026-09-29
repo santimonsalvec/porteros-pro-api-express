@@ -36,6 +36,7 @@ describe('WalletMovement', () => {
     ['penalty_reversal', 7000, {}],
     ['admin_adjustment', 50000, { reason: 'Saldo inicial de pruebas' }],
     ['admin_adjustment', -10000, { reason: 'Corrección' }],
+    ['gateway_fee', -1500, { causeKey: 'gateway_fee:t-1' }],
   ])('accepts a %s of %i', (type, amount, extra) => {
     expect(WalletMovement.rehydrate(props({ type, amount, ...extra }))).toMatchObject({ type, amount });
   });
@@ -46,6 +47,7 @@ describe('WalletMovement', () => {
     ['a negative top-up', { amount: -1 }, /positive/],
     ['a positive commission charge', { type: 'commission_charge', amount: 7000 }, /negative/],
     ['a positive penalty', { type: 'penalty', amount: 7000 }, /negative/],
+    ['a positive gateway fee', { type: 'gateway_fee', amount: 1500 }, /negative/],
     ['a lower-case currency', { currency: 'cop' }, /currency/],
     ['a sequence of 0', { sequence: 0 }, /sequence/],
     ['cancellation details outside a refund', { cancellation: { by: 'client', at: new Date(), reason: 'x' } }, /cancellation/],
@@ -56,10 +58,11 @@ describe('WalletMovement', () => {
     expect(() => WalletMovement.rehydrate(props(change))).toThrow(message);
   });
 
-  it('guards every debit except penalties, and never credits', () => {
+  it('guards every debit except penalties and gateway fees, and never credits', () => {
     expect(isGuardedDebit('commission_charge', -7000)).toBe(true);
     expect(isGuardedDebit('admin_adjustment', -10000)).toBe(true);
     expect(isGuardedDebit('penalty', -7000)).toBe(false);
+    expect(isGuardedDebit('gateway_fee', -1500)).toBe(false);
     expect(isGuardedDebit('admin_adjustment', 10000)).toBe(false);
     expect(isGuardedDebit('top_up', 20000)).toBe(false);
   });

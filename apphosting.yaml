@@ -4,3 +4,16 @@ runConfig:
   concurrency: 80
   cpu: 1
   memoryMiB: 512
+# Wallet top-ups (feature 022). Secrets live in Google Secret Manager; App Hosting injects
+# them as environment variables. Create them with `firebase apphosting:secrets:set <name>`.
+env:
+  - variable: WOMPI_CO_PRIVATE_KEY
+    secret: wompi-co-private-key
+  - variable: WOMPI_CO_EVENTS_SECRET
+    secret: wompi-co-events-secret
+  - variable: WOMPI_CO_INTEGRITY_SECRET
+    secret: wompi-co-integrity-secret
+  - variable: PAYMENTS_PUBLIC_BASE_URL
+    value: https://REPLACE-with-the-api-public-url
+  - variable: PAYMENTS_APP_OPEN_URL
+    value: https://REPLACE-with-the-app-link
