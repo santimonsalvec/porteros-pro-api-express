@@ -313,8 +313,8 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   });
 
   const googleValidator = new GoogleIdTokenValidator({
-    mobile: config.google.clientIdMobile,
-    'admin-web': config.google.clientIdWeb,
+    mobile: [config.google.clientIdMobile, config.google.clientIdAndroidServer],
+    'admin-web': [config.google.clientIdWeb],
   });
   const tokenIssuer = new JwtInternalTokenIssuer({
     signingKey: config.jwt.signingKey,
@@ -324,6 +324,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   const ssoCatalog = new GoogleSsoProviderCatalog({
     clientIdMobile: config.google.clientIdMobile,
     clientIdWeb: config.google.clientIdWeb,
+    clientIdAndroidServer: config.google.clientIdAndroidServer,
     scopes: DEFAULT_GOOGLE_SCOPES,
   });
   const auditLogger = new PinoAuditLogger();

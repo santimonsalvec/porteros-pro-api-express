@@ -7,8 +7,10 @@ export class GoogleSsoProviderCatalog implements ISsoProviderCatalog {
   constructor(private readonly options: GoogleSsoOptions) {}
 
   getProviders(platform: string): SsoProviderConfig[] {
-    const clientId = platform === 'mobile' ? this.options.clientIdMobile : this.options.clientIdWeb;
+    const mobile = platform === 'mobile';
+    const clientId = mobile ? this.options.clientIdMobile : this.options.clientIdWeb;
     if (!clientId) return [];
-    return [{ provider: 'google', clientId, scopes: this.options.scopes }];
+    const serverClientId = mobile ? this.options.clientIdAndroidServer : undefined;
+    return [{ provider: 'google', clientId, ...(serverClientId && { serverClientId }), scopes: this.options.scopes }];
   }
 }
