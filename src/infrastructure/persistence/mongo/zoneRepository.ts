@@ -46,6 +46,10 @@ export class ZoneRepository implements IZoneRepository {
     return new Set(cityIds as string[]);
   }
 
+  async getCityIdsWithActiveZones(): Promise<string[]> {
+    return (await this.collection.distinct('cityId', { active: true })) as string[];
+  }
+
   /**
    * `$geoIntersects` needs no geospatial index, so this works against the unindexed
    * collection. This class deliberately does NOT create a `2dsphere` index in

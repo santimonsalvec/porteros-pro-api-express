@@ -15,9 +15,9 @@ export class GetCitiesQueryHandler implements IQueryHandler<GetCitiesQuery, GetC
 
   async handle(query: GetCitiesQuery): Promise<GetCitiesResult> {
     const q = query.q.trim();
-    if (q === '') return { cities: [] };
-
-    const cities = await this.cityRepository.searchByName(q, SEARCH_RESULT_LIMIT);
+    // Before anything is typed, the cities the service is open in, so the few there are can
+    // be picked without searching.
+    const cities = q === '' ? await this.citiesWithZones() : await this.cityRepository.searchByName(q, SEARCH_RESULT_LIMIT);
     if (cities.length === 0) return { cities: [] };
 
     const anchorIds = cities.map((city) => resolveAnchorCityId(city));
@@ -35,5 +35,11 @@ export class GetCitiesQueryHandler implements IQueryHandler<GetCitiesQuery, GetC
     }));
 
     return { cities: options };
+  }
+
+  private async citiesWithZones() {
+    const ids = await this.zoneRepository.getCityIdsWithActiveZones();
+    const cities = await this.cityRepository.getByIds(ids);
+    return cities.sort((a, b) => a.name.localeCompare(b.name, 'es'));
   }
 }

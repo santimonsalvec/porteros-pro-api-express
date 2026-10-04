@@ -27,14 +27,15 @@ describe('GET /locations/cities', () => {
     );
   });
 
-  it('returns an empty list for an empty q', async () => {
+  it('lists the cities with active zones for an empty q', async () => {
     const { app, googleValidator } = await buildTestApp();
     const accessToken = await signIn(app, googleValidator, 'good-token', 'sub-2');
 
     const response = await request(app).get('/locations/cities?q=').set('Authorization', `Bearer ${accessToken}`);
 
     expect(response.status).toBe(200);
-    expect(response.body.cities).toEqual([]);
+    expect(response.body.cities.length).toBeGreaterThan(0);
+    expect(response.body.cities.every((city: { hasZones: boolean }) => city.hasZones)).toBe(true);
   });
 
   it('rejects requests with no token', async () => {

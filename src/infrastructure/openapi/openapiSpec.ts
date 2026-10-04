@@ -1168,7 +1168,8 @@ export const openapiSpec = {
         parameters: [{ name: 'q', in: 'query', schema: { type: 'string' } }],
         responses: {
           '200': {
-            description: 'Up to 15 matching cities',
+            description:
+              'Up to 15 matching cities; with q empty or missing, every city with active zones (the cities the service is open in), by name',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/CitiesResponse' } } },
           },
           '401': { description: 'Not signed in' },

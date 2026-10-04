@@ -21,12 +21,35 @@ function buildHandler() {
 const polygon = { type: 'Polygon' as const, coordinates: [[[0, 0]]] };
 
 describe('GetCitiesQueryHandler', () => {
-  it('returns an empty list without querying when q is empty', async () => {
+  it('returns an empty list when q is empty and no city has active zones', async () => {
     const { handler } = buildHandler();
 
     const result = await handler.handle(new GetCitiesQuery(''));
 
     expect(result.cities).toEqual([]);
+  });
+
+  it('lists the cities with active zones, by name, when q is empty', async () => {
+    const { handler, cityRepository, zoneRepository } = buildHandler();
+    cityRepository.seed(new City({ id: 'city-medellin', name: 'Medellín', regionId: 'region-antioquia', zoneCityId: null }));
+    cityRepository.seed(new City({ id: 'city-bogota', name: 'Bogotá', regionId: 'region-cundinamarca', zoneCityId: null }));
+    cityRepository.seed(new City({ id: 'city-cali', name: 'Cali', regionId: 'region-cundinamarca', zoneCityId: null }));
+    zoneRepository.seed(
+      new Zone({ id: 'zone-1', cityId: 'city-medellin', name: 'Bello', slug: 'medellin-co-bello', geometry: polygon, active: true, displayOrder: 1 }),
+    );
+    zoneRepository.seed(
+      new Zone({ id: 'zone-2', cityId: 'city-bogota', name: 'Chapinero', slug: 'bogota-co-chapinero', geometry: polygon, active: true, displayOrder: 1 }),
+    );
+    zoneRepository.seed(
+      new Zone({ id: 'zone-3', cityId: 'city-cali', name: 'Sur', slug: 'cali-co-sur', geometry: polygon, active: false, displayOrder: 1 }),
+    );
+
+    const result = await handler.handle(new GetCitiesQuery('  '));
+
+    expect(result.cities).toEqual([
+      { id: 'city-bogota', name: 'Bogotá', region: 'Cundinamarca', hasZones: true },
+      { id: 'city-medellin', name: 'Medellín', region: 'Antioquia', hasZones: true },
+    ]);
   });
 
   it('returns matching cities with resolved region name and hasZones', async () => {

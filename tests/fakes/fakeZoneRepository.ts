@@ -50,6 +50,10 @@ export class FakeZoneRepository implements IZoneRepository {
     return result;
   }
 
+  async getCityIdsWithActiveZones(): Promise<string[]> {
+    return [...new Set([...this.zones.values()].filter((zone) => zone.active).map((zone) => zone.cityId))];
+  }
+
   async findActiveContainingPoint(latitude: number, longitude: number): Promise<Zone | null> {
     const matches = [...this.zones.values()]
       .filter((zone) => zone.active && geometryContains(zone, longitude, latitude))

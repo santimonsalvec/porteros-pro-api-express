@@ -7,6 +7,8 @@ export interface IZoneRepository {
   getManyByIds(ids: string[]): Promise<Zone[]>;
   /** Anchor city ids (a subset of the given list) that have at least one active zone. */
   hasActiveZonesForCityIds(anchorCityIds: string[]): Promise<Set<string>>;
+  /** Every anchor city id with at least one active zone: the cities the service is open in. */
+  getCityIdsWithActiveZones(): Promise<string[]>;
   /**
    * The active zone whose polygon contains the point (boundary counts as inside). When
    * several match, the lowest `displayOrder` wins, then the lowest `id`, so the same
