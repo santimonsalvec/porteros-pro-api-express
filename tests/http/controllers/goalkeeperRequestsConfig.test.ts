@@ -15,10 +15,10 @@ type TestApp = Awaited<ReturnType<typeof buildTestApp>>;
 async function signInAndComplete(context: TestApp, sub: string): Promise<string> {
   context.googleValidator.registerValidCredential(`cred-${sub}`, new ExternalIdentity('google', sub, `${sub}@example.com`));
   const exchange = await request(context.app)
-    .post('/api/auth/sso/exchange')
+    .post('/auth/sso/exchange')
     .send({ provider: 'google', platform: 'mobile', credential: `cred-${sub}` });
   const completion = await request(context.app)
-    .post('/api/profile/complete')
+    .post('/profile/complete')
     .set('Authorization', `Bearer ${exchange.body.accessToken}`)
     .send({ firstName: 'Ana', lastName: 'Cliente', countryCode: 'CO', whatsAppNumber: `300 000 ${sub.slice(-4).padStart(4, '0')}`, acceptedTerms: true });
   return completion.body.accessToken as string;
@@ -30,12 +30,12 @@ async function withToken(sub: string) {
 }
 
 function get(context: TestApp, token: string, query: string) {
-  return request(context.app).get(`/api/goalkeeper-requests/config${query}`).set('Authorization', `Bearer ${token}`);
+  return request(context.app).get(`/goalkeeper-requests/config${query}`).set('Authorization', `Bearer ${token}`);
 }
 
 const at = (point: { latitude: number; longitude: number }) => `?latitude=${point.latitude}&longitude=${point.longitude}`;
 
-describe('GET /api/goalkeeper-requests/config', () => {
+describe('GET /goalkeeper-requests/config', () => {
   it('returns what a client may pick for the pitch', async () => {
     const { context, token } = await withToken('sub-0401');
 
@@ -80,7 +80,7 @@ describe('GET /api/goalkeeper-requests/config', () => {
 
     const config = await get(context, token, at(POINTS.caliNorte));
     const quote = await request(context.app)
-      .post('/api/goalkeeper-requests/quote')
+      .post('/goalkeeper-requests/quote')
       .set('Authorization', `Bearer ${token}`)
       .send({ ...POINTS.caliNorte, startsAt: config.body.earliestStartsAt, goalkeeperCount: 1, durationMinutes: config.body.durationOptions[0] });
 
@@ -92,19 +92,19 @@ describe('GET /api/goalkeeper-requests/config', () => {
   it('rejects a request with no token', async () => {
     const { app } = await buildTestApp();
 
-    expect((await request(app).get(`/api/goalkeeper-requests/config${at(POINTS.caliNorte)}`)).status).toBe(401);
+    expect((await request(app).get(`/goalkeeper-requests/config${at(POINTS.caliNorte)}`)).status).toBe(401);
   });
 
   it('rejects a client whose profile is not yet complete', async () => {
     const context = await buildTestApp();
     context.googleValidator.registerValidCredential('cred-inc', new ExternalIdentity('google', 'sub-0405', 'sub-0405@example.com'));
-    const exchange = await request(context.app).post('/api/auth/sso/exchange').send({ provider: 'google', platform: 'mobile', credential: 'cred-inc' });
+    const exchange = await request(context.app).post('/auth/sso/exchange').send({ provider: 'google', platform: 'mobile', credential: 'cred-inc' });
 
     expect((await get(context, exchange.body.accessToken as string, at(POINTS.caliNorte))).status).toBe(403);
   });
 });
 
-describe('GET /api/goalkeeper-requests/config — refusals', () => {
+describe('GET /goalkeeper-requests/config — refusals', () => {
   it.each([
     ['no parameters', '', ['latitude', 'longitude']],
     ['a missing longitude', '?latitude=3.45', ['longitude']],

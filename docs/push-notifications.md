@@ -4,9 +4,9 @@ Guía de la feature 014 (`specs/014-fcm-device-registration/`). Explica qué con
 
 ## Cómo funciona (resumen)
 
-1. Tras iniciar sesión, la app obtiene el **token FCM** del teléfono y lo registra con `POST /api/devices`. Lo vuelve a registrar cada vez que abre la app y cada vez que FCM emite un token nuevo.
+1. Tras iniciar sesión, la app obtiene el **token FCM** del teléfono y lo registra con `POST /devices`. Lo vuelve a registrar cada vez que abre la app y cada vez que FCM emite un token nuevo.
 2. Un token pertenece a **un solo usuario**. Si otra persona inicia sesión en el mismo teléfono y registra el token, el token pasa a ella.
-3. Al cerrar sesión, la app llama `POST /api/devices/unregister` **antes** de descartar la sesión.
+3. Al cerrar sesión, la app llama `POST /devices/unregister` **antes** de descartar la sesión.
 4. Para enviar un push, el backend busca los dispositivos de los usuarios destinatarios y llama a FCM por cada token. Si FCM dice que un token ya no sirve (app desinstalada, token reemplazado), el backend lo borra en ese momento. Los fallos temporales no borran nada.
 5. Un dispositivo que no se vuelve a registrar en **60 días** se borra solo (índice TTL de MongoDB).
 
@@ -18,9 +18,9 @@ Los tres requieren sesión (`Authorization: Bearer …`). Aceptan cualquier rol 
 
 | Método y ruta | Body | Respuesta |
 |---|---|---|
-| `POST /api/devices` | `{ "token": "…", "platform": "ios" \| "android" }` | `204` siempre que se guarde: nuevo, refrescado o pasado desde otro usuario |
-| `POST /api/devices/unregister` | `{ "token": "…" }` | `204` siempre, aunque el token no exista o sea de otro usuario |
-| `POST /api/devices/test-push` | vacío | `200 { reached, removed, failed, noDevice }`. `429` con `Retry-After` tras 5 en un minuto |
+| `POST /devices` | `{ "token": "…", "platform": "ios" \| "android" }` | `204` siempre que se guarde: nuevo, refrescado o pasado desde otro usuario |
+| `POST /devices/unregister` | `{ "token": "…" }` | `204` siempre, aunque el token no exista o sea de otro usuario |
+| `POST /devices/test-push` | vacío | `200 { reached, removed, failed, noDevice }`. `429` con `Retry-After` tras 5 en un minuto |
 
 Contrato completo: `specs/014-fcm-device-registration/contracts/devices-endpoints.md`.
 
@@ -53,7 +53,7 @@ La cotización trae `cancelAllAvailable` y `cancelAllUntil`: cuando `cancelAllAv
 | `type` | Para | Cuándo | Qué abre la app |
 |---|---|---|---|
 | `booking.goalkeeper_withdrew` | cliente | Su portero se retiró. Con tiempo de búsqueda: "Ya estamos buscando otro portero." (se creó una reserva de reemplazo en la misma solicitud); sin tiempo: "No alcanzamos a buscar otro portero." | La solicitud (`requestId`) |
-| `goalkeeper.suspended` | portero | El retiro lo suspendió (con menos de 2 h de anticipación, o el 3.er retiro en 7 días); `data.suspendedUntil` trae el fin | Su historial de retiros (`GET /api/goalkeepers/me/withdrawals`) |
+| `goalkeeper.suspended` | portero | El retiro lo suspendió (con menos de 2 h de anticipación, o el 3.er retiro en 7 días); `data.suspendedUntil` trae el fin | Su historial de retiros (`GET /goalkeepers/me/withdrawals`) |
 
 - La reserva de reemplazo se ofrece como un partido nuevo, pero **reabre** la oferta que cada portero ya tenía de esa solicitud: vuelve a quedar sin leer, arriba en la bandeja y con un push nuevo, aunque la hubiera descartado. El portero que se retiró nunca la recibe.
 
@@ -78,7 +78,7 @@ La cotización trae `cancelAllAvailable` y `cancelAllUntil`: cuando `cancelAllAv
 | `booking.goalkeeper_arrived` | cliente | El portero hizo check-in | La solicitud (`requestId`) |
 | `booking.check_in_missed` | cliente | Inicio + 15 min sin check-in, con el nombre y WhatsApp del portero | La solicitud |
 
-- **Flujo en la app del portero:** tomar la foto → `POST /api/images` (multipart `image`) → `POST /api/goalkeepers/me/bookings/{bookingId}/check-in` con `{ imageId, location? }`. La ubicación es opcional (si el permiso se niega, se envía sin ella) y nunca bloquea.
+- **Flujo en la app del portero:** tomar la foto → `POST /images` (multipart `image`) → `POST /goalkeepers/me/bookings/{bookingId}/check-in` con `{ imageId, location? }`. La ubicación es opcional (si el permiso se niega, se envía sin ella) y nunca bloquea.
 - **Ventana:** de inicio − 30 min a inicio + 15 min (por país). Fuera de ella responde `409 check_in_not_open` / `check_in_closed`; después de inicio + 15 min no hay check-in.
 - El cliente ve en su solicitud `checkIn { at, photoUrl }`, nunca la ubicación.
 
@@ -86,9 +86,9 @@ La cotización trae `cancelAllAvailable` y `cancelAllUntil`: cuando `cancelAllAv
 
 | `type` | Para | Cuándo | Qué abre la app |
 |---|---|---|---|
-| `goalkeeper.no_show` | portero | Se registró una inasistencia (sin check-in y sin el "sí llegó" del cliente a fin + 60 min, o el cliente respondió "no llegó"), con el fin de la suspensión | Su historial de retiros e inasistencias (`GET /api/goalkeepers/me/withdrawals`, `kind: "no_show"`) |
+| `goalkeeper.no_show` | portero | Se registró una inasistencia (sin check-in y sin el "sí llegó" del cliente a fin + 60 min, o el cliente respondió "no llegó"), con el fin de la suspensión | Su historial de retiros e inasistencias (`GET /goalkeepers/me/withdrawals`, `kind: "no_show"`) |
 
-- **Calificaciones pendientes: sin push.** Al abrir la app, pedir `GET /api/ratings/pending` y mostrar cada una (cliente: "¿Llegó tu portero?"; portero: "¿Recibiste el pago?", estrellas 1–5 y comentario opcional). Se envían con `POST /api/ratings/bookings/{bookingId}`; vencen a los 7 días del partido. Son privadas.
+- **Calificaciones pendientes: sin push.** Al abrir la app, pedir `GET /ratings/pending` y mostrar cada una (cliente: "¿Llegó tu portero?"; portero: "¿Recibiste el pago?", estrellas 1–5 y comentario opcional). Se envían con `POST /ratings/bookings/{bookingId}`; vencen a los 7 días del partido. Son privadas.
 
 ### Recargas de la billetera (feature 022)
 
@@ -107,10 +107,10 @@ La cotización trae `cancelAllAvailable` y `cancelAllUntil`: cuando `cancelAllAv
 | `booking.available` | Primer aviso de un partido, o recordatorio de una sola oferta | El partido (`bookingId`) dentro de "partidos disponibles" |
 | `bookings.available` | Recordatorio que agrupa varias ofertas ("Hay N partidos disponibles en tus zonas") | La lista de "partidos disponibles" |
 
-- Cuando el portero abre una oferta, desde la bandeja o tocando el push, la app llama **`POST /api/notifications/{notificationId}/read`**. Eso la marca como abierta y **detiene sus recordatorios**. El `notificationId` sale de `GET /api/notifications`; para ubicar la oferta de un push, la app busca en la bandeja la entrada con el mismo `data.requestId`.
-- "Descartar" (`POST /api/notifications/{id}/dismiss`) también detiene los recordatorios.
+- Cuando el portero abre una oferta, desde la bandeja o tocando el push, la app llama **`POST /notifications/{notificationId}/read`**. Eso la marca como abierta y **detiene sus recordatorios**. El `notificationId` sale de `GET /notifications`; para ubicar la oferta de un push, la app busca en la bandeja la entrada con el mismo `data.requestId`.
+- "Descartar" (`POST /notifications/{id}/dismiss`) también detiene los recordatorios.
 - Cada oferta recibe como máximo 3 recordatorios, con al menos 5 minutos entre pushes al mismo portero, a cualquier hora.
-- Con **"disponible para ofertas"** apagado (`PUT /api/goalkeepers/me/offers-availability`), no llegan ofertas, "partidos disponibles" aparece vacío (`unavailableReason: not_available_for_offers`) y aceptar responde `409 goalkeeper_not_available`. Al prenderlo, llegan de inmediato las ofertas de los partidos abiertos. La app debe mostrar el interruptor en un lugar visible.
+- Con **"disponible para ofertas"** apagado (`PUT /goalkeepers/me/offers-availability`), no llegan ofertas, "partidos disponibles" aparece vacío (`unavailableReason: not_available_for_offers`) y aceptar responde `409 goalkeeper_not_available`. Al prenderlo, llegan de inmediato las ofertas de los partidos abiertos. La app debe mostrar el interruptor en un lugar visible.
 
 Bloques por plataforma que añade el backend:
 - Android: prioridad `high` y canal `default`;
@@ -129,7 +129,7 @@ Para recibir pushes reales en un teléfono desde tu máquina (por ejemplo con la
    PUSH_MODE=fcm
    FIREBASE_PROJECT_ID=<id del proyecto de Firebase>
    ```
-3. Levanta el API y la app, inicia sesión, acepta las notificaciones y llama `POST /api/devices/test-push`.
+3. Levanta el API y la app, inicia sesión, acepta las notificaciones y llama `POST /devices/test-push`.
 
 ## Configuración en la nube (una vez por entorno)
 
@@ -215,7 +215,7 @@ FirebaseMessaging.instance.onTokenRefresh.listen((token) {
 
 El orden importa:
 
-1. `POST /api/devices/unregister` con el token actual. Si el access token venció, refresca la sesión primero (`POST /api/auth/tokens/refresh`).
+1. `POST /devices/unregister` con el token actual. Si el access token venció, refresca la sesión primero (`POST /auth/tokens/refresh`).
 2. `await FirebaseMessaging.instance.deleteToken();`
 3. Borra la sesión local.
 
@@ -263,8 +263,8 @@ Las rutas son de ejemplo. Lo que importa es enrutar por `data['type']` y leer lo
 
 ### 8. Depuración
 
-- Agrega una acción oculta, por ejemplo en ajustes, que llame `POST /api/devices/test-push`. La respuesta dice cuántos dispositivos se alcanzaron (`reached`), cuántos se borraron por inválidos (`removed`) y cuántos fallaron temporalmente (`failed`).
-- `noDevice: true` significa que el teléfono no registró su token: revisa el permiso, la clave de APNs y que se llame `POST /api/devices` tras el login.
+- Agrega una acción oculta, por ejemplo en ajustes, que llame `POST /devices/test-push`. La respuesta dice cuántos dispositivos se alcanzaron (`reached`), cuántos se borraron por inválidos (`removed`) y cuántos fallaron temporalmente (`failed`).
+- `noDevice: true` significa que el teléfono no registró su token: revisa el permiso, la clave de APNs y que se llame `POST /devices` tras el login.
 
 ## Qué registra el backend
 

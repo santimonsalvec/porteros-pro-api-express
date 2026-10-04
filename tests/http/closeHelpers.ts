@@ -12,6 +12,6 @@ export async function closedMatchSetUp() {
   await context.walletLedger.adjust(ownerOf(g.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo', operationKey: 'k-g' });
   const created = await createRequestAsClient(context, client.token, { goalkeeperCount: 1, startsAt: '2026-09-21T17:00:00' });
   const bookingId = created.bookings[0]!.bookingId;
-  expect((await request(context.app).post(`/api/goalkeepers/me/bookings/${bookingId}/accept`).set('Authorization', `Bearer ${g.token}`)).status).toBe(201);
+  expect((await request(context.app).post(`/goalkeepers/me/bookings/${bookingId}/accept`).set('Authorization', `Bearer ${g.token}`)).status).toBe(201);
   return { context, client, g, bookingId, requestId: created.requestId };
 }

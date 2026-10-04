@@ -11,28 +11,28 @@ async function signInAndComplete(
   whatsAppNumber = '300 000 0000',
 ) {
   googleValidator.registerValidCredential(credential, new ExternalIdentity('google', sub, `${sub}@example.com`));
-  const exchange = await request(app).post('/api/auth/sso/exchange').send({ provider: 'google', platform: 'mobile', credential });
+  const exchange = await request(app).post('/auth/sso/exchange').send({ provider: 'google', platform: 'mobile', credential });
   const completion = await request(app)
-    .post('/api/profile/complete')
+    .post('/profile/complete')
     .set('Authorization', `Bearer ${exchange.body.accessToken}`)
     .send({ firstName: 'Old', lastName: 'Name', countryCode: 'CO', whatsAppNumber, acceptedTerms: true });
   return completion.body.accessToken as string;
 }
 
-describe('PATCH /api/goalkeepers/me/* section endpoints', () => {
+describe('PATCH /goalkeepers/me/* section endpoints', () => {
   it('saves the physical-data section and reflects it on a later GET', async () => {
     const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-1');
 
     const response = await request(app)
-      .patch('/api/goalkeepers/me/physical-data')
+      .patch('/goalkeepers/me/physical-data')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({ heightCm: 185, weightKg: 78 });
 
     expect(response.status).toBe(200);
     expect(response.body.sections.physicalData.complete).toBe(true);
 
-    const view = await request(app).get('/api/goalkeepers/me').set('Authorization', `Bearer ${accessToken}`);
+    const view = await request(app).get('/goalkeepers/me').set('Authorization', `Bearer ${accessToken}`);
     expect(view.body.heightCm).toBe(185);
     expect(view.body.sections.identification.complete).toBe(false);
   });
@@ -42,7 +42,7 @@ describe('PATCH /api/goalkeepers/me/* section endpoints', () => {
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-3');
 
     const response = await request(app)
-      .patch('/api/goalkeepers/me/availability')
+      .patch('/goalkeepers/me/availability')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({ cityId: 'city-envigado', zoneIds: ['zone-bello', 'zone-copacabana'] });
 
@@ -56,7 +56,7 @@ describe('PATCH /api/goalkeepers/me/* section endpoints', () => {
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-4');
 
     const response = await request(app)
-      .patch('/api/goalkeepers/me/identification')
+      .patch('/goalkeepers/me/identification')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({ documentType: 'cedula_ciudadania', documentNumber: '1045678901', issueDate: '2013-07-02', birthDate: '1995-03-14' });
 
@@ -70,7 +70,7 @@ describe('PATCH /api/goalkeepers/me/* section endpoints', () => {
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-5');
 
     const response = await request(app)
-      .patch('/api/goalkeepers/me/identification')
+      .patch('/goalkeepers/me/identification')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({ documentType: 'not_a_real_type' });
 
@@ -83,12 +83,12 @@ describe('PATCH /api/goalkeepers/me/* section endpoints', () => {
     const tokenA = await signInAndComplete(app, googleValidator, 'token-a', 'sub-a', '300 111 1111');
     const tokenB = await signInAndComplete(app, googleValidator, 'token-b', 'sub-b', '300 222 2222');
     await request(app)
-      .patch('/api/goalkeepers/me/identification')
+      .patch('/goalkeepers/me/identification')
       .set('Authorization', `Bearer ${tokenA}`)
       .send({ documentType: 'cedula_ciudadania', documentNumber: '777' });
 
     const response = await request(app)
-      .patch('/api/goalkeepers/me/identification')
+      .patch('/goalkeepers/me/identification')
       .set('Authorization', `Bearer ${tokenB}`)
       .send({ documentType: 'cedula_ciudadania', documentNumber: '777' });
 
@@ -101,7 +101,7 @@ describe('PATCH /api/goalkeepers/me/* section endpoints', () => {
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-6');
 
     const response = await request(app)
-      .patch('/api/goalkeepers/me/availability')
+      .patch('/goalkeepers/me/availability')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({ cityId: 'city-medellin', zoneIds: [] });
 
@@ -114,7 +114,7 @@ describe('PATCH /api/goalkeepers/me/* section endpoints', () => {
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-7');
 
     const response = await request(app)
-      .patch('/api/goalkeepers/me/availability')
+      .patch('/goalkeepers/me/availability')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({ cityId: 'does-not-exist', zoneIds: ['zone-bello'] });
 
@@ -127,7 +127,7 @@ describe('PATCH /api/goalkeepers/me/* section endpoints', () => {
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-8');
 
     const response = await request(app)
-      .patch('/api/goalkeepers/me/availability')
+      .patch('/goalkeepers/me/availability')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({ cityId: 'city-medellin', zoneIds: ['zone-does-not-exist'] });
 
@@ -139,7 +139,7 @@ describe('PATCH /api/goalkeepers/me/* section endpoints', () => {
   it('rejects requests with no token', async () => {
     const { app } = await buildTestApp();
 
-    const response = await request(app).patch('/api/goalkeepers/me/availability').send({ cityId: 'city-medellin', zoneIds: ['zone-bello'] });
+    const response = await request(app).patch('/goalkeepers/me/availability').send({ cityId: 'city-medellin', zoneIds: ['zone-bello'] });
 
     expect(response.status).toBe(401);
   });

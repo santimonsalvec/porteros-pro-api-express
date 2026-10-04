@@ -11,13 +11,13 @@ async function setUp() {
   const context = await buildTestApp({ eventsMode: 'local' });
   context.clock.set(MATCH_NOW);
   const client = await signInClient(context, 'sub-0801');
-  await request(context.app).post('/api/devices').set('Authorization', `Bearer ${client.token}`).send({ token: 'phone-0801', platform: 'ios' });
+  await request(context.app).post('/devices').set('Authorization', `Bearer ${client.token}`).send({ token: 'phone-0801', platform: 'ios' });
   return { context, client };
 }
 
 const sweep = (context: TestApp) => context.mediator.send(new RunSweepCommand());
 const myRequests = (context: TestApp, token: string) =>
-  request(context.app).get('/api/goalkeeper-requests/bookings').set('Authorization', `Bearer ${token}`);
+  request(context.app).get('/goalkeeper-requests/bookings').set('Authorization', `Bearer ${token}`);
 
 describe('Booking expiry — US1: a booking nobody took expires, and the client is told', () => {
   it('expires untaken bookings after the search ends, tells the client once, and hides them from goalkeepers', async () => {
@@ -37,10 +37,10 @@ describe('Booking expiry — US1: a booking nobody took expires, and the client 
     expect(notices.map((item) => item.type)).toEqual(['request.expired']);
     expect(context.pushSender.calls.filter((call) => call.userId === client.userId)).toHaveLength(1);
 
-    const available = await request(context.app).get('/api/goalkeepers/me/available-bookings').set('Authorization', `Bearer ${goalkeeper.token}`);
+    const available = await request(context.app).get('/goalkeepers/me/available-bookings').set('Authorization', `Bearer ${goalkeeper.token}`);
     expect(available.body.items).toEqual([]);
     const accept = await request(context.app)
-      .post(`/api/goalkeepers/me/bookings/${created.bookings[0]!.bookingId}/accept`)
+      .post(`/goalkeepers/me/bookings/${created.bookings[0]!.bookingId}/accept`)
       .set('Authorization', `Bearer ${goalkeeper.token}`);
     expect(accept.status).toBe(404);
   });
@@ -51,7 +51,7 @@ describe('Booking expiry — US1: a booking nobody took expires, and the client 
     const goalkeeper = await signInGoalkeeper(context, 'sub-0803');
     await context.walletLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: 'k-0803' });
     await request(context.app)
-      .post(`/api/goalkeepers/me/bookings/${created.bookings[0]!.bookingId}/accept`)
+      .post(`/goalkeepers/me/bookings/${created.bookings[0]!.bookingId}/accept`)
       .set('Authorization', `Bearer ${goalkeeper.token}`);
     const movementsBefore = context.walletStore.movements().length;
 

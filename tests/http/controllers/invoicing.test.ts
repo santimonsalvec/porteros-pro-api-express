@@ -19,10 +19,10 @@ async function setUp(balance = 10000) {
 function as(context: TestApp, token: string) {
   const auth = (req: request.Test) => req.set('Authorization', `Bearer ${token}`);
   return {
-    accept: (bookingId: string) => auth(request(context.app).post(`/api/goalkeepers/me/bookings/${bookingId}/accept`)),
-    available: () => auth(request(context.app).get('/api/goalkeepers/me/available-bookings')),
-    movements: () => auth(request(context.app).get('/api/goalkeepers/me/wallet/movements')),
-    wallet: () => auth(request(context.app).get('/api/goalkeepers/me/wallet')),
+    accept: (bookingId: string) => auth(request(context.app).post(`/goalkeepers/me/bookings/${bookingId}/accept`)),
+    available: () => auth(request(context.app).get('/goalkeepers/me/available-bookings')),
+    movements: () => auth(request(context.app).get('/goalkeepers/me/wallet/movements')),
+    wallet: () => auth(request(context.app).get('/goalkeepers/me/wallet')),
   };
 }
 
@@ -89,7 +89,7 @@ describe('Invoicing — US2: a credit note for each refund', () => {
     const requestId = context.bookingRepository.all().find((booking) => booking.id === bookingId)!.requestId;
 
     const cancelled = await request(context.app)
-      .post(`/api/goalkeeper-requests/bookings/${requestId}/bookings/${bookingId}/cancel`)
+      .post(`/goalkeeper-requests/bookings/${requestId}/bookings/${bookingId}/cancel`)
       .set('Authorization', `Bearer ${client.token}`)
       .send({});
     // The refund's event is published by the sweep (it isn't relayed by the cancellation).
@@ -104,7 +104,7 @@ describe('Invoicing — US2: a credit note for each refund', () => {
   });
 });
 
-describe('GET /api/goalkeepers/me/invoices — US3: the goalkeeper consults and downloads their documents', () => {
+describe('GET /goalkeepers/me/invoices — US3: the goalkeeper consults and downloads their documents', () => {
   it('lists the invoice and downloads its PDF; another goalkeeper can\'t read it', async () => {
     const { context, goalkeeper, bookingId } = await setUp();
     await as(context, goalkeeper.token).accept(bookingId);
@@ -113,10 +113,10 @@ describe('GET /api/goalkeepers/me/invoices — US3: the goalkeeper consults and 
     const other = await signInGoalkeeper(context, 'sub-2303');
     const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
 
-    const list = await request(context.app).get('/api/goalkeepers/me/invoices').set(auth(goalkeeper.token));
-    const pdf = await request(context.app).get(`/api/goalkeepers/me/invoices/${document.id}/pdf`).set(auth(goalkeeper.token));
-    const xml = await request(context.app).get(`/api/goalkeepers/me/invoices/${document.id}/xml`).set(auth(goalkeeper.token));
-    const foreign = await request(context.app).get(`/api/goalkeepers/me/invoices/${document.id}`).set(auth(other.token));
+    const list = await request(context.app).get('/goalkeepers/me/invoices').set(auth(goalkeeper.token));
+    const pdf = await request(context.app).get(`/goalkeepers/me/invoices/${document.id}/pdf`).set(auth(goalkeeper.token));
+    const xml = await request(context.app).get(`/goalkeepers/me/invoices/${document.id}/xml`).set(auth(goalkeeper.token));
+    const foreign = await request(context.app).get(`/goalkeepers/me/invoices/${document.id}`).set(auth(other.token));
 
     expect(list.status).toBe(200);
     expect(list.body).toMatchObject({ totalItems: 1, items: [{ documentId: document.id, kind: 'invoice', status: 'issued', total: 8330, downloadable: true }] });
@@ -136,7 +136,7 @@ describe('GET /api/goalkeepers/me/invoices — US3: the goalkeeper consults and 
     await as(context, goalkeeper.token).accept(bookingId);
     const document = context.invoicingDocumentRepository.all()[0]!;
 
-    const pdf = await request(context.app).get(`/api/goalkeepers/me/invoices/${document.id}/pdf`).set('Authorization', `Bearer ${goalkeeper.token}`);
+    const pdf = await request(context.app).get(`/goalkeepers/me/invoices/${document.id}/pdf`).set('Authorization', `Bearer ${goalkeeper.token}`);
 
     expect(pdf.status).toBe(409);
     expect(pdf.body).toMatchObject({ error: 'document_not_issued', status: 'pending' });

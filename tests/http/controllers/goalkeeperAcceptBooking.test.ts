@@ -13,10 +13,10 @@ async function setUp() {
 }
 
 function accept(context: TestApp, token: string, bookingId: string) {
-  return request(context.app).post(`/api/goalkeepers/me/bookings/${bookingId}/accept`).set('Authorization', `Bearer ${token}`);
+  return request(context.app).post(`/goalkeepers/me/bookings/${bookingId}/accept`).set('Authorization', `Bearer ${token}`);
 }
 
-describe('POST /api/goalkeepers/me/bookings/:bookingId/accept — US2: assign and charge, all or nothing', () => {
+describe('POST /goalkeepers/me/bookings/:bookingId/accept — US2: assign and charge, all or nothing', () => {
   it('201 with the agenda item (client contact hidden until one hour before); the commission is charged', async () => {
     const { context, client, goalkeeper } = await setUp();
     const created = await createRequestAsClient(context, client.token);
@@ -35,9 +35,9 @@ describe('POST /api/goalkeepers/me/bookings/:bookingId/accept — US2: assign an
       clientContactVisibleFrom: '2026-09-21T19:00:00.000Z',
     });
     context.clock.set('2026-09-21T19:00:00.000Z');
-    const agenda = await request(context.app).get('/api/goalkeepers/me/bookings').set('Authorization', `Bearer ${goalkeeper.token}`);
+    const agenda = await request(context.app).get('/goalkeepers/me/bookings').set('Authorization', `Bearer ${goalkeeper.token}`);
     expect(agenda.body.items[0].client).toEqual({ firstName: 'Ana', lastName: 'Portera', whatsApp: expect.stringMatching(/^\+57 /) });
-    const movements = await request(context.app).get('/api/goalkeepers/me/wallet/movements').set('Authorization', `Bearer ${goalkeeper.token}`);
+    const movements = await request(context.app).get('/goalkeepers/me/wallet/movements').set('Authorization', `Bearer ${goalkeeper.token}`);
     expect(movements.body.items[0]).toMatchObject({ type: 'commission_charge', amount: -7000, balanceAfter: 13000, references: { bookingId } });
   });
 
@@ -74,7 +74,7 @@ describe('POST /api/goalkeepers/me/bookings/:bookingId/accept — US2: assign an
     await accept(context, goalkeeper.token, bookingId);
 
     const second = await accept(context, other.token, bookingId);
-    const mine = await request(context.app).get('/api/goalkeeper-requests/bookings').set('Authorization', `Bearer ${client.token}`);
+    const mine = await request(context.app).get('/goalkeeper-requests/bookings').set('Authorization', `Bearer ${client.token}`);
 
     expect(second.status).toBe(409);
     expect(second.body.error).toBe('booking_already_taken');

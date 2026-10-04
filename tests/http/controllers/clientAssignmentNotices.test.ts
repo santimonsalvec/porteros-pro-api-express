@@ -4,7 +4,7 @@ import { buildTestApp, TEST_INTERNAL_TOKEN } from '../testAppFactory.js';
 import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../walletTestHelpers.js';
 
 const accept = (context: TestApp, token: string, bookingId: string) =>
-  request(context.app).post(`/api/goalkeepers/me/bookings/${bookingId}/accept`).set('Authorization', `Bearer ${token}`);
+  request(context.app).post(`/goalkeepers/me/bookings/${bookingId}/accept`).set('Authorization', `Bearer ${token}`);
 
 async function setUp() {
   const context = await buildTestApp({ eventsMode: 'local' });
@@ -15,7 +15,7 @@ async function setUp() {
   for (const [goalkeeper, key] of [[g, 'k-g'], [h, 'k-h']] as const) {
     await context.walletLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo', operationKey: key });
   }
-  await request(context.app).post('/api/devices').set('Authorization', `Bearer ${client.token}`).send({ token: 'phone-client', platform: 'android' });
+  await request(context.app).post('/devices').set('Authorization', `Bearer ${client.token}`).send({ token: 'phone-client', platform: 'android' });
   const inbox = (userId: string) => context.notificationRepository.all().filter((item) => item.userId === userId);
   return { context, client, g, h, inbox };
 }

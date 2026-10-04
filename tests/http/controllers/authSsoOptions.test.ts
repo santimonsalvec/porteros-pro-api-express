@@ -2,11 +2,11 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 
-describe('GET /api/auth/sso-options', () => {
+describe('GET /auth/sso-options', () => {
   it('returns Google for a valid platform', async () => {
     const { app } = await buildTestApp();
 
-    const response = await request(app).get('/api/auth/sso-options?platform=mobile');
+    const response = await request(app).get('/auth/sso-options?platform=mobile');
 
     expect(response.status).toBe(200);
     expect(response.body.providers).toEqual([
@@ -17,7 +17,7 @@ describe('GET /api/auth/sso-options', () => {
   it('rejects a missing platform', async () => {
     const { app } = await buildTestApp();
 
-    const response = await request(app).get('/api/auth/sso-options');
+    const response = await request(app).get('/auth/sso-options');
 
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('invalid_platform');
@@ -26,7 +26,7 @@ describe('GET /api/auth/sso-options', () => {
   it('rejects an unrecognized platform', async () => {
     const { app } = await buildTestApp();
 
-    const response = await request(app).get('/api/auth/sso-options?platform=desktop');
+    const response = await request(app).get('/auth/sso-options?platform=desktop');
 
     expect(response.status).toBe(400);
   });

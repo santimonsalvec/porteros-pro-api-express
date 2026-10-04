@@ -4,10 +4,10 @@ import { buildTestApp } from '../testAppFactory.js';
 import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../walletTestHelpers.js';
 
 function agenda(context: TestApp, token: string, query = '') {
-  return request(context.app).get(`/api/goalkeepers/me/bookings${query}`).set('Authorization', `Bearer ${token}`);
+  return request(context.app).get(`/goalkeepers/me/bookings${query}`).set('Authorization', `Bearer ${token}`);
 }
 
-describe('GET /api/goalkeepers/me/bookings — US6: the goalkeeper\'s agenda', () => {
+describe('GET /goalkeepers/me/bookings — US6: the goalkeeper\'s agenda', () => {
   it("shows the accepted booking with the client's contact, and never another goalkeeper's", async () => {
     const context = await buildTestApp();
     context.clock.set(MATCH_NOW);
@@ -19,8 +19,8 @@ describe('GET /api/goalkeepers/me/bookings — US6: the goalkeeper\'s agenda', (
     }
     const created = await createRequestAsClient(context, client.token);
     const [first, second] = created.bookings.map((booking: { bookingId: string }) => booking.bookingId);
-    await request(context.app).post(`/api/goalkeepers/me/bookings/${first}/accept`).set('Authorization', `Bearer ${mine.token}`);
-    await request(context.app).post(`/api/goalkeepers/me/bookings/${second}/accept`).set('Authorization', `Bearer ${other.token}`);
+    await request(context.app).post(`/goalkeepers/me/bookings/${first}/accept`).set('Authorization', `Bearer ${mine.token}`);
+    await request(context.app).post(`/goalkeepers/me/bookings/${second}/accept`).set('Authorization', `Bearer ${other.token}`);
     context.clock.set('2026-09-21T19:00:00.000Z'); // the client's contact shows from one hour before (feature 019)
 
     const response = await agenda(context, mine.token);

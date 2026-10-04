@@ -33,22 +33,22 @@ export function createApp(deps: AppDependencies): Express {
   app.use(pinoHttp({ logger }));
   app.use(express.json());
 
-  app.use('/api/auth', createAuthController(deps));
-  app.use('/api/profile', createProfileController(deps));
-  app.use('/api/clients', createClientsController(deps));
-  app.use('/api/locations', createLocationsController(deps));
-  app.use('/api/images', createImagesController(deps));
-  app.use('/api/goalkeepers', createGoalkeeperController(deps));
-  app.use('/api/zones', createZonesController(deps));
-  app.use('/api/goalkeeper-requests', createGoalkeeperRequestsController(deps));
-  app.use('/api/admin', createAdminController(deps));
-  app.use('/api/devices', createDevicesController(deps));
-  app.use('/api/notifications', createNotificationsController(deps));
-  app.use('/api/ratings', createRatingsController(deps));
+  app.use('/auth', createAuthController(deps));
+  app.use('/profile', createProfileController(deps));
+  app.use('/clients', createClientsController(deps));
+  app.use('/locations', createLocationsController(deps));
+  app.use('/images', createImagesController(deps));
+  app.use('/goalkeepers', createGoalkeeperController(deps));
+  app.use('/zones', createZonesController(deps));
+  app.use('/goalkeeper-requests', createGoalkeeperRequestsController(deps));
+  app.use('/admin', createAdminController(deps));
+  app.use('/devices', createDevicesController(deps));
+  app.use('/notifications', createNotificationsController(deps));
+  app.use('/ratings', createRatingsController(deps));
   app.use('/health', createHealthController(deps));
-  // Platform-only endpoints (feature 013): outside /api and not in the OpenAPI document.
+  // Platform-only endpoints (feature 013): outside the documented API and not in the OpenAPI document.
   app.use('/internal', createInternalController(deps));
-  // Payment gateways' events (feature 022): outside /api, verified by each event's signature.
+  // Payment gateways' events (feature 022): outside the documented API, verified by each event's signature.
   app.use('/webhooks/payments', createPaymentWebhooksController(deps));
   // The page the gateway returns to, and the app link files that open it in the app (feature 022).
   app.use(createPaymentReturnController(deps));

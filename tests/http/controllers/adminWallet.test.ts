@@ -16,12 +16,12 @@ async function setUp() {
 
 function adjust(context: TestApp, token: string, userId: string, body: object) {
   return request(context.app)
-    .post(`/api/admin/goalkeepers/${userId}/wallet/adjustments`)
+    .post(`/admin/goalkeepers/${userId}/wallet/adjustments`)
     .set('Authorization', `Bearer ${token}`)
     .send(body);
 }
 
-describe('/api/admin/goalkeepers/:userId/wallet — US5: admin inspection and adjustments', () => {
+describe('/admin/goalkeepers/:userId/wallet — US5: admin inspection and adjustments', () => {
   it('201 for a credit, with the movement, the administrator, the reason and the balance', async () => {
     const { context, admin, goalkeeper } = await setUp();
 
@@ -94,7 +94,7 @@ describe('/api/admin/goalkeepers/:userId/wallet — US5: admin inspection and ad
     const { context, goalkeeper } = await setUp();
     const auth = { Authorization: `Bearer ${goalkeeper.token}` };
 
-    expect((await request(context.app).get(`/api/admin/goalkeepers/${goalkeeper.userId}/wallet`).set(auth)).status).toBe(403);
+    expect((await request(context.app).get(`/admin/goalkeepers/${goalkeeper.userId}/wallet`).set(auth)).status).toBe(403);
     expect((await adjust(context, goalkeeper.token, goalkeeper.userId, { amount: 5000, reason: 'Saldo', operationKey: KEY_1 })).status).toBe(403);
   });
 
@@ -103,8 +103,8 @@ describe('/api/admin/goalkeepers/:userId/wallet — US5: admin inspection and ad
     await adjust(context, admin.token, goalkeeper.userId, { amount: 50000, reason: 'Saldo inicial de pruebas', operationKey: KEY_1 });
     const auth = { Authorization: `Bearer ${admin.token}` };
 
-    const wallet = await request(context.app).get(`/api/admin/goalkeepers/${goalkeeper.userId}/wallet`).set(auth);
-    const movements = await request(context.app).get(`/api/admin/goalkeepers/${goalkeeper.userId}/wallet/movements`).set(auth);
+    const wallet = await request(context.app).get(`/admin/goalkeepers/${goalkeeper.userId}/wallet`).set(auth);
+    const movements = await request(context.app).get(`/admin/goalkeepers/${goalkeeper.userId}/wallet/movements`).set(auth);
 
     expect(wallet.body).toMatchObject({ goalkeeperId: goalkeeper.userId, balance: 50000, currency: 'COP', movementCount: 1 });
     expect(movements.body.items[0]).toMatchObject({ actor: { kind: 'admin', userId: 'admin-1' }, invoicing: COLOMBIA_INVOICING });

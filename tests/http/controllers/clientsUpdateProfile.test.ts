@@ -11,28 +11,28 @@ async function signInAndComplete(
   whatsAppNumber = '300 000 0000',
 ) {
   googleValidator.registerValidCredential(credential, new ExternalIdentity('google', sub, `${sub}@example.com`));
-  const exchange = await request(app).post('/api/auth/sso/exchange').send({ provider: 'google', platform: 'mobile', credential });
+  const exchange = await request(app).post('/auth/sso/exchange').send({ provider: 'google', platform: 'mobile', credential });
   const completion = await request(app)
-    .post('/api/profile/complete')
+    .post('/profile/complete')
     .set('Authorization', `Bearer ${exchange.body.accessToken}`)
     .send({ firstName: 'Old', lastName: 'Name', countryCode: 'CO', whatsAppNumber, acceptedTerms: true });
   return completion.body.accessToken as string;
 }
 
-describe('PATCH /api/clients/me', () => {
+describe('PATCH /clients/me', () => {
   it('updates name and whatsapp, reflected on the next GET', async () => {
     const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-1');
 
     const response = await request(app)
-      .patch('/api/clients/me')
+      .patch('/clients/me')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({ firstName: 'New', lastName: 'Name', countryCode: 'CO', whatsAppNumber: '301 987 6543' });
 
     expect(response.status).toBe(200);
     expect(response.body.firstName).toBe('New');
 
-    const view = await request(app).get('/api/clients/me').set('Authorization', `Bearer ${accessToken}`);
+    const view = await request(app).get('/clients/me').set('Authorization', `Bearer ${accessToken}`);
     expect(view.body.firstName).toBe('New');
   });
 
@@ -41,7 +41,7 @@ describe('PATCH /api/clients/me', () => {
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-2');
 
     const response = await request(app)
-      .patch('/api/clients/me')
+      .patch('/clients/me')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({ firstName: 'New', lastName: 'Name', countryCode: 'CO', whatsAppNumber: '301 987 6544', email: 'hacked@example.com' });
 
@@ -51,10 +51,10 @@ describe('PATCH /api/clients/me', () => {
   it('rejects an update from a profile that is not yet complete', async () => {
     const { app, googleValidator } = await buildTestApp();
     googleValidator.registerValidCredential('good-token', new ExternalIdentity('google', 'sub-3', 'sub-3@example.com'));
-    const exchange = await request(app).post('/api/auth/sso/exchange').send({ provider: 'google', platform: 'mobile', credential: 'good-token' });
+    const exchange = await request(app).post('/auth/sso/exchange').send({ provider: 'google', platform: 'mobile', credential: 'good-token' });
 
     const response = await request(app)
-      .patch('/api/clients/me')
+      .patch('/clients/me')
       .set('Authorization', `Bearer ${exchange.body.accessToken}`)
       .send({ firstName: 'New', lastName: 'Name', countryCode: 'CO', whatsAppNumber: '301 987 6543' });
 
@@ -67,7 +67,7 @@ describe('PATCH /api/clients/me', () => {
     const accessTokenB = await signInAndComplete(app, googleValidator, 'token-b', 'sub-b', '300 222 2222');
 
     const response = await request(app)
-      .patch('/api/clients/me')
+      .patch('/clients/me')
       .set('Authorization', `Bearer ${accessTokenB}`)
       .send({ firstName: 'New', lastName: 'Name', countryCode: 'CO', whatsAppNumber: '300 111 1111' });
 

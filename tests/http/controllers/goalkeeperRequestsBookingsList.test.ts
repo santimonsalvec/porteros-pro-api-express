@@ -19,10 +19,10 @@ async function signInAndComplete(context: TestApp, sub: string): Promise<{ token
     new ExternalIdentity('google', sub, `${sub}@example.com`),
   );
   const exchange = await request(context.app)
-    .post('/api/auth/sso/exchange')
+    .post('/auth/sso/exchange')
     .send({ provider: 'google', platform: 'mobile', credential: `cred-${sub}` });
   const completion = await request(context.app)
-    .post('/api/profile/complete')
+    .post('/profile/complete')
     .set('Authorization', `Bearer ${exchange.body.accessToken}`)
     .send({
       firstName: 'Ana',
@@ -32,7 +32,7 @@ async function signInAndComplete(context: TestApp, sub: string): Promise<{ token
       acceptedTerms: true,
     });
   const token = completion.body.accessToken as string;
-  const me = await request(context.app).get('/api/auth/me').set('Authorization', `Bearer ${token}`);
+  const me = await request(context.app).get('/auth/me').set('Authorization', `Bearer ${token}`);
   return { token, clientId: me.body.userId as string };
 }
 
@@ -45,7 +45,7 @@ async function setUp(sub = 'sub-0001') {
 
 function list(context: TestApp, token: string, query = '') {
   return request(context.app)
-    .get(`/api/goalkeeper-requests/bookings${query}`)
+    .get(`/goalkeeper-requests/bookings${query}`)
     .set('Authorization', `Bearer ${token}`);
 }
 
@@ -57,16 +57,16 @@ function seedRequest(context: TestApp, request: ReturnType<typeof buildRequest>)
   buildRequestBookings(request).forEach((booking) => context.bookingRepository.seed(booking));
 }
 
-describe('GET /api/goalkeeper-requests/bookings — Story 1: the client sees their bookings', () => {
+describe('GET /goalkeeper-requests/bookings — Story 1: the client sees their bookings', () => {
   it('200 with the confirmed booking exactly as confirmed, plus the zone and city names', async () => {
     const { context, token } = await setUp();
     context.clock.set('2026-09-21T18:30:00.000Z');
     const quote = await request(context.app)
-      .post('/api/goalkeeper-requests/quote')
+      .post('/goalkeeper-requests/quote')
       .set('Authorization', `Bearer ${token}`)
       .send({ ...POINTS.caliNorte, startsAt: '2026-09-21T15:00:00', goalkeeperCount: 2, durationMinutes: 90 });
     const confirmed = await request(context.app)
-      .post('/api/goalkeeper-requests/bookings')
+      .post('/goalkeeper-requests/bookings')
       .set('Authorization', `Bearer ${token}`)
       .send({ quoteId: quote.body.quoteId });
     expect(confirmed.status).toBe(201);
@@ -118,7 +118,7 @@ describe('GET /api/goalkeeper-requests/bookings — Story 1: the client sees the
   });
 });
 
-describe('GET /api/goalkeeper-requests/bookings — Story 2: only the caller’s bookings', () => {
+describe('GET /goalkeeper-requests/bookings — Story 2: only the caller’s bookings', () => {
   it('ignores a clientId or userId in the query and lists only the caller’s bookings', async () => {
     const { context, token, clientId } = await setUp('sub-0001');
     const other = await signInAndComplete(context, 'sub-0002');
@@ -138,7 +138,7 @@ describe('GET /api/goalkeeper-requests/bookings — Story 2: only the caller’s
   it('401 without a token', async () => {
     const context = await buildTestApp();
 
-    const response = await request(context.app).get('/api/goalkeeper-requests/bookings');
+    const response = await request(context.app).get('/goalkeeper-requests/bookings');
 
     expect(response.status).toBe(401);
     expect(response.text).toBe('');
@@ -159,7 +159,7 @@ describe('GET /api/goalkeeper-requests/bookings — Story 2: only the caller’s
       new ExternalIdentity('google', 'sub-new', 'new@example.com'),
     );
     const exchange = await request(context.app)
-      .post('/api/auth/sso/exchange')
+      .post('/auth/sso/exchange')
       .send({ provider: 'google', platform: 'mobile', credential: 'cred-new' });
 
     const response = await list(context, exchange.body.accessToken as string);
@@ -174,7 +174,7 @@ describe('GET /api/goalkeeper-requests/bookings — Story 2: only the caller’s
     );
     context.googleValidator.registerValidCredential('admin-cred', new ExternalIdentity('google', 'admin-sub', 'admin@example.com'));
     const exchange = await request(context.app)
-      .post('/api/auth/sso/exchange')
+      .post('/auth/sso/exchange')
       .send({ provider: 'google', platform: 'admin-web', credential: 'admin-cred' });
 
     const response = await list(context, exchange.body.accessToken as string);
@@ -183,7 +183,7 @@ describe('GET /api/goalkeeper-requests/bookings — Story 2: only the caller’s
   });
 });
 
-describe('GET /api/goalkeeper-requests/bookings — Story 3: page by page', () => {
+describe('GET /goalkeeper-requests/bookings — Story 3: page by page', () => {
   it.each([
     ['?page=0', 'page'],
     ['?page=-1', 'page'],
@@ -224,7 +224,7 @@ describe('GET /api/goalkeeper-requests/bookings — Story 3: page by page', () =
   });
 });
 
-describe('GET /api/goalkeeper-requests/bookings — 012 US5: the assigned goalkeeper\'s contact', () => {
+describe('GET /goalkeeper-requests/bookings — 012 US5: the assigned goalkeeper\'s contact', () => {
   it('shows only name and WhatsApp of the goalkeeper who accepted, and null on the open booking', async () => {
     const context = await buildTestApp();
     context.clock.set(MATCH_NOW);
@@ -233,10 +233,10 @@ describe('GET /api/goalkeeper-requests/bookings — 012 US5: the assigned goalke
     await context.walletLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo', operationKey: 'k-gk' });
     const created = await createRequestAsClient(context, client.token);
     const taken = created.bookings[0]!.bookingId;
-    await request(context.app).post(`/api/goalkeepers/me/bookings/${taken}/accept`).set('Authorization', `Bearer ${goalkeeper.token}`);
+    await request(context.app).post(`/goalkeepers/me/bookings/${taken}/accept`).set('Authorization', `Bearer ${goalkeeper.token}`);
     context.clock.set('2026-09-21T19:00:00.000Z'); // the goalkeeper's contact shows from one hour before (feature 019)
 
-    const response = await request(context.app).get('/api/goalkeeper-requests/bookings').set('Authorization', `Bearer ${client.token}`);
+    const response = await request(context.app).get('/goalkeeper-requests/bookings').set('Authorization', `Bearer ${client.token}`);
 
     expect(response.status).toBe(200);
     const [item] = response.body.items;

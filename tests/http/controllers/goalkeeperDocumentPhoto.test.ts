@@ -14,21 +14,21 @@ async function signInAndComplete(
   sub: string,
 ) {
   googleValidator.registerValidCredential(credential, new ExternalIdentity('google', sub, `${sub}@example.com`));
-  const exchange = await request(app).post('/api/auth/sso/exchange').send({ provider: 'google', platform: 'mobile', credential });
+  const exchange = await request(app).post('/auth/sso/exchange').send({ provider: 'google', platform: 'mobile', credential });
   const completion = await request(app)
-    .post('/api/profile/complete')
+    .post('/profile/complete')
     .set('Authorization', `Bearer ${exchange.body.accessToken}`)
     .send({ firstName: 'Old', lastName: 'Name', countryCode: 'CO', whatsAppNumber: `300 000 ${sub.slice(-4).padStart(4, '0')}`, acceptedTerms: true });
   return completion.body.accessToken as string;
 }
 
-describe('POST /api/goalkeepers/me/document-photo', () => {
+describe('POST /goalkeepers/me/document-photo', () => {
   it('uploads sideA, marking documentPhotoASubmitted true and sideB false', async () => {
     const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-1');
 
     const response = await request(app)
-      .post('/api/goalkeepers/me/document-photo')
+      .post('/goalkeepers/me/document-photo')
       .set('Authorization', `Bearer ${accessToken}`)
       .attach('sideA', tinyJpeg, 'front.jpg');
 
@@ -42,7 +42,7 @@ describe('POST /api/goalkeepers/me/document-photo', () => {
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-2');
 
     const response = await request(app)
-      .post('/api/goalkeepers/me/document-photo')
+      .post('/goalkeepers/me/document-photo')
       .set('Authorization', `Bearer ${accessToken}`)
       .attach('sideA', tinyJpeg, 'front.jpg')
       .attach('sideB', tinyJpeg, 'back.jpg');
@@ -55,11 +55,11 @@ describe('POST /api/goalkeepers/me/document-photo', () => {
   it('replaces a previously uploaded photo for the same side', async () => {
     const { app, googleValidator, imageRepository } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-3');
-    await request(app).post('/api/goalkeepers/me/document-photo').set('Authorization', `Bearer ${accessToken}`).attach('sideA', tinyJpeg, 'first.jpg');
+    await request(app).post('/goalkeepers/me/document-photo').set('Authorization', `Bearer ${accessToken}`).attach('sideA', tinyJpeg, 'first.jpg');
     const firstImages = await imageRepository.getAll();
     expect(firstImages).toHaveLength(1);
 
-    await request(app).post('/api/goalkeepers/me/document-photo').set('Authorization', `Bearer ${accessToken}`).attach('sideA', tinyJpeg, 'second.jpg');
+    await request(app).post('/goalkeepers/me/document-photo').set('Authorization', `Bearer ${accessToken}`).attach('sideA', tinyJpeg, 'second.jpg');
 
     const remainingImages = await imageRepository.getAll();
     expect(remainingImages).toHaveLength(1);
@@ -70,7 +70,7 @@ describe('POST /api/goalkeepers/me/document-photo', () => {
     const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-4');
 
-    const response = await request(app).post('/api/goalkeepers/me/document-photo').set('Authorization', `Bearer ${accessToken}`);
+    const response = await request(app).post('/goalkeepers/me/document-photo').set('Authorization', `Bearer ${accessToken}`);
 
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('invalid_image');
@@ -81,7 +81,7 @@ describe('POST /api/goalkeepers/me/document-photo', () => {
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-5');
 
     const response = await request(app)
-      .post('/api/goalkeepers/me/document-photo')
+      .post('/goalkeepers/me/document-photo')
       .set('Authorization', `Bearer ${accessToken}`)
       .attach('sideA', Buffer.from('not an image'), 'front.jpg');
 
@@ -92,7 +92,7 @@ describe('POST /api/goalkeepers/me/document-photo', () => {
   it('rejects an unauthenticated request', async () => {
     const { app } = await buildTestApp();
 
-    const response = await request(app).post('/api/goalkeepers/me/document-photo').attach('sideA', tinyJpeg, 'front.jpg');
+    const response = await request(app).post('/goalkeepers/me/document-photo').attach('sideA', tinyJpeg, 'front.jpg');
 
     expect(response.status).toBe(401);
   });

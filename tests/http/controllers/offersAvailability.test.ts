@@ -5,7 +5,7 @@ import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeep
 import { RunSweepCommand } from '../../../src/application/features/events/commands/runSweep/runSweepCommand.js';
 
 const setSwitch = (context: TestApp, token: string, body: unknown) =>
-  request(context.app).put('/api/goalkeepers/me/offers-availability').set('Authorization', `Bearer ${token}`).send(body as object);
+  request(context.app).put('/goalkeepers/me/offers-availability').set('Authorization', `Bearer ${token}`).send(body as object);
 
 async function setUp() {
   const context = await buildTestApp({ eventsMode: 'local' });
@@ -13,11 +13,11 @@ async function setUp() {
   const client = await signInClient(context, 'sub-0601');
   const goalkeeper = await signInGoalkeeper(context, 'sub-0602');
   await context.walletLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: 'k-0602' });
-  await request(context.app).post('/api/devices').set('Authorization', `Bearer ${goalkeeper.token}`).send({ token: 'phone-0602', platform: 'ios' });
+  await request(context.app).post('/devices').set('Authorization', `Bearer ${goalkeeper.token}`).send({ token: 'phone-0602', platform: 'ios' });
   return { context, client, goalkeeper };
 }
 
-describe('PUT /api/goalkeepers/me/offers-availability — US4: a goalkeeper turns offers on or off', () => {
+describe('PUT /goalkeepers/me/offers-availability — US4: a goalkeeper turns offers on or off', () => {
   it('off: no offers, no available matches, no accepting; the profile shows it', async () => {
     const { context, client, goalkeeper } = await setUp();
 
@@ -26,14 +26,14 @@ describe('PUT /api/goalkeepers/me/offers-availability — US4: a goalkeeper turn
 
     expect(off.status).toBe(200);
     expect(off.body).toEqual({ availableForOffers: false, offersSent: 0 });
-    const me = await request(context.app).get('/api/goalkeepers/me').set('Authorization', `Bearer ${goalkeeper.token}`);
+    const me = await request(context.app).get('/goalkeepers/me').set('Authorization', `Bearer ${goalkeeper.token}`);
     expect(me.body.availableForOffers).toBe(false);
     expect(context.notificationRepository.all()).toHaveLength(0);
     expect(context.pushSender.calls).toHaveLength(0);
-    const available = await request(context.app).get('/api/goalkeepers/me/available-bookings').set('Authorization', `Bearer ${goalkeeper.token}`);
+    const available = await request(context.app).get('/goalkeepers/me/available-bookings').set('Authorization', `Bearer ${goalkeeper.token}`);
     expect(available.body).toMatchObject({ items: [], unavailableReason: 'not_available_for_offers' });
     const accept = await request(context.app)
-      .post(`/api/goalkeepers/me/bookings/${created.bookings[0]!.bookingId}/accept`)
+      .post(`/goalkeepers/me/bookings/${created.bookings[0]!.bookingId}/accept`)
       .set('Authorization', `Bearer ${goalkeeper.token}`);
     expect(accept.status).toBe(409);
     expect(accept.body.error).toBe('goalkeeper_not_available');

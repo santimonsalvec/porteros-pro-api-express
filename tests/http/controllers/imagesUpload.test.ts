@@ -9,17 +9,17 @@ const tinyJpeg = readFileSync(fileURLToPath(new URL('../../fixtures/tinyImage.jp
 
 async function signInMobile(app: Awaited<ReturnType<typeof buildTestApp>>['app'], googleValidator: Awaited<ReturnType<typeof buildTestApp>>['googleValidator'], credential: string, sub: string) {
   googleValidator.registerValidCredential(credential, new ExternalIdentity('google', sub, `${sub}@example.com`));
-  const response = await request(app).post('/api/auth/sso/exchange').send({ provider: 'google', platform: 'mobile', credential });
+  const response = await request(app).post('/auth/sso/exchange').send({ provider: 'google', platform: 'mobile', credential });
   return response.body.accessToken as string;
 }
 
-describe('POST /api/images', () => {
+describe('POST /images', () => {
   it('stores an optimized image and returns its reference', async () => {
     const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInMobile(app, googleValidator, 'good-token', 'sub-1');
 
     const response = await request(app)
-      .post('/api/images')
+      .post('/images')
       .set('Authorization', `Bearer ${accessToken}`)
       .attach('image', tinyJpeg, 'photo.jpg');
 
@@ -33,7 +33,7 @@ describe('POST /api/images', () => {
     const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInMobile(app, googleValidator, 'good-token', 'sub-2');
 
-    const response = await request(app).post('/api/images').set('Authorization', `Bearer ${accessToken}`);
+    const response = await request(app).post('/images').set('Authorization', `Bearer ${accessToken}`);
 
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('invalid_image');
@@ -44,7 +44,7 @@ describe('POST /api/images', () => {
     const accessToken = await signInMobile(app, googleValidator, 'good-token', 'sub-3');
 
     const response = await request(app)
-      .post('/api/images')
+      .post('/images')
       .set('Authorization', `Bearer ${accessToken}`)
       .attach('image', Buffer.from('this is not an image'), 'photo.jpg');
 
@@ -58,7 +58,7 @@ describe('POST /api/images', () => {
     const oversized = Buffer.alloc(11 * 1024 * 1024, 0);
 
     const response = await request(app)
-      .post('/api/images')
+      .post('/images')
       .set('Authorization', `Bearer ${accessToken}`)
       .attach('image', oversized, 'huge.jpg');
 
@@ -72,7 +72,7 @@ describe('POST /api/images', () => {
     imageStorageProvider.uploadError = new Error('Cloudinary is down');
 
     const response = await request(app)
-      .post('/api/images')
+      .post('/images')
       .set('Authorization', `Bearer ${accessToken}`)
       .attach('image', tinyJpeg, 'photo.jpg');
 
@@ -83,7 +83,7 @@ describe('POST /api/images', () => {
   it('rejects an unauthenticated request', async () => {
     const { app } = await buildTestApp();
 
-    const response = await request(app).post('/api/images').attach('image', tinyJpeg, 'photo.jpg');
+    const response = await request(app).post('/images').attach('image', tinyJpeg, 'photo.jpg');
 
     expect(response.status).toBe(401);
   });

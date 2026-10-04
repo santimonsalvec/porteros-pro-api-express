@@ -4,13 +4,13 @@ import { buildTestApp } from '../testAppFactory.js';
 import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js';
 import { User } from '../../../src/domain/users/user.js';
 
-describe('POST /api/auth/sso/exchange', () => {
+describe('POST /auth/sso/exchange', () => {
   it('issues a session for a new mobile account', async () => {
     const { app, googleValidator } = await buildTestApp();
     googleValidator.registerValidCredential('good-token', new ExternalIdentity('google', 'sub-1', 'a@example.com'));
 
     const response = await request(app)
-      .post('/api/auth/sso/exchange')
+      .post('/auth/sso/exchange')
       .send({ provider: 'google', platform: 'mobile', credential: 'good-token' });
 
     expect(response.status).toBe(200);
@@ -22,7 +22,7 @@ describe('POST /api/auth/sso/exchange', () => {
     const { app } = await buildTestApp();
 
     const response = await request(app)
-      .post('/api/auth/sso/exchange')
+      .post('/auth/sso/exchange')
       .send({ provider: 'google', platform: 'mobile', credential: 'bad-token' });
 
     expect(response.status).toBe(401);
@@ -34,7 +34,7 @@ describe('POST /api/auth/sso/exchange', () => {
     googleValidator.registerValidCredential('good-token', new ExternalIdentity('google', 'sub-2', 'b@example.com'));
 
     const response = await request(app)
-      .post('/api/auth/sso/exchange')
+      .post('/auth/sso/exchange')
       .send({ provider: 'google', platform: 'admin-web', credential: 'good-token' });
 
     expect(response.status).toBe(403);
@@ -55,7 +55,7 @@ describe('POST /api/auth/sso/exchange', () => {
     googleValidator.registerValidCredential('good-token', new ExternalIdentity('google', 'admin-sub', 'admin@example.com'));
 
     const response = await request(app)
-      .post('/api/auth/sso/exchange')
+      .post('/auth/sso/exchange')
       .send({ provider: 'google', platform: 'admin-web', credential: 'good-token' });
 
     expect(response.status).toBe(200);
@@ -64,7 +64,7 @@ describe('POST /api/auth/sso/exchange', () => {
   it('rejects a malformed request body', async () => {
     const { app } = await buildTestApp();
 
-    const response = await request(app).post('/api/auth/sso/exchange').send({ provider: 'google' });
+    const response = await request(app).post('/auth/sso/exchange').send({ provider: 'google' });
 
     expect(response.status).toBe(400);
   });

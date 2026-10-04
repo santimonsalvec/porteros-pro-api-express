@@ -45,7 +45,7 @@ el navegador. En la app hay que declarar el dominio (Android: `intent-filter` co
 
 ## 3. La pasarela de cada país (administrador)
 
-`PUT /api/admin/payment-gateways/{countryId}`:
+`PUT /admin/payment-gateways/{countryId}`:
 
 ```json
 { "gateway": "wompi",

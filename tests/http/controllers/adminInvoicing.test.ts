@@ -9,16 +9,16 @@ import { createRequestAsClient, MATCH_NOW, ownerOf, signInAdmin, signInClient, s
 function admin(context: TestApp, token: string) {
   const auth = (req: request.Test) => req.set('Authorization', `Bearer ${token}`);
   return {
-    getTax: (countryId: string) => auth(request(context.app).get(`/api/admin/tax-settings/${countryId}`)),
-    putTax: (countryId: string, body: unknown) => auth(request(context.app).put(`/api/admin/tax-settings/${countryId}`).send(body as object)),
-    getInvoicing: (countryId: string) => auth(request(context.app).get(`/api/admin/invoicing/settings/${countryId}`)),
-    putInvoicing: (countryId: string, body: unknown) => auth(request(context.app).put(`/api/admin/invoicing/settings/${countryId}`).send(body as object)),
-    documents: (query = '') => auth(request(context.app).get(`/api/admin/invoicing/documents${query}`)),
-    retry: (documentId: string) => auth(request(context.app).post(`/api/admin/invoicing/documents/${documentId}/retry`)),
+    getTax: (countryId: string) => auth(request(context.app).get(`/admin/tax-settings/${countryId}`)),
+    putTax: (countryId: string, body: unknown) => auth(request(context.app).put(`/admin/tax-settings/${countryId}`).send(body as object)),
+    getInvoicing: (countryId: string) => auth(request(context.app).get(`/admin/invoicing/settings/${countryId}`)),
+    putInvoicing: (countryId: string, body: unknown) => auth(request(context.app).put(`/admin/invoicing/settings/${countryId}`).send(body as object)),
+    documents: (query = '') => auth(request(context.app).get(`/admin/invoicing/documents${query}`)),
+    retry: (documentId: string) => auth(request(context.app).post(`/admin/invoicing/documents/${documentId}/retry`)),
   };
 }
 
-describe('/api/admin/tax-settings/{countryId} — US4: VAT per country', () => {
+describe('/admin/tax-settings/{countryId} — US4: VAT per country', () => {
   it('sets Colombia at 19 % and reads it back; it applies to the next acceptance', async () => {
     const context = await buildTestApp();
     const { token } = await signInAdmin(context);
@@ -48,7 +48,7 @@ describe('/api/admin/tax-settings/{countryId} — US4: VAT per country', () => {
   });
 });
 
-describe('/api/admin/invoicing/settings/{countryId} — US4: the provider of each country', () => {
+describe('/admin/invoicing/settings/{countryId} — US4: the provider of each country', () => {
   it('saves Colombia with Siigo, says whether its credentials exist, and never shows them', async () => {
     const context = await buildTestApp();
     const { token } = await signInAdmin(context);
@@ -78,7 +78,7 @@ describe('/api/admin/invoicing/settings/{countryId} — US4: the provider of eac
   });
 });
 
-describe('/api/admin/invoicing/documents — US4: watching invoicing and retrying failures', () => {
+describe('/admin/invoicing/documents — US4: watching invoicing and retrying failures', () => {
   it('shows a rejected invoice with its reason, and retries it after its city gets its DANE codes', async () => {
     const context = await buildTestApp({ eventsMode: 'local' });
     context.clock.set(MATCH_NOW);
@@ -89,7 +89,7 @@ describe('/api/admin/invoicing/documents — US4: watching invoicing and retryin
     await context.walletLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo', operationKey: 'k-1' });
     const bookingId = (await createRequestAsClient(context, client.token)).bookings[0]!.bookingId;
     context.invoicingProvider.script('invalid');
-    await request(context.app).post(`/api/goalkeepers/me/bookings/${bookingId}/accept`).set('Authorization', `Bearer ${goalkeeper.token}`);
+    await request(context.app).post(`/goalkeepers/me/bookings/${bookingId}/accept`).set('Authorization', `Bearer ${goalkeeper.token}`);
 
     const rejected = await admin(context, token).documents('?status=rejected');
     expect(rejected.body).toMatchObject({

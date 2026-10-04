@@ -10,7 +10,7 @@ import { RunSweepCommand } from '../../../src/application/features/events/comman
 async function goalkeeperWithPhone(context: TestApp, sub: string, funded = true) {
   const goalkeeper = await signInGoalkeeper(context, sub);
   await request(context.app)
-    .post('/api/devices')
+    .post('/devices')
     .set('Authorization', `Bearer ${goalkeeper.token}`)
     .send({ token: `phone-${sub}`, platform: 'android' });
   if (funded) {

@@ -117,7 +117,7 @@ cp .env.example .env
 | `FIREBASE_PROJECT_ID` | Con `fcm` | Proyecto de Firebase de la app, al que se envían los pushes |
 | `PUSH_DEVICE_INACTIVITY_DAYS` | No (default `60`) | Días sin registrarse tras los cuales un dispositivo se borra solo |
 | `PUSH_MAX_DEVICES_PER_USER` | No (default `10`) | Máximo de dispositivos por usuario; el más antiguo se borra al pasarse |
-| `PUSH_TEST_LIMIT_PER_MINUTE` | No (default `5`) | Pushes de prueba por usuario y minuto (`POST /api/devices/test-push`) |
+| `PUSH_TEST_LIMIT_PER_MINUTE` | No (default `5`) | Pushes de prueba por usuario y minuto (`POST /devices/test-push`) |
 | `OFFER_REMINDER_INTERVAL_MINUTES` | No (default `5`) | Minutos mínimos entre pushes de ofertas a un mismo portero en las rondas de recordatorio |
 | `OFFER_MAX_REMINDERS` | No (default `3`) | Recordatorios por oferta después de su primer aviso |
 
@@ -162,15 +162,15 @@ La referencia completa y siempre actualizada está en `GET /openapi.json` y `/sw
 
 | Recurso | Endpoints | Acceso |
 |---|---|---|
-| **Auth** | `GET /api/auth/sso-options`, `POST /api/auth/sso/exchange`, `POST /api/auth/tokens/refresh`, `GET /api/auth/me` | Público, salvo `me` (autenticado) |
-| **Perfil** | `POST /api/profile/complete` — completa el perfil inicial y acepta términos | Autenticado |
-| **Clientes** | `GET /api/clients/me`, `PATCH /api/clients/me` | Cliente (no admin); `PATCH` exige perfil completo |
-| **Ubicaciones** | `GET /api/locations/countries`, `GET /api/locations/cities?q=` | Países público; ciudades autenticado |
-| **Zonas** | `GET /api/zones?cityId=` — zonas de servicio de una ciudad | Autenticado |
-| **Imágenes** | `POST /api/images` (multipart, campo `image`), `GET /api/images/:id`, `DELETE /api/images/:id` | Autenticado |
-| **Portero: registro** | `GET /api/goalkeepers/me`, `PATCH /api/goalkeepers/me/identification`, `.../physical-data`, `.../availability`, `POST .../me/document-photo` (multipart `sideA`/`sideB`), `POST .../me/activate`, `POST .../me/cancel` | Cliente con perfil completo |
-| **Portero: perfil activo** | `PATCH /api/goalkeepers/me/profile/physical-data`, `PUT /api/goalkeepers/me/profile/availability` | Cliente con perfil completo y perfil de portero activo |
-| **Tipos de documento** | `GET /api/goalkeepers/document-types` | Público |
+| **Auth** | `GET /auth/sso-options`, `POST /auth/sso/exchange`, `POST /auth/tokens/refresh`, `GET /auth/me` | Público, salvo `me` (autenticado) |
+| **Perfil** | `POST /profile/complete` — completa el perfil inicial y acepta términos | Autenticado |
+| **Clientes** | `GET /clients/me`, `PATCH /clients/me` | Cliente (no admin); `PATCH` exige perfil completo |
+| **Ubicaciones** | `GET /locations/countries`, `GET /locations/cities?q=` | Países público; ciudades autenticado |
+| **Zonas** | `GET /zones?cityId=` — zonas de servicio de una ciudad | Autenticado |
+| **Imágenes** | `POST /images` (multipart, campo `image`), `GET /images/:id`, `DELETE /images/:id` | Autenticado |
+| **Portero: registro** | `GET /goalkeepers/me`, `PATCH /goalkeepers/me/identification`, `.../physical-data`, `.../availability`, `POST .../me/document-photo` (multipart `sideA`/`sideB`), `POST .../me/activate`, `POST .../me/cancel` | Cliente con perfil completo |
+| **Portero: perfil activo** | `PATCH /goalkeepers/me/profile/physical-data`, `PUT /goalkeepers/me/profile/availability` | Cliente con perfil completo y perfil de portero activo |
+| **Tipos de documento** | `GET /goalkeepers/document-types` | Público |
 | **Health** | `GET /health` — incluye el estado de la conexión a Mongo | Público |
 | **Docs** | `GET /openapi.json`, `/swagger` | Público |
 

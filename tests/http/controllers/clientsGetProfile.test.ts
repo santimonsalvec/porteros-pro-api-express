@@ -6,11 +6,11 @@ import { User } from '../../../src/domain/users/user.js';
 
 async function signInMobile(app: Awaited<ReturnType<typeof buildTestApp>>['app'], googleValidator: Awaited<ReturnType<typeof buildTestApp>>['googleValidator'], credential: string, sub: string) {
   googleValidator.registerValidCredential(credential, new ExternalIdentity('google', sub, `${sub}@example.com`));
-  const response = await request(app).post('/api/auth/sso/exchange').send({ provider: 'google', platform: 'mobile', credential });
+  const response = await request(app).post('/auth/sso/exchange').send({ provider: 'google', platform: 'mobile', credential });
   return response.body.accessToken as string;
 }
 
-describe('GET /api/clients/me', () => {
+describe('GET /clients/me', () => {
   it('returns the five expected fields for a completed profile', async () => {
     const { app, googleValidator, userRepository, tokenIssuer } = await buildTestApp();
     const accessToken = await signInMobile(app, googleValidator, 'good-token', 'sub-1');
@@ -19,7 +19,7 @@ describe('GET /api/clients/me', () => {
     await userRepository.update(user!);
     void tokenIssuer;
 
-    const response = await request(app).get('/api/clients/me').set('Authorization', `Bearer ${accessToken}`);
+    const response = await request(app).get('/clients/me').set('Authorization', `Bearer ${accessToken}`);
 
     expect(response.status).toBe(200);
     expect(response.body.firstName).toBe('Jhon');
@@ -30,7 +30,7 @@ describe('GET /api/clients/me', () => {
     const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInMobile(app, googleValidator, 'good-token', 'sub-2');
 
-    const response = await request(app).get('/api/clients/me').set('Authorization', `Bearer ${accessToken}`);
+    const response = await request(app).get('/clients/me').set('Authorization', `Bearer ${accessToken}`);
 
     expect(response.status).toBe(200);
     expect(response.body.firstName).toBeNull();
@@ -42,9 +42,9 @@ describe('GET /api/clients/me', () => {
     const admin = User.createFromExternalIdentity({ id: 'admin-1', email: 'admin@example.com', displayName: null, provider: 'google', subject: 'admin-sub', isAdmin: true });
     await userRepository.add(admin);
     googleValidator.registerValidCredential('good-token', new ExternalIdentity('google', 'admin-sub', 'admin@example.com'));
-    const exchange = await request(app).post('/api/auth/sso/exchange').send({ provider: 'google', platform: 'admin-web', credential: 'good-token' });
+    const exchange = await request(app).post('/auth/sso/exchange').send({ provider: 'google', platform: 'admin-web', credential: 'good-token' });
 
-    const response = await request(app).get('/api/clients/me').set('Authorization', `Bearer ${exchange.body.accessToken}`);
+    const response = await request(app).get('/clients/me').set('Authorization', `Bearer ${exchange.body.accessToken}`);
 
     expect(response.status).toBe(403);
   });
@@ -52,7 +52,7 @@ describe('GET /api/clients/me', () => {
   it('rejects an unauthenticated request', async () => {
     const { app } = await buildTestApp();
 
-    const response = await request(app).get('/api/clients/me');
+    const response = await request(app).get('/clients/me');
 
     expect(response.status).toBe(401);
   });

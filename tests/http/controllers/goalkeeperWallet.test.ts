@@ -4,10 +4,10 @@ import { buildTestApp } from '../testAppFactory.js';
 import { ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../walletTestHelpers.js';
 
 function get(context: TestApp, token: string, path: string) {
-  return request(context.app).get(`/api/goalkeepers/me/wallet${path}`).set('Authorization', `Bearer ${token}`);
+  return request(context.app).get(`/goalkeepers/me/wallet${path}`).set('Authorization', `Bearer ${token}`);
 }
 
-describe('GET /api/goalkeepers/me/wallet — US2: the goalkeeper sees their balance and history', () => {
+describe('GET /goalkeepers/me/wallet — US2: the goalkeeper sees their balance and history', () => {
   it('200 with balance, currency, offers status and movement count', async () => {
     const context = await buildTestApp();
     const { token, userId } = await signInGoalkeeper(context, 'sub-0101');
@@ -79,6 +79,6 @@ describe('GET /api/goalkeepers/me/wallet — US2: the goalkeeper sees their bala
   it('401 without a token', async () => {
     const context = await buildTestApp();
 
-    expect((await request(context.app).get('/api/goalkeepers/me/wallet')).status).toBe(401);
+    expect((await request(context.app).get('/goalkeepers/me/wallet')).status).toBe(401);
   });
 });

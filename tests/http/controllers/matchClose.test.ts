@@ -14,9 +14,9 @@ describe('match close — US1 (feature 021)', () => {
 
     expect((await sweep(context)).status).toBe(200);
 
-    const requests = await get(context, client.token, '/api/goalkeeper-requests/bookings');
+    const requests = await get(context, client.token, '/goalkeeper-requests/bookings');
     expect(requests.body.items[0]).toMatchObject({ status: 'completed', bookings: [{ status: 'completed' }] });
-    const agenda = await get(context, g.token, '/api/goalkeepers/me/bookings');
+    const agenda = await get(context, g.token, '/goalkeepers/me/bookings');
     expect(agenda.body.items[0].status).toBe('completed');
   });
 });
@@ -29,9 +29,9 @@ describe('no-shows — US3 (feature 021)', () => {
     context.clock.set('2026-09-22T00:30:00.000Z');
     await sweep(context);
 
-    expect((await get(context, g.token, '/api/goalkeepers/me/available-bookings')).body.unavailableReason).toBe('suspended');
+    expect((await get(context, g.token, '/goalkeepers/me/available-bookings')).body.unavailableReason).toBe('suspended');
     expect(context.notificationRepository.all().filter((item) => item.userId === g.userId && item.type === 'goalkeeper.no_show')).toHaveLength(1);
-    const history = await get(context, g.token, '/api/goalkeepers/me/withdrawals');
+    const history = await get(context, g.token, '/goalkeepers/me/withdrawals');
     expect(history.body.items).toMatchObject([{ kind: 'no_show', late: true }]);
   });
 });

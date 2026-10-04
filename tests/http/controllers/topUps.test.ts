@@ -8,9 +8,9 @@ import { TEST_GATEWAY_SECRETS } from '../../fakes/fakePaymentSecrets.js';
 function api(context: TestApp, token: string) {
   const auth = (req: request.Test) => req.set('Authorization', `Bearer ${token}`);
   return {
-    options: () => auth(request(context.app).get('/api/goalkeepers/me/wallet/top-up-options')),
-    start: (body: unknown) => auth(request(context.app).post('/api/goalkeepers/me/wallet/top-ups').send(body as object)),
-    acceptTerms: () => auth(request(context.app).post('/api/profile/terms/accept')),
+    options: () => auth(request(context.app).get('/goalkeepers/me/wallet/top-up-options')),
+    start: (body: unknown) => auth(request(context.app).post('/goalkeepers/me/wallet/top-ups').send(body as object)),
+    acceptTerms: () => auth(request(context.app).post('/profile/terms/accept')),
   };
 }
 
@@ -45,7 +45,7 @@ describe('Wallet top-ups — US1: the goalkeeper starts a top-up', () => {
     expect(start.body.error).toBe('top_ups_unavailable');
   });
 
-  it('requires the current terms, accepted through POST /api/profile/terms/accept, then answers the signed checkout', async () => {
+  it('requires the current terms, accepted through POST /profile/terms/accept, then answers the signed checkout', async () => {
     const context = await buildTestApp();
     const { token, userId } = await goalkeeperWithGateway(context);
     // The terms accepted at sign-up are dropped, as if a new version were published.
@@ -103,8 +103,8 @@ describe('Wallet top-ups — US1: the goalkeeper starts a top-up', () => {
 
     expect((await api(context, token).options()).status).toBe(404);
     expect((await api(context, token).start({ amount: 20000 })).status).toBe(404);
-    expect((await request(context.app).get('/api/goalkeepers/me/wallet/top-up-options')).status).toBe(401);
-    expect((await request(context.app).post('/api/profile/terms/accept')).status).toBe(401);
+    expect((await request(context.app).get('/goalkeepers/me/wallet/top-up-options')).status).toBe(401);
+    expect((await request(context.app).post('/profile/terms/accept')).status).toBe(401);
   });
 });
 
@@ -135,9 +135,9 @@ describe('POST /webhooks/payments/wompi — US2: an approved payment credits exa
 
     expect(first.status).toBe(200);
     expect(repeat.status).toBe(200);
-    const wallet = await request(context.app).get('/api/goalkeepers/me/wallet').set('Authorization', `Bearer ${token}`);
+    const wallet = await request(context.app).get('/goalkeepers/me/wallet').set('Authorization', `Bearer ${token}`);
     expect(wallet.body.balance).toBe(18536);
-    const movements = await request(context.app).get('/api/goalkeepers/me/wallet/movements').set('Authorization', `Bearer ${token}`);
+    const movements = await request(context.app).get('/goalkeepers/me/wallet/movements').set('Authorization', `Bearer ${token}`);
     expect(movements.body.items.map((item: { type: string; amount: number }) => [item.type, item.amount])).toEqual([
       ['gateway_fee', -1464],
       ['top_up', 20000],
@@ -152,7 +152,7 @@ describe('POST /webhooks/payments/wompi — US2: an approved payment credits exa
     const response = await deliver(context, approvedEvent(reference, 'APPROVED', 'test_events_guess'));
 
     expect(response.status).toBe(200);
-    const wallet = await request(context.app).get('/api/goalkeepers/me/wallet').set('Authorization', `Bearer ${token}`);
+    const wallet = await request(context.app).get('/goalkeepers/me/wallet').set('Authorization', `Bearer ${token}`);
     expect(wallet.body.balance).toBe(0);
     expect(context.topUpRepository.all()[0]?.status).toBe('pending');
   });
@@ -196,13 +196,13 @@ describe('POST /internal/sweep — US3: a lost confirmation is reconciled', () =
 
     expect(sweep.status).toBe(200);
     expect(again.status).toBe(200);
-    const wallet = await request(context.app).get('/api/goalkeepers/me/wallet').set('Authorization', `Bearer ${token}`);
+    const wallet = await request(context.app).get('/goalkeepers/me/wallet').set('Authorization', `Bearer ${token}`);
     expect(wallet.body.balance).toBe(18536);
     expect(context.paymentGateway.queries).toEqual([{ reference, environment: 'sandbox' }]);
   });
 });
 
-describe('GET /api/goalkeepers/me/wallet/top-ups — US4: the goalkeeper sees their top-ups', () => {
+describe('GET /goalkeepers/me/wallet/top-ups — US4: the goalkeeper sees their top-ups', () => {
   it('lists an approved and a declined top-up, newest first, and reads one', async () => {
     const context = await buildTestApp();
     const { token, reference: first, topUpId } = await startedTopUp(context);
@@ -214,8 +214,8 @@ describe('GET /api/goalkeepers/me/wallet/top-ups — US4: the goalkeeper sees th
       signedEvent({ id: 'tx-2', reference: second.body.reference, amount_in_cents: 1000000, currency: 'COP', status: 'DECLINED' }, TEST_GATEWAY_SECRETS.eventsSecret),
     );
 
-    const list = await request(context.app).get('/api/goalkeepers/me/wallet/top-ups?page=1&pageSize=10').set('Authorization', `Bearer ${token}`);
-    const one = await request(context.app).get(`/api/goalkeepers/me/wallet/top-ups/${topUpId}`).set('Authorization', `Bearer ${token}`);
+    const list = await request(context.app).get('/goalkeepers/me/wallet/top-ups?page=1&pageSize=10').set('Authorization', `Bearer ${token}`);
+    const one = await request(context.app).get(`/goalkeepers/me/wallet/top-ups/${topUpId}`).set('Authorization', `Bearer ${token}`);
 
     expect(list.status).toBe(200);
     expect(list.body).toMatchObject({ page: 1, pageSize: 10, totalItems: 2, totalPages: 1 });
@@ -233,8 +233,8 @@ describe('GET /api/goalkeepers/me/wallet/top-ups — US4: the goalkeeper sees th
     const { topUpId } = await startedTopUp(context);
     const other = await signInGoalkeeper(context, 'sub-2212');
 
-    const response = await request(context.app).get(`/api/goalkeepers/me/wallet/top-ups/${topUpId}`).set('Authorization', `Bearer ${other.token}`);
-    const badPage = await request(context.app).get('/api/goalkeepers/me/wallet/top-ups?page=0').set('Authorization', `Bearer ${other.token}`);
+    const response = await request(context.app).get(`/goalkeepers/me/wallet/top-ups/${topUpId}`).set('Authorization', `Bearer ${other.token}`);
+    const badPage = await request(context.app).get('/goalkeepers/me/wallet/top-ups?page=0').set('Authorization', `Bearer ${other.token}`);
 
     expect(response.status).toBe(404);
     expect(response.body.error).toBe('top_up_not_found');
