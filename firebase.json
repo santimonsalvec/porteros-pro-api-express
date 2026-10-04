@@ -1,0 +1,25 @@
+{
+  "apphosting": [
+    {
+      "backendId": "porteros-pro-api-express",
+      "rootDir": "/",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "dist",
+        "coverage",
+        "tests",
+        "specs",
+        "docs",
+        "scripts",
+        ".claude",
+        ".specify",
+        ".env",
+        ".env.*",
+        "_temp_*.md",
+        "*.log",
+        ".DS_Store"
+      ]
+    }
+  ]
+}
