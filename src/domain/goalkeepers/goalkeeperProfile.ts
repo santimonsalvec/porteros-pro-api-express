@@ -81,6 +81,8 @@ export class GoalkeeperProfile extends Entity<string> {
       cityId: availability.cityId!,
       zoneIds: availability.zoneIds,
       activatedAt: new Date(),
+      // A new goalkeeper starts off offers and switches them on when ready.
+      availableForOffers: false,
     });
   }
 }
