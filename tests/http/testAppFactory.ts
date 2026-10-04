@@ -826,7 +826,12 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     },
     {
       requestType: RecordWalletAdjustmentCommand,
-      handler: new RecordWalletAdjustmentCommandHandler(walletContext, walletLedger, walletStore),
+      handler: new RecordWalletAdjustmentCommandHandler(walletContext, walletLedger, walletStore, {
+        notifications: notificationRepository,
+        pushNotifier,
+        idGenerator: lifecycleIds,
+        clock,
+      }),
     },
     {
       requestType: AcceptBookingCommand,

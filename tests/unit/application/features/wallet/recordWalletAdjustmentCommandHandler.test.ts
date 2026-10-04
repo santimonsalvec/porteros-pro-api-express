@@ -2,15 +2,18 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { RecordWalletAdjustmentCommand } from '../../../../../src/application/features/wallet/commands/recordWalletAdjustment/recordWalletAdjustmentCommand.js';
 import { RecordWalletAdjustmentCommandHandler } from '../../../../../src/application/features/wallet/commands/recordWalletAdjustment/recordWalletAdjustmentCommandHandler.js';
 import { buildGoalkeeperProfile } from '../../../../fixtures/walletFixtures.js';
-import { WalletHarness } from './walletHarness.js';
+import { PaymentsHarness } from '../payments/paymentsHarness.js';
+import type { WalletHarness } from './walletHarness.js';
 
+let p: PaymentsHarness;
 let h: WalletHarness;
 let handler: RecordWalletAdjustmentCommandHandler;
 
 beforeEach(() => {
-  h = new WalletHarness();
+  p = new PaymentsHarness();
+  h = p.wallet;
   h.profiles.seed(buildGoalkeeperProfile('gk-1'));
-  handler = new RecordWalletAdjustmentCommandHandler(h.context, h.ledger, h.store);
+  handler = new RecordWalletAdjustmentCommandHandler(h.context, h.ledger, h.store, p.noticeDeps);
 });
 
 const adjust = (amount: number, operationKey: string, goalkeeperId = 'gk-1') =>
@@ -47,6 +50,25 @@ describe('RecordWalletAdjustmentCommandHandler — US5: manual adjustments', () 
       first.outcome === 'recorded' && first.movement.movementId,
     );
     expect(h.store.movements()).toHaveLength(1);
+  });
+
+  it('tells the goalkeeper, once per movement, with the new balance', async () => {
+    await adjust(15000, 'k-1');
+    await adjust(15000, 'k-1');
+
+    const notices = await p.notifications.listForUser('gk-1', 0, 10);
+    expect(notices).toHaveLength(1);
+    expect(notices[0]).toMatchObject({
+      type: 'wallet.adjusted',
+      title: 'Tu saldo cambió',
+      body: '+15.000 COP (Saldo inicial de pruebas). Tu saldo es 15.000 COP.',
+    });
+  });
+
+  it('tells nothing when the debit is refused', async () => {
+    expect(await adjust(-6000, 'k-1')).toMatchObject({ outcome: 'insufficient_funds' });
+
+    expect(await p.notifications.listForUser('gk-1', 0, 10)).toHaveLength(0);
   });
 
   it('refuses a user who is not an active goalkeeper', async () => {

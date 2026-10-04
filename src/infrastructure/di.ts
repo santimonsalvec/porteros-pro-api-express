@@ -717,7 +717,12 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     },
     {
       requestType: RecordWalletAdjustmentCommand,
-      handler: new RecordWalletAdjustmentCommandHandler(walletContext, walletLedger, walletRepository),
+      handler: new RecordWalletAdjustmentCommandHandler(walletContext, walletLedger, walletRepository, {
+        notifications: notificationRepository,
+        pushNotifier,
+        idGenerator,
+        clock,
+      }),
     },
     {
       requestType: AcceptBookingCommand,

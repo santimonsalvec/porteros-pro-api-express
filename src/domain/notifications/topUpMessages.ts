@@ -22,3 +22,16 @@ export function topUpFailedMessage(amount: number, currency: string, topUpId: st
     data: { type: TOP_UP_FAILED_TYPE, topUpId },
   };
 }
+
+/** Inbox and push type of a manual balance adjustment by an administrator. It opens the wallet. */
+export const WALLET_ADJUSTED_TYPE = 'wallet.adjusted';
+
+/** "Tu saldo cambió: +15.000 COP (Saldo de prueba). Tu saldo es 15.000 COP." */
+export function walletAdjustedMessage(amount: number, reason: string, balance: number, currency: string): PushMessage {
+  const sign = amount > 0 ? '+' : '−';
+  return {
+    title: 'Tu saldo cambió',
+    body: `${sign}${formatAmount(Math.abs(amount), currency)} (${reason}). Tu saldo es ${formatAmount(balance, currency)}.`,
+    data: { type: WALLET_ADJUSTED_TYPE },
+  };
+}

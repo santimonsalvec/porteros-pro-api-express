@@ -1,4 +1,6 @@
 import type { ICommandHandler } from '../../../../common/mediator/types.js';
+import { walletAdjustedMessage } from '../../../../../domain/notifications/topUpMessages.js';
+import { notifyOnce, type NotifyOnceDependencies } from '../../../bookingLifecycle/common/notifyOnce.js';
 import {
   resolveGoalkeeperWalletContext,
   type GoalkeeperWalletContextDependencies,
@@ -8,7 +10,10 @@ import type { WalletLedger } from '../../common/walletLedger.js';
 import { toAdminMovementItem } from '../../common/walletResponses.js';
 import { RecordWalletAdjustmentCommand, type RecordWalletAdjustmentResult } from './recordWalletAdjustmentCommand.js';
 
-/** Resolves whose wallet and in which currency, then records the adjustment through the ledger. */
+/**
+ * Resolves whose wallet and in which currency, then records the adjustment through the ledger and
+ * tells the goalkeeper, once per movement, so the app shows the new balance right away.
+ */
 export class RecordWalletAdjustmentCommandHandler
   implements ICommandHandler<RecordWalletAdjustmentCommand, RecordWalletAdjustmentResult>
 {
@@ -16,6 +21,7 @@ export class RecordWalletAdjustmentCommandHandler
     private readonly context: GoalkeeperWalletContextDependencies,
     private readonly ledger: WalletLedger,
     private readonly walletRepository: IWalletRepository,
+    private readonly notices: NotifyOnceDependencies,
   ) {}
 
   async handle(command: RecordWalletAdjustmentCommand): Promise<RecordWalletAdjustmentResult> {
@@ -29,6 +35,11 @@ export class RecordWalletAdjustmentCommandHandler
     );
     switch (result.kind) {
       case 'recorded':
+        await notifyOnce(this.notices, {
+          userId: command.goalkeeperId,
+          message: walletAdjustedMessage(command.amount, command.reason, result.wallet.balance, context.currency),
+          dedupeKey: `wallet-adjustment:${result.movement.id}`,
+        });
         return { outcome: 'recorded', movement: toAdminMovementItem(result.movement), balance: result.wallet.balance };
       case 'duplicate': {
         const wallet = await this.walletRepository.findByGoalkeeperId(command.goalkeeperId);
