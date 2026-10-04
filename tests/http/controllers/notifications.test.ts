@@ -5,9 +5,9 @@ import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeep
 import { RunSweepCommand } from '../../../src/application/features/events/commands/runSweep/runSweepCommand.js';
 
 const inbox = (context: TestApp, token: string, query = '') =>
-  request(context.app).get(`/api/notifications${query}`).set('Authorization', `Bearer ${token}`);
+  request(context.app).get(`/notifications${query}`).set('Authorization', `Bearer ${token}`);
 const post = (context: TestApp, token: string, path: string) =>
-  request(context.app).post(`/api/notifications${path}`).set('Authorization', `Bearer ${token}`).send();
+  request(context.app).post(`/notifications${path}`).set('Authorization', `Bearer ${token}`).send();
 
 /** A funded goalkeeper with a phone, and 3 matches confirmed by a client: 3 offers. */
 async function setUp() {
@@ -16,7 +16,7 @@ async function setUp() {
   const client = await signInClient(context, 'sub-0701');
   const goalkeeper = await signInGoalkeeper(context, 'sub-0702');
   await context.walletLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 50000, reason: 'Saldo de pruebas', operationKey: 'k-0702' });
-  await request(context.app).post('/api/devices').set('Authorization', `Bearer ${goalkeeper.token}`).send({ token: 'phone-0702', platform: 'android' });
+  await request(context.app).post('/devices').set('Authorization', `Bearer ${goalkeeper.token}`).send({ token: 'phone-0702', platform: 'android' });
   const matches = [];
   for (const startsAt of ['2026-09-21T15:00:00', '2026-09-21T18:00:00', '2026-09-21T21:00:00']) {
     matches.push(await createRequestAsClient(context, client.token, { goalkeeperCount: 1, startsAt }));
@@ -25,7 +25,7 @@ async function setUp() {
   return { context, client, goalkeeper, matches };
 }
 
-describe('/api/notifications — US3: users read their inbox, mark it read and dismiss offers', () => {
+describe('/notifications — US3: users read their inbox, mark it read and dismiss offers', () => {
   it('lists the offers newest first, paginated, with the unread count', async () => {
     const { context, goalkeeper, matches } = await setUp();
 
@@ -83,7 +83,7 @@ describe('/api/notifications — US3: users read their inbox, mark it read and d
     const rival = await signInGoalkeeper(context, 'sub-0703');
     await context.walletLedger.adjust(ownerOf(rival.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: 'k-0703' });
     await request(context.app)
-      .post(`/api/goalkeepers/me/bookings/${matches[0]!.bookings[0]!.bookingId}/accept`)
+      .post(`/goalkeepers/me/bookings/${matches[0]!.bookings[0]!.bookingId}/accept`)
       .set('Authorization', `Bearer ${rival.token}`);
 
     const items = (await inbox(context, goalkeeper.token)).body.items as Array<{ data: { requestId: string }; stillAvailable: boolean }>;
@@ -97,11 +97,11 @@ describe('/api/notifications — US3: users read their inbox, mark it read and d
     const { context, client } = await setUp();
 
     expect((await inbox(context, client.token)).body).toMatchObject({ items: [], totalItems: 0, unreadCount: 0 });
-    expect((await request(context.app).get('/api/notifications')).status).toBe(401);
+    expect((await request(context.app).get('/notifications')).status).toBe(401);
   });
 });
 
-describe('/api/notifications in the API document', () => {
+describe('/notifications in the API document', () => {
   it('documents the inbox and the offers switch', async () => {
     const context = await buildTestApp();
 
@@ -109,11 +109,11 @@ describe('/api/notifications in the API document', () => {
 
     expect(paths).toEqual(
       expect.arrayContaining([
-        '/api/notifications',
-        '/api/notifications/read-all',
-        '/api/notifications/{notificationId}/read',
-        '/api/notifications/{notificationId}/dismiss',
-        '/api/goalkeepers/me/offers-availability',
+        '/notifications',
+        '/notifications/read-all',
+        '/notifications/{notificationId}/read',
+        '/notifications/{notificationId}/dismiss',
+        '/goalkeepers/me/offers-availability',
       ]),
     );
   });

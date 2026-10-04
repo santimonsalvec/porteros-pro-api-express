@@ -3,9 +3,10 @@ import type { IGoogleIdTokenValidator } from '../../application/features/auth/co
 import { ExternalIdentity } from '../../domain/users/externalIdentity.js';
 import { logger } from '../observability/logger.js';
 
+/** The audiences accepted per platform: mobile takes the iOS client and Android's web client. */
 export interface GoogleClientIdsByPlatform {
-  mobile?: string;
-  'admin-web'?: string;
+  mobile?: (string | undefined)[];
+  'admin-web'?: (string | undefined)[];
 }
 
 /**
@@ -20,8 +21,10 @@ export class GoogleIdTokenValidator implements IGoogleIdTokenValidator {
   constructor(private readonly clientIdsByPlatform: GoogleClientIdsByPlatform) {}
 
   async validate(credential: string, platform: string): Promise<ExternalIdentity | null> {
-    const audience = this.clientIdsByPlatform[platform as keyof GoogleClientIdsByPlatform];
-    if (!audience) return null;
+    const audience = (this.clientIdsByPlatform[platform as keyof GoogleClientIdsByPlatform] ?? []).filter(
+      (id): id is string => !!id,
+    );
+    if (audience.length === 0) return null;
 
     try {
       const ticket = await this.client.verifyIdToken({ idToken: credential, audience });

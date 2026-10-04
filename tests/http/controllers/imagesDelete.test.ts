@@ -9,20 +9,20 @@ const tinyJpeg = readFileSync(fileURLToPath(new URL('../../fixtures/tinyImage.jp
 
 async function signInMobile(app: Awaited<ReturnType<typeof buildTestApp>>['app'], googleValidator: Awaited<ReturnType<typeof buildTestApp>>['googleValidator'], credential: string, sub: string) {
   googleValidator.registerValidCredential(credential, new ExternalIdentity('google', sub, `${sub}@example.com`));
-  const response = await request(app).post('/api/auth/sso/exchange').send({ provider: 'google', platform: 'mobile', credential });
+  const response = await request(app).post('/auth/sso/exchange').send({ provider: 'google', platform: 'mobile', credential });
   return response.body.accessToken as string;
 }
 
-describe('DELETE /api/images/:id', () => {
+describe('DELETE /images/:id', () => {
   it('deletes a stored image and makes it unreachable afterward', async () => {
     const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInMobile(app, googleValidator, 'good-token', 'sub-1');
-    const upload = await request(app).post('/api/images').set('Authorization', `Bearer ${accessToken}`).attach('image', tinyJpeg, 'photo.jpg');
+    const upload = await request(app).post('/images').set('Authorization', `Bearer ${accessToken}`).attach('image', tinyJpeg, 'photo.jpg');
 
-    const response = await request(app).delete(`/api/images/${upload.body.id}`).set('Authorization', `Bearer ${accessToken}`);
+    const response = await request(app).delete(`/images/${upload.body.id}`).set('Authorization', `Bearer ${accessToken}`);
 
     expect(response.status).toBe(204);
-    const followUp = await request(app).get(`/api/images/${upload.body.id}`).set('Authorization', `Bearer ${accessToken}`);
+    const followUp = await request(app).get(`/images/${upload.body.id}`).set('Authorization', `Bearer ${accessToken}`);
     expect(followUp.status).toBe(404);
   });
 
@@ -30,7 +30,7 @@ describe('DELETE /api/images/:id', () => {
     const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInMobile(app, googleValidator, 'good-token', 'sub-2');
 
-    const response = await request(app).delete('/api/images/does-not-exist').set('Authorization', `Bearer ${accessToken}`);
+    const response = await request(app).delete('/images/does-not-exist').set('Authorization', `Bearer ${accessToken}`);
 
     expect(response.status).toBe(404);
     expect(response.body.error).toBe('image_not_found');
@@ -40,9 +40,9 @@ describe('DELETE /api/images/:id', () => {
     const { app, googleValidator } = await buildTestApp();
     const ownerToken = await signInMobile(app, googleValidator, 'owner-token', 'sub-owner');
     const otherToken = await signInMobile(app, googleValidator, 'other-token', 'sub-other');
-    const upload = await request(app).post('/api/images').set('Authorization', `Bearer ${ownerToken}`).attach('image', tinyJpeg, 'photo.jpg');
+    const upload = await request(app).post('/images').set('Authorization', `Bearer ${ownerToken}`).attach('image', tinyJpeg, 'photo.jpg');
 
-    const response = await request(app).delete(`/api/images/${upload.body.id}`).set('Authorization', `Bearer ${otherToken}`);
+    const response = await request(app).delete(`/images/${upload.body.id}`).set('Authorization', `Bearer ${otherToken}`);
 
     expect(response.status).toBe(403);
     expect(response.body.error).toBe('forbidden');
@@ -51,7 +51,7 @@ describe('DELETE /api/images/:id', () => {
   it('rejects an unauthenticated request', async () => {
     const { app } = await buildTestApp();
 
-    const response = await request(app).delete('/api/images/some-id');
+    const response = await request(app).delete('/images/some-id');
 
     expect(response.status).toBe(401);
   });

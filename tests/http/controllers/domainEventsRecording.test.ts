@@ -17,11 +17,11 @@ describe('Domain events are recorded with the change (013 US1)', () => {
   it('a 2-goalkeeper confirmation records 2 booking.created; its replay records none', async () => {
     const { context, client } = await setUp();
     const quote = await request(context.app)
-      .post('/api/goalkeeper-requests/quote')
+      .post('/goalkeeper-requests/quote')
       .set('Authorization', `Bearer ${client.token}`)
       .send({ latitude: 3.45, longitude: -76.5, startsAt: '2026-09-21T15:00:00', goalkeeperCount: 2, durationMinutes: 90 });
     const confirm = () =>
-      request(context.app).post('/api/goalkeeper-requests/bookings').set('Authorization', `Bearer ${client.token}`).send({ quoteId: quote.body.quoteId });
+      request(context.app).post('/goalkeeper-requests/bookings').set('Authorization', `Bearer ${client.token}`).send({ quoteId: quote.body.quoteId });
 
     const created = await confirm();
     const replay = await confirm();
@@ -39,7 +39,7 @@ describe('Domain events are recorded with the change (013 US1)', () => {
     await context.walletLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo', operationKey: 'k-gk' });
     const bookingId = (await createRequestAsClient(context, client.token)).bookings[0]!.bookingId;
     const accept = () =>
-      request(context.app).post(`/api/goalkeepers/me/bookings/${bookingId}/accept`).set('Authorization', `Bearer ${goalkeeper.token}`);
+      request(context.app).post(`/goalkeepers/me/bookings/${bookingId}/accept`).set('Authorization', `Bearer ${goalkeeper.token}`);
 
     await accept();
     await accept();

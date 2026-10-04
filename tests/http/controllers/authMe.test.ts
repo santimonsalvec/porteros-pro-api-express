@@ -3,16 +3,16 @@ import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js';
 
-describe('GET /api/auth/me', () => {
+describe('GET /auth/me', () => {
   it('returns claims for a valid access token', async () => {
     const { app, googleValidator } = await buildTestApp();
     googleValidator.registerValidCredential('good-token', new ExternalIdentity('google', 'sub-1', 'a@example.com'));
     const exchange = await request(app)
-      .post('/api/auth/sso/exchange')
+      .post('/auth/sso/exchange')
       .send({ provider: 'google', platform: 'mobile', credential: 'good-token' });
 
     const response = await request(app)
-      .get('/api/auth/me')
+      .get('/auth/me')
       .set('Authorization', `Bearer ${exchange.body.accessToken}`);
 
     expect(response.status).toBe(200);
@@ -24,7 +24,7 @@ describe('GET /api/auth/me', () => {
   it('rejects a missing token', async () => {
     const { app } = await buildTestApp();
 
-    const response = await request(app).get('/api/auth/me');
+    const response = await request(app).get('/auth/me');
 
     expect(response.status).toBe(401);
   });
@@ -32,7 +32,7 @@ describe('GET /api/auth/me', () => {
   it('rejects an invalid token', async () => {
     const { app } = await buildTestApp();
 
-    const response = await request(app).get('/api/auth/me').set('Authorization', 'Bearer garbage');
+    const response = await request(app).get('/auth/me').set('Authorization', 'Bearer garbage');
 
     expect(response.status).toBe(401);
   });

@@ -33,6 +33,11 @@ export const config = {
   google: {
     clientIdMobile: process.env.GOOGLE_CLIENT_ID_MOBILE,
     clientIdWeb: process.env.GOOGLE_CLIENT_ID_WEB,
+    /**
+     * A "Web application" client the Android app asks its ID token for: Google only issues
+     * Android tokens to a web client, never to the iOS one in `clientIdMobile`.
+     */
+    clientIdAndroidServer: process.env.GOOGLE_CLIENT_ID_ANDROID_SERVER,
   },
   legal: {
     termsVersion: optionalEnv('LEGAL_TERMS_VERSION', '1.0'),

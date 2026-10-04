@@ -4,9 +4,9 @@ import { buildTestApp } from '../testAppFactory.js';
 import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../walletTestHelpers.js';
 
 const withdraw = (context: TestApp, token: string, bookingId: string, body: object = {}) =>
-  request(context.app).post(`/api/goalkeepers/me/bookings/${bookingId}/withdraw`).set('Authorization', `Bearer ${token}`).send(body);
+  request(context.app).post(`/goalkeepers/me/bookings/${bookingId}/withdraw`).set('Authorization', `Bearer ${token}`).send(body);
 const accept = (context: TestApp, token: string, bookingId: string) =>
-  request(context.app).post(`/api/goalkeepers/me/bookings/${bookingId}/accept`).set('Authorization', `Bearer ${token}`);
+  request(context.app).post(`/goalkeepers/me/bookings/${bookingId}/accept`).set('Authorization', `Bearer ${token}`);
 const get = (context: TestApp, token: string, path: string) => request(context.app).get(path).set('Authorization', `Bearer ${token}`);
 
 /**
@@ -22,9 +22,9 @@ async function setUp(startsAtLocal = '2026-09-21T15:00:00') {
   const h = await signInGoalkeeper(context, 'sub-1003');
   for (const [goalkeeper, key] of [[g, 'k-g'], [h, 'k-h']] as const) {
     await context.walletLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: key });
-    await request(context.app).post('/api/devices').set('Authorization', `Bearer ${goalkeeper.token}`).send({ token: `phone-${key}`, platform: 'android' });
+    await request(context.app).post('/devices').set('Authorization', `Bearer ${goalkeeper.token}`).send({ token: `phone-${key}`, platform: 'android' });
   }
-  await request(context.app).post('/api/devices').set('Authorization', `Bearer ${client.token}`).send({ token: 'phone-client', platform: 'android' });
+  await request(context.app).post('/devices').set('Authorization', `Bearer ${client.token}`).send({ token: 'phone-client', platform: 'android' });
   const created = await createRequestAsClient(context, client.token, { goalkeeperCount: 1, startsAt: startsAtLocal });
   const bookingId = created.bookings[0]!.bookingId;
   expect((await accept(context, g.token, bookingId)).status).toBe(201);
@@ -45,16 +45,16 @@ describe('goalkeeper withdrawal — US1: withdraw, and a replacement is searched
       status: 'goalkeeper_withdrew',
       withdrawal: { noticeMinutes: 210, late: false, replacementCreated: true, penalties: [], suspendedUntil: null },
     });
-    expect((await get(context, g.token, '/api/goalkeepers/me/wallet')).body.balance).toBe(13000);
+    expect((await get(context, g.token, '/goalkeepers/me/wallet')).body.balance).toBe(13000);
 
-    const requests = await get(context, client.token, '/api/goalkeeper-requests/bookings');
+    const requests = await get(context, client.token, '/goalkeeper-requests/bookings');
     const mine = requests.body.items.find((item: { requestId: string }) => item.requestId === requestId);
     expect(statusesOf(mine)).toEqual(['goalkeeper_withdrew', 'pending_assignment']);
     const replacementId = mine.bookings.find((booking: { status: string }) => booking.status === 'pending_assignment').bookingId as string;
 
-    const forH = await get(context, h.token, '/api/goalkeepers/me/available-bookings');
+    const forH = await get(context, h.token, '/goalkeepers/me/available-bookings');
     expect(forH.body.items.map((item: { bookingId: string }) => item.bookingId)).toContain(replacementId);
-    const forG = await get(context, g.token, '/api/goalkeepers/me/available-bookings');
+    const forG = await get(context, g.token, '/goalkeepers/me/available-bookings');
     expect(forG.body.items.map((item: { bookingId: string }) => item.bookingId)).not.toContain(replacementId);
     expect((await accept(context, g.token, replacementId)).body.error).toBe('booking_not_available');
 
@@ -95,7 +95,7 @@ describe('goalkeeper withdrawal — US1: withdraw, and a replacement is searched
   it('refuses a booking the client already cancelled', async () => {
     const { context, client, g, requestId, bookingId } = await setUp('2026-09-21T17:00:00');
     await request(context.app)
-      .post(`/api/goalkeeper-requests/bookings/${requestId}/bookings/${bookingId}/cancel`)
+      .post(`/goalkeeper-requests/bookings/${requestId}/bookings/${bookingId}/cancel`)
       .set('Authorization', `Bearer ${client.token}`)
       .send({});
 
@@ -114,7 +114,7 @@ describe('goalkeeper withdrawal — US2: a late withdrawal suspends', () => {
 
     const until = '2026-09-24T18:30:00.000Z';
     expect(response.body.withdrawal).toMatchObject({ noticeMinutes: 90, late: true, penalties: [{ kind: 'late', days: 3, endsAt: until }], suspendedUntil: until });
-    const available = await get(context, g.token, '/api/goalkeepers/me/available-bookings');
+    const available = await get(context, g.token, '/goalkeepers/me/available-bookings');
     expect(available.body).toMatchObject({ unavailableReason: 'suspended', suspendedUntil: until });
     const notices = context.notificationRepository.all().filter((item) => item.userId === g.userId && item.type === 'goalkeeper.suspended');
     expect(notices).toHaveLength(1);
@@ -137,7 +137,7 @@ describe('goalkeeper withdrawal — US3: the history', () => {
     expect((await accept(context, g.token, secondId)).status).toBe(201);
     await withdraw(context, g.token, secondId);
 
-    const response = await get(context, g.token, '/api/goalkeepers/me/withdrawals');
+    const response = await get(context, g.token, '/goalkeepers/me/withdrawals');
 
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({ page: 1, pageSize: 20, totalItems: 2, totalPages: 1, suspendedUntil: '2026-09-24T18:31:00.000Z' });
@@ -147,9 +147,9 @@ describe('goalkeeper withdrawal — US3: the history', () => {
     ]);
     expect(response.body.items[0].penalties).toMatchObject([{ kind: 'late', days: 3 }]);
     expect(response.body.items[1]).toMatchObject({ reason: 'Me salió un viaje', penalties: [] });
-    expect((await get(context, h.token, '/api/goalkeepers/me/withdrawals')).body).toMatchObject({ items: [], totalItems: 0 });
-    expect((await get(context, client.token, '/api/goalkeepers/me/withdrawals')).body.error).toBe('goalkeeper_not_found');
-    expect((await get(context, g.token, '/api/goalkeepers/me/withdrawals?pageSize=0')).status).toBe(400);
+    expect((await get(context, h.token, '/goalkeepers/me/withdrawals')).body).toMatchObject({ items: [], totalItems: 0 });
+    expect((await get(context, client.token, '/goalkeepers/me/withdrawals')).body.error).toBe('goalkeeper_not_found');
+    expect((await get(context, g.token, '/goalkeepers/me/withdrawals?pageSize=0')).status).toBe(400);
   });
 });
 

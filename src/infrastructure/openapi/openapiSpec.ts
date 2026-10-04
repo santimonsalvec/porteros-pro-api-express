@@ -544,7 +544,7 @@ export const openapiSpec = {
           quoteId: {
             type: 'string',
             example: '01924f6e-8c1b-7c3a-9d4e-2b7f5a1c9e00',
-            description: 'Send it to POST /api/goalkeeper-requests/bookings to book this exact price',
+            description: 'Send it to POST /goalkeeper-requests/bookings to book this exact price',
           },
           expiresAt: {
             type: 'string',
@@ -805,7 +805,7 @@ export const openapiSpec = {
             type: 'object',
             nullable: true,
             description:
-              'Display data for cityId (region is the region name). Only returned by GET /api/goalkeepers/me — null when no city is saved or it no longer resolves; omitted from the write endpoints.',
+              'Display data for cityId (region is the region name). Only returned by GET /goalkeepers/me — null when no city is saved or it no longer resolves; omitted from the write endpoints.',
             properties: { id: { type: 'string' }, name: { type: 'string' }, region: { type: 'string' } },
           },
         },
@@ -873,7 +873,7 @@ export const openapiSpec = {
     },
   },
   paths: {
-    '/api/auth/sso-options': {
+    '/auth/sso-options': {
       get: {
         summary: 'Discover available SSO providers for a platform',
         tags: ['Auth'],
@@ -897,7 +897,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/auth/sso/exchange': {
+    '/auth/sso/exchange': {
       post: {
         summary: 'Exchange a Google credential for an internal session',
         tags: ['Auth'],
@@ -933,7 +933,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/auth/tokens/refresh': {
+    '/auth/tokens/refresh': {
       post: {
         summary: 'Redeem a refresh token for a new session',
         tags: ['Auth'],
@@ -961,7 +961,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/auth/me': {
+    '/auth/me': {
       get: {
         summary: 'Read the authenticated caller’s claims',
         tags: ['Auth'],
@@ -975,7 +975,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/profile/complete': {
+    '/profile/complete': {
       post: {
         summary: 'Complete the mandatory mobile onboarding profile',
         tags: ['Profile'],
@@ -1014,7 +1014,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/clients/me': {
+    '/clients/me': {
       get: {
         summary: 'View my own client profile',
         tags: ['Clients'],
@@ -1069,7 +1069,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/images': {
+    '/images': {
       post: {
         summary: 'Upload and store an optimized image',
         tags: ['Images'],
@@ -1107,7 +1107,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/images/{id}': {
+    '/images/{id}': {
       get: {
         summary: 'Resolve a stored image to its accessible location',
         tags: ['Images'],
@@ -1148,7 +1148,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/locations/countries': {
+    '/locations/countries': {
       get: {
         summary: 'Browse the public country reference catalog',
         tags: ['Locations'],
@@ -1160,7 +1160,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/locations/cities': {
+    '/locations/cities': {
       get: {
         summary: 'Search cities by name (typeahead), with service-zone availability per result',
         tags: ['Locations'],
@@ -1175,7 +1175,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/zones': {
+    '/zones': {
       get: {
         summary: "Preview a city's active service zones (resolving a satellite city to its metro anchor)",
         tags: ['Zones'],
@@ -1194,7 +1194,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/goalkeeper-requests/config': {
+    '/goalkeeper-requests/config': {
       get: {
         summary: 'What a client may pick for a pitch: bookable dates, minimum notice, goalkeeper counts, durations (read-only)',
         description:
@@ -1224,11 +1224,11 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/goalkeeper-requests/quote': {
+    '/goalkeeper-requests/quote': {
       post: {
         summary: 'Quote the total price of a goalkeeper booking and hold it for 3 minutes',
         description:
-          'total = (unit rate + lead-time surcharge) x goalkeeperCount: both the rate and the surcharge are charged per goalkeeper, so with two goalkeepers the surcharge is paid twice. The unit rate is the zone rate for the duration, else the city rate. The booking window, minimum notice and surcharge tiers are configured per country (city overrides allowed); an area with any of them missing is refused, never assumed. Evaluation order: validation_failed, location_not_covered, time_zone_not_configured, invalid_start_time, start_time_in_past, service_not_configured, insufficient_notice, outside_booking_window, rate_not_configured. No price is ever returned with an error. A successful quote is stored for 3 minutes (refusals are never stored) and can be booked with POST /api/goalkeeper-requests/bookings; if it cannot be stored the call fails with 500 and returns no price.',
+          'total = (unit rate + lead-time surcharge) x goalkeeperCount: both the rate and the surcharge are charged per goalkeeper, so with two goalkeepers the surcharge is paid twice. The unit rate is the zone rate for the duration, else the city rate. The booking window, minimum notice and surcharge tiers are configured per country (city overrides allowed); an area with any of them missing is refused, never assumed. Evaluation order: validation_failed, location_not_covered, time_zone_not_configured, invalid_start_time, start_time_in_past, service_not_configured, insufficient_notice, outside_booking_window, rate_not_configured. No price is ever returned with an error. A successful quote is stored for 3 minutes (refusals are never stored) and can be booked with POST /goalkeeper-requests/bookings; if it cannot be stored the call fails with 500 and returns no price.',
         tags: ['Goalkeeper requests'],
         security: [{ bearerAuth: [] }],
         requestBody: {
@@ -1255,7 +1255,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/goalkeeper-requests/bookings/{requestId}/cancel': {
+    '/goalkeeper-requests/bookings/{requestId}/cancel': {
       post: {
         summary: 'Cancel the whole request (every searching and assigned booking, all or nothing)',
         description:
@@ -1285,7 +1285,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/goalkeeper-requests/bookings/{requestId}/bookings/{bookingId}/cancel': {
+    '/goalkeeper-requests/bookings/{requestId}/bookings/{bookingId}/cancel': {
       post: {
         summary: 'Cancel one booking of the request (e.g. a friend covers one goal)',
         description:
@@ -1318,7 +1318,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/goalkeeper-requests/bookings': {
+    '/goalkeeper-requests/bookings': {
       get: {
         summary: "List the caller's own requests (one per match, with their bookings), one page at a time",
         description:
@@ -1385,7 +1385,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/goalkeepers/document-types': {
+    '/goalkeepers/document-types': {
       get: {
         summary: 'List valid identification document types',
         tags: ['Goalkeepers'],
@@ -1397,11 +1397,11 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/goalkeepers/me/available-bookings': {
+    '/goalkeepers/me/available-bookings': {
       get: {
         summary: 'The bookings the goalkeeper can take now, soonest first',
         description:
-          'Pending bookings in the goalkeeper\u2019s enabled zones whose search is still open (start \u2212 travel margin), whose commission the balance covers, that do not clash with their assigned bookings (travel margin included), that are not of a request they already hold a booking of, and that are not of their own requests. A suspended goalkeeper, or one whose balance does not cover the lowest commission of their zones, gets an empty list with unavailableReason. So does a goalkeeper with offers switched off (PUT /api/goalkeepers/me/offers-availability).',
+          'Pending bookings in the goalkeeper\u2019s enabled zones whose search is still open (start \u2212 travel margin), whose commission the balance covers, that do not clash with their assigned bookings (travel margin included), that are not of a request they already hold a booking of, and that are not of their own requests. A suspended goalkeeper, or one whose balance does not cover the lowest commission of their zones, gets an empty list with unavailableReason. So does a goalkeeper with offers switched off (PUT /goalkeepers/me/offers-availability).',
         tags: ['Goalkeeper bookings'],
         security: [{ bearerAuth: [] }],
         parameters: [
@@ -1416,7 +1416,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/goalkeepers/me/bookings/{bookingId}/accept': {
+    '/goalkeepers/me/bookings/{bookingId}/accept': {
       post: {
         summary: 'Take a booking: assigned to the goalkeeper and the commission charged, all or nothing',
         description:
@@ -1438,7 +1438,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/goalkeepers/me/bookings': {
+    '/goalkeepers/me/bookings': {
       get: {
         summary: "The goalkeeper's agenda: upcoming bookings soonest first, then past ones most recent first",
         tags: ['Goalkeeper bookings'],
@@ -1455,7 +1455,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/goalkeepers/me/wallet': {
+    '/goalkeepers/me/wallet': {
       get: {
         summary: "The goalkeeper's wallet: balance, currency and whether they can see offers",
         tags: ['Wallet'],
@@ -1468,7 +1468,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/goalkeepers/me/wallet/movements': {
+    '/goalkeepers/me/wallet/movements': {
       get: {
         summary: "The goalkeeper's wallet movements, newest first, one page at a time",
         tags: ['Wallet'],
@@ -1485,7 +1485,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/goalkeepers/me/wallet/top-up-options': {
+    '/goalkeepers/me/wallet/top-up-options': {
       get: {
         summary: 'The top-up amounts of the goalkeeper\'s country, each with its cost and net (feature 022)',
         tags: ['Wallet'],
@@ -1498,7 +1498,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/goalkeepers/me/wallet/top-ups': {
+    '/goalkeepers/me/wallet/top-ups': {
       post: {
         summary: 'Starts a top-up and answers the gateway checkout address (feature 022)',
         description: 'Nothing is credited here: only the gateway confirmation or the reconciliation credits.',
@@ -1534,7 +1534,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/goalkeepers/me/wallet/top-ups/{topUpId}': {
+    '/goalkeepers/me/wallet/top-ups/{topUpId}': {
       get: {
         summary: 'One of the goalkeeper\'s top-ups (feature 022)',
         tags: ['Wallet'],
@@ -1547,7 +1547,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/admin/payment-gateways/{countryId}': {
+    '/admin/payment-gateways/{countryId}': {
       get: {
         summary: "A country's top-up gateway settings (administrators only, feature 022)",
         tags: ['Admin'],
@@ -1576,7 +1576,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/profile/terms/accept': {
+    '/profile/terms/accept': {
       post: {
         summary: 'Accepts the current terms and privacy policy versions (feature 022)',
         tags: ['Profile'],
@@ -1617,7 +1617,7 @@ export const openapiSpec = {
         responses: { '200': { description: 'HTML page (also for an unknown reference)', content: { 'text/html': { schema: { type: 'string' } } } } },
       },
     },
-    '/api/goalkeepers/me/invoices': {
+    '/goalkeepers/me/invoices': {
       get: {
         summary: "The goalkeeper's invoices and credit notes, newest first (feature 023)",
         tags: ['Invoicing'],
@@ -1634,7 +1634,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/goalkeepers/me/invoices/{documentId}': {
+    '/goalkeepers/me/invoices/{documentId}': {
       get: {
         summary: 'One of the goalkeeper\'s documents (feature 023)',
         tags: ['Invoicing'],
@@ -1646,7 +1646,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/goalkeepers/me/invoices/{documentId}/{format}': {
+    '/goalkeepers/me/invoices/{documentId}/{format}': {
       get: {
         summary: 'Downloads the PDF or XML of an issued document, from its provider (feature 023)',
         tags: ['Invoicing'],
@@ -1663,7 +1663,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/admin/tax-settings/{countryId}': {
+    '/admin/tax-settings/{countryId}': {
       get: {
         summary: "A country's VAT rate (administrators only, feature 023)",
         tags: ['Admin'],
@@ -1692,7 +1692,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/admin/invoicing/settings/{countryId}': {
+    '/admin/invoicing/settings/{countryId}': {
       get: {
         summary: "A country's invoicing provider (administrators only, feature 023)",
         tags: ['Admin'],
@@ -1722,7 +1722,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/admin/invoicing/documents': {
+    '/admin/invoicing/documents': {
       get: {
         summary: 'Invoicing documents by status, oldest first, with reasons (administrators only, feature 023)',
         tags: ['Admin'],
@@ -1741,7 +1741,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/admin/invoicing/documents/{documentId}/retry': {
+    '/admin/invoicing/documents/{documentId}/retry': {
       post: {
         summary: 'Retries a rejected document with the buyer\'s current data (administrators only, feature 023)',
         tags: ['Admin'],
@@ -1755,7 +1755,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/admin/goalkeepers/{userId}/wallet': {
+    '/admin/goalkeepers/{userId}/wallet': {
       get: {
         summary: "Any goalkeeper's wallet (administrators only)",
         tags: ['Admin'],
@@ -1770,7 +1770,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/admin/goalkeepers/{userId}/wallet/movements': {
+    '/admin/goalkeepers/{userId}/wallet/movements': {
       get: {
         summary: "Any goalkeeper's wallet movements, with actor, cause key and invoicing data (administrators only)",
         tags: ['Admin'],
@@ -1788,7 +1788,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/admin/goalkeepers/{userId}/wallet/adjustments': {
+    '/admin/goalkeepers/{userId}/wallet/adjustments': {
       post: {
         summary: 'Record a manual credit or debit with a mandatory reason (administrators only; idempotent per operationKey)',
         description:
@@ -1809,11 +1809,11 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/goalkeepers/me/bookings/{bookingId}/check-in': {
+    '/goalkeepers/me/bookings/{bookingId}/check-in': {
       post: {
         summary: 'Confirm arrival at the pitch with a photo (feature 020)',
         description:
-          'Upload the photo first with POST /api/images, then send its id. Allowed from start − 30 min to start + 15 min (per country, inclusive, platform clock); no check-in after the window. The location is optional evidence and never blocks. Repeating it answers the recorded check-in.',
+          'Upload the photo first with POST /images, then send its id. Allowed from start − 30 min to start + 15 min (per country, inclusive, platform clock); no check-in after the window. The location is optional evidence and never blocks. Repeating it answers the recorded check-in.',
         tags: ['Goalkeeper bookings'],
         security: [{ bearerAuth: [] }],
         parameters: [{ name: 'bookingId', in: 'path', required: true, schema: { type: 'string' } }],
@@ -1852,7 +1852,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/goalkeepers/me/bookings/{bookingId}/withdraw': {
+    '/goalkeepers/me/bookings/{bookingId}/withdraw': {
       post: {
         summary: 'Withdraw from a booking the goalkeeper took (feature 018)',
         description:
@@ -1885,7 +1885,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/goalkeepers/me/withdrawals': {
+    '/goalkeepers/me/withdrawals': {
       get: {
         summary: "The caller's withdrawals and penalties, newest first (feature 018)",
         tags: ['Goalkeeper bookings'],
@@ -1899,7 +1899,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/admin/goalkeepers/{userId}/withdrawals': {
+    '/admin/goalkeepers/{userId}/withdrawals': {
       get: {
         summary: "A goalkeeper's withdrawals and penalties, with who reversed what (administrators only)",
         tags: ['Admin'],
@@ -1914,7 +1914,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/admin/goalkeepers/{userId}/withdrawals/{withdrawalId}/reversal': {
+    '/admin/goalkeepers/{userId}/withdrawals/{withdrawalId}/reversal': {
       post: {
         summary: "Reverse a withdrawal's money and/or suspensions, with a mandatory reason (administrators only)",
         description:
@@ -1966,7 +1966,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/ratings/pending': {
+    '/ratings/pending': {
       get: {
         summary: "The caller's ratings still to give (feature 021), shown when the app opens (no push)",
         tags: ['Ratings'],
@@ -2007,7 +2007,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/ratings/bookings/{bookingId}': {
+    '/ratings/bookings/{bookingId}': {
       post: {
         summary: 'Rate the other side of a booking, once (feature 021; private)',
         description:
@@ -2036,7 +2036,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/admin/cases': {
+    '/admin/cases': {
       get: {
         summary: 'Cases for manual review, open first (administrators only; feature 021)',
         tags: ['Admin'],
@@ -2074,7 +2074,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/admin/cases/{caseId}': {
+    '/admin/cases/{caseId}': {
       get: {
         summary: 'One case with the rating that opened it and the check-in evidence (location included)',
         tags: ['Admin'],
@@ -2088,7 +2088,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/admin/cases/{caseId}/resolve': {
+    '/admin/cases/{caseId}/resolve': {
       post: {
         summary: 'Close a case with a mandatory note (administrators only)',
         description: 'Resolving undoes nothing by itself: to lift a no-show penalty, reverse its incident (noShowIncidentId) with the withdrawal reversal.',
@@ -2109,7 +2109,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/goalkeepers/me': {
+    '/goalkeepers/me': {
       get: {
         summary: "Get the caller's current goalkeeper registration status",
         tags: ['Goalkeepers'],
@@ -2124,7 +2124,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/goalkeepers/me/identification': {
+    '/goalkeepers/me/identification': {
       patch: {
         summary: 'Save (partially) the identification section',
         tags: ['Goalkeepers'],
@@ -2163,7 +2163,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/goalkeepers/me/physical-data': {
+    '/goalkeepers/me/physical-data': {
       patch: {
         summary: 'Save (partially) the physical data section',
         tags: ['Goalkeepers'],
@@ -2197,7 +2197,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/goalkeepers/me/availability': {
+    '/goalkeepers/me/availability': {
       patch: {
         summary: 'Save the availability section — the chosen service city and its service zones, together',
         tags: ['Goalkeepers'],
@@ -2235,7 +2235,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/goalkeepers/me/document-photo': {
+    '/goalkeepers/me/document-photo': {
       post: {
         summary: 'Upload one or both identification document photos',
         tags: ['Goalkeepers'],
@@ -2280,7 +2280,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/goalkeepers/me/profile/physical-data': {
+    '/goalkeepers/me/profile/physical-data': {
       patch: {
         summary: 'Edit the physical data of an ACTIVE goalkeeper (partial: send heightCm, weightKg, or both)',
         description:
@@ -2304,7 +2304,7 @@ export const openapiSpec = {
         },
         responses: {
           '200': {
-            description: 'Updated (same shape as GET /api/goalkeepers/me, without `city`)',
+            description: 'Updated (same shape as GET /goalkeepers/me, without `city`)',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/GoalkeeperRegistrationResponse' } } },
           },
           '400': {
@@ -2324,7 +2324,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/goalkeepers/me/profile/availability': {
+    '/goalkeepers/me/profile/availability': {
       put: {
         summary: 'Replace the city and service zones of an ACTIVE goalkeeper',
         description:
@@ -2348,7 +2348,7 @@ export const openapiSpec = {
         },
         responses: {
           '200': {
-            description: 'Updated (same shape as GET /api/goalkeepers/me, without `city`)',
+            description: 'Updated (same shape as GET /goalkeepers/me, without `city`)',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/GoalkeeperRegistrationResponse' } } },
           },
           '400': {
@@ -2368,7 +2368,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/goalkeepers/me/activate': {
+    '/goalkeepers/me/activate': {
       post: {
         summary: 'Activate the goalkeeper profile once all sections are complete',
         tags: ['Goalkeepers'],
@@ -2376,7 +2376,7 @@ export const openapiSpec = {
         responses: {
           '200': {
             description:
-              'Now active. The caller’s current access token does not carry the `isGoalkeeper: "true"` claim yet — call POST /api/auth/tokens/refresh to obtain a token that does.',
+              'Now active. The caller’s current access token does not carry the `isGoalkeeper: "true"` claim yet — call POST /auth/tokens/refresh to obtain a token that does.',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/GoalkeeperRegistrationResponse' } } },
           },
           '401': { description: 'Not signed in' },
@@ -2385,7 +2385,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/goalkeepers/me/cancel': {
+    '/goalkeepers/me/cancel': {
       post: {
         summary: 'Cancel an in-progress registration, discarding all saved data and photos',
         tags: ['Goalkeepers'],
@@ -2404,7 +2404,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/devices': {
+    '/devices': {
       post: {
         summary: 'Register or refresh this device for push notifications',
         description:
@@ -2419,7 +2419,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/devices/unregister': {
+    '/devices/unregister': {
       post: {
         summary: 'Forget this device (call before signing out)',
         description: "Removes the token only when it is the caller's. Answers 204 whatever the token was, and is idempotent.",
@@ -2433,7 +2433,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/devices/test-push': {
+    '/devices/test-push': {
       post: {
         summary: "Send a test push to the caller's own devices",
         description: 'data.type is "test". Limited per user (default 5 per minute).',
@@ -2449,7 +2449,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/notifications': {
+    '/notifications': {
       get: {
         summary: "The caller's inbox, newest first, one page at a time",
         description: 'Any signed-in user. In feature 015 the entries are match offers to goalkeepers (type booking.available).',
@@ -2466,7 +2466,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/notifications/read-all': {
+    '/notifications/read-all': {
       post: {
         summary: "Mark every unread entry of the caller read",
         tags: ['Notifications'],
@@ -2474,7 +2474,7 @@ export const openapiSpec = {
         responses: { '204': { description: 'Done' }, '401': { description: 'Not signed in' } },
       },
     },
-    '/api/notifications/{notificationId}/read': {
+    '/notifications/{notificationId}/read': {
       post: {
         summary: 'Mark one entry read (for an offer: opened, so it is never reminded again)',
         tags: ['Notifications'],
@@ -2487,7 +2487,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/notifications/{notificationId}/dismiss': {
+    '/notifications/{notificationId}/dismiss': {
       post: {
         summary: 'Dismiss an offer: never reminded again, and marked read',
         tags: ['Notifications'],
@@ -2501,7 +2501,7 @@ export const openapiSpec = {
         },
       },
     },
-    '/api/goalkeepers/me/offers-availability': {
+    '/goalkeepers/me/offers-availability': {
       put: {
         summary: 'Turn offers on or off',
         description:

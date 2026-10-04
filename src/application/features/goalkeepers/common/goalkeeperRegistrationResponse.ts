@@ -2,7 +2,7 @@ import type { GoalkeeperRegistration } from '../../../../domain/goalkeepers/goal
 import type { GoalkeeperProfile } from '../../../../domain/goalkeepers/goalkeeperProfile.js';
 import { computeGoalkeeperSections, type GoalkeeperSectionsView } from './goalkeeperSections.js';
 
-/** Display data for the saved `cityId`; `region` is the region's name, same convention as `GET /api/locations/cities`. */
+/** Display data for the saved `cityId`; `region` is the region's name, same convention as `GET /locations/cities`. */
 export interface GoalkeeperCityView {
   id: string;
   name: string;
@@ -26,7 +26,7 @@ export interface GoalkeeperRegistrationResponse {
   availableForOffers: boolean | null;
   /**
    * Resolved from `cityId`. Present (`null` when there is no saved city, or it no longer
-   * resolves) only on `GET /api/goalkeepers/me`; the write endpoints omit it to avoid
+   * resolves) only on `GET /goalkeepers/me`; the write endpoints omit it to avoid
    * two extra lookups on every autosave.
    */
   city?: GoalkeeperCityView | null;
@@ -37,7 +37,7 @@ function toIsoDate(date: Date | null): string | null {
 }
 
 /**
- * Projects a `GoalkeeperRegistration` into the shape every `/api/goalkeepers/me` route
+ * Projects a `GoalkeeperRegistration` into the shape every `/goalkeepers/me` route
  * returns. The raw document-photo ids are deliberately never included (FR-021) — only
  * the booleans derived from them. `null` synthesizes the `not_started` shape with no
  * database write (research.md §10).

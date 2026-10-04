@@ -11,14 +11,14 @@ export type TestApp = Awaited<ReturnType<typeof buildTestApp>>;
 export async function signInClient(context: TestApp, sub: string): Promise<{ token: string; userId: string }> {
   context.googleValidator.registerValidCredential(`cred-${sub}`, new ExternalIdentity('google', sub, `${sub}@example.com`));
   const exchange = await request(context.app)
-    .post('/api/auth/sso/exchange')
+    .post('/auth/sso/exchange')
     .send({ provider: 'google', platform: 'mobile', credential: `cred-${sub}` });
   const completion = await request(context.app)
-    .post('/api/profile/complete')
+    .post('/profile/complete')
     .set('Authorization', `Bearer ${exchange.body.accessToken}`)
     .send({ firstName: 'Ana', lastName: 'Portera', countryCode: 'CO', whatsAppNumber: `300 000 ${sub.slice(-4).padStart(4, '0')}`, acceptedTerms: true });
   const token = completion.body.accessToken as string;
-  const me = await request(context.app).get('/api/auth/me').set('Authorization', `Bearer ${token}`);
+  const me = await request(context.app).get('/auth/me').set('Authorization', `Bearer ${token}`);
   return { token, userId: me.body.userId as string };
 }
 
@@ -35,7 +35,7 @@ export async function signInAdmin(context: TestApp): Promise<{ token: string; us
     User.createFromExternalIdentity({ id: 'admin-1', email: 'admin@example.com', displayName: null, provider: 'google', subject: 'admin-sub', isAdmin: true }),
   );
   context.googleValidator.registerValidCredential('admin-cred', new ExternalIdentity('google', 'admin-sub', 'admin@example.com'));
-  const exchange = await request(context.app).post('/api/auth/sso/exchange').send({ provider: 'google', platform: 'admin-web', credential: 'admin-cred' });
+  const exchange = await request(context.app).post('/auth/sso/exchange').send({ provider: 'google', platform: 'admin-web', credential: 'admin-cred' });
   return { token: exchange.body.accessToken as string, userId: 'admin-1' };
 }
 
@@ -56,7 +56,7 @@ export async function createRequestAsClient(
   overrides: { goalkeeperCount?: 1 | 2; startsAt?: string } = {},
 ) {
   const quote = await request(context.app)
-    .post('/api/goalkeeper-requests/quote')
+    .post('/goalkeeper-requests/quote')
     .set('Authorization', `Bearer ${token}`)
     .send({
       latitude: 3.45,
@@ -67,7 +67,7 @@ export async function createRequestAsClient(
     });
   if (quote.status !== 200) throw new Error(`quote failed: ${quote.status} ${JSON.stringify(quote.body)}`);
   const confirmation = await request(context.app)
-    .post('/api/goalkeeper-requests/bookings')
+    .post('/goalkeeper-requests/bookings')
     .set('Authorization', `Bearer ${token}`)
     .send({ quoteId: quote.body.quoteId });
   if (confirmation.status !== 201) throw new Error(`confirmation failed: ${confirmation.status}`);

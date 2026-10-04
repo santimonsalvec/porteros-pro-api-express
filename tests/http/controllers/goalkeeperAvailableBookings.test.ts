@@ -12,10 +12,10 @@ async function setUp() {
 }
 
 function available(context: TestApp, token: string, query = '') {
-  return request(context.app).get(`/api/goalkeepers/me/available-bookings${query}`).set('Authorization', `Bearer ${token}`);
+  return request(context.app).get(`/goalkeepers/me/available-bookings${query}`).set('Authorization', `Bearer ${token}`);
 }
 
-describe('GET /api/goalkeepers/me/available-bookings — US1: the goalkeeper sees what they can take', () => {
+describe('GET /goalkeepers/me/available-bookings — US1: the goalkeeper sees what they can take', () => {
   it('200 with both bookings of a 2-goalkeeper match, their earnings and commission, and no client data', async () => {
     const { context, client, goalkeeper } = await setUp();
     const created = await createRequestAsClient(context, client.token);

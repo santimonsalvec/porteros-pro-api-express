@@ -15,9 +15,9 @@ async function signInAndComplete(
   whatsAppNumber = '300 000 0000',
 ) {
   googleValidator.registerValidCredential(credential, new ExternalIdentity('google', sub, `${sub}@example.com`));
-  const exchange = await request(app).post('/api/auth/sso/exchange').send({ provider: 'google', platform: 'mobile', credential });
+  const exchange = await request(app).post('/auth/sso/exchange').send({ provider: 'google', platform: 'mobile', credential });
   const completion = await request(app)
-    .post('/api/profile/complete')
+    .post('/profile/complete')
     .set('Authorization', `Bearer ${exchange.body.accessToken}`)
     .send({ firstName: 'Old', lastName: 'Name', countryCode: 'CO', whatsAppNumber, acceptedTerms: true });
   return completion.body.accessToken as string;
@@ -25,36 +25,36 @@ async function signInAndComplete(
 
 async function completeAllSections(app: Awaited<ReturnType<typeof buildTestApp>>['app'], accessToken: string) {
   await request(app)
-    .patch('/api/goalkeepers/me/identification')
+    .patch('/goalkeepers/me/identification')
     .set('Authorization', `Bearer ${accessToken}`)
     .send({ documentType: 'cedula_ciudadania', documentNumber: `doc-${accessToken.slice(0, 8)}`, issueDate: '2013-07-02', birthDate: '1995-03-14' });
   await request(app)
-    .patch('/api/goalkeepers/me/physical-data')
+    .patch('/goalkeepers/me/physical-data')
     .set('Authorization', `Bearer ${accessToken}`)
     .send({ heightCm: 185, weightKg: 78 });
   await request(app)
-    .patch('/api/goalkeepers/me/availability')
+    .patch('/goalkeepers/me/availability')
     .set('Authorization', `Bearer ${accessToken}`)
     .send({ cityId: 'city-medellin', zoneIds: ['zone-bello'] });
   await request(app)
-    .post('/api/goalkeepers/me/document-photo')
+    .post('/goalkeepers/me/document-photo')
     .set('Authorization', `Bearer ${accessToken}`)
     .attach('sideA', tinyJpeg, 'front.jpg')
     .attach('sideB', tinyJpeg, 'back.jpg');
 }
 
-describe('POST /api/goalkeepers/me/activate', () => {
+describe('POST /goalkeepers/me/activate', () => {
   it('activates once all four sections are complete', async () => {
     const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-1');
     await completeAllSections(app, accessToken);
 
-    const response = await request(app).post('/api/goalkeepers/me/activate').set('Authorization', `Bearer ${accessToken}`);
+    const response = await request(app).post('/goalkeepers/me/activate').set('Authorization', `Bearer ${accessToken}`);
 
     expect(response.status).toBe(200);
     expect(response.body.status).toBe('active');
 
-    const view = await request(app).get('/api/goalkeepers/me').set('Authorization', `Bearer ${accessToken}`);
+    const view = await request(app).get('/goalkeepers/me').set('Authorization', `Bearer ${accessToken}`);
     expect(view.body.status).toBe('active');
   });
 
@@ -62,11 +62,11 @@ describe('POST /api/goalkeepers/me/activate', () => {
     const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-2');
     await request(app)
-      .patch('/api/goalkeepers/me/physical-data')
+      .patch('/goalkeepers/me/physical-data')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({ heightCm: 185, weightKg: 78 });
 
-    const response = await request(app).post('/api/goalkeepers/me/activate').set('Authorization', `Bearer ${accessToken}`);
+    const response = await request(app).post('/goalkeepers/me/activate').set('Authorization', `Bearer ${accessToken}`);
 
     expect(response.status).toBe(409);
     expect(response.body.error).toBe('goalkeeper_profile_incomplete');
@@ -78,9 +78,9 @@ describe('POST /api/goalkeepers/me/activate', () => {
     const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-3');
     await completeAllSections(app, accessToken);
-    await request(app).post('/api/goalkeepers/me/activate').set('Authorization', `Bearer ${accessToken}`);
+    await request(app).post('/goalkeepers/me/activate').set('Authorization', `Bearer ${accessToken}`);
 
-    const response = await request(app).post('/api/goalkeepers/me/activate').set('Authorization', `Bearer ${accessToken}`);
+    const response = await request(app).post('/goalkeepers/me/activate').set('Authorization', `Bearer ${accessToken}`);
 
     expect(response.status).toBe(409);
     expect(response.body.error).toBe('already_active');

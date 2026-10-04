@@ -6,7 +6,7 @@ import { closedMatchSetUp } from '../closeHelpers.js';
 
 const get = (context: TestApp, token: string, path: string) => request(context.app).get(path).set('Authorization', `Bearer ${token}`);
 const rate = (context: TestApp, token: string, bookingId: string, body: object) =>
-  request(context.app).post(`/api/ratings/bookings/${bookingId}`).set('Authorization', `Bearer ${token}`).send(body);
+  request(context.app).post(`/ratings/bookings/${bookingId}`).set('Authorization', `Bearer ${token}`).send(body);
 
 describe('ratings — US2 (feature 021)', () => {
   it('lists the pending rating for both sides, rates once each, and refuses repeats and strangers', async () => {
@@ -14,8 +14,8 @@ describe('ratings — US2 (feature 021)', () => {
     context.clock.set('2026-09-21T23:30:00.000Z');
     await request(context.app).post('/internal/sweep').set('Authorization', `Bearer ${TEST_INTERNAL_TOKEN}`);
 
-    expect((await get(context, client.token, '/api/ratings/pending')).body.items).toMatchObject([{ bookingId, side: 'client', question: 'goalkeeper_arrived' }]);
-    expect((await get(context, g.token, '/api/ratings/pending')).body.items).toMatchObject([{ bookingId, side: 'goalkeeper', question: 'payment_received' }]);
+    expect((await get(context, client.token, '/ratings/pending')).body.items).toMatchObject([{ bookingId, side: 'client', question: 'goalkeeper_arrived' }]);
+    expect((await get(context, g.token, '/ratings/pending')).body.items).toMatchObject([{ bookingId, side: 'goalkeeper', question: 'payment_received' }]);
 
     const rated = await rate(context, client.token, bookingId, { answer: true, stars: 5, comment: 'Excelente' });
     expect(rated.status).toBe(201);
@@ -25,7 +25,7 @@ describe('ratings — US2 (feature 021)', () => {
     expect((await rate(context, client.token, bookingId, { answer: 'yes', stars: 5 })).status).toBe(400);
     const stranger = await signInClient(context, 'sub-2109');
     expect((await rate(context, stranger.token, bookingId, { answer: true, stars: 5 })).body.error).toBe('booking_not_found');
-    expect((await get(context, client.token, '/api/ratings/pending')).body.items).toEqual([]);
+    expect((await get(context, client.token, '/ratings/pending')).body.items).toEqual([]);
   });
 
   it('refuses rating before the match ended without a check-in', async () => {
@@ -42,11 +42,11 @@ describe('ratings — US2 (feature 021)', () => {
     const paths = Object.keys((await request(context.app).get('/openapi.json')).body.paths);
     expect(paths).toEqual(
       expect.arrayContaining([
-        '/api/ratings/pending',
-        '/api/ratings/bookings/{bookingId}',
-        '/api/admin/cases',
-        '/api/admin/cases/{caseId}',
-        '/api/admin/cases/{caseId}/resolve',
+        '/ratings/pending',
+        '/ratings/bookings/{bookingId}',
+        '/admin/cases',
+        '/admin/cases/{caseId}',
+        '/admin/cases/{caseId}/resolve',
       ]),
     );
   });

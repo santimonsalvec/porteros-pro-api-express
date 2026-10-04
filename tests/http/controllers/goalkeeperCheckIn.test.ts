@@ -8,9 +8,9 @@ import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeep
 const tinyJpeg = readFileSync(fileURLToPath(new URL('../../fixtures/tinyImage.jpg', import.meta.url)));
 
 const upload = async (context: TestApp, token: string) =>
-  (await request(context.app).post('/api/images').set('Authorization', `Bearer ${token}`).attach('image', tinyJpeg, 'photo.jpg')).body.id as string;
+  (await request(context.app).post('/images').set('Authorization', `Bearer ${token}`).attach('image', tinyJpeg, 'photo.jpg')).body.id as string;
 const checkIn = (context: TestApp, token: string, bookingId: string, body: object) =>
-  request(context.app).post(`/api/goalkeepers/me/bookings/${bookingId}/check-in`).set('Authorization', `Bearer ${token}`).send(body);
+  request(context.app).post(`/goalkeepers/me/bookings/${bookingId}/check-in`).set('Authorization', `Bearer ${token}`).send(body);
 const sweep = (context: TestApp) => request(context.app).post('/internal/sweep').set('Authorization', `Bearer ${TEST_INTERNAL_TOKEN}`);
 
 /** G holds the only booking of a 22:00Z match: the window runs 21:30Z–22:15Z, the last call at 22:05Z. */
@@ -22,7 +22,7 @@ async function setUp() {
   await context.walletLedger.adjust(ownerOf(g.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo', operationKey: 'k-g' });
   const created = await createRequestAsClient(context, client.token, { goalkeeperCount: 1, startsAt: '2026-09-21T17:00:00' });
   const bookingId = created.bookings[0]!.bookingId;
-  expect((await request(context.app).post(`/api/goalkeepers/me/bookings/${bookingId}/accept`).set('Authorization', `Bearer ${g.token}`)).status).toBe(201);
+  expect((await request(context.app).post(`/goalkeepers/me/bookings/${bookingId}/accept`).set('Authorization', `Bearer ${g.token}`)).status).toBe(201);
   const inbox = (userId: string, type: string) => context.notificationRepository.all().filter((item) => item.userId === userId && item.type === type);
   return { context, client, g, bookingId, inbox };
 }
@@ -68,7 +68,7 @@ describe('goalkeeper check-in — US2: the client sees the arrival', () => {
     await checkIn(context, g.token, bookingId, { imageId, location: { latitude: 3.4611, longitude: -76.5123, accuracyMeters: 7 } });
     await checkIn(context, g.token, bookingId, { imageId });
 
-    const view = await request(context.app).get('/api/goalkeeper-requests/bookings').set('Authorization', `Bearer ${client.token}`);
+    const view = await request(context.app).get('/goalkeeper-requests/bookings').set('Authorization', `Bearer ${client.token}`);
 
     expect(view.body.items[0].bookings[0].checkIn).toEqual({ at: '2026-09-21T21:45:00.000Z', photoUrl: expect.any(String) });
     expect(JSON.stringify(view.body)).not.toMatch(/distanceMeters|3\.4611|-76\.5123|accuracy/);
@@ -102,7 +102,7 @@ describe('check-in in the API document', () => {
   it('documents the check-in endpoint', async () => {
     const context = await buildTestApp();
     const paths = Object.keys((await request(context.app).get('/openapi.json')).body.paths);
-    expect(paths).toContain('/api/goalkeepers/me/bookings/{bookingId}/check-in');
+    expect(paths).toContain('/goalkeepers/me/bookings/{bookingId}/check-in');
   });
 });
 

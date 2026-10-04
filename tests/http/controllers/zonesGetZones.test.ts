@@ -10,16 +10,16 @@ async function signIn(
   sub: string,
 ) {
   googleValidator.registerValidCredential(credential, new ExternalIdentity('google', sub, `${sub}@example.com`));
-  const exchange = await request(app).post('/api/auth/sso/exchange').send({ provider: 'google', platform: 'mobile', credential });
+  const exchange = await request(app).post('/auth/sso/exchange').send({ provider: 'google', platform: 'mobile', credential });
   return exchange.body.accessToken as string;
 }
 
-describe('GET /api/zones', () => {
+describe('GET /zones', () => {
   it('returns a city\'s active zones', async () => {
     const { app, googleValidator } = await buildTestApp();
     const accessToken = await signIn(app, googleValidator, 'good-token', 'sub-1');
 
-    const response = await request(app).get('/api/zones?cityId=city-medellin').set('Authorization', `Bearer ${accessToken}`);
+    const response = await request(app).get('/zones?cityId=city-medellin').set('Authorization', `Bearer ${accessToken}`);
 
     expect(response.status).toBe(200);
     expect(response.body.zones.map((z: { id: string }) => z.id)).toEqual(['zone-bello', 'zone-copacabana']);
@@ -29,7 +29,7 @@ describe('GET /api/zones', () => {
     const { app, googleValidator } = await buildTestApp();
     const accessToken = await signIn(app, googleValidator, 'good-token', 'sub-2');
 
-    const response = await request(app).get('/api/zones?cityId=city-envigado').set('Authorization', `Bearer ${accessToken}`);
+    const response = await request(app).get('/zones?cityId=city-envigado').set('Authorization', `Bearer ${accessToken}`);
 
     expect(response.status).toBe(200);
     expect(response.body.zones.map((z: { id: string }) => z.id)).toEqual(['zone-bello', 'zone-copacabana']);
@@ -39,7 +39,7 @@ describe('GET /api/zones', () => {
     const { app, googleValidator } = await buildTestApp();
     const accessToken = await signIn(app, googleValidator, 'good-token', 'sub-3');
 
-    const response = await request(app).get('/api/zones?cityId=does-not-exist').set('Authorization', `Bearer ${accessToken}`);
+    const response = await request(app).get('/zones?cityId=does-not-exist').set('Authorization', `Bearer ${accessToken}`);
 
     expect(response.status).toBe(404);
     expect(response.body.error).toBe('city_not_found');
@@ -49,7 +49,7 @@ describe('GET /api/zones', () => {
     const { app, googleValidator } = await buildTestApp();
     const accessToken = await signIn(app, googleValidator, 'good-token', 'sub-4');
 
-    const response = await request(app).get('/api/zones?cityId=city-bogota').set('Authorization', `Bearer ${accessToken}`);
+    const response = await request(app).get('/zones?cityId=city-bogota').set('Authorization', `Bearer ${accessToken}`);
 
     expect(response.status).toBe(404);
     expect(response.body.error).toBe('no_zones_configured');
@@ -58,7 +58,7 @@ describe('GET /api/zones', () => {
   it('rejects requests with no token', async () => {
     const { app } = await buildTestApp();
 
-    const response = await request(app).get('/api/zones?cityId=city-medellin');
+    const response = await request(app).get('/zones?cityId=city-medellin');
 
     expect(response.status).toBe(401);
   });

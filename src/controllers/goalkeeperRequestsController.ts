@@ -49,7 +49,7 @@ function serviceNotConfigured(source: string, cityId: string, missing: MissingSe
  * The goalkeeper-request resource: `GET /config` (what a client may pick for a pitch), `POST /quote`
  * (the price of a booking, held for 3 minutes), `POST /bookings` (turn that quote into a request
  * with one booking per goalkeeper) and `GET /bookings` (the caller's own requests, one page at a time).
- * Authenticated clients with a complete profile, exactly like `/api/goalkeepers/me/*`.
+ * Authenticated clients with a complete profile, exactly like `/goalkeepers/me/*`.
  */
 export function createGoalkeeperRequestsController(deps: GoalkeeperRequestsControllerDependencies): Router {
   const router = Router();

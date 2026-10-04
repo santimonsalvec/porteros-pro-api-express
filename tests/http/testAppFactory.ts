@@ -273,7 +273,7 @@ export interface TestAppContext {
   clock: FixedClock;
   /** Mutate `.status` before a request to simulate an unhealthy dependency. */
   health: HealthReportResponse;
-  /** The wallet ledger state (movements and wallets) behind `/me/wallet` and `/api/admin/…/wallet`. */
+  /** The wallet ledger state (movements and wallets) behind `/me/wallet` and `/admin/…/wallet`. */
   walletStore: FakeWalletStore;
   /** Seeded by `seedQuoteWorld`: every quote-world country has a country-level commission (Colombia 7.000 COP). */
   commissionSettingRepository: FakeCommissionSettingRepository;
@@ -287,7 +287,7 @@ export interface TestAppContext {
   eventDeliveryLog: FakeEventDeliveryLog;
   /** The composition root's mediator, to send commands (e.g. the sweep) directly. */
   mediator: Mediator;
-  /** Push devices registered through `/api/devices` (feature 014). */
+  /** Push devices registered through `/devices` (feature 014). */
   deviceRepository: FakeDeviceRepository;
   /** What reached the push service; `setOutcome(token, 'invalid')` simulates a dead token. */
   pushSender: FakePushSender;

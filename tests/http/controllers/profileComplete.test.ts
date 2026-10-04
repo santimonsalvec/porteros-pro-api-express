@@ -6,18 +6,18 @@ import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js'
 async function signInMobile(app: Awaited<ReturnType<typeof buildTestApp>>['app'], googleValidator: Awaited<ReturnType<typeof buildTestApp>>['googleValidator'], credential: string, sub: string) {
   googleValidator.registerValidCredential(credential, new ExternalIdentity('google', sub, `${sub}@example.com`));
   const response = await request(app)
-    .post('/api/auth/sso/exchange')
+    .post('/auth/sso/exchange')
     .send({ provider: 'google', platform: 'mobile', credential });
   return response.body.accessToken as string;
 }
 
-describe('POST /api/profile/complete', () => {
+describe('POST /profile/complete', () => {
   it('completes the profile and returns fresh tokens', async () => {
     const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInMobile(app, googleValidator, 'good-token', 'sub-1');
 
     const response = await request(app)
-      .post('/api/profile/complete')
+      .post('/profile/complete')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({ firstName: 'Jhon', lastName: 'Doe', countryCode: 'CO', whatsAppNumber: '300 123 4567', acceptedTerms: true });
 
@@ -29,7 +29,7 @@ describe('POST /api/profile/complete', () => {
     const { app } = await buildTestApp();
 
     const response = await request(app)
-      .post('/api/profile/complete')
+      .post('/profile/complete')
       .send({ firstName: 'Jhon', lastName: 'Doe', countryCode: 'CO', whatsAppNumber: '300 123 4567', acceptedTerms: true });
 
     expect(response.status).toBe(401);
@@ -40,7 +40,7 @@ describe('POST /api/profile/complete', () => {
     const accessToken = await signInMobile(app, googleValidator, 'good-token', 'sub-2');
 
     const response = await request(app)
-      .post('/api/profile/complete')
+      .post('/profile/complete')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({ firstName: '', lastName: 'Doe', countryCode: 'CO', whatsAppNumber: '300 123 4567', acceptedTerms: true });
 
@@ -54,7 +54,7 @@ describe('POST /api/profile/complete', () => {
     const accessToken = await signInMobile(app, googleValidator, 'good-token', 'sub-3');
 
     const response = await request(app)
-      .post('/api/profile/complete')
+      .post('/profile/complete')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({ firstName: 'Jhon', lastName: 'Doe', countryCode: 'ZZ', whatsAppNumber: '300 123 4567', acceptedTerms: true });
 
@@ -66,12 +66,12 @@ describe('POST /api/profile/complete', () => {
     const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInMobile(app, googleValidator, 'good-token', 'sub-4');
     await request(app)
-      .post('/api/profile/complete')
+      .post('/profile/complete')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({ firstName: 'Jhon', lastName: 'Doe', countryCode: 'CO', whatsAppNumber: '300 123 4567', acceptedTerms: true });
 
     const secondAttempt = await request(app)
-      .post('/api/profile/complete')
+      .post('/profile/complete')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({ firstName: 'Jhon', lastName: 'Doe', countryCode: 'CO', whatsAppNumber: '300 123 4567', acceptedTerms: true });
 

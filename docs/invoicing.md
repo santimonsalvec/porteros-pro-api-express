@@ -16,7 +16,7 @@ movimiento propio de la billetera, en la misma transacción:
 | `commission_vat_refund` | + | Al devolver la comisión, con la tarifa con la que se cobró |
 | `penalty_vat` / `penalty_vat_reversal` | − / + | Con una penalidad en dinero (hoy ninguna función las cobra) |
 
-- **La tarifa** es por país: `PUT /api/admin/tax-settings/{countryId}` con `{"vatRateBps":1900}` (19 %). Sin configurar = 0 %, con un aviso `vat_not_configured` en el log.
+- **La tarifa** es por país: `PUT /admin/tax-settings/{countryId}` con `{"vatRateBps":1900}` (19 %). Sin configurar = 0 %, con un aviso `vat_not_configured` en el log.
 - **Ejemplo** con 7.000 al 19 %: se descuentan 7.000 + 1.330 = 8.330.
 - **Todas las reglas de fondos** usan comisión + IVA: ver partidos, recibir ofertas y aceptar. En la billetera, `offers.lowestCharge` y `missingAmount` ya incluyen el IVA.
 
@@ -38,11 +38,11 @@ movimiento propio de la billetera, en la misma transacción:
 - `rejected`: rechazado por datos; lo corrige un administrador.
 
 Siigo envía cada documento por correo al portero (PDF y XML). El portero los consulta y descarga en
-`GET /api/goalkeepers/me/invoices`.
+`GET /goalkeepers/me/invoices`.
 
 ## 3. Proveedor por país
 
-- **Configuración no secreta**, desde el administrador: `PUT /api/admin/invoicing/settings/{countryId}` con `{"provider":"siigo","config":{…}}`. La respuesta dice si existen las credenciales del país (`credentialsPresent`), sin mostrarlas.
+- **Configuración no secreta**, desde el administrador: `PUT /admin/invoicing/settings/{countryId}` con `{"provider":"siigo","config":{…}}`. La respuesta dice si existen las credenciales del país (`credentialsPresent`), sin mostrarlas.
 - **Credenciales**, en Secret Manager, por proveedor y país: `{PROVEEDOR}_{PAÍS}_USERNAME` y `{PROVEEDOR}_{PAÍS}_ACCESS_KEY` (por ejemplo `SIIGO_CO_USERNAME` y `SIIGO_CO_ACCESS_KEY`), referenciadas en `apphosting.yaml`. Nunca van en la base de datos, los logs ni las respuestas.
 - **Cada documento conserva su proveedor**, y la configuración con la que se envió. Si el país cambia de proveedor, los documentos ya enviados siguen con el anterior; los no enviados usan el nuevo.
 - **País sin proveedor**: sus documentos quedan pendientes (`provider_not_configured`) y se emiten cuando el país se configure.
@@ -88,7 +88,7 @@ departamento y la ciudad: el responsable de la base de datos debe llenar `daneSt
 
 ## 5. Operación
 
-- **Rechazados**: `GET /api/admin/invoicing/documents?status=rejected` muestra el motivo (`lastError`). Se corrigen los datos y se reintenta con `POST /api/admin/invoicing/documents/{id}/retry`, que toma los datos actuales del portero.
+- **Rechazados**: `GET /admin/invoicing/documents?status=rejected` muestra el motivo (`lastError`). Se corrigen los datos y se reintenta con `POST /admin/invoicing/documents/{id}/retry`, que toma los datos actuales del portero.
 - **Atascados**: el log `invoicing_pending_too_long` aparece cuando hay documentos pendientes por más de 24 h; el listado los marca `stale: true`.
 - **Recuperados**: el log `invoicing_document_recovered` indica que la red de seguridad creó un documento cuyo evento se perdió.
 

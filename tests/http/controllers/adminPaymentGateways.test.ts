@@ -10,14 +10,14 @@ const VALID = {
   amounts: [10000, 20000, 30000, 50000, 100000],
 };
 
-describe('/api/admin/payment-gateways/{countryId} — US5: an administrator chooses each country\'s gateway', () => {
+describe('/admin/payment-gateways/{countryId} — US5: an administrator chooses each country\'s gateway', () => {
   it('saves Colombia\'s settings and reads them back, without any secret', async () => {
     const context = await buildTestApp();
     const { token } = await signInAdmin(context);
 
-    const missing = await request(context.app).get('/api/admin/payment-gateways/country-co').set('Authorization', `Bearer ${token}`);
-    const saved = await request(context.app).put('/api/admin/payment-gateways/country-co').set('Authorization', `Bearer ${token}`).send(VALID);
-    const read = await request(context.app).get('/api/admin/payment-gateways/country-co').set('Authorization', `Bearer ${token}`);
+    const missing = await request(context.app).get('/admin/payment-gateways/country-co').set('Authorization', `Bearer ${token}`);
+    const saved = await request(context.app).put('/admin/payment-gateways/country-co').set('Authorization', `Bearer ${token}`).send(VALID);
+    const read = await request(context.app).get('/admin/payment-gateways/country-co').set('Authorization', `Bearer ${token}`);
 
     expect(missing.status).toBe(404);
     expect(missing.body.error).toBe('settings_not_found');
@@ -37,7 +37,7 @@ describe('/api/admin/payment-gateways/{countryId} — US5: an administrator choo
     const context = await buildTestApp();
     const { token } = await signInAdmin(context);
 
-    const response = await request(context.app).put('/api/admin/payment-gateways/country-co').set('Authorization', `Bearer ${token}`).send(body);
+    const response = await request(context.app).put('/admin/payment-gateways/country-co').set('Authorization', `Bearer ${token}`).send(body);
 
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('validation_failed');
@@ -48,8 +48,8 @@ describe('/api/admin/payment-gateways/{countryId} — US5: an administrator choo
     const admin = await signInAdmin(context);
     const client = await signInClient(context, 'sub-2221');
 
-    const unknown = await request(context.app).put('/api/admin/payment-gateways/nowhere').set('Authorization', `Bearer ${admin.token}`).send(VALID);
-    const forbidden = await request(context.app).put('/api/admin/payment-gateways/country-co').set('Authorization', `Bearer ${client.token}`).send(VALID);
+    const unknown = await request(context.app).put('/admin/payment-gateways/nowhere').set('Authorization', `Bearer ${admin.token}`).send(VALID);
+    const forbidden = await request(context.app).put('/admin/payment-gateways/country-co').set('Authorization', `Bearer ${client.token}`).send(VALID);
 
     expect(unknown.status).toBe(404);
     expect(unknown.body.error).toBe('country_not_found');

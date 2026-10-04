@@ -7,22 +7,22 @@ import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js'
 const TOKEN = 'fcm-token-0000000000000000000000000000000000';
 
 const register = (context: TestApp, bearer: string, body: unknown) =>
-  request(context.app).post('/api/devices').set('Authorization', `Bearer ${bearer}`).send(body as object);
+  request(context.app).post('/devices').set('Authorization', `Bearer ${bearer}`).send(body as object);
 const unregister = (context: TestApp, bearer: string, body: unknown) =>
-  request(context.app).post('/api/devices/unregister').set('Authorization', `Bearer ${bearer}`).send(body as object);
+  request(context.app).post('/devices/unregister').set('Authorization', `Bearer ${bearer}`).send(body as object);
 const testPush = (context: TestApp, bearer: string) =>
-  request(context.app).post('/api/devices/test-push').set('Authorization', `Bearer ${bearer}`).send();
+  request(context.app).post('/devices/test-push').set('Authorization', `Bearer ${bearer}`).send();
 
 /** Signed in through SSO only: the profile is not completed yet. */
 async function signInWithoutProfile(context: TestApp, sub: string): Promise<string> {
   context.googleValidator.registerValidCredential(`cred-${sub}`, new ExternalIdentity('google', sub, `${sub}@example.com`));
   const exchange = await request(context.app)
-    .post('/api/auth/sso/exchange')
+    .post('/auth/sso/exchange')
     .send({ provider: 'google', platform: 'mobile', credential: `cred-${sub}` });
   return exchange.body.accessToken as string;
 }
 
-describe('POST /api/devices — US1: a signed-in phone can receive notifications', () => {
+describe('POST /devices — US1: a signed-in phone can receive notifications', () => {
   it('registers a device, and a repeat keeps one device', async () => {
     const context = await buildTestApp();
     const client = await signInClient(context, 'sub-0001');
@@ -78,7 +78,7 @@ describe('POST /api/devices — US1: a signed-in phone can receive notifications
   it('refuses a request without a session', async () => {
     const context = await buildTestApp();
 
-    expect((await request(context.app).post('/api/devices').send({ token: TOKEN, platform: 'ios' })).status).toBe(401);
+    expect((await request(context.app).post('/devices').send({ token: TOKEN, platform: 'ios' })).status).toBe(401);
   });
 
   it('leaves one device after 20 simultaneous registrations of the same token', async () => {
@@ -94,7 +94,7 @@ describe('POST /api/devices — US1: a signed-in phone can receive notifications
   });
 });
 
-describe('POST /api/devices/unregister — US2: a shared phone notifies only the person signed in', () => {
+describe('POST /devices/unregister — US2: a shared phone notifies only the person signed in', () => {
   it('moves a token to the user who registers it last', async () => {
     const context = await buildTestApp();
     const a = await signInClient(context, 'sub-0011');
@@ -127,7 +127,7 @@ describe('POST /api/devices/unregister — US2: a shared phone notifies only the
     const client = await signInClient(context, 'sub-0015');
 
     expect((await unregister(context, client.token, {})).status).toBe(400);
-    expect((await request(context.app).post('/api/devices/unregister').send({ token: TOKEN })).status).toBe(401);
+    expect((await request(context.app).post('/devices/unregister').send({ token: TOKEN })).status).toBe(401);
   });
 
   it('leaves the token with exactly one of two users registering it at once', async () => {
@@ -145,19 +145,19 @@ describe('POST /api/devices/unregister — US2: a shared phone notifies only the
   });
 });
 
-describe('/api/devices in the API document', () => {
+describe('/devices in the API document', () => {
   it('documents the three device endpoints', async () => {
     const context = await buildTestApp();
 
     const response = await request(context.app).get('/openapi.json');
 
     expect(Object.keys(response.body.paths)).toEqual(
-      expect.arrayContaining(['/api/devices', '/api/devices/unregister', '/api/devices/test-push']),
+      expect.arrayContaining(['/devices', '/devices/unregister', '/devices/test-push']),
     );
   });
 });
 
-describe('POST /api/devices/test-push — US6: a signed-in user can check that pushes reach their phone', () => {
+describe('POST /devices/test-push — US6: a signed-in user can check that pushes reach their phone', () => {
   it("sends only to the caller's own devices", async () => {
     const context = await buildTestApp();
     const me = await signInClient(context, 'sub-0021');
@@ -211,6 +211,6 @@ describe('POST /api/devices/test-push — US6: a signed-in user can check that p
   it('refuses a request without a session', async () => {
     const context = await buildTestApp();
 
-    expect((await request(context.app).post('/api/devices/test-push').send()).status).toBe(401);
+    expect((await request(context.app).post('/devices/test-push').send()).status).toBe(401);
   });
 });

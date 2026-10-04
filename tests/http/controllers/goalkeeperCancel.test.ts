@@ -14,29 +14,29 @@ async function signInAndComplete(
   sub: string,
 ) {
   googleValidator.registerValidCredential(credential, new ExternalIdentity('google', sub, `${sub}@example.com`));
-  const exchange = await request(app).post('/api/auth/sso/exchange').send({ provider: 'google', platform: 'mobile', credential });
+  const exchange = await request(app).post('/auth/sso/exchange').send({ provider: 'google', platform: 'mobile', credential });
   const completion = await request(app)
-    .post('/api/profile/complete')
+    .post('/profile/complete')
     .set('Authorization', `Bearer ${exchange.body.accessToken}`)
     .send({ firstName: 'Old', lastName: 'Name', countryCode: 'CO', whatsAppNumber: '300 000 0000', acceptedTerms: true });
   return completion.body.accessToken as string;
 }
 
-describe('POST /api/goalkeepers/me/cancel', () => {
+describe('POST /goalkeepers/me/cancel', () => {
   it('discards previously saved section data, resetting to not_started', async () => {
     const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-1');
     await request(app)
-      .patch('/api/goalkeepers/me/physical-data')
+      .patch('/goalkeepers/me/physical-data')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({ heightCm: 185, weightKg: 78 });
 
-    const response = await request(app).post('/api/goalkeepers/me/cancel').set('Authorization', `Bearer ${accessToken}`);
+    const response = await request(app).post('/goalkeepers/me/cancel').set('Authorization', `Bearer ${accessToken}`);
 
     expect(response.status).toBe(200);
     expect(response.body.status).toBe('not_started');
 
-    const view = await request(app).get('/api/goalkeepers/me').set('Authorization', `Bearer ${accessToken}`);
+    const view = await request(app).get('/goalkeepers/me').set('Authorization', `Bearer ${accessToken}`);
     expect(view.body.status).toBe('not_started');
     expect(view.body.heightCm).toBeNull();
   });
@@ -45,12 +45,12 @@ describe('POST /api/goalkeepers/me/cancel', () => {
     const { app, googleValidator, imageRepository } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-2');
     await request(app)
-      .post('/api/goalkeepers/me/document-photo')
+      .post('/goalkeepers/me/document-photo')
       .set('Authorization', `Bearer ${accessToken}`)
       .attach('sideA', tinyJpeg, 'front.jpg');
     expect(await imageRepository.getAll()).toHaveLength(1);
 
-    await request(app).post('/api/goalkeepers/me/cancel').set('Authorization', `Bearer ${accessToken}`);
+    await request(app).post('/goalkeepers/me/cancel').set('Authorization', `Bearer ${accessToken}`);
 
     expect(await imageRepository.getAll()).toHaveLength(0);
   });
@@ -59,7 +59,7 @@ describe('POST /api/goalkeepers/me/cancel', () => {
     const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-3');
 
-    const response = await request(app).post('/api/goalkeepers/me/cancel').set('Authorization', `Bearer ${accessToken}`);
+    const response = await request(app).post('/goalkeepers/me/cancel').set('Authorization', `Bearer ${accessToken}`);
 
     expect(response.status).toBe(200);
     expect(response.body.status).toBe('not_started');
@@ -69,25 +69,25 @@ describe('POST /api/goalkeepers/me/cancel', () => {
     const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-4');
     await request(app)
-      .patch('/api/goalkeepers/me/identification')
+      .patch('/goalkeepers/me/identification')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({ documentType: 'cedula_ciudadania', documentNumber: '123', issueDate: '2013-07-02', birthDate: '1995-03-14' });
     await request(app)
-      .patch('/api/goalkeepers/me/physical-data')
+      .patch('/goalkeepers/me/physical-data')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({ heightCm: 185, weightKg: 78 });
     await request(app)
-      .patch('/api/goalkeepers/me/availability')
+      .patch('/goalkeepers/me/availability')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({ cityId: 'city-medellin', zoneIds: ['zone-bello'] });
     await request(app)
-      .post('/api/goalkeepers/me/document-photo')
+      .post('/goalkeepers/me/document-photo')
       .set('Authorization', `Bearer ${accessToken}`)
       .attach('sideA', tinyJpeg, 'front.jpg')
       .attach('sideB', tinyJpeg, 'back.jpg');
-    await request(app).post('/api/goalkeepers/me/activate').set('Authorization', `Bearer ${accessToken}`);
+    await request(app).post('/goalkeepers/me/activate').set('Authorization', `Bearer ${accessToken}`);
 
-    const response = await request(app).post('/api/goalkeepers/me/cancel').set('Authorization', `Bearer ${accessToken}`);
+    const response = await request(app).post('/goalkeepers/me/cancel').set('Authorization', `Bearer ${accessToken}`);
 
     expect(response.status).toBe(409);
     expect(response.body.error).toBe('already_active');
@@ -96,7 +96,7 @@ describe('POST /api/goalkeepers/me/cancel', () => {
   it('rejects requests with no token', async () => {
     const { app } = await buildTestApp();
 
-    const response = await request(app).post('/api/goalkeepers/me/cancel');
+    const response = await request(app).post('/goalkeepers/me/cancel');
 
     expect(response.status).toBe(401);
   });

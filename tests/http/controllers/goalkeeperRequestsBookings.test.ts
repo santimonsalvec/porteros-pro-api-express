@@ -13,10 +13,10 @@ async function signInAndComplete(context: TestApp, sub: string): Promise<string>
     new ExternalIdentity('google', sub, `${sub}@example.com`),
   );
   const exchange = await request(context.app)
-    .post('/api/auth/sso/exchange')
+    .post('/auth/sso/exchange')
     .send({ provider: 'google', platform: 'mobile', credential: `cred-${sub}` });
   const completion = await request(context.app)
-    .post('/api/profile/complete')
+    .post('/profile/complete')
     .set('Authorization', `Bearer ${exchange.body.accessToken}`)
     .send({
       firstName: 'Ana',
@@ -39,7 +39,7 @@ const quoteBody = {
 
 async function issueQuote(context: TestApp, token: string, body: object = quoteBody) {
   const response = await request(context.app)
-    .post('/api/goalkeeper-requests/quote')
+    .post('/goalkeeper-requests/quote')
     .set('Authorization', `Bearer ${token}`)
     .send(body);
   expect(response.status).toBe(200);
@@ -48,7 +48,7 @@ async function issueQuote(context: TestApp, token: string, body: object = quoteB
 
 function confirm(context: TestApp, token: string, body: unknown) {
   return request(context.app)
-    .post('/api/goalkeeper-requests/bookings')
+    .post('/goalkeeper-requests/bookings')
     .set('Authorization', `Bearer ${token}`)
     .send(body as object);
 }
@@ -60,7 +60,7 @@ async function setUp(sub = 'sub-0001') {
   return { context, token };
 }
 
-describe('POST /api/goalkeeper-requests/bookings — Story 1: book at exactly the quoted price', () => {
+describe('POST /goalkeeper-requests/bookings — Story 1: book at exactly the quoted price', () => {
   it('201 with a request that copies the quote, one booking per goalkeeper, and the quote is gone', async () => {
     const { context, token } = await setUp();
     const quote = await issueQuote(context, token);
@@ -135,7 +135,7 @@ describe('POST /api/goalkeeper-requests/bookings — Story 1: book at exactly th
     const context = await buildTestApp();
 
     const response = await request(context.app)
-      .post('/api/goalkeeper-requests/bookings')
+      .post('/goalkeeper-requests/bookings')
       .send({ quoteId: 'x' });
 
     expect(response.status).toBe(401);
@@ -148,7 +148,7 @@ describe('POST /api/goalkeeper-requests/bookings — Story 1: book at exactly th
       new ExternalIdentity('google', 'sub-new', 'new@example.com'),
     );
     const exchange = await request(context.app)
-      .post('/api/auth/sso/exchange')
+      .post('/auth/sso/exchange')
       .send({ provider: 'google', platform: 'mobile', credential: 'cred-new' });
 
     const response = await confirm(context, exchange.body.accessToken as string, { quoteId: 'x' });
@@ -157,7 +157,7 @@ describe('POST /api/goalkeeper-requests/bookings — Story 1: book at exactly th
   });
 });
 
-describe('POST /api/goalkeeper-requests/bookings — US1: one booking per goalkeeper', () => {
+describe('POST /goalkeeper-requests/bookings — US1: one booking per goalkeeper', () => {
   it('201 with one booking per goalkeeper whose totals add up to the request total', async () => {
     const { context, token } = await setUp();
     const two = await issueQuote(context, token);
@@ -175,7 +175,7 @@ describe('POST /api/goalkeeper-requests/bookings — US1: one booking per goalke
   });
 });
 
-describe('POST /api/goalkeeper-requests/bookings — US3: partial-confirmation preference', () => {
+describe('POST /goalkeeper-requests/bookings — US3: partial-confirmation preference', () => {
   it('echoes keep_confirmed by default and cancel_all when chosen', async () => {
     const { context, token } = await setUp();
     const first = await issueQuote(context, token);
@@ -202,7 +202,7 @@ describe('POST /api/goalkeeper-requests/bookings — US3: partial-confirmation p
   });
 });
 
-describe('POST /api/goalkeeper-requests/bookings — US6: late-confirmation notice', () => {
+describe('POST /goalkeeper-requests/bookings — US6: late-confirmation notice', () => {
   it('reports that assigned bookings cannot be cancelled for a match starting within the free-cancellation period', async () => {
     const { context, token } = await setUp();
     // Now 13:30 Bogotá; the match starts at 14:00 (30 minutes, the minimum notice) → inside the 60-minute period.
@@ -218,7 +218,7 @@ describe('POST /api/goalkeeper-requests/bookings — US6: late-confirmation noti
   });
 });
 
-describe('POST /api/goalkeeper-requests/bookings — Story 2: retries are safe', () => {
+describe('POST /goalkeeper-requests/bookings — Story 2: retries are safe', () => {
   it('201 then 200 with the identical booking', async () => {
     const { context, token } = await setUp();
     const quote = await issueQuote(context, token);
@@ -275,7 +275,7 @@ describe('POST /api/goalkeeper-requests/bookings — Story 2: retries are safe',
   });
 });
 
-describe('POST /api/goalkeeper-requests/bookings — Story 4: refusals are clear and change nothing', () => {
+describe('POST /goalkeeper-requests/bookings — Story 4: refusals are clear and change nothing', () => {
   it.each([
     ['a missing quoteId', {}],
     ['a numeric quoteId', { quoteId: 123 }],

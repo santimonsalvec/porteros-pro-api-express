@@ -10,13 +10,13 @@ const EVALUATION = '2026-09-21T19:00:00.000Z';
 
 const quote = (context: TestApp, token: string, goalkeeperCount: 1 | 2 = 2) =>
   request(context.app)
-    .post('/api/goalkeeper-requests/quote')
+    .post('/goalkeeper-requests/quote')
     .set('Authorization', `Bearer ${token}`)
     .send({ latitude: 3.45, longitude: -76.5, startsAt: START_LOCAL, goalkeeperCount, durationMinutes: 90 });
 const confirm = (context: TestApp, token: string, quoteId: string, partialFulfillment: 'cancel_all' | 'keep_confirmed') =>
-  request(context.app).post('/api/goalkeeper-requests/bookings').set('Authorization', `Bearer ${token}`).send({ quoteId, partialFulfillment });
+  request(context.app).post('/goalkeeper-requests/bookings').set('Authorization', `Bearer ${token}`).send({ quoteId, partialFulfillment });
 const accept = (context: TestApp, token: string, bookingId: string) =>
-  request(context.app).post(`/api/goalkeepers/me/bookings/${bookingId}/accept`).set('Authorization', `Bearer ${token}`);
+  request(context.app).post(`/goalkeepers/me/bookings/${bookingId}/accept`).set('Authorization', `Bearer ${token}`);
 const sweep = (context: TestApp) => context.mediator.send(new RunSweepCommand());
 
 async function setUp() {
@@ -26,7 +26,7 @@ async function setUp() {
   const goalkeeper = await signInGoalkeeper(context, 'sub-0902');
   await context.walletLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: 'k-0902' });
   for (const [who, token] of [['c', client.token], ['g', goalkeeper.token]] as const) {
-    await request(context.app).post('/api/devices').set('Authorization', `Bearer ${token}`).send({ token: `phone-${who}-09`, platform: 'android' });
+    await request(context.app).post('/devices').set('Authorization', `Bearer ${token}`).send({ token: `phone-${who}-09`, platform: 'android' });
   }
   return { context, client, goalkeeper };
 }
@@ -45,17 +45,17 @@ describe('"Cancel all" — US2: applied automatically when the match is not comp
     await sweep(context);
     await sweep(context);
 
-    const listed = (await request(context.app).get('/api/goalkeeper-requests/bookings').set('Authorization', `Bearer ${client.token}`)).body.items[0];
+    const listed = (await request(context.app).get('/goalkeeper-requests/bookings').set('Authorization', `Bearer ${client.token}`)).body.items[0];
     expect(listed).toMatchObject({ status: 'cancelled' });
     expect(listed.bookings.map((booking: { status: string }) => booking.status)).toEqual(['cancelled', 'cancelled']);
 
     const refunds = context.walletStore.movements().filter((movement) => movement.type === 'commission_refund');
     expect(refunds).toHaveLength(1);
     expect(refunds[0]).toMatchObject({ amount: 7000, cancellation: { by: 'system', reason: 'cancel_all' }, references: { bookingId: taken!.bookingId } });
-    const wallet = await request(context.app).get('/api/goalkeepers/me/wallet').set('Authorization', `Bearer ${goalkeeper.token}`);
+    const wallet = await request(context.app).get('/goalkeepers/me/wallet').set('Authorization', `Bearer ${goalkeeper.token}`);
     expect(wallet.body.balance).toBe(20000);
 
-    const agenda = await request(context.app).get('/api/goalkeepers/me/bookings').set('Authorization', `Bearer ${goalkeeper.token}`);
+    const agenda = await request(context.app).get('/goalkeepers/me/bookings').set('Authorization', `Bearer ${goalkeeper.token}`);
     expect(agenda.body.items.find((item: { bookingId: string }) => item.bookingId === taken!.bookingId)).toMatchObject({ status: 'cancelled' });
 
     // 016's outcome notices (019's assignment notice is left aside).
@@ -80,7 +80,7 @@ describe('"Cancel all" — US2: applied automatically when the match is not comp
     context.clock.set('2026-09-21T19:00:30.000Z');
     await sweep(context);
 
-    const listed = (await request(context.app).get('/api/goalkeeper-requests/bookings').set('Authorization', `Bearer ${client.token}`)).body.items[0];
+    const listed = (await request(context.app).get('/goalkeeper-requests/bookings').set('Authorization', `Bearer ${client.token}`)).body.items[0];
     expect(listed.status).toBe('assigned');
     expect(context.walletStore.movements().filter((movement) => movement.type === 'commission_refund')).toHaveLength(0);
   });

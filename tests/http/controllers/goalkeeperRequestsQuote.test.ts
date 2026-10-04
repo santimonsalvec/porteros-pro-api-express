@@ -16,10 +16,10 @@ type TestApp = Awaited<ReturnType<typeof buildTestApp>>;
 async function signInAndComplete(context: TestApp, sub: string): Promise<string> {
   context.googleValidator.registerValidCredential(`cred-${sub}`, new ExternalIdentity('google', sub, `${sub}@example.com`));
   const exchange = await request(context.app)
-    .post('/api/auth/sso/exchange')
+    .post('/auth/sso/exchange')
     .send({ provider: 'google', platform: 'mobile', credential: `cred-${sub}` });
   const completion = await request(context.app)
-    .post('/api/profile/complete')
+    .post('/profile/complete')
     .set('Authorization', `Bearer ${exchange.body.accessToken}`)
     .send({ firstName: 'Ana', lastName: 'Cliente', countryCode: 'CO', whatsAppNumber: `300 000 ${sub.slice(-4).padStart(4, '0')}`, acceptedTerms: true });
   return completion.body.accessToken as string;
@@ -33,10 +33,10 @@ const validBody = {
 };
 
 function post(context: TestApp, token: string, body: unknown) {
-  return request(context.app).post('/api/goalkeeper-requests/quote').set('Authorization', `Bearer ${token}`).send(body as object);
+  return request(context.app).post('/goalkeeper-requests/quote').set('Authorization', `Bearer ${token}`).send(body as object);
 }
 
-describe('POST /api/goalkeeper-requests/quote — Story 1: price a booking', () => {
+describe('POST /goalkeeper-requests/quote — Story 1: price a booking', () => {
   it('returns the full price breakdown', async () => {
     const context = await buildTestApp();
     const token = await signInAndComplete(context, 'sub-0001');
@@ -123,7 +123,7 @@ describe('POST /api/goalkeeper-requests/quote — Story 1: price a booking', () 
   it('rejects a request with no token', async () => {
     const { app } = await buildTestApp();
 
-    const response = await request(app).post('/api/goalkeeper-requests/quote').send(validBody);
+    const response = await request(app).post('/goalkeeper-requests/quote').send(validBody);
 
     expect(response.status).toBe(401);
   });
@@ -132,7 +132,7 @@ describe('POST /api/goalkeeper-requests/quote — Story 1: price a booking', () 
     const context = await buildTestApp();
     context.googleValidator.registerValidCredential('cred-incomplete', new ExternalIdentity('google', 'sub-0005', 'sub-0005@example.com'));
     const exchange = await request(context.app)
-      .post('/api/auth/sso/exchange')
+      .post('/auth/sso/exchange')
       .send({ provider: 'google', platform: 'mobile', credential: 'cred-incomplete' });
 
     const response = await post(context, exchange.body.accessToken as string, validBody);
@@ -141,7 +141,7 @@ describe('POST /api/goalkeeper-requests/quote — Story 1: price a booking', () 
   });
 });
 
-describe('POST /api/goalkeeper-requests/quote — Story 2: city-rate fallback', () => {
+describe('POST /goalkeeper-requests/quote — Story 2: city-rate fallback', () => {
   it('falls back to the city rate when the zone has none', async () => {
     const context = await buildTestApp();
     const token = await signInAndComplete(context, 'sub-0101');
@@ -166,7 +166,7 @@ describe('POST /api/goalkeeper-requests/quote — Story 2: city-rate fallback', 
   });
 });
 
-describe('POST /api/goalkeeper-requests/quote — Story 3: refusals', () => {
+describe('POST /goalkeeper-requests/quote — Story 3: refusals', () => {
   async function refused(sub: string, body: unknown) {
     const context = await buildTestApp();
     const token = await signInAndComplete(context, sub);
@@ -266,7 +266,7 @@ describe('POST /api/goalkeeper-requests/quote — Story 3: refusals', () => {
   });
 });
 
-describe('POST /api/goalkeeper-requests/quote — Story 4: configuration', () => {
+describe('POST /goalkeeper-requests/quote — Story 4: configuration', () => {
   async function withToken(sub: string) {
     const context = await buildTestApp();
     const token = await signInAndComplete(context, sub);

@@ -40,7 +40,7 @@ import { CheckInToBookingCommand } from '../application/features/bookingLifecycl
 import { sendWithdrawals } from './withdrawals/withdrawalsHttp.js';
 import { WithdrawFromBookingCommand } from '../application/features/bookingLifecycle/commands/withdrawFromBooking/withdrawFromBookingCommand.js';
 
-/** Same accepted formats as `/api/images` (research.md §11) — no goalkeeper-specific override. */
+/** Same accepted formats as `/images` (research.md §11) — no goalkeeper-specific override. */
 const ALLOWED_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']);
 
 export interface GoalkeeperControllerDependencies {
@@ -50,10 +50,10 @@ export interface GoalkeeperControllerDependencies {
 
 /**
  * All `/me/*` routes require an authenticated client with an already-complete client
- * profile (research.md §6) — unlike `/api/clients/me`, there's no scenario here where
+ * profile (research.md §6) — unlike `/clients/me`, there's no scenario here where
  * a client needs this resource before their own profile is complete, so the gate
  * applies uniformly, including to `GET`. `GET /document-types` is deliberately
- * outside this gate — public, non-sensitive reference data, mirrors `/api/locations/countries`.
+ * outside this gate — public, non-sensitive reference data, mirrors `/locations/countries`.
  */
 export function createGoalkeeperController(deps: GoalkeeperControllerDependencies): Router {
   const router = Router();
@@ -425,7 +425,7 @@ export function createGoalkeeperController(deps: GoalkeeperControllerDependencie
     }
   });
 
-  // The goalkeeper confirms arrival with a photo uploaded to /api/images (feature 020): only inside
+  // The goalkeeper confirms arrival with a photo uploaded to /images (feature 020): only inside
   // the window (start − 30 / start + 15 min); the location is evidence and never blocks.
   router.post('/me/bookings/:bookingId/check-in', async (req, res) => {
     const parsed = checkInRequestSchema.safeParse(req.body ?? {});

@@ -13,7 +13,7 @@ export interface InternalControllerDependencies {
 }
 
 /**
- * Endpoints only the platform calls (contracts/internal-endpoints.md), mounted outside `/api` and
+ * Endpoints only the platform calls (contracts/internal-endpoints.md), mounted apart from the app's routes and
  * absent from the public API documentation.
  */
 export function createInternalController(deps: InternalControllerDependencies): Router {

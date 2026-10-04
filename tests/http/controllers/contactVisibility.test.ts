@@ -5,7 +5,7 @@ import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeep
 
 const get = (context: TestApp, token: string, path: string) => request(context.app).get(path).set('Authorization', `Bearer ${token}`);
 const accept = (context: TestApp, token: string, bookingId: string) =>
-  request(context.app).post(`/api/goalkeepers/me/bookings/${bookingId}/accept`).set('Authorization', `Bearer ${token}`);
+  request(context.app).post(`/goalkeepers/me/bookings/${bookingId}/accept`).set('Authorization', `Bearer ${token}`);
 
 /** G takes the only booking of a match at `startsAtLocal` (17:00 local = 22:00Z by default). */
 async function setUp(startsAtLocal = '2026-09-21T17:00:00') {
@@ -19,8 +19,8 @@ async function setUp(startsAtLocal = '2026-09-21T17:00:00') {
   return { context, client, g, bookingId, requestId: created.requestId };
 }
 
-const clientView = async (context: TestApp, token: string) => (await get(context, token, '/api/goalkeeper-requests/bookings')).body.items[0];
-const agendaItem = async (context: TestApp, token: string) => (await get(context, token, '/api/goalkeepers/me/bookings')).body.items[0];
+const clientView = async (context: TestApp, token: string) => (await get(context, token, '/goalkeeper-requests/bookings')).body.items[0];
+const agendaItem = async (context: TestApp, token: string) => (await get(context, token, '/goalkeepers/me/bookings')).body.items[0];
 
 describe('contact visibility — US3: both sides see each other only in the last hour', () => {
   it('hides both contacts until start − 60 min, and shows them from then on', async () => {
@@ -40,10 +40,10 @@ describe('contact visibility — US3: both sides see each other only in the last
   it('never shows the client to a goalkeeper who withdrew, even in the last hour', async () => {
     const { context, g, bookingId } = await setUp();
     await accept(context, g.token, bookingId);
-    await request(context.app).post(`/api/goalkeepers/me/bookings/${bookingId}/withdraw`).set('Authorization', `Bearer ${g.token}`).send({});
+    await request(context.app).post(`/goalkeepers/me/bookings/${bookingId}/withdraw`).set('Authorization', `Bearer ${g.token}`).send({});
     context.clock.set('2026-09-21T21:30:00.000Z');
 
-    const item = (await get(context, g.token, '/api/goalkeepers/me/bookings')).body.items.find((entry: { bookingId: string }) => entry.bookingId === bookingId);
+    const item = (await get(context, g.token, '/goalkeepers/me/bookings')).body.items.find((entry: { bookingId: string }) => entry.bookingId === bookingId);
     expect(item).toMatchObject({ status: 'goalkeeper_withdrew', client: null });
   });
 
