@@ -4,23 +4,28 @@ runConfig:
   concurrency: 80
   cpu: 1
   memoryMiB: 512
-# Wallet top-ups (feature 022). Secrets live in Google Secret Manager; App Hosting injects
-# them as environment variables. Create them with `firebase apphosting:secrets:set <name>`.
 env:
-  - variable: WOMPI_CO_PRIVATE_KEY
-    secret: wompi-co-private-key
-  - variable: WOMPI_CO_EVENTS_SECRET
-    secret: wompi-co-events-secret
-  - variable: WOMPI_CO_INTEGRITY_SECRET
-    secret: wompi-co-integrity-secret
+  # Wallet top-ups (feature 022). The gateway secrets live in Google Secret Manager and App
+  # Hosting injects them as environment variables. A build fails when a referenced secret does
+  # not exist, so they stay commented out until the Wompi account is set up: without them the
+  # API starts normally and top-ups answer `gateway_unavailable`. To turn them on, create each
+  # one with `firebase apphosting:secrets:set <name>` and uncomment it.
+  # - variable: WOMPI_CO_PRIVATE_KEY
+  #   secret: wompi-co-private-key
+  # - variable: WOMPI_CO_EVENTS_SECRET
+  #   secret: wompi-co-events-secret
+  # - variable: WOMPI_CO_INTEGRITY_SECRET
+  #   secret: wompi-co-integrity-secret
   - variable: PAYMENTS_PUBLIC_BASE_URL
     value: https://REPLACE-with-the-api-public-url
   - variable: PAYMENTS_APP_OPEN_URL
     value: https://REPLACE-with-the-app-link
-  # Electronic invoicing (feature 023): one pair of secrets per provider and country.
-  - variable: SIIGO_CO_USERNAME
-    secret: siigo-co-username
-  - variable: SIIGO_CO_ACCESS_KEY
-    secret: siigo-co-access-key
+  # Electronic invoicing (feature 023): one pair of secrets per provider and country, commented
+  # out for the same reason until the Siigo account is set up. Without them, documents are still
+  # created and wait, pending, for the credentials.
+  # - variable: SIIGO_CO_USERNAME
+  #   secret: siigo-co-username
+  # - variable: SIIGO_CO_ACCESS_KEY
+  #   secret: siigo-co-access-key
   - variable: INVOICING_ENABLED
     value: "false"
