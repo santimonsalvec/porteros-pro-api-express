@@ -19,7 +19,8 @@
         "_temp_*.md",
         "*.log",
         ".DS_Store"
-      ]
+      ],
+      "alwaysDeployFromSource": true
     }
   ]
 }
