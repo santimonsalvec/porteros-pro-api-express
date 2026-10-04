@@ -26,6 +26,11 @@ describe('normalizeToken', () => {
 });
 
 describe('validatePushMessage', () => {
+  it('accepts a silent message with no title or body, but not a shown one', () => {
+    expect(validatePushMessage(message({ title: '', body: '', silent: true }))).toEqual({ ok: true });
+    expect(validatePushMessage(message({ title: '', body: '' }))).toEqual({ ok: false, reason: 'title_length' });
+  });
+
   it('accepts a well-formed message', () => {
     expect(validatePushMessage(message())).toEqual({ ok: true });
   });

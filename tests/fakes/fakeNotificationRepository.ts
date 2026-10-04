@@ -108,6 +108,11 @@ export class FakeNotificationRepository implements INotificationRepository {
       .map((item) => ({ ...item }));
   }
 
+  async findOfferRecipients(requestId: string): Promise<string[]> {
+    const items = [...this.items.values()].filter((item) => item.type === OFFER_TYPE && item.requestId === requestId);
+    return [...new Set(items.map((item) => item.userId))];
+  }
+
   async markNotified(ids: readonly string[], now: Date): Promise<void> {
     for (const id of ids) {
       const item = this.items.get(id);

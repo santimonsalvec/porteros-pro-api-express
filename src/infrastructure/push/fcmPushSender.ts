@@ -52,8 +52,20 @@ export class FcmPushSender implements IPushSender {
   }
 }
 
-/** Title and body for the system tray; `data` for the app's routing (research §12). */
+/**
+ * Title and body for the system tray; `data` for the app's routing (research §12). A silent
+ * message carries only `data`: high priority on Android so the open app gets it at once, a
+ * background push on iOS.
+ */
 function toFcmMessage(token: string, message: PushMessage): Record<string, unknown> {
+  if (message.silent) {
+    return {
+      token,
+      data: message.data,
+      android: { priority: 'high' },
+      apns: { headers: { 'apns-push-type': 'background', 'apns-priority': '5' }, payload: { aps: { 'content-available': 1 } } },
+    };
+  }
   return {
     token,
     notification: { title: message.title, body: message.body },

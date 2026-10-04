@@ -25,15 +25,21 @@ export interface PushMessage {
   title: string;
   body: string;
   data: Record<string, string>;
+  /**
+   * Data only: nothing shows on the phone, the open app just reacts to `data` (e.g. reloads a
+   * list). `title` and `body` are then empty.
+   */
+  silent?: boolean;
 }
 
 export type PushMessageValidation = { ok: true } | { ok: false; reason: string };
 
 export function validatePushMessage(message: PushMessage): PushMessageValidation {
-  if (message.title.length === 0 || message.title.length > MAX_TITLE_LENGTH) {
+  const shown = !message.silent;
+  if ((shown && message.title.length === 0) || message.title.length > MAX_TITLE_LENGTH) {
     return { ok: false, reason: 'title_length' };
   }
-  if (message.body.length === 0 || message.body.length > MAX_BODY_LENGTH) {
+  if ((shown && message.body.length === 0) || message.body.length > MAX_BODY_LENGTH) {
     return { ok: false, reason: 'body_length' };
   }
   const entries = Object.entries(message.data);

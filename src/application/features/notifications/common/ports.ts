@@ -65,6 +65,8 @@ export interface INotificationRepository {
   markAllRead(userId: string, now: Date): Promise<void>;
   dismissOffer(id: string, userId: string, now: Date): Promise<DismissOutcome>;
   findOffers(userIds: readonly string[], requestIds: readonly string[]): Promise<NotificationItem[]>;
+  /** Everyone who was offered a match of the request, once each. */
+  findOfferRecipients(requestId: string): Promise<string[]>;
   /** Sets `notifiedAt` on the given offers that don't have it yet. */
   markNotified(ids: readonly string[], now: Date): Promise<void>;
   /** Counts one reminder on each given offer. */

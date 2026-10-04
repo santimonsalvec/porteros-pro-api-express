@@ -234,6 +234,7 @@ import { WITHDRAWAL_NOTICE_EVENT_TYPES, WithdrawalNoticeHandler } from '../../sr
 import { FakeGoalkeeperIncidentRepository } from '../fakes/fakeGoalkeeperIncidentRepository.js';
 import { CancelBookingsByClientCommandHandler } from '../../src/application/features/bookingLifecycle/commands/cancelBookingsByClient/cancelBookingsByClientCommandHandler.js';
 import { NotifyBookingOffersHandler, OFFER_EVENT_TYPES } from '../../src/application/features/notifications/handlers/notifyBookingOffersHandler.js';
+import { OFFER_WITHDRAWAL_EVENT_TYPES, OfferWithdrawalHandler } from '../../src/application/features/notifications/handlers/offerWithdrawalHandler.js';
 import { FakeNotificationRepository } from '../fakes/fakeNotificationRepository.js';
 import { FakeOfferPushState } from '../fakes/fakeOfferPushState.js';
 
@@ -560,6 +561,16 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       }),
     })),
     ...OFFER_EVENT_TYPES.map((type) => ({ type, handler: new NotifyBookingOffersHandler(mediator, new FakeProcessedEventStore(), clock) })),
+    ...OFFER_WITHDRAWAL_EVENT_TYPES.map((type) => ({
+      type,
+      handler: new OfferWithdrawalHandler({
+        notifications: notificationRepository,
+        pushNotifier,
+        processed: new FakeProcessedEventStore(),
+        clock,
+        logger: offersLogger,
+      }),
+    })),
   ]);
   seedQuoteWorld({ countryRepository: quoteCountryRepository, zoneRepository, cityRepository, regionRepository, rentalRateRepository, bookingSettingsRepository, commissionSettingRepository });
 

@@ -149,6 +149,10 @@ export class MongoNotificationRepository implements INotificationRepository {
     return docs.map(toItem);
   }
 
+  async findOfferRecipients(requestId: string): Promise<string[]> {
+    return (await this.collection.distinct('userId', { requestId, type: OFFER_TYPE })) as string[];
+  }
+
   async markNotified(ids: readonly string[], now: Date): Promise<void> {
     if (ids.length === 0) return;
     await this.collection.updateMany({ _id: { $in: [...ids] }, notifiedAt: null } as Document, { $set: { notifiedAt: now } });

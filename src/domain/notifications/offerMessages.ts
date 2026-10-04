@@ -4,6 +4,12 @@ import type { PushMessage } from '../devices/deviceRules.js';
 export const OFFER_TYPE = 'booking.available';
 /** A grouped reminder: the app opens the available-matches list. */
 export const OFFERS_LIST_TYPE = 'bookings.available';
+/** Silent: a match offered before was taken, cancelled or expired; the app reloads its list. */
+export const OFFERS_CHANGED_TYPE = 'bookings.changed';
+
+export function offersChangedMessage(requestId: string): PushMessage {
+  return { title: '', body: '', silent: true, data: { type: OFFERS_CHANGED_TYPE, requestId } };
+}
 
 export interface OfferMatch {
   zoneName: string | null;

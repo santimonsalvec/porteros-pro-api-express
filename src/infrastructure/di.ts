@@ -233,6 +233,7 @@ import { ContactsRevealJob } from '../application/features/bookingLifecycle/jobs
 import { CLIENT_ASSIGNMENT_EVENT_TYPES, ClientAssignmentNoticeHandler } from '../application/features/bookingLifecycle/handlers/clientAssignmentNoticeHandler.js';
 import { WITHDRAWAL_NOTICE_EVENT_TYPES, WithdrawalNoticeHandler } from '../application/features/bookingLifecycle/handlers/withdrawalNoticeHandler.js';
 import { NotifyBookingOffersHandler, OFFER_EVENT_TYPES } from '../application/features/notifications/handlers/notifyBookingOffersHandler.js';
+import { OFFER_WITHDRAWAL_EVENT_TYPES, OfferWithdrawalHandler } from '../application/features/notifications/handlers/offerWithdrawalHandler.js';
 import { MongoNotificationRepository } from './persistence/mongo/notificationRepository.js';
 import { MongoOfferPushStateStore } from './persistence/mongo/offerPushStateStore.js';
 
@@ -531,6 +532,17 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   registerSubscribers(
     mediator,
     OFFER_EVENT_TYPES.map((type) => ({ type, handler: offersHandler })),
+  );
+  const offerWithdrawals = new OfferWithdrawalHandler({
+    notifications: notificationRepository,
+    pushNotifier,
+    processed: processedEventStore,
+    clock,
+    logger,
+  });
+  registerSubscribers(
+    mediator,
+    OFFER_WITHDRAWAL_EVENT_TYPES.map((type) => ({ type, handler: offerWithdrawals })),
   );
   logger.info({ push_mode: config.push.mode }, 'Push notifications configured');
   if (process.env.NODE_ENV === 'production' && config.push.mode === 'log') {
