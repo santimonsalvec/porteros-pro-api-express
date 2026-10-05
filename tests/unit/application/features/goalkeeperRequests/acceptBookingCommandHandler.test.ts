@@ -9,6 +9,7 @@ import { FakeOutboxStore } from '../../../../fakes/fakeOutboxStore.js';
 import { FakeEventRelay } from '../../../../fakes/fakeEventRelay.js';
 import { GoalkeeperBookingHarness, inHours } from './goalkeeperBookingHarness.js';
 import { fixedVatRates } from '../../../../fakes/fakeVatRates.js';
+import { CHECK_IN_DEFAULTS } from '../../../../../src/domain/bookings/checkInWindow.js';
 
 let h: GoalkeeperBookingHarness;
 let store: FakeBookingAcceptanceStore;
@@ -32,6 +33,7 @@ beforeEach(async () => {
   audit = new FakeAcceptanceAuditLogger();
   ids = 0;
   handler = new AcceptBookingCommandHandler({
+    windowResolver: () => async () => CHECK_IN_DEFAULTS,
     walletContext: { goalkeeperProfileRepository: h.profiles, cityRepository: h.cities, regionRepository: h.regions, countryLookup: h.countries },
     walletRepository: h.wallet,
     bookingRepository: h.bookings,

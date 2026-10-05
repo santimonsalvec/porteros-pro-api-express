@@ -5,7 +5,8 @@ import type { IGoalkeeperProfileRepository } from '../../../goalkeepers/common/p
 import type { ICityRepository } from '../../../locations/common/ports.js';
 import type { IZoneRepository } from '../../../zones/common/ports.js';
 import { loadContacts } from '../../common/contacts.js';
-import { loadBookingItemContext, toAgendaItem } from '../../common/goalkeeperBookingResponse.js';
+import type { CheckInWindowResolver } from '../../../bookingLifecycle/common/checkInWindowResolver.js';
+import { loadBookingItemContext, loadCheckInWindows, toAgendaItem } from '../../common/goalkeeperBookingResponse.js';
 import { pageWindow } from '../../common/pageWindow.js';
 import type { IBookingRepository, IGoalkeeperRequestRepository } from '../../common/ports.js';
 import { ListGoalkeeperAgendaQuery, type ListGoalkeeperAgendaResult } from './listGoalkeeperAgendaQuery.js';
@@ -18,6 +19,8 @@ export interface ListGoalkeeperAgendaDependencies {
   cityRepository: ICityRepository;
   userRepository: IUserRepository;
   clock: IClock;
+  /** The check-in window of each match's country (feature 020); a fresh one per page. */
+  windowResolver: () => CheckInWindowResolver;
 }
 
 /**
@@ -48,13 +51,14 @@ export class ListGoalkeeperAgendaQueryHandler implements IQueryHandler<ListGoalk
     const bookings = [...upcoming, ...past];
 
     const context = await loadBookingItemContext(this.deps, bookings);
+    const windows = await loadCheckInWindows(context, this.deps.windowResolver());
     const clientIds = bookings.map((booking) => booking.clientId);
     const contacts = await loadContacts(this.deps.userRepository, clientIds);
 
     const totalItems = counts.upcoming + counts.past;
     return {
       outcome: 'success',
-      items: bookings.map((booking) => toAgendaItem(booking, context, contacts.get(booking.clientId) ?? null, now)),
+      items: bookings.map((booking) => toAgendaItem(booking, context, contacts.get(booking.clientId) ?? null, now, windows.get(booking.requestId))),
       page,
       pageSize,
       totalItems,

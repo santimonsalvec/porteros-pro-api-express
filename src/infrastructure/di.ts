@@ -752,6 +752,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         audit: auditLogger,
         relay: eventRelay,
         vatRates,
+        windowResolver: () => createCheckInWindowResolver({ cityRepository, regionRepository, bookingSettingsRepository, logger: logger }),
       }),
     },
     {
@@ -780,6 +781,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         cityRepository,
         userRepository,
         clock,
+        windowResolver: () => createCheckInWindowResolver({ cityRepository, regionRepository, bookingSettingsRepository, logger: logger }),
       }),
     },
     {

@@ -5,6 +5,8 @@ import type { ICityRepository } from '../../locations/common/ports.js';
 import type { IZoneRepository } from '../../zones/common/ports.js';
 import type { Contact } from './contacts.js';
 import type { IGoalkeeperRequestRepository } from './ports.js';
+import { checkInWindow, type CheckInWindowConfig } from '../../../../domain/bookings/checkInWindow.js';
+import type { CheckInWindowResolver } from '../../bookingLifecycle/common/checkInWindowResolver.js';
 
 /** A booking a goalkeeper can take, as listed (contracts/goalkeeper-bookings.md). No client data. */
 export interface AvailableBookingItem {
@@ -44,6 +46,9 @@ export interface AgendaItem extends AvailableBookingItem {
   clientContactVisibleFrom: string;
   /** The goalkeeper's check-in (feature 020), with their distance to the pitch. */
   checkIn: { at: string; photoUrl: string; distanceMeters: number | null } | null;
+  /** When the check-in window opens and closes (both included), so the app never offers it outside; null when unknown. */
+  checkInOpensAt: string | null;
+  checkInClosesAt: string | null;
 }
 
 /** What building items needs besides the bookings: their requests and the current names. */
@@ -92,9 +97,23 @@ export function toAvailableItem(booking: Booking, context: BookingItemContext): 
   };
 }
 
-export function toAgendaItem(booking: Booking, context: BookingItemContext, client: Contact | null, now: Date): AgendaItem {
+/** The check-in window values of each request in `context`, one country lookup per city. */
+export async function loadCheckInWindows(context: BookingItemContext, resolve: CheckInWindowResolver): Promise<Map<string, CheckInWindowConfig>> {
+  const requests = [...context.requests.values()];
+  const configs = await Promise.all(requests.map((request) => resolve(request)));
+  return new Map(requests.map((request, index) => [request.id, configs[index]!]));
+}
+
+export function toAgendaItem(
+  booking: Booking,
+  context: BookingItemContext,
+  client: Contact | null,
+  now: Date,
+  windowConfig: CheckInWindowConfig | null = null,
+): AgendaItem {
   const request = context.requests.get(booking.requestId)!;
   const visible = booking.status === 'assigned' && contactsVisibleAt(request, now);
+  const window = windowConfig ? checkInWindow(request.match.startsAt, windowConfig) : null;
   return {
     ...toAvailableItem(booking, context),
     status: booking.status,
@@ -106,5 +125,7 @@ export function toAgendaItem(booking: Booking, context: BookingItemContext, clie
     checkIn: booking.checkIn
       ? { at: booking.checkIn.at.toISOString(), photoUrl: booking.checkIn.photoUrl, distanceMeters: booking.checkIn.distanceMeters }
       : null,
+    checkInOpensAt: window?.opensAt.toISOString() ?? null,
+    checkInClosesAt: window?.closesAt.toISOString() ?? null,
   };
 }

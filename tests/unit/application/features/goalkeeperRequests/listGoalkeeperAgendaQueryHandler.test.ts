@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ListGoalkeeperAgendaQuery } from '../../../../../src/application/features/goalkeeperRequests/queries/listGoalkeeperAgenda/listGoalkeeperAgendaQuery.js';
 import { ListGoalkeeperAgendaQueryHandler } from '../../../../../src/application/features/goalkeeperRequests/queries/listGoalkeeperAgenda/listGoalkeeperAgendaQueryHandler.js';
 import { GoalkeeperBookingHarness, inHours } from './goalkeeperBookingHarness.js';
+import { CHECK_IN_DEFAULTS } from '../../../../../src/domain/bookings/checkInWindow.js';
 
 let h: GoalkeeperBookingHarness;
 let handler: ListGoalkeeperAgendaQueryHandler;
@@ -9,6 +10,7 @@ let handler: ListGoalkeeperAgendaQueryHandler;
 beforeEach(() => {
   h = new GoalkeeperBookingHarness();
   handler = new ListGoalkeeperAgendaQueryHandler({
+    windowResolver: () => async () => CHECK_IN_DEFAULTS,
     goalkeeperProfileRepository: h.profiles,
     bookingRepository: h.bookings,
     requestRepository: h.requests,
@@ -71,6 +73,18 @@ describe('ListGoalkeeperAgendaQueryHandler — US6: the goalkeeper\'s agenda', (
       clientContactVisibleFrom: new Date(inHours(0.5).getTime() - 3_600_000).toISOString(),
     });
     expect(JSON.stringify(result)).not.toMatch(/@example\.com/);
+  });
+
+  it('gives each match its check-in window, from 30 minutes before to 15 after the start (feature 020)', async () => {
+    held('tomorrow', 24);
+
+    const result = await agenda();
+
+    const start = inHours(24).getTime();
+    expect(result.outcome === 'success' && result.items[0]).toMatchObject({
+      checkInOpensAt: new Date(start - 30 * 60_000).toISOString(),
+      checkInClosesAt: new Date(start + 15 * 60_000).toISOString(),
+    });
   });
 
   it("hides the client's contact until one hour before the match (feature 019)", async () => {

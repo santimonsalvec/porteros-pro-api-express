@@ -216,6 +216,13 @@ export const openapiSpec = {
                 format: 'date-time',
                 description: "From when the client's name and WhatsApp are shown (one hour before the match in Colombia)",
               },
+              checkInOpensAt: {
+                type: 'string',
+                format: 'date-time',
+                nullable: true,
+                description: 'When the check-in window opens (included), from the country settings (feature 020)',
+              },
+              checkInClosesAt: { type: 'string', format: 'date-time', nullable: true, description: 'When the check-in window closes (included)' },
               checkIn: {
                 type: 'object',
                 nullable: true,

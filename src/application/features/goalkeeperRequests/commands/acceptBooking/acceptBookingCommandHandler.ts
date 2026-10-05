@@ -17,7 +17,8 @@ import type { Booking } from '../../../../../domain/bookings/booking.js';
 import { goalkeeperAssigned } from '../../../../../domain/events/bookingEvents.js';
 import { canAfford, missingFor } from '../../../../../domain/wallet/fundsPolicy.js';
 import { loadContacts } from '../../common/contacts.js';
-import { loadBookingItemContext, toAgendaItem } from '../../common/goalkeeperBookingResponse.js';
+import type { CheckInWindowResolver } from '../../../bookingLifecycle/common/checkInWindowResolver.js';
+import { loadBookingItemContext, loadCheckInWindows, toAgendaItem } from '../../common/goalkeeperBookingResponse.js';
 import type {
   IAcceptanceAuditLogger,
   IBookingAcceptanceStore,
@@ -38,6 +39,8 @@ export interface AcceptBookingDependencies {
   idGenerator: IIdGenerator;
   clock: IClock;
   audit: IAcceptanceAuditLogger;
+  /** The check-in window of the match's country (feature 020), for the agenda item returned. */
+  windowResolver: () => CheckInWindowResolver;
   /** Publishes the recorded "goalkeeper assigned" event before responding (feature 013). */
   relay: IEventRelay;
   /** The goalkeeper's country VAT rate, charged on top of the commission (feature 023). */
@@ -148,7 +151,8 @@ export class AcceptBookingCommandHandler implements ICommandHandler<AcceptBookin
       loadBookingItemContext(this.deps, [booking]),
       loadContacts(this.deps.userRepository, [booking.clientId]),
     ]);
-    return toAgendaItem(booking, context, contacts.get(booking.clientId) ?? null, this.deps.clock.now());
+    const windows = await loadCheckInWindows(context, this.deps.windowResolver());
+    return toAgendaItem(booking, context, contacts.get(booking.clientId) ?? null, this.deps.clock.now(), windows.get(booking.requestId));
   }
 
   /** Every attempt is audited exactly once, whatever its outcome (FR-015). */

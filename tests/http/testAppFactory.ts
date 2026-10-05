@@ -847,6 +847,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     {
       requestType: AcceptBookingCommand,
       handler: new AcceptBookingCommandHandler({
+        windowResolver: () => createCheckInWindowResolver({ cityRepository, regionRepository, bookingSettingsRepository, logger: offersLogger }),
         walletContext,
         walletRepository: walletStore,
         bookingRepository,
@@ -879,6 +880,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     {
       requestType: ListGoalkeeperAgendaQuery,
       handler: new ListGoalkeeperAgendaQueryHandler({
+        windowResolver: () => createCheckInWindowResolver({ cityRepository, regionRepository, bookingSettingsRepository, logger: offersLogger }),
         goalkeeperProfileRepository,
         bookingRepository,
         requestRepository,

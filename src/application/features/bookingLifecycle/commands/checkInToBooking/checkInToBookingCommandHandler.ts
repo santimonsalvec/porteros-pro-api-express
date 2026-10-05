@@ -7,7 +7,7 @@ import type { IIdGenerator, IUserRepository } from '../../../auth/common/ports.j
 import type { IEventRelay } from '../../../events/common/ports.js';
 import type { IGoalkeeperProfileRepository } from '../../../goalkeepers/common/ports.js';
 import { loadContacts } from '../../../goalkeeperRequests/common/contacts.js';
-import { loadBookingItemContext, toAgendaItem } from '../../../goalkeeperRequests/common/goalkeeperBookingResponse.js';
+import { loadBookingItemContext, loadCheckInWindows, toAgendaItem } from '../../../goalkeeperRequests/common/goalkeeperBookingResponse.js';
 import type { IBookingAuditLogger, IBookingRepository, IGoalkeeperRequestRepository } from '../../../goalkeeperRequests/common/ports.js';
 import type { IImageRepository } from '../../../images/common/ports.js';
 import type { ICityRepository } from '../../../locations/common/ports.js';
@@ -103,6 +103,7 @@ export class CheckInToBookingCommandHandler implements ICommandHandler<CheckInTo
       loadBookingItemContext(this.deps, [booking]),
       loadContacts(this.deps.userRepository, [booking.clientId]),
     ]);
-    return toAgendaItem(booking, context, contacts.get(booking.clientId) ?? null, now);
+    const windows = await loadCheckInWindows(context, this.deps.windowResolver());
+    return toAgendaItem(booking, context, contacts.get(booking.clientId) ?? null, now, windows.get(booking.requestId));
   }
 }
