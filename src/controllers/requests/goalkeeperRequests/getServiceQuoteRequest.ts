@@ -6,6 +6,7 @@ import {
   isGoalkeeperCount,
 } from '../../../application/features/goalkeeperRequests/common/bookingLimits.js';
 import { parseStartsAt } from '../../../application/features/goalkeeperRequests/common/startsAt.js';
+import { MATCH_LEVELS, MODALITIES } from '../../../domain/bookings/matchFormat.js';
 
 /** "60, 90 or 120" — the message is built from the constants so it can never drift from them. */
 function orList(values: readonly number[]): string {
@@ -29,6 +30,10 @@ export const getServiceQuoteRequestSchema = z.object({
     ),
   goalkeeperCount: z.number().refine(isGoalkeeperCount, { message: `Must be ${orList(GOALKEEPER_COUNTS)}.` }),
   durationMinutes: z.number().refine(isDurationOption, { message: `Must be ${orList(DURATION_OPTIONS)}.` }),
+  // Feature 024: what kind of match. Required, with no default (the client must choose).
+  modality: z.enum(MODALITIES, { message: 'Elige la modalidad del partido.' }),
+  level: z.enum(MATCH_LEVELS, { message: 'Elige el nivel del partido.' }),
+  surfaceId: z.string({ message: 'Elige la superficie.' }).trim().min(1, 'Elige la superficie.'),
 });
 
 export type GetServiceQuoteRequest = z.infer<typeof getServiceQuoteRequestSchema>;

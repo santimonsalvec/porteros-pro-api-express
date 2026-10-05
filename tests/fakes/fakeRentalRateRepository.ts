@@ -17,11 +17,11 @@ export class FakeRentalRateRepository implements IRentalRateRepository {
     zoneId: string,
     cityId: string,
     durationMinutes: number,
-  ): Promise<{ zone: RentalRate | null; city: RentalRate | null }> {
+  ): Promise<{ zone: RentalRate[]; city: RentalRate[] }> {
     const forDuration = this.rates.filter((rate) => rate.durationMinutes === durationMinutes);
     return {
-      zone: forDuration.find((rate) => rate.scope === 'zone' && rate.refId === zoneId) ?? null,
-      city: forDuration.find((rate) => rate.scope === 'city' && rate.refId === cityId) ?? null,
+      zone: forDuration.filter((rate) => rate.scope === 'zone' && rate.refId === zoneId),
+      city: forDuration.filter((rate) => rate.scope === 'city' && rate.refId === cityId),
     };
   }
 }

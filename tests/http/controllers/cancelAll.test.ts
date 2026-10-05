@@ -1,3 +1,4 @@
+import { QUOTE_FORMAT_FIELDS } from '../../fixtures/quoteFixtures.js';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
@@ -12,7 +13,7 @@ const quote = (context: TestApp, token: string, goalkeeperCount: 1 | 2 = 2) =>
   request(context.app)
     .post('/goalkeeper-requests/quote')
     .set('Authorization', `Bearer ${token}`)
-    .send({ latitude: 3.45, longitude: -76.5, startsAt: START_LOCAL, goalkeeperCount, durationMinutes: 90 });
+    .send({ latitude: 3.45, longitude: -76.5, startsAt: START_LOCAL, goalkeeperCount, durationMinutes: 90, ...QUOTE_FORMAT_FIELDS });
 const confirm = (context: TestApp, token: string, quoteId: string, partialFulfillment: 'cancel_all' | 'keep_confirmed') =>
   request(context.app).post('/goalkeeper-requests/bookings').set('Authorization', `Bearer ${token}`).send({ quoteId, partialFulfillment });
 const accept = (context: TestApp, token: string, bookingId: string) =>

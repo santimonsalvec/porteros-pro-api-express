@@ -40,7 +40,7 @@ describe('Offers — US1: eligible goalkeepers hear about a new match right away
     expect(offers.map((offer) => offer.userId)).toEqual([eligible.userId]);
     expect(offers[0]).toMatchObject({ type: 'booking.available', requestId: created.requestId, reminderCount: 0 });
     expect(context.pushSender.calls.map((call) => call.userId)).toEqual([eligible.userId]);
-    expect(context.pushSender.calls[0]!.message.body).toMatch(/^Norte · .+ · 90 min$/);
+    expect(context.pushSender.calls[0]!.message.body).toMatch(/^Norte · .+ · 90 min · Grama sintética · Torneo$/);
     expect(context.pushSender.calls[0]!.message.data).toMatchObject({ type: 'booking.available', requestId: created.requestId });
     expect(poor.userId).not.toBe(eligible.userId);
   });

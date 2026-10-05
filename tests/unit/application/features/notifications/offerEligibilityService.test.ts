@@ -23,6 +23,7 @@ function world() {
   const commissionResolver = {
     resolveForZones: async (zoneIds: string[]) =>
       new Map(zoneIds.map((zoneId) => [zoneId, zoneId === 'zone-unconfigured' ? null : 7000] as const)),
+    resolveForMatch: async (zoneId: string) => (zoneId === 'zone-unconfigured' ? null : 7000),
   };
   const service = new OfferEligibilityService({ goalkeeperProfileRepository: profiles, walletRepository, commissionResolver, bookingRepository: bookings, vatRates: fixedVatRates(0) });
   const goalkeeper = (id: string, balance: number, overrides: Parameters<typeof buildGoalkeeperProfile>[1] = {}) => {

@@ -1,6 +1,7 @@
 import type { Collection, Db, Document } from 'mongodb';
 import type { IRentalRateRepository } from '../../../application/features/goalkeeperRequests/common/ports.js';
 import { RentalRate } from '../../../domain/pricing/rentalRate.js';
+import { dropIndexIfExists } from './dropIndexIfExists.js';
 
 /**
  * Externally seeded collection — this system only reads it, so the port declares no
@@ -15,9 +16,11 @@ export class RentalRateRepository implements IRentalRateRepository {
   }
 
   async ensureIndexes(): Promise<void> {
+    // Feature 024: one rate per modality/level tier, so the old unique index must go first.
+    await dropIndexIfExists(this.collection, 'scope_refId_durationMinutes');
     await this.collection.createIndex(
-      { scope: 1, refId: 1, durationMinutes: 1 },
-      { name: 'scope_refId_durationMinutes', unique: true },
+      { scope: 1, refId: 1, durationMinutes: 1, modality: 1, level: 1 },
+      { name: 'scope_refId_duration_modality_level', unique: true },
     );
   }
 
@@ -28,6 +31,8 @@ export class RentalRateRepository implements IRentalRateRepository {
       refId: String(doc.refId),
       durationMinutes: doc.durationMinutes as number,
       amount: doc.amount as number,
+      modality: (doc.modality as string | undefined) ?? null,
+      level: (doc.level as string | undefined) ?? null,
     });
   }
 
@@ -35,7 +40,7 @@ export class RentalRateRepository implements IRentalRateRepository {
     zoneId: string,
     cityId: string,
     durationMinutes: number,
-  ): Promise<{ zone: RentalRate | null; city: RentalRate | null }> {
+  ): Promise<{ zone: RentalRate[]; city: RentalRate[] }> {
     const docs = await this.collection
       .find({
         durationMinutes,
@@ -47,8 +52,8 @@ export class RentalRateRepository implements IRentalRateRepository {
       .toArray();
     const rates = docs.map((doc) => this.fromDocument(doc));
     return {
-      zone: rates.find((rate) => rate.scope === 'zone') ?? null,
-      city: rates.find((rate) => rate.scope === 'city') ?? null,
+      zone: rates.filter((rate) => rate.scope === 'zone'),
+      city: rates.filter((rate) => rate.scope === 'city'),
     };
   }
 }

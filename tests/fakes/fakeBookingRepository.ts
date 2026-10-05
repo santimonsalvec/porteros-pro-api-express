@@ -18,6 +18,13 @@ export class FakeBookingRepository implements IBookingRepository {
       .sort((a, b) => compare(a.requestId, b.requestId) || compare(a.id, b.id));
   }
 
+  async dismissRequestFor(requestId: string, goalkeeperId: string): Promise<void> {
+    for (const booking of this.all().filter((item) => item.requestId === requestId)) {
+      const dismissed = [...new Set([...booking.dismissedGoalkeeperIds, goalkeeperId])];
+      this.seed(Booking.rehydrate({ ...booking, dismissedGoalkeeperIds: dismissed }));
+    }
+  }
+
   async findById(id: string): Promise<Booking | null> {
     return this.bookings.get(id) ?? null;
   }

@@ -17,4 +17,16 @@ describe('CommissionSetting', () => {
   ])('rejects %s', (_label, change) => {
     expect(() => new CommissionSetting({ ...base, ...change })).toThrow(InvalidConfigurationError);
   });
+
+  it('keeps an optional modality and level (feature 024)', () => {
+    expect(new CommissionSetting(base)).toMatchObject({ modality: null, level: null });
+    expect(new CommissionSetting({ ...base, modality: 'futbol_11', level: 'competitive' })).toMatchObject({
+      modality: 'futbol_11',
+      level: 'competitive',
+    });
+  });
+
+  it('rejects a level without a modality', () => {
+    expect(() => new CommissionSetting({ ...base, level: 'competitive' })).toThrow(InvalidConfigurationError);
+  });
 });

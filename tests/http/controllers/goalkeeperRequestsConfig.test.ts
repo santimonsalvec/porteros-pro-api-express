@@ -53,6 +53,13 @@ describe('GET /goalkeeper-requests/config', () => {
       goalkeeperCount: { min: 1, max: 2 },
       durationOptions: [60, 90, 120],
       currency: 'COP',
+      surfaces: [
+        { id: 'synthetic_grass', name: 'Grama sintética' },
+        { id: 'natural_grass', name: 'Grama natural' },
+        { id: 'hard_court', name: 'Asfalto/Placa' },
+        { id: 'wood', name: 'Madera' },
+        { id: 'dirt', name: 'Arena' },
+      ],
     });
   });
 
@@ -82,7 +89,7 @@ describe('GET /goalkeeper-requests/config', () => {
     const quote = await request(context.app)
       .post('/goalkeeper-requests/quote')
       .set('Authorization', `Bearer ${token}`)
-      .send({ ...POINTS.caliNorte, startsAt: config.body.earliestStartsAt, goalkeeperCount: 1, durationMinutes: config.body.durationOptions[0] });
+      .send({ ...POINTS.caliNorte, startsAt: config.body.earliestStartsAt, goalkeeperCount: 1, durationMinutes: config.body.durationOptions[0], modality: 'any', level: 'recreational', surfaceId: config.body.surfaces[0].id });
 
     expect(quote.status).toBe(200);
     expect(quote.body.currency).toBe(config.body.currency);

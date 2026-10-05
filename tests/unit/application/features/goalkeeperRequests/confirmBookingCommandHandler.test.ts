@@ -77,6 +77,7 @@ describe('ConfirmBookingCommandHandler — Story 1: book at exactly the quoted p
         timeZone: 'America/Bogota',
         goalkeeperCount: 2,
         durationMinutes: 90,
+        matchFormat: null,
         unitRate: 55000,
         subtotal: 110000,
         unitSurcharge: 5000,

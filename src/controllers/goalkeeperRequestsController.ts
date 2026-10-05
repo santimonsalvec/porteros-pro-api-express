@@ -92,6 +92,9 @@ export function createGoalkeeperRequestsController(deps: GoalkeeperRequestsContr
         startsAt: parseStartsAt(body.startsAt)!,
         goalkeeperCount: body.goalkeeperCount,
         durationMinutes: body.durationMinutes,
+        modality: body.modality,
+        level: body.level,
+        surfaceId: body.surfaceId,
       }),
     );
 
@@ -114,6 +117,10 @@ export function createGoalkeeperRequestsController(deps: GoalkeeperRequestsContr
         }
         res.status(200).json(result.quote);
         return;
+      case 'unknown_surface':
+        throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', {
+          surfaceId: 'Esa superficie ya no está disponible. Elige otra.',
+        });
       case 'location_not_covered':
         throw locationNotCovered();
       case 'invalid_start_time':

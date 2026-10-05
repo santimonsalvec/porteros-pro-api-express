@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { MatchFormat } from '../../../../src/domain/bookings/matchFormat.js';
 import { validatePushMessage } from '../../../../src/domain/devices/deviceRules.js';
 import { groupedOfferMessage, localWhen, singleOfferMessage } from '../../../../src/domain/notifications/offerMessages.js';
 
@@ -8,6 +9,7 @@ const match = {
   startsAt: new Date('2026-10-04T20:00:00.000Z'),
   timeZone: 'America/Bogota',
   durationMinutes: 90,
+  format: null,
   requestId: 'request-1',
   bookingId: 'booking-1',
 };
@@ -21,6 +23,21 @@ describe('offer messages', () => {
       body: 'Bello · dom 4 oct, 3:00 p. m. · 90 min',
       data: { type: 'booking.available', requestId: 'request-1', bookingId: 'booking-1' },
     });
+    expect(validatePushMessage(message)).toEqual({ ok: true });
+  });
+
+  it.each([
+    ['futbol_11', 'competitive', 'Partido disponible · Fútbol 11', 'Torneo'],
+    ['micro_futsal', 'recreational', 'Partido disponible · Micro / Futsal', 'Amateur'],
+    ['futbol_medio', 'competitive', 'Partido disponible · Fútbol medio', 'Torneo'],
+    ['any', 'recreational', 'Partido disponible · Abierto', 'Amateur'],
+  ])('names the %s modality, the surface and the %s level (feature 024)', (modality, level, title, levelLabel) => {
+    const format = new MatchFormat({ modality, level, surfaceId: 'synthetic_grass', surfaceName: 'Grama sintética' });
+
+    const message = singleOfferMessage({ ...match, format });
+
+    expect(message.title).toBe(title);
+    expect(message.body).toBe(`Bello · dom 4 oct, 3:00 p. m. · 90 min · Grama sintética · ${levelLabel}`);
     expect(validatePushMessage(message)).toEqual({ ok: true });
   });
 

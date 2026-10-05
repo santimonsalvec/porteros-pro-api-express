@@ -1,4 +1,6 @@
-/** What was quoted and booked: where, when and how many goalkeepers for how long. */
+import { MatchFormat } from './matchFormat.js';
+
+/** What was quoted and booked: where, when, how many goalkeepers for how long, and what kind of match. */
 export class MatchDetails {
   readonly latitude: number;
   readonly longitude: number;
@@ -14,6 +16,8 @@ export class MatchDetails {
   readonly timeZone: string;
   readonly goalkeeperCount: 1 | 2;
   readonly durationMinutes: 60 | 90 | 120;
+  /** Modality, level and surface (feature 024); `null` on requests created before it. */
+  readonly format: MatchFormat | null;
 
   constructor(params: {
     latitude: number;
@@ -25,6 +29,7 @@ export class MatchDetails {
     timeZone: string;
     goalkeeperCount: number;
     durationMinutes: number;
+    format?: MatchFormat | null;
   }) {
     if (!Number.isFinite(params.latitude) || params.latitude < -90 || params.latitude > 90) {
       throw new Error('MatchDetails: latitude must be between -90 and 90');
@@ -59,5 +64,10 @@ export class MatchDetails {
     this.timeZone = params.timeZone;
     this.goalkeeperCount = params.goalkeeperCount;
     this.durationMinutes = params.durationMinutes;
+    const format = params.format ?? null;
+    if (format !== null && !(format instanceof MatchFormat)) {
+      throw new Error('MatchDetails: format must be a MatchFormat');
+    }
+    this.format = format;
   }
 }

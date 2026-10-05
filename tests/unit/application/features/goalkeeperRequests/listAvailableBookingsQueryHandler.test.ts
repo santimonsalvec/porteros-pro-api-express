@@ -1,3 +1,4 @@
+import { MatchFormat } from '../../../../../src/domain/bookings/matchFormat.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ListAvailableBookingsQuery } from '../../../../../src/application/features/goalkeeperRequests/queries/listAvailableBookings/listAvailableBookingsQuery.js';
 import { ListAvailableBookingsQueryHandler } from '../../../../../src/application/features/goalkeeperRequests/queries/listAvailableBookings/listAvailableBookingsQueryHandler.js';
@@ -52,6 +53,7 @@ describe('ListAvailableBookingsQueryHandler — US1: a goalkeeper sees the match
       timeZone: 'America/Bogota',
       durationMinutes: 90,
       goalkeeperCount: 1,
+      matchFormat: null,
       earnings: 60000,
       commission: 9000,
       vat: 0,
@@ -76,6 +78,19 @@ describe('ListAvailableBookingsQueryHandler — US1: a goalkeeper sees the match
     h.seedRequest('fine', inHours(7), { goalkeeperCount: 1 }); // 01:00Z, exactly 30 min after
 
     expect(await ids()).toEqual(['fine-b1']);
+  });
+
+  it('carries the match format of each request (feature 024)', async () => {
+    const format = new MatchFormat({ modality: 'futbol_medio', level: 'recreational', surfaceId: 'synthetic_grass', surfaceName: 'Grama sintética' });
+    h.seedRequest('formato', inHours(5), { goalkeeperCount: 1, format });
+
+    const result = await list();
+
+    expect(result.outcome === 'success' && result.items.find((item) => item.requestId === 'formato')?.matchFormat).toEqual({
+      modality: 'futbol_medio',
+      level: 'recreational',
+      surface: { id: 'synthetic_grass', name: 'Grama sintética' },
+    });
   });
 
   it('only lists bookings whose commission the balance covers', async () => {

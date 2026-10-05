@@ -4,6 +4,7 @@ import { City } from '../../../../../src/domain/locations/city.js';
 import { Region } from '../../../../../src/domain/locations/region.js';
 import { BookingSettings } from '../../../../../src/domain/pricing/bookingSettings.js';
 import { InvalidConfigurationError } from '../../../../../src/domain/pricing/invalidConfigurationError.js';
+import { MatchSurface } from '../../../../../src/domain/pricing/matchSurface.js';
 import { Zone } from '../../../../../src/domain/zones/zone.js';
 import { GetBookingConfigQuery } from '../../../../../src/application/features/goalkeeperRequests/queries/getBookingConfig/getBookingConfigQuery.js';
 import { GetBookingConfigQueryHandler } from '../../../../../src/application/features/goalkeeperRequests/queries/getBookingConfig/getBookingConfigQueryHandler.js';
@@ -18,8 +19,9 @@ import { FixedClock } from '../../../../fakes/fakeClock.js';
 import { FakeCountryRepository } from '../../../../fakes/fakeCountryRepository.js';
 import { FakeRegionRepository } from '../../../../fakes/fakeRegionRepository.js';
 import { FakeRentalRateRepository } from '../../../../fakes/fakeRentalRateRepository.js';
+import { FakeMatchSurfaceRepository } from '../../../../fakes/fakeMatchSurfaceRepository.js';
 import { FakeZoneRepository } from '../../../../fakes/fakeZoneRepository.js';
-import { POINTS, QUOTE_NOW, seedQuoteWorld } from '../../../../fixtures/quoteFixtures.js';
+import { POINTS, QUOTE_NOW, seedQuoteWorld, QUOTE_FORMAT_FIELDS } from '../../../../fixtures/quoteFixtures.js';
 
 /** Fake-backed handlers over the shared quote world. Reference clock: 13:00 in Bogotá (18:00Z). */
 class Harness {
@@ -28,6 +30,7 @@ class Harness {
   readonly regionRepository = new FakeRegionRepository();
   readonly countryRepository = new FakeCountryRepository();
   readonly rentalRateRepository = new FakeRentalRateRepository();
+  readonly matchSurfaceRepository = new FakeMatchSurfaceRepository();
   readonly bookingSettingsRepository = new FakeBookingSettingsRepository();
   readonly commissionSettingRepository = new FakeCommissionSettingRepository();
   readonly commissionResolver = new CommissionResolver(this.commissionSettingRepository, this.zoneRepository, this.cityRepository, this.regionRepository);
@@ -44,6 +47,7 @@ class Harness {
       this.countryRepository,
       this.bookingSettingsRepository,
       this.clock,
+      this.matchSurfaceRepository,
     );
     this.quote = new GetServiceQuoteQueryHandler(
       this.zoneRepository,
@@ -52,7 +56,9 @@ class Harness {
       this.countryRepository,
       this.rentalRateRepository,
       this.bookingSettingsRepository,
-      this.commissionResolver,      this.clock,
+      this.commissionResolver,
+      this.clock,
+      this.matchSurfaceRepository,
     );
   }
 
@@ -68,7 +74,7 @@ class Harness {
 
   quoteAt(startsAt: string, point: { latitude: number; longitude: number } = POINTS.caliNorte) {
     return this.quote.handle(
-      new GetServiceQuoteQuery({ ...point, startsAt: parseStartsAt(startsAt)!, goalkeeperCount: 1, durationMinutes: 60 }),
+      new GetServiceQuoteQuery({ ...point, startsAt: parseStartsAt(startsAt)!, goalkeeperCount: 1, durationMinutes: 60, ...QUOTE_FORMAT_FIELDS }),
     );
   }
 }
@@ -100,8 +106,24 @@ describe('GetBookingConfigQueryHandler — what a client may pick', () => {
         goalkeeperCount: { min: 1, max: 2 },
         durationOptions: [60, 90, 120],
         currency: 'COP',
+        surfaces: [
+          { id: 'synthetic_grass', name: 'Grama sintética' },
+          { id: 'natural_grass', name: 'Grama natural' },
+          { id: 'hard_court', name: 'Asfalto/Placa' },
+          { id: 'wood', name: 'Madera' },
+          { id: 'dirt', name: 'Arena' },
+        ],
       },
     });
+  });
+
+  it('offers only the active surfaces, in their order (feature 024)', async () => {
+    h.matchSurfaceRepository.seed(new MatchSurface({ id: 'wood', name: 'Madera', active: false, order: 4 }));
+    h.matchSurfaceRepository.seed(new MatchSurface({ id: 'sand', name: 'Arena', active: true, order: 0 }));
+
+    const ids = (await h.configOf()).surfaces.map((surface) => surface.id);
+
+    expect(ids).toEqual(['sand', 'synthetic_grass', 'natural_grass', 'hard_court', 'dirt']);
   });
 
   it.each([
@@ -210,7 +232,7 @@ describe('GetBookingConfigQueryHandler — agrees with the quote', () => {
 
     for (const durationMinutes of durationOptions) {
       const result = await h.quote.handle(
-        new GetServiceQuoteQuery({ ...POINTS.caliNorte, startsAt: parseStartsAt(start)!, goalkeeperCount: 1, durationMinutes }),
+        new GetServiceQuoteQuery({ ...POINTS.caliNorte, startsAt: parseStartsAt(start)!, goalkeeperCount: 1, durationMinutes, ...QUOTE_FORMAT_FIELDS }),
       );
       expect(result).toMatchObject({ outcome: 'success' });
     }
@@ -301,6 +323,7 @@ describe('GetBookingConfigQueryHandler — read-only', () => {
       watch('countries', h.countryRepository),
       watch('settings', h.bookingSettingsRepository),
       h.clock,
+      h.matchSurfaceRepository,
     );
 
     await handler.handle(new GetBookingConfigQuery(POINTS.caliNorte));

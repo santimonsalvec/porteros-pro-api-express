@@ -1,3 +1,4 @@
+import type { MatchTier } from '../../../../domain/pricing/tieredRate.js';
 import type { TaxSetting } from '../../../../domain/wallet/taxSetting.js';
 import type { CommissionSetting } from '../../../../domain/wallet/commissionSetting.js';
 import type { Wallet } from '../../../../domain/wallet/wallet.js';
@@ -42,9 +43,15 @@ export interface ICommissionSettingRepository {
   findFor(refs: { zoneIds: string[]; cityIds: string[]; countryIds: string[] }): Promise<CommissionSetting[]>;
 }
 
-/** The effective commission of each zone (zone → anchor city → country), `null` when none is configured. */
+/**
+ * The effective commission (zone → anchor city → country, then modality + level → modality →
+ * general within each), `null` when none is configured.
+ */
 export interface ICommissionResolver {
+  /** Per zone, the lowest commission any match there could carry (the "can see offers" threshold). */
   resolveForZones(zoneIds: string[]): Promise<Map<string, number | null>>;
+  /** The commission of one match in a zone (feature 024). */
+  resolveForMatch(zoneId: string, match: MatchTier): Promise<number | null>;
 }
 
 /** Each country's VAT rate (feature 023), set by administrators. */

@@ -45,6 +45,7 @@ export class IssueServiceQuoteCommandHandler implements ICommandHandler<
       timeZone: priced.timeZone,
       goalkeeperCount: command.input.goalkeeperCount,
       durationMinutes: command.input.durationMinutes,
+      format: area.format,
     });
     const pricing = new PricingSnapshot(
       {

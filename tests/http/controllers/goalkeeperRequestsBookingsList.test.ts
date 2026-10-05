@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js';
 import { User } from '../../../src/domain/users/user.js';
-import { buildRequest, buildRequestBookings, POINTS } from '../../fixtures/quoteFixtures.js';
+import { buildRequest, buildRequestBookings, POINTS, QUOTE_FORMAT_FIELDS } from '../../fixtures/quoteFixtures.js';
 import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper } from '../walletTestHelpers.js';
 
 type TestApp = Awaited<ReturnType<typeof buildTestApp>>;
@@ -64,7 +64,7 @@ describe('GET /goalkeeper-requests/bookings — Story 1: the client sees their b
     const quote = await request(context.app)
       .post('/goalkeeper-requests/quote')
       .set('Authorization', `Bearer ${token}`)
-      .send({ ...POINTS.caliNorte, startsAt: '2026-09-21T15:00:00', goalkeeperCount: 2, durationMinutes: 90 });
+      .send({ ...POINTS.caliNorte, startsAt: '2026-09-21T15:00:00', goalkeeperCount: 2, durationMinutes: 90, ...QUOTE_FORMAT_FIELDS });
     const confirmed = await request(context.app)
       .post('/goalkeeper-requests/bookings')
       .set('Authorization', `Bearer ${token}`)

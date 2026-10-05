@@ -1,3 +1,4 @@
+import { QUOTE_FORMAT_FIELDS } from '../../fixtures/quoteFixtures.js';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { RunSweepCommand } from '../../../src/application/features/events/commands/runSweep/runSweepCommand.js';
@@ -19,7 +20,7 @@ describe('Domain events are recorded with the change (013 US1)', () => {
     const quote = await request(context.app)
       .post('/goalkeeper-requests/quote')
       .set('Authorization', `Bearer ${client.token}`)
-      .send({ latitude: 3.45, longitude: -76.5, startsAt: '2026-09-21T15:00:00', goalkeeperCount: 2, durationMinutes: 90 });
+      .send({ latitude: 3.45, longitude: -76.5, startsAt: '2026-09-21T15:00:00', goalkeeperCount: 2, durationMinutes: 90, ...QUOTE_FORMAT_FIELDS });
     const confirm = () =>
       request(context.app).post('/goalkeeper-requests/bookings').set('Authorization', `Bearer ${client.token}`).send({ quoteId: quote.body.quoteId });
 

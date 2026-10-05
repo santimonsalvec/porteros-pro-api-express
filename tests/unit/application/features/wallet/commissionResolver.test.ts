@@ -60,3 +60,34 @@ describe('CommissionResolver — US3: zone, then anchor city, then country', () 
     expect(settings.calls).toBe(0);
   });
 });
+
+describe('CommissionResolver — feature 024: modality and level tiers', () => {
+  beforeEach(() => {
+    settings.seed(new CommissionSetting({ id: 'c-med-f11', scope: 'city', refId: 'city-medellin', amount: 10000, modality: 'futbol_11' }));
+    settings.seed(
+      new CommissionSetting({ id: 'c-med-f11-c', scope: 'city', refId: 'city-medellin', amount: 12000, modality: 'futbol_11', level: 'competitive' }),
+    );
+    settings.seed(new CommissionSetting({ id: 'c-co-micro', scope: 'country', refId: 'country-co', amount: 5000, modality: 'micro_futsal' }));
+  });
+
+  it.each([
+    ['Fútbol 11 competitive in a city zone', 'zone-poblado', { modality: 'futbol_11', level: 'competitive' }, 12000],
+    ['Fútbol 11 recreational in a city zone', 'zone-poblado', { modality: 'futbol_11', level: 'recreational' }, 10000],
+    ['Micro, which the city does not price, falls to the city general', 'zone-poblado', { modality: 'micro_futsal', level: 'recreational' }, 8000],
+    ['any uses the general commission', 'zone-poblado', { modality: 'any', level: 'competitive' }, 8000],
+    ['the zone general beats the city Fútbol 11 (geography first)', 'zone-laureles', { modality: 'futbol_11', level: 'competitive' }, 9000],
+    ['Micro in Cali uses the country Micro commission', 'zone-cali-norte', { modality: 'micro_futsal', level: 'competitive' }, 5000],
+  ] as const)('resolves %s', async (_label, zoneId, match, amount) => {
+    expect(await resolver.resolveForMatch(zoneId, match)).toBe(amount);
+  });
+
+  it('answers null for a match in an unconfigured zone', async () => {
+    expect(await resolver.resolveForMatch('zone-cdmx', { modality: 'futbol_11', level: 'competitive' })).toBeNull();
+  });
+
+  it('gives each zone the lowest commission any match there could carry', async () => {
+    const resolved = await resolver.resolveForZones(['zone-laureles', 'zone-poblado', 'zone-cali-norte']);
+
+    expect(Object.fromEntries(resolved)).toEqual({ 'zone-laureles': 9000, 'zone-poblado': 8000, 'zone-cali-norte': 5000 });
+  });
+});

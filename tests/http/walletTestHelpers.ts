@@ -1,3 +1,4 @@
+import { QUOTE_FORMAT_FIELDS } from '../fixtures/quoteFixtures.js';
 import request from 'supertest';
 import type { buildTestApp } from './testAppFactory.js';
 import { ExternalIdentity } from '../../src/domain/users/externalIdentity.js';
@@ -64,6 +65,7 @@ export async function createRequestAsClient(
       startsAt: overrides.startsAt ?? '2026-09-21T15:00:00',
       goalkeeperCount: overrides.goalkeeperCount ?? 2,
       durationMinutes: 90,
+      ...QUOTE_FORMAT_FIELDS,
     });
   if (quote.status !== 200) throw new Error(`quote failed: ${quote.status} ${JSON.stringify(quote.body)}`);
   const confirmation = await request(context.app)

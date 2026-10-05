@@ -76,7 +76,10 @@ export function offerHarness() {
   const eligibility = new OfferEligibilityService({
     goalkeeperProfileRepository,
     walletRepository,
-    commissionResolver: { resolveForZones: async (zoneIds: string[]) => new Map(zoneIds.map((zoneId) => [zoneId, 7000] as const)) },
+    commissionResolver: {
+      resolveForZones: async (zoneIds: string[]) => new Map(zoneIds.map((zoneId) => [zoneId, 7000] as const)),
+      resolveForMatch: async () => 7000,
+    },
     bookingRepository,
     vatRates: fixedVatRates(0),
   });

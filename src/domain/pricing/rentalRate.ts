@@ -1,5 +1,7 @@
 import { Entity } from '../common/entity.js';
+import type { MatchLevel, PricedModality } from '../bookings/matchFormat.js';
 import { InvalidConfigurationError } from './invalidConfigurationError.js';
+import { parseTier } from './tier.js';
 
 export type RentalRateScope = 'zone' | 'city';
 export type RentalDurationMinutes = 60 | 90 | 120;
@@ -14,6 +16,10 @@ export class RentalRate extends Entity<string> {
   readonly durationMinutes: RentalDurationMinutes;
   /** Whole currency units (`40000` = 40.000 COP). The currency is the country's, never stored per rate. */
   readonly amount: number;
+  /** The modality this rate is for; `null` = every modality (the general rate, feature 024). */
+  readonly modality: PricedModality | null;
+  /** The level this rate is for; `null` = every level. Only set together with `modality`. */
+  readonly level: MatchLevel | null;
 
   constructor(params: {
     id: string;
@@ -21,6 +27,8 @@ export class RentalRate extends Entity<string> {
     refId: string;
     durationMinutes: number;
     amount: number;
+    modality?: string | null;
+    level?: string | null;
   }) {
     super(params.id);
     const where = `rentalRates document ${params.id}`;
@@ -40,5 +48,8 @@ export class RentalRate extends Entity<string> {
     this.refId = params.refId;
     this.durationMinutes = params.durationMinutes as RentalDurationMinutes;
     this.amount = params.amount;
+    const tier = parseTier(params.modality, params.level, where);
+    this.modality = tier.modality;
+    this.level = tier.level;
   }
 }

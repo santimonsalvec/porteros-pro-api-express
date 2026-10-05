@@ -2,7 +2,7 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js';
-import { POINTS } from '../../fixtures/quoteFixtures.js';
+import { POINTS, QUOTE_FORMAT_FIELDS } from '../../fixtures/quoteFixtures.js';
 
 type TestApp = Awaited<ReturnType<typeof buildTestApp>>;
 
@@ -35,6 +35,7 @@ const quoteBody = {
   startsAt: '2026-09-21T15:00:00',
   goalkeeperCount: 2,
   durationMinutes: 90,
+  ...QUOTE_FORMAT_FIELDS,
 };
 
 async function issueQuote(context: TestApp, token: string, body: object = quoteBody) {
@@ -82,6 +83,7 @@ describe('POST /goalkeeper-requests/bookings — Story 1: book at exactly the qu
       timeZone: 'America/Bogota',
       goalkeeperCount: 2,
       durationMinutes: 90,
+      matchFormat: { modality: 'futbol_11', level: 'competitive', surface: { id: 'synthetic_grass', name: 'Grama sintética' } },
       unitRate: 55000,
       subtotal: 110000,
       unitSurcharge: 5000,

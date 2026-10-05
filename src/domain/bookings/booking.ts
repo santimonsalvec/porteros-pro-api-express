@@ -72,6 +72,8 @@ export interface BookingProps {
   replacesBookingId?: string | null;
   /** Goalkeepers who can never take it: those who withdrew from the bookings it replaces. */
   excludedGoalkeeperIds?: readonly string[];
+  /** Goalkeepers who said "No me interesa" to its request (feature 024): it is never offered to them. */
+  dismissedGoalkeeperIds?: readonly string[];
   /** Feature 020: the check-in, and when each check-in notice was sent. */
   checkIn?: CheckIn | null;
   checkInOpenNoticeAt?: Date | null;
@@ -110,6 +112,7 @@ export class Booking extends Entity<string> {
   readonly cancellationNote: string | null;
   readonly replacesBookingId: string | null;
   readonly excludedGoalkeeperIds: readonly string[];
+  readonly dismissedGoalkeeperIds: readonly string[];
   readonly checkIn: CheckIn | null;
   readonly checkInOpenNoticeAt: Date | null;
   readonly checkInLastCallAt: Date | null;
@@ -145,6 +148,7 @@ export class Booking extends Entity<string> {
     this.cancellationNote = props.cancellationNote ?? null;
     this.replacesBookingId = props.replacesBookingId ?? null;
     this.excludedGoalkeeperIds = [...(props.excludedGoalkeeperIds ?? [])];
+    this.dismissedGoalkeeperIds = [...(props.dismissedGoalkeeperIds ?? [])];
     this.checkIn = props.checkIn ? { ...props.checkIn, at: new Date(props.checkIn.at) } : null;
     this.checkInOpenNoticeAt = props.checkInOpenNoticeAt ? new Date(props.checkInOpenNoticeAt) : null;
     this.checkInLastCallAt = props.checkInLastCallAt ? new Date(props.checkInLastCallAt) : null;
@@ -198,11 +202,18 @@ export class Booking extends Entity<string> {
       createdAt: now,
       replacesBookingId: original.id,
       excludedGoalkeeperIds: [...new Set([...original.excludedGoalkeeperIds, withdrawingGoalkeeperId])],
+      // Whoever dismissed the match keeps not seeing it (feature 024).
+      dismissedGoalkeeperIds: original.dismissedGoalkeeperIds,
     });
   }
 
   static rehydrate(props: BookingProps): Booking {
     return new Booking(props);
+  }
+
+  /** Whether this goalkeeper withdrew from the place it replaces or dismissed its request. */
+  isClosedTo(goalkeeperId: string): boolean {
+    return this.excludedGoalkeeperIds.includes(goalkeeperId) || this.dismissedGoalkeeperIds.includes(goalkeeperId);
   }
 
   /** Goalkeepers can take it strictly before `searchEndsAt` (start − travel margin). */

@@ -4,6 +4,7 @@ import { contactsVisibleAt, contactsVisibleFrom } from '../../../../domain/booki
 import type { ICityRepository } from '../../locations/common/ports.js';
 import type { IZoneRepository } from '../../zones/common/ports.js';
 import type { Contact } from './contacts.js';
+import { toMatchFormatResponse, type MatchFormatResponse } from './matchFormatResponse.js';
 import type { IGoalkeeperRequestRepository } from './ports.js';
 import { checkInWindow, type CheckInWindowConfig } from '../../../../domain/bookings/checkInWindow.js';
 import type { CheckInWindowResolver } from '../../bookingLifecycle/common/checkInWindowResolver.js';
@@ -21,6 +22,8 @@ export interface AvailableBookingItem {
   timeZone: string;
   durationMinutes: number;
   goalkeeperCount: number;
+  /** Modality, level and surface (feature 024); `null` for requests created before it. */
+  matchFormat: MatchFormatResponse | null;
   /** What the client pays the goalkeeper for this booking (rate + surcharge). */
   earnings: number;
   /** The platform's commission, fixed when the quote was issued. */
@@ -91,6 +94,7 @@ export function toAvailableItem(booking: Booking, context: BookingItemContext): 
     timeZone: match.timeZone,
     durationMinutes: match.durationMinutes,
     goalkeeperCount: match.goalkeeperCount,
+    matchFormat: toMatchFormatResponse(match.format),
     earnings: booking.price.total,
     commission: booking.commission,
     currency: booking.price.currency,

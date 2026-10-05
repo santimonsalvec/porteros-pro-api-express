@@ -47,6 +47,7 @@ export function bookingToDocument(booking: Booking): Document {
     cancellationNote: booking.cancellationNote,
     replacesBookingId: booking.replacesBookingId,
     excludedGoalkeeperIds: [...booking.excludedGoalkeeperIds],
+    dismissedGoalkeeperIds: [...booking.dismissedGoalkeeperIds],
     checkIn: booking.checkIn,
     checkInOpenNoticeAt: booking.checkInOpenNoticeAt,
     checkInLastCallAt: booking.checkInLastCallAt,
@@ -85,6 +86,7 @@ export function bookingFromDocument(doc: Document): Booking {
     cancellationNote: (doc.cancellationNote as string | null | undefined) ?? null,
     replacesBookingId: (doc.replacesBookingId as string | null | undefined) ?? null,
     excludedGoalkeeperIds: (doc.excludedGoalkeeperIds as string[] | undefined) ?? [],
+    dismissedGoalkeeperIds: (doc.dismissedGoalkeeperIds as string[] | undefined) ?? [],
     checkIn: (doc.checkIn as CheckIn | null | undefined) ?? null,
     checkInOpenNoticeAt: (doc.checkInOpenNoticeAt as Date | null | undefined) ?? null,
     checkInLastCallAt: (doc.checkInLastCallAt as Date | null | undefined) ?? null,
@@ -251,6 +253,10 @@ export class BookingRepository implements IBookingRepository {
       .limit(limit)
       .toArray();
     return docs.map(bookingFromDocument);
+  }
+
+  async dismissRequestFor(requestId: string, goalkeeperId: string): Promise<void> {
+    await this.collection.updateMany({ requestId }, { $addToSet: { dismissedGoalkeeperIds: goalkeeperId } });
   }
 
   async findByRequestIds(requestIds: string[]): Promise<Booking[]> {

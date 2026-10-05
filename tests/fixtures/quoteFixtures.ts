@@ -2,6 +2,7 @@ import type { LeadTimeSurcharge } from '../../src/domain/pricing/bookingSettings
 import { FREE_CANCELLATION_MINUTES_DEFAULT, TRAVEL_BUFFER_MINUTES_DEFAULT } from '../../src/application/features/goalkeeperRequests/common/bookingLimits.js';
 import { Booking } from '../../src/domain/bookings/booking.js';
 import { GoalkeeperRequest, type PartialFulfillment } from '../../src/domain/bookings/goalkeeperRequest.js';
+import { MatchFormat } from '../../src/domain/bookings/matchFormat.js';
 import { MatchDetails } from '../../src/domain/bookings/matchDetails.js';
 import { PricingSnapshot } from '../../src/domain/bookings/pricingSnapshot.js';
 import { Quote } from '../../src/domain/bookings/quote.js';
@@ -196,6 +197,7 @@ export function buildStoredQuote(
     freeCancellationMinutes: number;
     commission: number;
     travelBufferMinutes: number;
+    format: MatchFormat | null;
   }> = {},
 ): Quote {
   const startsAt = overrides.startsAt ?? '2026-09-21T20:00:00.000Z';
@@ -209,6 +211,7 @@ export function buildStoredQuote(
     timeZone: 'America/Bogota',
     goalkeeperCount,
     durationMinutes: 90,
+    format: overrides.format ?? null,
   });
   const pricing = new PricingSnapshot(
     {
@@ -252,6 +255,7 @@ export function buildRequest(
     travelBufferMinutes: number;
     durationMinutes: 60 | 90 | 120;
     active: boolean;
+    format: MatchFormat | null;
   }> = {},
 ): GoalkeeperRequest {
   const goalkeeperCount = overrides.goalkeeperCount ?? 2;
@@ -268,6 +272,7 @@ export function buildRequest(
       timeZone: 'America/Bogota',
       goalkeeperCount,
       durationMinutes: overrides.durationMinutes ?? 90,
+      format: overrides.format ?? null,
     }),
     pricing: new PricingSnapshot(
       {
@@ -295,3 +300,6 @@ export function buildRequestBookings(request: GoalkeeperRequest, ids?: string[])
   const bookingIds = ids ?? Array.from({ length: request.goalkeeperCount }, (_, index) => `${request.id}-b${index + 1}`);
   return bookingIds.map((id) => Booking.forRequest(id, request, request.createdAt));
 }
+
+/** The match-format fields every quote body needs since feature 024 (priced by the general rate here). */
+export const QUOTE_FORMAT_FIELDS = { modality: 'futbol_11', level: 'competitive', surfaceId: 'synthetic_grass' } as const;

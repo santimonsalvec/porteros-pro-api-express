@@ -66,6 +66,8 @@ import { ListAvailableBookingsQuery } from '../application/features/goalkeeperRe
 import { ListGoalkeeperAgendaQuery } from '../application/features/goalkeeperRequests/queries/listGoalkeeperAgenda/listGoalkeeperAgendaQuery.js';
 import { ListGoalkeeperAgendaQueryHandler } from '../application/features/goalkeeperRequests/queries/listGoalkeeperAgenda/listGoalkeeperAgendaQueryHandler.js';
 import { AcceptBookingCommand } from '../application/features/goalkeeperRequests/commands/acceptBooking/acceptBookingCommand.js';
+import { DismissBookingCommand } from '../application/features/goalkeeperRequests/commands/dismissBooking/dismissBookingCommand.js';
+import { DismissBookingCommandHandler } from '../application/features/goalkeeperRequests/commands/dismissBooking/dismissBookingCommandHandler.js';
 import { AcceptBookingCommandHandler } from '../application/features/goalkeeperRequests/commands/acceptBooking/acceptBookingCommandHandler.js';
 import { MongoBookingAcceptanceStore } from './persistence/mongo/bookingAcceptanceStore.js';
 import { ListAvailableBookingsQueryHandler } from '../application/features/goalkeeperRequests/queries/listAvailableBookings/listAvailableBookingsQueryHandler.js';
@@ -146,6 +148,7 @@ import { PinoAuditLogger } from './observability/pinoAuditLogger.js';
 import { UuidIdGenerator } from './uuidIdGenerator.js';
 import { SystemClock } from './systemClock.js';
 import { RentalRateRepository } from './persistence/mongo/rentalRateRepository.js';
+import { MatchSurfaceRepository } from './persistence/mongo/matchSurfaceRepository.js';
 import { BookingSettingsRepository } from './persistence/mongo/bookingSettingsRepository.js';
 import { QuoteRepository } from './persistence/mongo/quoteRepository.js';
 import { BookingRepository } from './persistence/mongo/bookingRepository.js';
@@ -270,6 +273,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   await zoneRepository.ensureIndexes();
   const rentalRateRepository = new RentalRateRepository(db);
   await rentalRateRepository.ensureIndexes();
+  const matchSurfaceRepository = new MatchSurfaceRepository(db);
   const bookingSettingsRepository = new BookingSettingsRepository(db);
   await bookingSettingsRepository.ensureIndexes();
   const quoteRepository = new QuoteRepository(db);
@@ -607,6 +611,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         countryRepository,
         bookingSettingsRepository,
         clock,
+        matchSurfaceRepository,
       ),
     },
     {
@@ -620,6 +625,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         bookingSettingsRepository,
         commissionResolver,
         clock,
+        matchSurfaceRepository,
       ),
     },
     {
@@ -735,6 +741,10 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         idGenerator,
         clock,
       }),
+    },
+    {
+      requestType: DismissBookingCommand,
+      handler: new DismissBookingCommandHandler(goalkeeperProfileRepository, bookingRepository),
     },
     {
       requestType: AcceptBookingCommand,

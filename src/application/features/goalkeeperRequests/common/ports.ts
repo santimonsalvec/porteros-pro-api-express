@@ -7,15 +7,24 @@ import type { Quote } from '../../../../domain/bookings/quote.js';
 import type { Country } from '../../../../domain/countries/country.js';
 import type { BookingSettings } from '../../../../domain/pricing/bookingSettings.js';
 import type { RentalRate } from '../../../../domain/pricing/rentalRate.js';
+import type { MatchSurface } from '../../../../domain/pricing/matchSurface.js';
+
+/** The playing surfaces clients can pick (feature 024). Externally seeded, read-only. */
+export interface IMatchSurfaceRepository {
+  /** The active surfaces, by `order` then `name`. */
+  listActive(): Promise<MatchSurface[]>;
+  /** `null` when it does not exist (an inactive one is returned, for the caller to judge). */
+  findById(id: string): Promise<MatchSurface | null>;
+}
 
 /** Minimal, read-only — mirrors `IZoneRepository`'s reference-data shape. */
 export interface IRentalRateRepository {
-  /** At most one zone-scope and one city-scope rate for that duration. */
+  /** Every zone-scope and city-scope rate for that duration, one per modality/level tier (024). */
   findForDuration(
     zoneId: string,
     cityId: string,
     durationMinutes: number,
-  ): Promise<{ zone: RentalRate | null; city: RentalRate | null }>;
+  ): Promise<{ zone: RentalRate[]; city: RentalRate[] }>;
 }
 
 /** Minimal, read-only. `countryId` may be `null` when it cannot be determined. */
@@ -109,6 +118,8 @@ export interface IBookingRepository {
   findUpcomingForGoalkeeper(goalkeeperId: string, now: Date, skip: number, limit: number): Promise<Booking[]>;
   /** Most recent first (ties: id descending). */
   findPastForGoalkeeper(goalkeeperId: string, now: Date, skip: number, limit: number): Promise<Booking[]>;
+  /** Records "No me interesa" on every booking of the request (feature 024). Idempotent. */
+  dismissRequestFor(requestId: string, goalkeeperId: string): Promise<void>;
 }
 
 export type AcceptanceResult =

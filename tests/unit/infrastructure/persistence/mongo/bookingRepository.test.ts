@@ -70,6 +70,7 @@ describe('BookingRepository (mocked driver)', () => {
       cancellationNote: null,
       replacesBookingId: null,
       excludedGoalkeeperIds: [],
+      dismissedGoalkeeperIds: [],
       checkIn: null,
       checkInOpenNoticeAt: null,
       checkInLastCallAt: null,
@@ -169,5 +170,14 @@ describe('BookingRepository (mocked driver)', () => {
       expect(past.sort).toHaveBeenCalledWith({ startsAt: -1, _id: -1 });
       expect(past.skip).toHaveBeenCalledWith(5);
     });
+  });
+
+  it('records a dismissal on every booking of the request, once (feature 024)', async () => {
+    const collection = createFakeCollection();
+    collection.updateMany.mockResolvedValue({ modifiedCount: 2 });
+
+    await repositoryWith(collection).dismissRequestFor('request-1', 'gk-1');
+
+    expect(collection.updateMany).toHaveBeenCalledWith({ requestId: 'request-1' }, { $addToSet: { dismissedGoalkeeperIds: 'gk-1' } });
   });
 });

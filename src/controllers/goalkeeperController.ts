@@ -30,6 +30,7 @@ import { goalkeeperNotFound, sendMovements, sendWallet } from './wallet/walletHt
 import { sendTopUp, sendTopUpOptions, sendTopUps, startTopUp } from './payments/topUpHttp.js';
 import { sendDocumentFile, sendMyDocument, sendMyDocuments } from './invoicing/invoicingHttp.js';
 import { AcceptBookingCommand } from '../application/features/goalkeeperRequests/commands/acceptBooking/acceptBookingCommand.js';
+import { DismissBookingCommand } from '../application/features/goalkeeperRequests/commands/dismissBooking/dismissBookingCommand.js';
 import { ListAvailableBookingsQuery } from '../application/features/goalkeeperRequests/queries/listAvailableBookings/listAvailableBookingsQuery.js';
 import { ListGoalkeeperAgendaQuery } from '../application/features/goalkeeperRequests/queries/listGoalkeeperAgenda/listGoalkeeperAgendaQuery.js';
 import { listClientBookingsRequestSchema } from './requests/goalkeeperRequests/listClientBookingsRequest.js';
@@ -390,6 +391,24 @@ export function createGoalkeeperController(deps: GoalkeeperControllerDependencie
         throw new ApiError(409, 'same_request', 'You already have a booking of this match.');
       case 'not_available':
         throw new ApiError(404, 'booking_not_available', 'This booking is not available.');
+      case 'not_a_goalkeeper':
+        throw goalkeeperNotFound();
+    }
+  });
+
+  // "No me interesa" (feature 024): the booking's request is never offered to this goalkeeper again.
+  router.post('/me/bookings/:bookingId/dismiss', async (req, res) => {
+    const result = await deps.mediator.send(new DismissBookingCommand(req.authClaims!.sub, req.params.bookingId));
+
+    // Exhaustive on purpose: adding an outcome without mapping it here fails compilation.
+    switch (result.outcome) {
+      case 'dismissed':
+        res.status(200).json({ dismissed: true });
+        return;
+      case 'booking_not_found':
+        throw new ApiError(404, 'booking_not_found', 'This booking does not exist.');
+      case 'booking_held':
+        throw new ApiError(409, 'booking_held', 'Ya tienes este partido. Si no puedes ir, retírate desde tu agenda.');
       case 'not_a_goalkeeper':
         throw goalkeeperNotFound();
     }

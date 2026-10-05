@@ -28,7 +28,8 @@ export function isEligible(snapshot: OfferSnapshot, booking: Booking, now: Date)
   if (!snapshot.zoneIds.includes(booking.zoneId)) return false;
   if (booking.status !== 'pending_assignment' || !booking.isSearchOpenAt(now)) return false;
   if (booking.clientId === snapshot.goalkeeperId) return false;
-  // A replacement never goes back to a goalkeeper who withdrew from this place (feature 018).
-  if (booking.excludedGoalkeeperIds.includes(snapshot.goalkeeperId)) return false;
+  // A replacement never goes back to a goalkeeper who withdrew from this place (feature 018), and a
+  // dismissed match never goes back to whoever dismissed it (feature 024).
+  if (booking.isClosedTo(snapshot.goalkeeperId)) return false;
   return !holdsSameRequest(booking, snapshot.held) && firstConflict(booking, snapshot.held) === null;
 }

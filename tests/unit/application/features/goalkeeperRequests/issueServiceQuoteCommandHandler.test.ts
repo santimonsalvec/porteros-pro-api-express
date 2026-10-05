@@ -10,7 +10,8 @@ import {
 import { FixedClock } from '../../../../fakes/fakeClock.js';
 import { FakeQuoteRepository } from '../../../../fakes/fakeQuoteRepository.js';
 import { FakeSender } from '../../../../fakes/fakeSender.js';
-import { POINTS, QUOTE_NOW } from '../../../../fixtures/quoteFixtures.js';
+import { POINTS, QUOTE_FORMAT_FIELDS, QUOTE_NOW } from '../../../../fixtures/quoteFixtures.js';
+import { MatchFormat } from '../../../../../src/domain/bookings/matchFormat.js';
 
 const priced = {
   unitRate: 55000,
@@ -23,17 +24,20 @@ const priced = {
   startsAt: '2026-09-21T20:00:00.000Z',
   startsAtLocal: '2026-09-21T15:00:00-05:00',
   timeZone: 'America/Bogota',
+  matchFormat: { modality: 'futbol_11' as const, level: 'competitive' as const, surface: { id: 'synthetic_grass', name: 'Grama sintética' } },
 };
+const format = new MatchFormat({ modality: 'futbol_11', level: 'competitive', surfaceId: 'synthetic_grass', surfaceName: 'Grama sintética' });
 const success: Extract<GetServiceQuoteResult, { outcome: 'success' }> = {
   outcome: 'success',
   quote: priced,
-  area: { zoneId: 'zone-cali-norte', cityId: 'city-cali', freeCancellationMinutes: 60, commission: 7000, travelBufferMinutes: 30 },
+  area: { zoneId: 'zone-cali-norte', cityId: 'city-cali', freeCancellationMinutes: 60, commission: 7000, travelBufferMinutes: 30, format },
 };
 const input: ServiceQuoteInput = {
   ...POINTS.caliNorte,
   startsAt: parseStartsAt('2026-09-21T15:00:00')!,
   goalkeeperCount: 2,
   durationMinutes: 90,
+  ...QUOTE_FORMAT_FIELDS,
 };
 
 class Harness {
@@ -78,6 +82,7 @@ describe('IssueServiceQuoteCommandHandler — Story 3: every quote is recorded',
       timeZone: 'America/Bogota',
       goalkeeperCount: 2,
       durationMinutes: 90,
+      format,
     });
     expect(stored!.pricing).toMatchObject({
       unitRate: 55000,

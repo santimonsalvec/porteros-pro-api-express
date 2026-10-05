@@ -25,6 +25,8 @@ export interface BookingConfig {
   durationOptions: DurationMinutes[];
   /** The currency of the country (`COP`); every quote amount is in it. */
   currency: string;
+  /** The playing surfaces a client can pick (feature 024), in display order. */
+  surfaces: { id: string; name: string }[];
 }
 
 export type GetBookingConfigResult =

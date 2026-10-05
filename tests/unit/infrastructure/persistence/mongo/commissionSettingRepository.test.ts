@@ -13,7 +13,11 @@ describe('CommissionSettingRepository (mocked driver)', () => {
     const collection = createFakeCollection();
     await repositoryWith(collection).ensureIndexes();
 
-    expect(collection.createIndex).toHaveBeenCalledWith({ scope: 1, refId: 1 }, { name: 'scope_refId', unique: true });
+    expect(collection.dropIndex).toHaveBeenCalledWith('scope_refId');
+    expect(collection.createIndex).toHaveBeenCalledWith(
+      { scope: 1, refId: 1, modality: 1, level: 1 },
+      { name: 'scope_refId_modality_level', unique: true },
+    );
   });
 
   it('reads the settings of all three levels in one query and maps them', async () => {
@@ -29,7 +33,7 @@ describe('CommissionSettingRepository (mocked driver)', () => {
         { scope: 'country', refId: { $in: ['country-co'] } },
       ],
     });
-    expect(found[0]).toMatchObject({ scope: 'country', refId: 'country-co', amount: 7000 });
+    expect(found[0]).toMatchObject({ scope: 'country', refId: 'country-co', amount: 7000, modality: null, level: null });
   });
 
   it('does not query when nothing is asked for', async () => {

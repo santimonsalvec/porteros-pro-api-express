@@ -2,6 +2,8 @@ import { IQuery } from '../../../../common/mediator/types.js';
 import type { DurationMinutes, GoalkeeperCount } from '../../common/bookingLimits.js';
 import type { MissingSetting } from '../../common/resolveBookingSettings.js';
 import type { ParsedStartsAt } from '../../common/startsAt.js';
+import type { MatchFormat, MatchLevel, Modality } from '../../../../../domain/bookings/matchFormat.js';
+import type { MatchFormatResponse } from '../../common/matchFormatResponse.js';
 
 export type { MissingSetting } from '../../common/resolveBookingSettings.js';
 
@@ -11,6 +13,10 @@ export interface ServiceQuoteInput {
   startsAt: ParsedStartsAt;
   goalkeeperCount: GoalkeeperCount;
   durationMinutes: DurationMinutes;
+  /** What kind of match (feature 024): prices by modality and level; the surface never does. */
+  modality: Modality;
+  level: MatchLevel;
+  surfaceId: string;
 }
 
 export interface ServiceQuote {
@@ -31,6 +37,8 @@ export interface ServiceQuote {
   startsAtLocal: string;
   /** The city's IANA time-zone identifier. */
   timeZone: string;
+  /** The match format that was priced (feature 024). */
+  matchFormat: MatchFormatResponse;
 }
 
 export type InvalidStartTimeReason = 'not_on_slot' | 'nonexistent_local_time' | 'ambiguous_local_time';
@@ -50,8 +58,11 @@ export type GetServiceQuoteResult =
         /** The platform commission for one goalkeeper, fixed for the whole flow (012). */
         commission: number;
         travelBufferMinutes: number | null;
+        /** The priced format, with the surface's current name as its snapshot. */
+        format: MatchFormat;
       };
     }
+  | { outcome: 'unknown_surface'; surfaceId: string }
   | { outcome: 'location_not_covered' }
   | { outcome: 'time_zone_not_configured'; cityId: string }
   | { outcome: 'invalid_start_time'; reason: InvalidStartTimeReason }

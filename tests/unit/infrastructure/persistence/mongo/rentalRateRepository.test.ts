@@ -37,8 +37,22 @@ describe('RentalRateRepository (mocked driver)', () => {
 
     const found = await repository.findForDuration('zone-1', 'city-1', 60);
 
-    expect(found.zone?.amount).toBe(45000);
-    expect(found.city?.amount).toBe(40000);
+    expect(found.zone.map((rate) => rate.amount)).toEqual([45000]);
+    expect(found.city.map((rate) => rate.amount)).toEqual([40000]);
+  });
+
+  it('keeps every modality/level variant of a level (feature 024)', async () => {
+    const collection = createFakeCollection();
+    const f11 = { ...cityDoc, _id: 'rate-city-f11', modality: 'futbol_11', level: 'competitive', amount: 70000 };
+    collection.find.mockReturnValue(toArrayResult([cityDoc, f11]));
+    const repository = repositoryWith(collection);
+
+    const found = await repository.findForDuration('zone-1', 'city-1', 60);
+
+    expect(found.city).toEqual([
+      expect.objectContaining({ modality: null, level: null, amount: 40000 }),
+      expect.objectContaining({ modality: 'futbol_11', level: 'competitive', amount: 70000 }),
+    ]);
   });
 
   it('returns only the level that exists', async () => {
@@ -48,16 +62,16 @@ describe('RentalRateRepository (mocked driver)', () => {
 
     const found = await repository.findForDuration('zone-1', 'city-1', 60);
 
-    expect(found.zone).toBeNull();
-    expect(found.city?.amount).toBe(40000);
+    expect(found.zone).toEqual([]);
+    expect(found.city.map((rate) => rate.amount)).toEqual([40000]);
   });
 
-  it('returns nulls when nothing is configured', async () => {
+  it('returns empty lists when nothing is configured', async () => {
     const collection = createFakeCollection();
     collection.find.mockReturnValue(toArrayResult([]));
     const repository = repositoryWith(collection);
 
-    expect(await repository.findForDuration('zone-1', 'city-1', 90)).toEqual({ zone: null, city: null });
+    expect(await repository.findForDuration('zone-1', 'city-1', 90)).toEqual({ zone: [], city: [] });
   });
 
   it('throws on a malformed rate instead of skipping it', async () => {
@@ -68,15 +82,17 @@ describe('RentalRateRepository (mocked driver)', () => {
     await expect(repository.findForDuration('zone-1', 'city-1', 60)).rejects.toThrow(InvalidConfigurationError);
   });
 
-  it('ensureIndexes creates the unique (scope, refId, durationMinutes) index', async () => {
+  it('ensureIndexes replaces the old index with the unique per-tier one', async () => {
     const collection = createFakeCollection();
+    collection.dropIndex.mockRejectedValue(Object.assign(new Error('index not found'), { code: 27 }));
     const repository = repositoryWith(collection);
 
     await repository.ensureIndexes();
 
+    expect(collection.dropIndex).toHaveBeenCalledWith('scope_refId_durationMinutes');
     expect(collection.createIndex).toHaveBeenCalledWith(
-      { scope: 1, refId: 1, durationMinutes: 1 },
-      expect.objectContaining({ unique: true }),
+      { scope: 1, refId: 1, durationMinutes: 1, modality: 1, level: 1 },
+      { name: 'scope_refId_duration_modality_level', unique: true },
     );
   });
 });

@@ -1,6 +1,7 @@
 import type { Collection, Db, Document } from 'mongodb';
 import type { ICommissionSettingRepository } from '../../../application/features/wallet/common/ports.js';
 import { CommissionSetting } from '../../../domain/wallet/commissionSetting.js';
+import { dropIndexIfExists } from './dropIndexIfExists.js';
 
 /**
  * Externally seeded platform commissions (country, anchor city or zone). Read-only here, like
@@ -14,7 +15,12 @@ export class CommissionSettingRepository implements ICommissionSettingRepository
   }
 
   async ensureIndexes(): Promise<void> {
-    await this.collection.createIndex({ scope: 1, refId: 1 }, { name: 'scope_refId', unique: true });
+    // Feature 024: one commission per modality/level tier, so the old unique index must go first.
+    await dropIndexIfExists(this.collection, 'scope_refId');
+    await this.collection.createIndex(
+      { scope: 1, refId: 1, modality: 1, level: 1 },
+      { name: 'scope_refId_modality_level', unique: true },
+    );
   }
 
   /** Every setting for any of these zones, anchor cities or countries, in one read. */
@@ -33,6 +39,8 @@ export class CommissionSettingRepository implements ICommissionSettingRepository
           scope: doc.scope as string,
           refId: String(doc.refId),
           amount: doc.amount as number,
+          modality: (doc.modality as string | undefined) ?? null,
+          level: (doc.level as string | undefined) ?? null,
         }),
     );
   }

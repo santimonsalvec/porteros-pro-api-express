@@ -2,7 +2,7 @@ import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js';
-import { POINTS } from '../../fixtures/quoteFixtures.js';
+import { POINTS, QUOTE_FORMAT_FIELDS } from '../../fixtures/quoteFixtures.js';
 import { BookingSettings } from '../../../src/domain/pricing/bookingSettings.js';
 import { Country } from '../../../src/domain/countries/country.js';
 import { InvalidConfigurationError } from '../../../src/domain/pricing/invalidConfigurationError.js';
@@ -30,6 +30,7 @@ const validBody = {
   startsAt: '2026-09-21T15:00:00', // clock is 13:00 in Bogotá → 120 minutes of notice
   goalkeeperCount: 1,
   durationMinutes: 60,
+  ...QUOTE_FORMAT_FIELDS,
 };
 
 function post(context: TestApp, token: string, body: unknown) {
@@ -55,6 +56,7 @@ describe('POST /goalkeeper-requests/quote — Story 1: price a booking', () => {
       startsAt: '2026-09-21T20:00:00.000Z',
       startsAtLocal: '2026-09-21T15:00:00-05:00',
       timeZone: 'America/Bogota',
+      matchFormat: { modality: 'futbol_11', level: 'competitive', surface: { id: 'synthetic_grass', name: 'Grama sintética' } },
       quoteId: expect.any(String),
       expiresAt: '2026-09-21T18:03:00.000Z', // the fixed clock (18:00Z) + 3 minutes
       // Feature 016: "cancel all" can be chosen until start − 60 min.
@@ -198,13 +200,28 @@ describe('POST /goalkeeper-requests/quote — Story 3: refusals', () => {
       expectNoPrice(response.body);
     });
 
-    it('lists all five inputs when the body is empty', async () => {
+    it('lists all eight inputs when the body is empty', async () => {
       const response = await refused('sub-0202', {});
 
       expect(response.status).toBe(400);
       expect(Object.keys(response.body.fieldErrors).sort()).toEqual(
-        ['durationMinutes', 'goalkeeperCount', 'latitude', 'longitude', 'startsAt'],
+        ['durationMinutes', 'goalkeeperCount', 'latitude', 'level', 'longitude', 'modality', 'startsAt', 'surfaceId'],
       );
+    });
+
+    it.each([
+      ['no modality', { modality: undefined }, 'modality', 'Elige la modalidad del partido.'],
+      ['an unknown modality', { modality: 'futbol_5' }, 'modality', 'Elige la modalidad del partido.'],
+      ['no level', { level: undefined }, 'level', 'Elige el nivel del partido.'],
+      ['an unknown level', { level: 'pro' }, 'level', 'Elige el nivel del partido.'],
+      ['no surface', { surfaceId: undefined }, 'surfaceId', 'Elige la superficie.'],
+      ['a blank surface', { surfaceId: '  ' }, 'surfaceId', 'Elige la superficie.'],
+      ['an unknown surface', { surfaceId: 'lava' }, 'surfaceId', 'Esa superficie ya no está disponible. Elige otra.'],
+    ])('refuses %s with a Spanish message under that field (feature 024)', async (_label, change, field, message) => {
+      const response = await refused(`sub-024-${field}-${String(Object.values(change)[0])}`, { ...validBody, ...change });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toMatchObject({ error: 'validation_failed', fieldErrors: { [field]: message } });
     });
   });
 

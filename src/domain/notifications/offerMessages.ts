@@ -1,4 +1,15 @@
 import type { PushMessage } from '../devices/deviceRules.js';
+import type { MatchFormat, MatchLevel, Modality } from '../bookings/matchFormat.js';
+
+/** How a push names each modality (feature 024); `any` reads as an open match. */
+const MODALITY_LABELS: Record<Modality, string> = {
+  micro_futsal: 'Micro / Futsal',
+  futbol_medio: 'Fútbol medio',
+  futbol_11: 'Fútbol 11',
+  any: 'Abierto',
+};
+
+const LEVEL_LABELS: Record<MatchLevel, string> = { recreational: 'Amateur', competitive: 'Torneo' };
 
 /** An offer of one match (inbox type and push `data.type`). */
 export const OFFER_TYPE = 'booking.available';
@@ -17,16 +28,23 @@ export interface OfferMatch {
   startsAt: Date;
   timeZone: string;
   durationMinutes: number;
+  /** `null` for requests created before feature 024: the text then reads as before. */
+  format: MatchFormat | null;
   requestId: string;
   bookingId: string;
 }
 
-/** "Bello · dom 4 oct, 3:00 p. m. · 90 min", in the match's city time zone. */
+/**
+ * Title "Partido disponible · Fútbol 11"; body "Bello · dom 4 oct, 3:00 p. m. · 90 min ·
+ * Grama sintética · Torneo", in the match's city time zone. The inbox keeps the same text.
+ */
 export function singleOfferMessage(match: OfferMatch): PushMessage {
   const place = match.zoneName ?? match.cityName ?? 'tu zona';
+  const { format } = match;
+  const details = format ? ` · ${format.surfaceName} · ${LEVEL_LABELS[format.level]}` : '';
   return {
-    title: 'Partido disponible',
-    body: `${place} · ${localWhen(match.startsAt, match.timeZone)} · ${match.durationMinutes} min`,
+    title: format ? `Partido disponible · ${MODALITY_LABELS[format.modality]}` : 'Partido disponible',
+    body: `${place} · ${localWhen(match.startsAt, match.timeZone)} · ${match.durationMinutes} min${details}`,
     data: { type: OFFER_TYPE, requestId: match.requestId, bookingId: match.bookingId },
   };
 }

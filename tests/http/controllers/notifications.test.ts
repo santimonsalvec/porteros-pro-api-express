@@ -36,7 +36,7 @@ describe('/notifications — US3: users read their inbox, mark it read and dismi
     expect(page.body.items.map((item: { data: { requestId: string } }) => item.data.requestId)).toEqual([matches[2]!.requestId, matches[1]!.requestId]);
     expect(page.body.items[0]).toMatchObject({
       type: 'booking.available',
-      title: 'Partido disponible',
+      title: 'Partido disponible · Fútbol 11',
       readAt: null,
       dismissedAt: null,
       stillAvailable: true,

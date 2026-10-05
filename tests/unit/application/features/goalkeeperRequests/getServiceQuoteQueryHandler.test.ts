@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { CommissionSetting } from '../../../../../src/domain/wallet/commissionSetting.js';
+import { MatchFormat } from '../../../../../src/domain/bookings/matchFormat.js';
+import { MatchSurface } from '../../../../../src/domain/pricing/matchSurface.js';
 import { Country } from '../../../../../src/domain/countries/country.js';
 import { City } from '../../../../../src/domain/locations/city.js';
 import { Region } from '../../../../../src/domain/locations/region.js';
@@ -17,8 +20,9 @@ import { FakeCountryRepository } from '../../../../fakes/fakeCountryRepository.j
 import { FixedClock } from '../../../../fakes/fakeClock.js';
 import { FakeRegionRepository } from '../../../../fakes/fakeRegionRepository.js';
 import { FakeRentalRateRepository } from '../../../../fakes/fakeRentalRateRepository.js';
+import { FakeMatchSurfaceRepository } from '../../../../fakes/fakeMatchSurfaceRepository.js';
 import { FakeZoneRepository } from '../../../../fakes/fakeZoneRepository.js';
-import { POINTS, QUOTE_NOW, seedQuoteWorld } from '../../../../fixtures/quoteFixtures.js';
+import { POINTS, QUOTE_NOW, seedQuoteWorld, QUOTE_FORMAT_FIELDS } from '../../../../fixtures/quoteFixtures.js';
 
 /** Fake-backed handler. Reference clock: 13:00 in Bogotá (18:00Z). */
 class Harness {
@@ -27,6 +31,7 @@ class Harness {
   readonly cityRepository = new FakeCityRepository();
   readonly regionRepository = new FakeRegionRepository();
   readonly rentalRateRepository = new FakeRentalRateRepository();
+  readonly matchSurfaceRepository = new FakeMatchSurfaceRepository();
   readonly bookingSettingsRepository = new FakeBookingSettingsRepository();
   readonly commissionSettingRepository = new FakeCommissionSettingRepository();
   readonly commissionResolver = new CommissionResolver(this.commissionSettingRepository, this.zoneRepository, this.cityRepository, this.regionRepository);
@@ -42,7 +47,9 @@ class Harness {
       this.countryRepository,
       this.rentalRateRepository,
       this.bookingSettingsRepository,
-      this.commissionResolver,      this.clock,
+      this.commissionResolver,
+      this.clock,
+      this.matchSurfaceRepository,
     );
   }
 
@@ -54,6 +61,7 @@ class Harness {
         ...POINTS.caliNorte,
         goalkeeperCount: 1,
         durationMinutes: 60,
+        ...QUOTE_FORMAT_FIELDS,
         ...overrides,
         startsAt: parsed,
       }),
@@ -83,8 +91,65 @@ describe('GetServiceQuoteQueryHandler — Story 1: price a booking', () => {
         startsAt: '2026-09-21T20:00:00.000Z',
         startsAtLocal: '2026-09-21T15:00:00-05:00',
         timeZone: 'America/Bogota',
+        matchFormat: { modality: 'futbol_11', level: 'competitive', surface: { id: 'synthetic_grass', name: 'Grama sintética' } },
       },
-      area: { zoneId: 'zone-cali-norte', cityId: 'city-cali', freeCancellationMinutes: null, commission: 7000, travelBufferMinutes: null },
+      area: {
+        zoneId: 'zone-cali-norte',
+        cityId: 'city-cali',
+        freeCancellationMinutes: null,
+        commission: 7000,
+        travelBufferMinutes: null,
+        format: new MatchFormat({ modality: 'futbol_11', level: 'competitive', surfaceId: 'synthetic_grass', surfaceName: 'Grama sintética' }),
+      },
+    });
+  });
+
+  describe('feature 024: modality, level and surface', () => {
+    const zoneRate = (id: string, amount: number, modality?: string, level?: string) =>
+      new RentalRate({ id, scope: 'zone', refId: 'zone-cali-norte', durationMinutes: 60, amount, modality, level });
+
+    beforeEach(() => {
+      h.rentalRateRepository.seed(zoneRate('f11', 70000, 'futbol_11'));
+      h.rentalRateRepository.seed(zoneRate('f11-c', 80000, 'futbol_11', 'competitive'));
+      h.commissionSettingRepository.seed(
+        new CommissionSetting({ id: 'c-f11', scope: 'city', refId: 'city-cali', amount: 10000, modality: 'futbol_11' }),
+      );
+    });
+
+    it.each([
+      ['the modality + level rate', { modality: 'futbol_11', level: 'competitive' }, 80000, 10000],
+      ['the modality rate for a level without its own', { modality: 'futbol_11', level: 'recreational' }, 70000, 10000],
+      ['the general rate for a modality without its own', { modality: 'micro_futsal', level: 'competitive' }, 40000, 7000],
+      ['the general rate for any', { modality: 'any', level: 'competitive' }, 40000, 7000],
+    ] as const)('prices with %s', async (_label, match, unitRate, commission) => {
+      const result = await h.quote('2026-09-21T15:00:00', match);
+
+      expect(result).toMatchObject({ outcome: 'success', quote: { unitRate, matchFormat: match }, area: { commission } });
+    });
+
+    it("keeps the zone's general rate over its city's modality rate (geography first)", async () => {
+      h.rentalRateRepository.seed(
+        new RentalRate({ id: 'city-micro', scope: 'city', refId: 'city-cali', durationMinutes: 60, amount: 99000, modality: 'micro_futsal' }),
+      );
+
+      expect(await h.quote('2026-09-21T15:00:00', { modality: 'micro_futsal' })).toMatchObject({ quote: { unitRate: 40000 } });
+    });
+
+    it('never changes the price by surface', async () => {
+      const synthetic = await h.quote('2026-09-21T15:00:00', { surfaceId: 'synthetic_grass' });
+      const dirt = await h.quote('2026-09-21T15:00:00', { surfaceId: 'dirt' });
+
+      expect(synthetic).toMatchObject({ quote: { unitRate: 80000 } });
+      expect(dirt).toMatchObject({ quote: { unitRate: 80000, matchFormat: { surface: { id: 'dirt', name: 'Arena' } } } });
+    });
+
+    it.each([
+      ['an unknown surface', 'lava'],
+      ['an inactive surface', 'wood'],
+    ])('refuses %s', async (_label, surfaceId) => {
+      h.matchSurfaceRepository.seed(new MatchSurface({ id: 'wood', name: 'Madera', active: false, order: 4 }));
+
+      expect(await h.quote('2026-09-21T15:00:00', { surfaceId })).toEqual({ outcome: 'unknown_surface', surfaceId });
     });
   });
 
@@ -655,10 +720,12 @@ describe('GetServiceQuoteQueryHandler — read-only guarantee (FR-020, SC-007)',
       watch('countries', h.countryRepository),
       watch('rates', h.rentalRateRepository),
       watch('settings', h.bookingSettingsRepository),
-      h.commissionResolver,      h.clock,
+      h.commissionResolver,
+      h.clock,
+      h.matchSurfaceRepository,
     );
     const ask = (startsAt: string, point = POINTS.caliNorte) =>
-      handler.handle(new GetServiceQuoteQuery({ ...point, startsAt: parseStartsAt(startsAt)!, goalkeeperCount: 2, durationMinutes: 90 }));
+      handler.handle(new GetServiceQuoteQuery({ ...point, startsAt: parseStartsAt(startsAt)!, goalkeeperCount: 2, durationMinutes: 90, ...QUOTE_FORMAT_FIELDS }));
 
     await ask('2026-09-21T15:00:00');
     await ask('2026-09-21T12:00:00');
@@ -672,6 +739,7 @@ describe('GetServiceQuoteQueryHandler — read-only guarantee (FR-020, SC-007)',
       'rates.findForDuration',
       'settings.findFor',
     ]);
+    // The surface lookup (feature 024) is a read too; it is not watched here.
     expect(calls.length).toBeGreaterThan(0);
     for (const call of calls) expect(allowed.has(call)).toBe(true);
   });

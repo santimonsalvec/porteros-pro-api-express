@@ -51,6 +51,8 @@ import { ListAvailableBookingsQuery } from '../../src/application/features/goalk
 import { ListGoalkeeperAgendaQuery } from '../../src/application/features/goalkeeperRequests/queries/listGoalkeeperAgenda/listGoalkeeperAgendaQuery.js';
 import { ListGoalkeeperAgendaQueryHandler } from '../../src/application/features/goalkeeperRequests/queries/listGoalkeeperAgenda/listGoalkeeperAgendaQueryHandler.js';
 import { AcceptBookingCommand } from '../../src/application/features/goalkeeperRequests/commands/acceptBooking/acceptBookingCommand.js';
+import { DismissBookingCommand } from '../../src/application/features/goalkeeperRequests/commands/dismissBooking/dismissBookingCommand.js';
+import { DismissBookingCommandHandler } from '../../src/application/features/goalkeeperRequests/commands/dismissBooking/dismissBookingCommandHandler.js';
 import { AcceptBookingCommandHandler } from '../../src/application/features/goalkeeperRequests/commands/acceptBooking/acceptBookingCommandHandler.js';
 import { FakeBookingAcceptanceStore } from '../fakes/fakeBookingAcceptanceStore.js';
 import { FakeAcceptanceAuditLogger } from '../fakes/fakeAcceptanceAuditLogger.js';
@@ -134,6 +136,7 @@ import { FakeRegionRepository } from '../fakes/fakeRegionRepository.js';
 import { FakeZoneRepository } from '../fakes/fakeZoneRepository.js';
 import { FixedClock } from '../fakes/fakeClock.js';
 import { FakeRentalRateRepository } from '../fakes/fakeRentalRateRepository.js';
+import { FakeMatchSurfaceRepository } from '../fakes/fakeMatchSurfaceRepository.js';
 import { FakeBookingSettingsRepository } from '../fakes/fakeBookingSettingsRepository.js';
 import { QUOTE_NOW, seedQuoteWorld } from '../fixtures/quoteFixtures.js';
 import { StoreImageCommand } from '../../src/application/features/images/commands/storeImage/storeImageCommand.js';
@@ -256,6 +259,7 @@ export interface TestAppContext {
   regionRepository: FakeRegionRepository;
   zoneRepository: FakeZoneRepository;
   rentalRateRepository: FakeRentalRateRepository;
+  matchSurfaceRepository: FakeMatchSurfaceRepository;
   bookingSettingsRepository: FakeBookingSettingsRepository;
   /** The countries (with their currency) the quote endpoint reads — separate from `countryRepository`, which the profile/locations suites assert on. */
   quoteCountryRepository: FakeCountryRepository;
@@ -375,6 +379,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
 
   const quoteCountryRepository = new FakeCountryRepository();
   const rentalRateRepository = new FakeRentalRateRepository();
+  const matchSurfaceRepository = new FakeMatchSurfaceRepository();
   const bookingSettingsRepository = new FakeBookingSettingsRepository();
   const clock = new FixedClock(QUOTE_NOW);
   const walletStore = new FakeWalletStore(() => clock.now());
@@ -712,6 +717,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
         quoteCountryRepository,
         bookingSettingsRepository,
         clock,
+        matchSurfaceRepository,
       ),
     },
     {
@@ -725,6 +731,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
         bookingSettingsRepository,
         commissionResolver,
         clock,
+        matchSurfaceRepository,
       ),
     },
     {
@@ -843,6 +850,10 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
         idGenerator: lifecycleIds,
         clock,
       }),
+    },
+    {
+      requestType: DismissBookingCommand,
+      handler: new DismissBookingCommandHandler(goalkeeperProfileRepository, bookingRepository),
     },
     {
       requestType: AcceptBookingCommand,
@@ -1083,6 +1094,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     regionRepository,
     zoneRepository,
     rentalRateRepository,
+    matchSurfaceRepository,
     bookingSettingsRepository,
     quoteCountryRepository,
     quoteRepository,

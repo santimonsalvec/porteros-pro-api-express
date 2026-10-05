@@ -3,6 +3,7 @@ import type { GoalkeeperRequest } from '../../../../domain/bookings/goalkeeperRe
 import { contactsVisibleAt, contactsVisibleFrom } from '../../../../domain/bookings/contactVisibility.js';
 import { requestStatusOf } from '../../../../domain/bookings/requestStatus.js';
 import type { Contact } from './contacts.js';
+import { toMatchFormatResponse, type MatchFormatResponse } from './matchFormatResponse.js';
 
 /** One goalkeeper's place in a request, as the API returns it (contracts/confirm-request.md). */
 export interface BookingItemResponse {
@@ -38,6 +39,8 @@ export interface RequestResponse {
   timeZone: string;
   goalkeeperCount: number;
   durationMinutes: number;
+  /** Modality, level and surface (feature 024); `null` for requests created before it. */
+  matchFormat: MatchFormatResponse | null;
   unitRate: number;
   subtotal: number;
   unitSurcharge: number;
@@ -93,6 +96,7 @@ export function toRequestResponse(
     timeZone: match.timeZone,
     goalkeeperCount: match.goalkeeperCount,
     durationMinutes: match.durationMinutes,
+    matchFormat: toMatchFormatResponse(match.format),
     unitRate: pricing.unitRate,
     subtotal: pricing.subtotal,
     unitSurcharge: pricing.unitSurcharge,

@@ -2,7 +2,14 @@ import type { IClock } from '../../../../common/clock.js';
 import type { IQueryHandler } from '../../../../common/mediator/types.js';
 import type { ICityRepository, IRegionRepository } from '../../../locations/common/ports.js';
 import type { IZoneRepository } from '../../../zones/common/ports.js';
-import type { IBookingSettingsRepository, ICountryLookup, IRentalRateRepository } from '../../common/ports.js';
+import type {
+  IBookingSettingsRepository,
+  ICountryLookup,
+  IMatchSurfaceRepository,
+  IRentalRateRepository,
+} from '../../common/ports.js';
+import { MatchFormat } from '../../../../../domain/bookings/matchFormat.js';
+import { matchFormatResponse } from '../../common/matchFormatResponse.js';
 import { computeAmounts, selectSurchargeTier, selectUnitRate } from '../../common/pricing.js';
 import { SLOT_STEP_MINUTES } from '../../common/bookingLimits.js';
 import { resolveAreaSettings, resolveServiceArea } from '../../common/serviceArea.js';
@@ -44,12 +51,20 @@ export class GetServiceQuoteQueryHandler implements IQueryHandler<GetServiceQuot
     private readonly bookingSettingsRepository: IBookingSettingsRepository,
     private readonly commissionResolver: ICommissionResolver,
     private readonly clock: IClock,
+    private readonly matchSurfaceRepository: IMatchSurfaceRepository,
   ) {}
 
   async handle(query: GetServiceQuoteQuery): Promise<GetServiceQuoteResult> {
-    const { latitude, longitude, startsAt, goalkeeperCount, durationMinutes } = query.input;
+    const { latitude, longitude, startsAt, goalkeeperCount, durationMinutes, modality, level, surfaceId } = query.input;
     // One reading of "now" for the whole evaluation, so every rule sees the same moment.
     const nowMs = this.clock.now().getTime();
+
+    // (0) The surface must exist and still be offered (feature 024). It never changes the price;
+    //     its current name is kept as the request's snapshot.
+    const surface = await this.matchSurfaceRepository.findById(surfaceId);
+    if (!surface?.active) return { outcome: 'unknown_surface', surfaceId };
+    const format = new MatchFormat({ modality, level, surfaceId: surface.id, surfaceName: surface.name });
+    const match = { modality, level };
 
     // (1)(2) Which active zone contains the point, and the (anchor) city that owns it: it supplies
     //        the time zone, the rate fallback and the settings scope.
@@ -77,7 +92,7 @@ export class GetServiceQuoteQueryHandler implements IQueryHandler<GetServiceQuot
     //          built-in defaults — and the country must say which currency its prices are in.
     //          The platform commission is fixed here too, for the whole flow (012): no commission, no
     //          quote — a booking nobody could be offered must not be sold.
-    const [rates, areaSettings, commissions] = await Promise.all([
+    const [rates, areaSettings, commission] = await Promise.all([
       this.rentalRateRepository.findForDuration(zone.id, city.id, durationMinutes),
       resolveAreaSettings(
         {
@@ -87,9 +102,8 @@ export class GetServiceQuoteQueryHandler implements IQueryHandler<GetServiceQuot
         },
         city,
       ),
-      this.commissionResolver.resolveForZones([zone.id]),
+      this.commissionResolver.resolveForMatch(zone.id, match),
     ]);
-    const commission = commissions.get(zone.id) ?? null;
     if (!areaSettings.ok || commission === null) {
       const missing: MissingSetting[] = [...(areaSettings.ok ? [] : areaSettings.missing), ...(commission === null ? ['commission' as const] : [])];
       return { outcome: 'service_not_configured', cityId: city.id, missing };
@@ -103,9 +117,10 @@ export class GetServiceQuoteQueryHandler implements IQueryHandler<GetServiceQuot
     const daysAhead = localDayNumber(startLocal) - localDayNumber(toLocalParts(nowMs, timeZone));
     if (daysAhead > bookingWindowDays - 1) return { outcome: 'outside_booking_window', bookingWindowDays };
 
-    // (7) The unit rate: the zone's own rate, else the city's — decided per duration, since
-    //     the repository already filtered on the requested one. Neither ⇒ refused, never free.
-    const rate = selectUnitRate(rates);
+    // (7) The unit rate: the zone's own rates, else the city's — decided per duration, since
+    //     the repository already filtered on the requested one, then by modality + level →
+    //     modality → general within each (feature 024). None ⇒ refused, never free.
+    const rate = selectUnitRate(rates, match);
     if (!rate) return { outcome: 'rate_not_configured', zoneId: zone.id, cityId: city.id, durationMinutes };
 
     // (8) Lead-time surcharge, on real elapsed time. The tier's amount is per goalkeeper.
@@ -127,8 +142,9 @@ export class GetServiceQuoteQueryHandler implements IQueryHandler<GetServiceQuot
         startsAt: new Date(startEpochMs).toISOString(),
         startsAtLocal: formatLocalIso(startEpochMs, timeZone),
         timeZone,
+        matchFormat: matchFormatResponse(format),
       },
-      area: { zoneId: zone.id, cityId: city.id, freeCancellationMinutes, commission, travelBufferMinutes },
+      area: { zoneId: zone.id, cityId: city.id, freeCancellationMinutes, commission, travelBufferMinutes, format },
     };
   }
 }

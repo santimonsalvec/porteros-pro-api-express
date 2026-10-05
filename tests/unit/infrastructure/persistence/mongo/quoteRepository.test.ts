@@ -5,6 +5,7 @@ import {
   quoteFromDocument,
   quoteToDocument,
 } from '../../../../../src/infrastructure/persistence/mongo/quoteRepository.js';
+import { MatchFormat } from '../../../../../src/domain/bookings/matchFormat.js';
 import { createFakeCollection } from '../../../../fakes/fakeMongoCollection.js';
 import { buildStoredQuote, STORED_QUOTE_ID } from '../../../../fixtures/quoteFixtures.js';
 
@@ -86,5 +87,20 @@ describe('QuoteRepository (mocked driver)', () => {
 
     expect(doc).toMatchObject({ commission: 9000, travelBufferMinutes: 45 });
     expect(quoteFromDocument(doc)).toMatchObject({ commission: 9000, travelBufferMinutes: 45 });
+  });
+
+  it('stores the match format and reads it back (feature 024)', () => {
+    const format = new MatchFormat({ modality: 'futbol_11', level: 'competitive', surfaceId: 'synthetic_grass', surfaceName: 'Grama sintética' });
+    const doc = quoteToDocument(buildStoredQuote({ format }));
+
+    expect(doc.match.format).toEqual({ modality: 'futbol_11', level: 'competitive', surfaceId: 'synthetic_grass', surfaceName: 'Grama sintética' });
+    expect(quoteFromDocument(doc).match.format).toEqual(format);
+  });
+
+  it('reads a match stored before feature 024 as having no format', () => {
+    const legacy = quoteToDocument(buildStoredQuote());
+    delete legacy.match.format;
+
+    expect(quoteFromDocument(legacy).match.format).toBeNull();
   });
 });

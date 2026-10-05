@@ -184,6 +184,7 @@ export class OfferSender {
       startsAt: match.startsAt,
       timeZone: match.timeZone,
       durationMinutes: match.durationMinutes,
+      format: match.format,
       requestId: booking.requestId,
       bookingId: booking.id,
     });

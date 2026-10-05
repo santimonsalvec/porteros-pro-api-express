@@ -110,5 +110,17 @@ describe('Booking.replacementFor (feature 018)', () => {
   it('defaults the new fields on older bookings', () => {
     expect(withdrawn.replacesBookingId).toBeNull();
     expect(withdrawn.excludedGoalkeeperIds).toEqual([]);
+    expect(withdrawn.dismissedGoalkeeperIds).toEqual([]);
+  });
+
+  it('carries who dismissed the match to its replacement (feature 024)', () => {
+    const dismissed = Booking.rehydrate({ ...withdrawn, dismissedGoalkeeperIds: ['gk-9'] });
+
+    const replacement = Booking.replacementFor(dismissed, 'b-2', 'gk-1', at);
+
+    expect(replacement.dismissedGoalkeeperIds).toEqual(['gk-9']);
+    expect(replacement.isClosedTo('gk-9')).toBe(true);
+    expect(replacement.isClosedTo('gk-1')).toBe(true);
+    expect(replacement.isClosedTo('gk-2')).toBe(false);
   });
 });

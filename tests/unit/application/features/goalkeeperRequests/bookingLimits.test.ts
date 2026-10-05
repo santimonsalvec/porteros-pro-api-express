@@ -11,7 +11,7 @@ import {
 import { RentalRate } from '../../../../../src/domain/pricing/rentalRate.js';
 import { getServiceQuoteRequestSchema } from '../../../../../src/controllers/requests/goalkeeperRequests/getServiceQuoteRequest.js';
 
-const base = { latitude: 6.2, longitude: -75.5, startsAt: '2026-09-21T15:00:00' };
+const base = { latitude: 6.2, longitude: -75.5, startsAt: '2026-09-21T15:00:00', modality: 'any', level: 'recreational', surfaceId: 'dirt' };
 const accepts = (fields: object) => getServiceQuoteRequestSchema.safeParse({ ...base, goalkeeperCount: 1, durationMinutes: 60, ...fields }).success;
 
 describe('booking limits — one source of truth', () => {

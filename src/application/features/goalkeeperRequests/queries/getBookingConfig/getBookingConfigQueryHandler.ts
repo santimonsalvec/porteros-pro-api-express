@@ -8,7 +8,7 @@ import {
   GOALKEEPER_COUNT_MIN,
   SLOT_STEP_MINUTES,
 } from '../../common/bookingLimits.js';
-import type { IBookingSettingsRepository, ICountryLookup } from '../../common/ports.js';
+import type { IBookingSettingsRepository, ICountryLookup, IMatchSurfaceRepository } from '../../common/ports.js';
 import { resolveAreaSettings, resolveServiceArea } from '../../common/serviceArea.js';
 import { formatLocalIso, toLocalParts } from '../../common/zonedTime.js';
 import { GetBookingConfigQuery, type GetBookingConfigResult } from './getBookingConfigQuery.js';
@@ -41,6 +41,7 @@ export class GetBookingConfigQueryHandler implements IQueryHandler<GetBookingCon
     private readonly countryLookup: ICountryLookup,
     private readonly bookingSettingsRepository: IBookingSettingsRepository,
     private readonly clock: IClock,
+    private readonly matchSurfaceRepository: IMatchSurfaceRepository,
   ) {}
 
   async handle(query: GetBookingConfigQuery): Promise<GetBookingConfigResult> {
@@ -51,14 +52,17 @@ export class GetBookingConfigQueryHandler implements IQueryHandler<GetBookingCon
     if (area.outcome !== 'ok') return area;
     const { city, timeZone } = area;
 
-    const settings = await resolveAreaSettings(
-      {
-        regionRepository: this.regionRepository,
-        countryLookup: this.countryLookup,
-        bookingSettingsRepository: this.bookingSettingsRepository,
-      },
-      city,
-    );
+    const [settings, surfaces] = await Promise.all([
+      resolveAreaSettings(
+        {
+          regionRepository: this.regionRepository,
+          countryLookup: this.countryLookup,
+          bookingSettingsRepository: this.bookingSettingsRepository,
+        },
+        city,
+      ),
+      this.matchSurfaceRepository.listActive(),
+    ]);
     if (!settings.ok) return { outcome: 'service_not_configured', cityId: city.id, missing: settings.missing };
     const { currency, bookingWindowDays, minNoticeMinutes } = settings;
 
@@ -85,6 +89,7 @@ export class GetBookingConfigQueryHandler implements IQueryHandler<GetBookingCon
         goalkeeperCount: { min: GOALKEEPER_COUNT_MIN, max: GOALKEEPER_COUNT_MAX },
         durationOptions: [...DURATION_OPTIONS],
         currency,
+        surfaces: surfaces.map((surface) => ({ id: surface.id, name: surface.name })),
       },
     };
   }

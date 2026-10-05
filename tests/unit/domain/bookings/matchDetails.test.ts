@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MatchDetails } from '../../../../src/domain/bookings/matchDetails.js';
+import { MatchFormat } from '../../../../src/domain/bookings/matchFormat.js';
 
 const valid = {
   latitude: 3.45,
@@ -32,5 +33,11 @@ describe('MatchDetails', () => {
     ['a 45-minute duration', { durationMinutes: 45 }],
   ])('rejects %s', (_label, override) => {
     expect(() => new MatchDetails({ ...valid, ...override })).toThrow();
+  });
+
+  it('has no format unless given one (requests before feature 024)', () => {
+    expect(new MatchDetails(valid).format).toBeNull();
+    const format = new MatchFormat({ modality: 'any', level: 'recreational', surfaceId: 'dirt', surfaceName: 'Arena' });
+    expect(new MatchDetails({ ...valid, format }).format).toBe(format);
   });
 });

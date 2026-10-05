@@ -1,9 +1,13 @@
 import type { SurchargeTier } from '../../../../domain/pricing/bookingSettings.js';
 import type { RentalRate } from '../../../../domain/pricing/rentalRate.js';
+import { resolveTiered, type MatchTier } from '../../../../domain/pricing/tieredRate.js';
 
-/** Zone rate wins; otherwise the city rate; otherwise `null` (never treated as free). */
-export function selectUnitRate(rates: { zone: RentalRate | null; city: RentalRate | null }): RentalRate | null {
-  return rates.zone ?? rates.city ?? null;
+/**
+ * The zone's rates first, then the city's, each through modality + level → modality → general
+ * (feature 024); `null` when none applies (never treated as free).
+ */
+export function selectUnitRate(rates: { zone: RentalRate[]; city: RentalRate[] }, match: MatchTier): RentalRate | null {
+  return resolveTiered([rates.zone, rates.city], match);
 }
 
 /**

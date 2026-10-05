@@ -2,6 +2,7 @@ import type { Collection, Db, Document } from 'mongodb';
 import { FREE_CANCELLATION_MINUTES_DEFAULT } from '../../../application/features/goalkeeperRequests/common/bookingLimits.js';
 import type { IQuoteRepository } from '../../../application/features/goalkeeperRequests/common/ports.js';
 import { MatchDetails } from '../../../domain/bookings/matchDetails.js';
+import { MatchFormat } from '../../../domain/bookings/matchFormat.js';
 import { PricingSnapshot } from '../../../domain/bookings/pricingSnapshot.js';
 import { Quote } from '../../../domain/bookings/quote.js';
 
@@ -18,7 +19,26 @@ export function matchToDocument(match: MatchDetails): Document {
     timeZone: match.timeZone,
     goalkeeperCount: match.goalkeeperCount,
     durationMinutes: match.durationMinutes,
+    format: match.format
+      ? {
+          modality: match.format.modality,
+          level: match.format.level,
+          surfaceId: match.format.surfaceId,
+          surfaceName: match.format.surfaceName,
+        }
+      : null,
   };
+}
+
+/** Feature 024; documents written before it have no `format`. */
+function formatFromDocument(doc: Document | null | undefined): MatchFormat | null {
+  if (!doc) return null;
+  return new MatchFormat({
+    modality: doc.modality as string,
+    level: doc.level as string,
+    surfaceId: doc.surfaceId as string,
+    surfaceName: doc.surfaceName as string,
+  });
 }
 
 export function matchFromDocument(doc: Document): MatchDetails {
@@ -32,6 +52,7 @@ export function matchFromDocument(doc: Document): MatchDetails {
     timeZone: doc.timeZone as string,
     goalkeeperCount: doc.goalkeeperCount as number,
     durationMinutes: doc.durationMinutes as number,
+    format: formatFromDocument(doc.format as Document | null | undefined),
   });
 }
 
