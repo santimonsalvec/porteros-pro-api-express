@@ -255,6 +255,23 @@ export class BookingRepository implements IBookingRepository {
     return docs.map(bookingFromDocument);
   }
 
+  async summarizeCompletedForGoalkeeper(goalkeeperId: string, from: Date, to: Date): Promise<{ earned: number; played: number }> {
+    // A month holds tens of bookings: summing a projected read is as cheap as an aggregate and
+    // stays on the goalkeeper_start index (026 research §5).
+    const docs = await this.collection
+      .find(
+        { goalkeeperId, status: 'completed', attendance: { $ne: 'no_show' }, startsAt: { $gte: from, $lt: to } },
+        { projection: { 'price.total': 1 } },
+      )
+      .toArray();
+    const earned = docs.reduce((sum, doc) => sum + (doc.price as { total: number }).total, 0);
+    return { earned, played: docs.length };
+  }
+
+  async countAssignedForGoalkeeper(goalkeeperId: string): Promise<number> {
+    return this.collection.countDocuments({ goalkeeperId, status: 'assigned' });
+  }
+
   async dismissRequestFor(requestId: string, goalkeeperId: string): Promise<void> {
     await this.collection.updateMany({ requestId }, { $addToSet: { dismissedGoalkeeperIds: goalkeeperId } });
   }

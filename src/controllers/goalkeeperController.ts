@@ -26,13 +26,15 @@ import { updateGoalkeeperAvailabilityRequestSchema } from './requests/goalkeeper
 import { offersAvailabilityRequestSchema } from './requests/goalkeepers/offersAvailabilityRequest.js';
 import { SetOffersAvailabilityCommand } from '../application/features/notifications/commands/setOffersAvailability/setOffersAvailabilityCommand.js';
 import { ApiError } from './apiError.js';
-import { goalkeeperNotFound, sendMovements, sendWallet } from './wallet/walletHttp.js';
+import { logger } from '../infrastructure/observability/logger.js';
+import { goalkeeperNotFound, sendMovements, sendWallet, walletNotConfigured } from './wallet/walletHttp.js';
 import { sendTopUp, sendTopUpOptions, sendTopUps, startTopUp } from './payments/topUpHttp.js';
 import { sendDocumentFile, sendMyDocument, sendMyDocuments } from './invoicing/invoicingHttp.js';
 import { AcceptBookingCommand } from '../application/features/goalkeeperRequests/commands/acceptBooking/acceptBookingCommand.js';
 import { DismissBookingCommand } from '../application/features/goalkeeperRequests/commands/dismissBooking/dismissBookingCommand.js';
 import { ListAvailableBookingsQuery } from '../application/features/goalkeeperRequests/queries/listAvailableBookings/listAvailableBookingsQuery.js';
 import { ListGoalkeeperAgendaQuery } from '../application/features/goalkeeperRequests/queries/listGoalkeeperAgenda/listGoalkeeperAgendaQuery.js';
+import { GetGoalkeeperMonthStatsQuery } from '../application/features/goalkeepers/queries/getGoalkeeperMonthStats/getGoalkeeperMonthStatsQuery.js';
 import { listClientBookingsRequestSchema } from './requests/goalkeeperRequests/listClientBookingsRequest.js';
 import { zodFieldErrors } from './requests/goalkeeperRequests/getServiceQuoteRequest.js';
 import { withdrawRequestSchema } from './requests/withdrawals/withdrawRequest.js';
@@ -328,6 +330,23 @@ export function createGoalkeeperController(deps: GoalkeeperControllerDependencie
         return;
       case 'not_a_goalkeeper':
         throw goalkeeperNotFound();
+    }
+  });
+
+  // The goalkeeper's month in numbers, computed from their bookings on every read (feature 026).
+  router.get('/me/stats', async (req, res) => {
+    const result = await deps.mediator.send(new GetGoalkeeperMonthStatsQuery(req.authClaims!.sub));
+    switch (result.outcome) {
+      case 'success':
+        res.status(200).json(result.stats);
+        return;
+      case 'not_a_goalkeeper':
+        throw goalkeeperNotFound();
+      case 'wallet_not_configured':
+        throw walletNotConfigured(result.cityId);
+      case 'time_zone_not_configured':
+        logger.warn({ outcome: 'time_zone_not_configured', cityId: result.cityId }, 'Goalkeeper stats refused: city time zone not configured');
+        throw new ApiError(422, 'time_zone_not_configured', 'The time zone of the goalkeeper city is not configured.');
     }
   });
 

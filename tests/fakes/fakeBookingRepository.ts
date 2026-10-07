@@ -131,6 +131,22 @@ export class FakeBookingRepository implements IBookingRepository {
       .sort((a, b) => b.startsAt.getTime() - a.startsAt.getTime() || compare(b.id, a.id))
       .slice(skip, skip + limit);
   }
+
+  async summarizeCompletedForGoalkeeper(goalkeeperId: string, from: Date, to: Date): Promise<{ earned: number; played: number }> {
+    const played = this.all().filter(
+      (booking) =>
+        booking.goalkeeperId === goalkeeperId &&
+        booking.status === 'completed' &&
+        booking.attendance !== 'no_show' &&
+        booking.startsAt >= from &&
+        booking.startsAt < to,
+    );
+    return { earned: played.reduce((sum, booking) => sum + booking.price.total, 0), played: played.length };
+  }
+
+  async countAssignedForGoalkeeper(goalkeeperId: string): Promise<number> {
+    return this.all().filter((booking) => booking.goalkeeperId === goalkeeperId && booking.status === 'assigned').length;
+  }
 }
 
 /** Binary string order, as MongoDB compares string `_id`s. */

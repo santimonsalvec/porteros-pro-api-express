@@ -65,6 +65,8 @@ import { WalletLedger } from '../application/features/wallet/common/walletLedger
 import { ListAvailableBookingsQuery } from '../application/features/goalkeeperRequests/queries/listAvailableBookings/listAvailableBookingsQuery.js';
 import { ListGoalkeeperAgendaQuery } from '../application/features/goalkeeperRequests/queries/listGoalkeeperAgenda/listGoalkeeperAgendaQuery.js';
 import { ListGoalkeeperAgendaQueryHandler } from '../application/features/goalkeeperRequests/queries/listGoalkeeperAgenda/listGoalkeeperAgendaQueryHandler.js';
+import { GetGoalkeeperMonthStatsQuery } from '../application/features/goalkeepers/queries/getGoalkeeperMonthStats/getGoalkeeperMonthStatsQuery.js';
+import { GetGoalkeeperMonthStatsQueryHandler } from '../application/features/goalkeepers/queries/getGoalkeeperMonthStats/getGoalkeeperMonthStatsQueryHandler.js';
 import { AcceptBookingCommand } from '../application/features/goalkeeperRequests/commands/acceptBooking/acceptBookingCommand.js';
 import { DismissBookingCommand } from '../application/features/goalkeeperRequests/commands/dismissBooking/dismissBookingCommand.js';
 import { DismissBookingCommandHandler } from '../application/features/goalkeeperRequests/commands/dismissBooking/dismissBookingCommandHandler.js';
@@ -797,6 +799,11 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         clock,
         windowResolver: () => createCheckInWindowResolver({ cityRepository, regionRepository, bookingSettingsRepository, logger: logger }),
       }),
+    },
+    {
+      // The goalkeeper's month in numbers (feature 026).
+      requestType: GetGoalkeeperMonthStatsQuery,
+      handler: new GetGoalkeeperMonthStatsQueryHandler({ context: walletContext, bookingRepository, clock }),
     },
     {
       requestType: ListWalletMovementsQuery,

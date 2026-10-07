@@ -69,6 +69,33 @@ export const openapiSpec = {
         },
         required: ['reached', 'removed', 'failed', 'noDevice'],
       },
+      GoalkeeperMonthStats: {
+        type: 'object',
+        properties: {
+          month: { $ref: '#/components/schemas/CalendarMonth' },
+          currency: { type: 'string', example: 'COP' },
+          earned: { type: 'integer', example: 840000, description: 'Sum of the price of the completed (not no-show) bookings starting this month' },
+          playedCount: { type: 'integer', example: 12 },
+          averagePerMatch: { type: 'integer', nullable: true, example: 70000, description: 'earned / playedCount, rounded; null with no match played' },
+          toPlay: { type: 'integer', example: 3, description: 'Bookings with status assigned, any date' },
+          previous: {
+            type: 'object',
+            properties: {
+              month: { $ref: '#/components/schemas/CalendarMonth' },
+              throughDay: { type: 'integer', example: 7, description: 'Day 1 through this day of the previous month, whole days' },
+              earned: { type: 'integer', example: 711000 },
+            },
+            required: ['month', 'throughDay', 'earned'],
+          },
+          changePercent: { type: 'integer', nullable: true, example: 18, description: 'Rounded change against previous.earned; null when previous.earned is 0' },
+        },
+        required: ['month', 'currency', 'earned', 'playedCount', 'averagePerMatch', 'toPlay', 'previous', 'changePercent'],
+      },
+      CalendarMonth: {
+        type: 'object',
+        properties: { year: { type: 'integer', example: 2026 }, month: { type: 'integer', minimum: 1, maximum: 12, example: 10 } },
+        required: ['year', 'month'],
+      },
       WalletViewResponse: {
         type: 'object',
         properties: {
@@ -1513,6 +1540,19 @@ export const openapiSpec = {
           '400': { description: 'validation_failed: invalid page or pageSize', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } } },
           '401': { description: 'Not signed in' },
           '404': { description: 'goalkeeper_not_found: not an active goalkeeper', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/goalkeepers/me/stats': {
+      get: {
+        summary: "The goalkeeper's current month in numbers: gross earned, matches played and to play, against the previous month to the same day (feature 026)",
+        tags: ['Goalkeeper bookings'],
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': { description: 'Computed from the goalkeeper\u2019s bookings on every read; months cut in the time zone of their city', content: { 'application/json': { schema: { $ref: '#/components/schemas/GoalkeeperMonthStats' } } } },
+          '401': { description: 'Not signed in' },
+          '404': { description: 'goalkeeper_not_found: not an active goalkeeper', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '422': { description: 'wallet_not_configured: the currency of the goalkeeper country cannot be resolved; time_zone_not_configured: their city has no valid time zone', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
         },
       },
     },
