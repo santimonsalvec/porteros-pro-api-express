@@ -93,6 +93,30 @@ describe('OfferSender', () => {
     expect(await h.sender.send(new Map([['g1', all]]), h.clock.now(), 'round')).toMatchObject({ pushed: 0 });
   });
 
+  it('round: skips a deleted offer, even one never marked read (feature 025)', async () => {
+    const h = offerHarness();
+    await h.phone('g1');
+    const { bookings } = h.match('r-deleted');
+    await h.sender.send(new Map([['g1', bookings]]), h.clock.now(), 'first');
+    const [offer] = h.notifications.all();
+    h.notifications.seed({ ...offer!, readAt: null, deletedAt: h.clock.now() });
+    h.clock.advance(minutes(5));
+
+    expect(await h.sender.send(new Map([['g1', bookings]]), h.clock.now(), 'round')).toMatchObject({ pushed: 0 });
+  });
+
+  it('round: deleting an offer from the inbox stops its reminders (feature 025)', async () => {
+    const h = offerHarness();
+    await h.phone('g1');
+    const { bookings } = h.match('r1');
+    await h.sender.send(new Map([['g1', bookings]]), h.clock.now(), 'first');
+    const [offer] = h.notifications.all();
+    await h.notifications.deleteForUser(offer!.id, 'g1', h.clock.now());
+    h.clock.advance(minutes(5));
+
+    expect(await h.sender.send(new Map([['g1', bookings]]), h.clock.now(), 'round')).toMatchObject({ pushed: 0 });
+  });
+
   it('round: a newly eligible goalkeeper gets the offer created and pushed as a first notification', async () => {
     const h = offerHarness();
     await h.phone('g2');

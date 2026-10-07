@@ -2513,7 +2513,8 @@ export const openapiSpec = {
     '/notifications': {
       get: {
         summary: "The caller's inbox, newest first, one page at a time",
-        description: 'Any signed-in user. In feature 015 the entries are match offers to goalkeepers (type booking.available).',
+        description:
+          'Any signed-in user. In feature 015 the entries are match offers to goalkeepers (type booking.available). Entries the user deleted (feature 025) are left out of the items, totals and unread count.',
         tags: ['Notifications'],
         security: [{ bearerAuth: [] }],
         parameters: [
@@ -2533,6 +2534,46 @@ export const openapiSpec = {
         tags: ['Notifications'],
         security: [{ bearerAuth: [] }],
         responses: { '204': { description: 'Done' }, '401': { description: 'Not signed in' } },
+      },
+    },
+    '/notifications/delete-all': {
+      post: {
+        summary: "Delete every entry of the caller's inbox up to `before`",
+        description:
+          'Logical delete (feature 025): entries stay stored for dedupe and the 90-day retention, but leave the inbox and are marked read. `before` is the createdAt of the newest entry the user had, so newer ones are kept.',
+        tags: ['Notifications'],
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { type: 'object', properties: { before: { type: 'string', format: 'date-time' } }, required: ['before'] },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'How many entries were deleted now',
+            content: { 'application/json': { schema: { type: 'object', properties: { deleted: { type: 'integer', minimum: 0 } }, required: ['deleted'] } } },
+          },
+          '400': { description: 'validation_failed: before missing or not a date-time', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } } },
+          '401': { description: 'Not signed in' },
+        },
+      },
+    },
+    '/notifications/{notificationId}/delete': {
+      post: {
+        summary: "Delete one entry from the caller's inbox",
+        description:
+          'Logical delete (feature 025): the entry is hidden and marked read, so an offer is no longer reminded; the match itself is not rejected.',
+        tags: ['Notifications'],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'notificationId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          '204': { description: 'Deleted (idempotent)' },
+          '401': { description: 'Not signed in' },
+          '404': { description: "notification_not_found: unknown, malformed, or someone else's", content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
       },
     },
     '/notifications/{notificationId}/read': {

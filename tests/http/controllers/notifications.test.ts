@@ -6,8 +6,8 @@ import { RunSweepCommand } from '../../../src/application/features/events/comman
 
 const inbox = (context: TestApp, token: string, query = '') =>
   request(context.app).get(`/notifications${query}`).set('Authorization', `Bearer ${token}`);
-const post = (context: TestApp, token: string, path: string) =>
-  request(context.app).post(`/notifications${path}`).set('Authorization', `Bearer ${token}`).send();
+const post = (context: TestApp, token: string, path: string, body?: object) =>
+  request(context.app).post(`/notifications${path}`).set('Authorization', `Bearer ${token}`).send(body);
 
 /** A funded goalkeeper with a phone, and 3 matches confirmed by a client: 3 offers. */
 async function setUp() {
@@ -101,6 +101,69 @@ describe('/notifications — US3: users read their inbox, mark it read and dismi
   });
 });
 
+describe('/notifications — feature 025: users delete entries or clear their inbox', () => {
+  it('deletes one entry (idempotently): gone from the list, the totals and the unread count', async () => {
+    const { context, goalkeeper } = await setUp();
+    const [first] = (await inbox(context, goalkeeper.token)).body.items;
+
+    expect((await post(context, goalkeeper.token, `/${first.notificationId}/delete`)).status).toBe(204);
+    expect((await post(context, goalkeeper.token, `/${first.notificationId}/delete`)).status).toBe(204);
+
+    const page = (await inbox(context, goalkeeper.token)).body;
+    expect(page).toMatchObject({ totalItems: 2, unreadCount: 2 });
+    expect(page.items.map((item: { notificationId: string }) => item.notificationId)).not.toContain(first.notificationId);
+  });
+
+  it("404 for another user's entry or a malformed id", async () => {
+    const { context, client, goalkeeper } = await setUp();
+    const [first] = (await inbox(context, goalkeeper.token)).body.items;
+
+    const response = await post(context, client.token, `/${first.notificationId}/delete`);
+    expect(response.status).toBe(404);
+    expect(response.body.error).toBe('notification_not_found');
+    expect((await post(context, goalkeeper.token, '/not-an-id/delete')).status).toBe(404);
+    expect((await inbox(context, goalkeeper.token)).body.totalItems).toBe(3);
+  });
+
+  it('a deleted offer is never reminded again', async () => {
+    const { context, goalkeeper } = await setUp();
+    const items = (await inbox(context, goalkeeper.token)).body.items as Array<{ notificationId: string }>;
+    for (const item of items) expect((await post(context, goalkeeper.token, `/${item.notificationId}/delete`)).status).toBe(204);
+    const pushesBefore = context.pushSender.calls.length;
+
+    context.clock.advance(10 * 60_000);
+    await context.mediator.send(new RunSweepCommand());
+
+    expect(context.pushSender.calls).toHaveLength(pushesBefore);
+    expect((await inbox(context, goalkeeper.token)).body.totalItems).toBe(0);
+  });
+
+  it('clears everything up to `before` and keeps what is newer', async () => {
+    const { context, goalkeeper } = await setUp();
+    const [newest, , oldest] = (await inbox(context, goalkeeper.token)).body.items;
+
+    const partial = await post(context, goalkeeper.token, '/delete-all', { before: oldest.createdAt });
+    expect(partial.status).toBe(200);
+    expect(partial.body).toEqual({ deleted: 1 });
+    expect((await inbox(context, goalkeeper.token)).body.totalItems).toBe(2);
+
+    const rest = await post(context, goalkeeper.token, '/delete-all', { before: newest.createdAt });
+    expect(rest.body).toEqual({ deleted: 2 });
+    expect((await inbox(context, goalkeeper.token)).body).toMatchObject({ items: [], totalItems: 0, unreadCount: 0 });
+  });
+
+  it('400 without a valid `before`, 401 without a session', async () => {
+    const { context, goalkeeper } = await setUp();
+
+    const missing = await post(context, goalkeeper.token, '/delete-all', {});
+    expect(missing.status).toBe(400);
+    expect(missing.body.error).toBe('validation_failed');
+    expect((await post(context, goalkeeper.token, '/delete-all', { before: 'yesterday' })).status).toBe(400);
+    expect((await request(context.app).post('/notifications/delete-all').send({ before: MATCH_NOW })).status).toBe(401);
+    expect((await inbox(context, goalkeeper.token)).body.totalItems).toBe(3);
+  });
+});
+
 describe('/notifications in the API document', () => {
   it('documents the inbox and the offers switch', async () => {
     const context = await buildTestApp();
@@ -113,6 +176,8 @@ describe('/notifications in the API document', () => {
         '/notifications/read-all',
         '/notifications/{notificationId}/read',
         '/notifications/{notificationId}/dismiss',
+        '/notifications/delete-all',
+        '/notifications/{notificationId}/delete',
         '/goalkeepers/me/offers-availability',
       ]),
     );

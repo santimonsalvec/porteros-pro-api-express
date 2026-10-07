@@ -103,7 +103,10 @@ export class OfferSender {
     }
   }
 
-  /** In a round: the goalkeeper's offers for these requests that were not opened, dismissed or reminded enough. */
+  /**
+   * In a round: the goalkeeper's offers for these requests that were not opened, dismissed, deleted
+   * or reminded enough.
+   */
   private async openOffers(goalkeeperId: string, representatives: ReadonlyMap<string, Booking>): Promise<PendingOffer[]> {
     const offers = await this.deps.notifications.findOffers([goalkeeperId], [...representatives.keys()]);
     return offers
@@ -111,6 +114,7 @@ export class OfferSender {
         (offer) =>
           offer.readAt === null &&
           offer.dismissedAt === null &&
+          offer.deletedAt === null &&
           (offer.notifiedAt === null || offer.reminderCount < this.deps.maxReminders),
       )
       .map((offer) => ({

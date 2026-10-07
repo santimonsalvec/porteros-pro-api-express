@@ -18,6 +18,11 @@ export interface NotificationItem {
   lastRemindedAt: Date | null;
   /** Set on notices written once per key (feature 016 onwards). */
   dedupeKey?: string;
+  /**
+   * When the user deleted it from their inbox (feature 025); null while visible. A deleted entry
+   * stays stored, so it still dedupes, still counts as "offered" and is never pushed again.
+   */
+  deletedAt: Date | null;
 }
 
 /** A new offer entry: one per goalkeeper and request. */
@@ -57,12 +62,20 @@ export interface INotificationRepository {
   renewOffer(offer: NewOffer): Promise<string | null>;
   /** False when an entry with the same `dedupeKey` exists already. */
   createIfAbsent(entry: NewNotification): Promise<boolean>;
+  /** The user's visible entries, newest first; deleted ones are left out, as in the counts. */
   listForUser(userId: string, skip: number, limit: number): Promise<NotificationItem[]>;
   countForUser(userId: string): Promise<number>;
   countUnread(userId: string): Promise<number>;
   /** False when the entry doesn't exist or belongs to someone else. Keeps an earlier `readAt`. */
   markRead(id: string, userId: string, now: Date): Promise<boolean>;
   markAllRead(userId: string, now: Date): Promise<void>;
+  /**
+   * Hides the entry from the user's inbox and marks it read (feature 025). True when it is deleted
+   * now or was already; false when it doesn't exist or belongs to someone else.
+   */
+  deleteForUser(id: string, userId: string, now: Date): Promise<boolean>;
+  /** Deletes every visible entry of the user created at or before `before`; returns how many. */
+  deleteAllForUser(userId: string, before: Date, now: Date): Promise<number>;
   dismissOffer(id: string, userId: string, now: Date): Promise<DismissOutcome>;
   findOffers(userIds: readonly string[], requestIds: readonly string[]): Promise<NotificationItem[]>;
   /** Everyone who was offered a match of the request, once each. */

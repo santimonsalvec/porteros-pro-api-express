@@ -5,8 +5,11 @@ import { ListNotificationsQuery } from '../application/features/notifications/qu
 import { MarkNotificationReadCommand } from '../application/features/notifications/commands/markNotificationRead/markNotificationReadCommand.js';
 import { MarkAllNotificationsReadCommand } from '../application/features/notifications/commands/markAllNotificationsRead/markAllNotificationsReadCommand.js';
 import { DismissOfferCommand } from '../application/features/notifications/commands/dismissOffer/dismissOfferCommand.js';
+import { DeleteNotificationCommand } from '../application/features/notifications/commands/deleteNotification/deleteNotificationCommand.js';
+import { DeleteAllNotificationsCommand } from '../application/features/notifications/commands/deleteAllNotifications/deleteAllNotificationsCommand.js';
 import { requireAuth } from '../infrastructure/auth/middleware/requireAuth.js';
 import { listClientBookingsRequestSchema } from './requests/goalkeeperRequests/listClientBookingsRequest.js';
+import { deleteAllNotificationsRequestSchema } from './requests/notifications/deleteAllNotificationsRequest.js';
 import { zodFieldErrors } from './requests/goalkeeperRequests/getServiceQuoteRequest.js';
 import { ApiError } from './apiError.js';
 
@@ -34,16 +37,37 @@ export function createNotificationsController(deps: NotificationsControllerDepen
     res.status(200).json(result);
   });
 
-  // Declared before `/:id/read` so "read-all" is never taken for an id.
+  // Declared before the `/:id/…` routes so "read-all" and "delete-all" are never taken for an id.
   router.post('/read-all', async (req, res) => {
     await deps.mediator.send(new MarkAllNotificationsReadCommand(req.authClaims!.sub));
     res.status(204).end();
+  });
+
+  router.post('/delete-all', async (req, res) => {
+    const parsed = deleteAllNotificationsRequestSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
+    }
+    const result = await deps.mediator.send(new DeleteAllNotificationsCommand(req.authClaims!.sub, parsed.data.before));
+    res.status(200).json(result);
   });
 
   router.post('/:id/read', async (req, res) => {
     const result = await deps.mediator.send(new MarkNotificationReadCommand(req.authClaims!.sub, req.params.id));
     switch (result.outcome) {
       case 'read':
+        res.status(204).end();
+        return;
+      case 'not_found':
+        throw notFound();
+    }
+  });
+
+  // Logical delete (feature 025): idempotent, so a repeat answers 204 as well.
+  router.post('/:id/delete', async (req, res) => {
+    const result = await deps.mediator.send(new DeleteNotificationCommand(req.authClaims!.sub, req.params.id));
+    switch (result.outcome) {
+      case 'deleted':
         res.status(204).end();
         return;
       case 'not_found':

@@ -24,6 +24,7 @@ export class FakeNotificationRepository implements INotificationRepository {
       notifiedAt: null,
       reminderCount: 0,
       lastRemindedAt: null,
+      deletedAt: null,
     });
     return true;
   }
@@ -44,6 +45,7 @@ export class FakeNotificationRepository implements INotificationRepository {
       notifiedAt: null,
       reminderCount: 0,
       lastRemindedAt: null,
+      deletedAt: null,
     });
     return existing.id;
   }
@@ -58,13 +60,14 @@ export class FakeNotificationRepository implements INotificationRepository {
       notifiedAt: null,
       reminderCount: 0,
       lastRemindedAt: null,
+      deletedAt: null,
     });
     return true;
   }
 
   /** Test helper: stores any entry as-is (e.g. a non-offer type). */
-  seed(item: NotificationItem): void {
-    this.items.set(item.id, { ...item });
+  seed(item: Omit<NotificationItem, 'deletedAt'> & { deletedAt?: Date | null }): void {
+    this.items.set(item.id, { deletedAt: null, ...item });
   }
 
   async listForUser(userId: string, skip: number, limit: number): Promise<NotificationItem[]> {
@@ -91,6 +94,23 @@ export class FakeNotificationRepository implements INotificationRepository {
 
   async markAllRead(userId: string, now: Date): Promise<void> {
     for (const item of this.forUser(userId)) item.readAt ??= now;
+  }
+
+  async deleteForUser(id: string, userId: string, now: Date): Promise<boolean> {
+    const item = this.items.get(id);
+    if (!item || item.userId !== userId) return false;
+    item.deletedAt ??= now;
+    item.readAt ??= now;
+    return true;
+  }
+
+  async deleteAllForUser(userId: string, before: Date, now: Date): Promise<number> {
+    const toDelete = this.forUser(userId).filter((item) => item.createdAt.getTime() <= before.getTime());
+    for (const item of toDelete) {
+      item.deletedAt = now;
+      item.readAt ??= now;
+    }
+    return toDelete.length;
   }
 
   async dismissOffer(id: string, userId: string, now: Date): Promise<DismissOutcome> {
@@ -133,7 +153,8 @@ export class FakeNotificationRepository implements INotificationRepository {
     return [...this.items.values()].map((item) => ({ ...item }));
   }
 
+  /** The user's visible entries, as the inbox reads them. */
   private forUser(userId: string): NotificationItem[] {
-    return [...this.items.values()].filter((item) => item.userId === userId);
+    return [...this.items.values()].filter((item) => item.userId === userId && item.deletedAt === null);
   }
 }

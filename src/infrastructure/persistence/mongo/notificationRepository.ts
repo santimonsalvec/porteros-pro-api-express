@@ -16,6 +16,12 @@ const DUPLICATE_KEY = 11000;
 /** Sets `readAt` only when it isn't set yet, so the first read time is kept. */
 const readNow = (now: Date) => ({ $ifNull: ['$readAt', now] });
 
+/** What the user still sees: `null` also matches entries written before feature 025. */
+const VISIBLE = { deletedAt: null };
+
+/** Deletes and marks read, keeping the first time of each (feature 025). */
+const deleteNow = (now: Date) => [{ $set: { deletedAt: { $ifNull: ['$deletedAt', now] }, readAt: readNow(now) } }];
+
 /**
  * Every user's inbox (feature 015). Offers carry their own reminder bookkeeping, and a unique
  * partial index keeps one offer per goalkeeper and request (research §5).
@@ -52,6 +58,7 @@ export class MongoNotificationRepository implements INotificationRepository {
         dedupeKey: entry.dedupeKey,
         createdAt: entry.createdAt,
         readAt: null,
+        deletedAt: null,
       } as Document);
       return true;
     } catch (error) {
@@ -76,6 +83,7 @@ export class MongoNotificationRepository implements INotificationRepository {
         notifiedAt: null,
         reminderCount: 0,
         lastRemindedAt: null,
+        deletedAt: null,
       } as Document);
       return true;
     } catch (error) {
@@ -98,6 +106,8 @@ export class MongoNotificationRepository implements INotificationRepository {
           notifiedAt: null,
           reminderCount: 0,
           lastRemindedAt: null,
+          // A new booking of the request is a new chance: it shows again even if deleted.
+          deletedAt: null,
         },
       },
       { returnDocument: 'after' },
@@ -108,16 +118,16 @@ export class MongoNotificationRepository implements INotificationRepository {
   }
 
   async listForUser(userId: string, skip: number, limit: number): Promise<NotificationItem[]> {
-    const docs = await this.collection.find({ userId }).sort({ createdAt: -1, _id: -1 }).skip(skip).limit(limit).toArray();
+    const docs = await this.collection.find({ userId, ...VISIBLE }).sort({ createdAt: -1, _id: -1 }).skip(skip).limit(limit).toArray();
     return docs.map(toItem);
   }
 
   async countForUser(userId: string): Promise<number> {
-    return this.collection.countDocuments({ userId });
+    return this.collection.countDocuments({ userId, ...VISIBLE });
   }
 
   async countUnread(userId: string): Promise<number> {
-    return this.collection.countDocuments({ userId, readAt: null });
+    return this.collection.countDocuments({ userId, readAt: null, ...VISIBLE });
   }
 
   async markRead(id: string, userId: string, now: Date): Promise<boolean> {
@@ -128,6 +138,17 @@ export class MongoNotificationRepository implements INotificationRepository {
 
   async markAllRead(userId: string, now: Date): Promise<void> {
     await this.collection.updateMany({ userId, readAt: null }, { $set: { readAt: now } });
+  }
+
+  async deleteForUser(id: string, userId: string, now: Date): Promise<boolean> {
+    if (!isUuid(id)) return false;
+    const result = await this.collection.updateOne({ _id: id, userId } as Document, deleteNow(now));
+    return result.matchedCount === 1;
+  }
+
+  async deleteAllForUser(userId: string, before: Date, now: Date): Promise<number> {
+    const result = await this.collection.updateMany({ userId, ...VISIBLE, createdAt: { $lte: before } }, deleteNow(now));
+    return result.modifiedCount;
   }
 
   async dismissOffer(id: string, userId: string, now: Date): Promise<DismissOutcome> {
@@ -182,5 +203,6 @@ function toItem(doc: Document): NotificationItem {
     notifiedAt: (doc.notifiedAt as Date | null | undefined) ?? null,
     reminderCount: (doc.reminderCount as number | undefined) ?? 0,
     lastRemindedAt: (doc.lastRemindedAt as Date | null | undefined) ?? null,
+    deletedAt: (doc.deletedAt as Date | null | undefined) ?? null,
   };
 }

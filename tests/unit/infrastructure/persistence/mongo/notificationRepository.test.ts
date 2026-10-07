@@ -65,6 +65,7 @@ describe('MongoNotificationRepository (mocked driver)', () => {
           notifiedAt: null,
           reminderCount: 0,
           lastRemindedAt: null,
+          deletedAt: null,
         },
       },
       { returnDocument: 'after' },
@@ -90,12 +91,14 @@ describe('MongoNotificationRepository (mocked driver)', () => {
 
     const items = await repository.listForUser('g1', 20, 20);
 
-    expect(collection.find).toHaveBeenCalledWith({ userId: 'g1' });
+    expect(collection.find).toHaveBeenCalledWith({ userId: 'g1', deletedAt: null });
     expect(cursor.sort).toHaveBeenCalledWith({ createdAt: -1, _id: -1 });
     expect(cursor.skip).toHaveBeenCalledWith(20);
-    expect(items[0]).toMatchObject({ id: ID, data: {}, reminderCount: 0, dismissedAt: null });
+    expect(items[0]).toMatchObject({ id: ID, data: {}, reminderCount: 0, dismissedAt: null, deletedAt: null });
     await repository.countUnread('g1');
-    expect(collection.countDocuments).toHaveBeenCalledWith({ userId: 'g1', readAt: null });
+    expect(collection.countDocuments).toHaveBeenCalledWith({ userId: 'g1', readAt: null, deletedAt: null });
+    await repository.countForUser('g1');
+    expect(collection.countDocuments).toHaveBeenCalledWith({ userId: 'g1', deletedAt: null });
   });
 
   it('marks one read only for its owner, keeping an earlier read time', async () => {
@@ -107,6 +110,30 @@ describe('MongoNotificationRepository (mocked driver)', () => {
     expect(await repository.markRead(ID, 'someone-else', now)).toBe(false);
     expect(await repository.markRead('not-a-uuid', 'g1', now)).toBe(false);
     expect(collection.updateOne).toHaveBeenCalledTimes(2);
+  });
+
+  it('deletes one entry only for its owner, keeping the first delete and read times (feature 025)', async () => {
+    const { collection, repository } = harness();
+    collection.updateOne.mockResolvedValueOnce({ matchedCount: 1 }).mockResolvedValueOnce({ matchedCount: 0 });
+
+    expect(await repository.deleteForUser(ID, 'g1', now)).toBe(true);
+    expect(collection.updateOne).toHaveBeenCalledWith({ _id: ID, userId: 'g1' }, [
+      { $set: { deletedAt: { $ifNull: ['$deletedAt', now] }, readAt: { $ifNull: ['$readAt', now] } } },
+    ]);
+    expect(await repository.deleteForUser(ID, 'someone-else', now)).toBe(false);
+    expect(await repository.deleteForUser('not-a-uuid', 'g1', now)).toBe(false);
+    expect(collection.updateOne).toHaveBeenCalledTimes(2);
+  });
+
+  it("deletes a user's visible entries up to `before` and reports how many", async () => {
+    const { collection, repository } = harness();
+    const before = new Date('2026-10-04T17:59:00.000Z');
+    collection.updateMany.mockResolvedValueOnce({ modifiedCount: 4 });
+
+    expect(await repository.deleteAllForUser('g1', before, now)).toBe(4);
+    expect(collection.updateMany).toHaveBeenCalledWith({ userId: 'g1', deletedAt: null, createdAt: { $lte: before } }, [
+      { $set: { deletedAt: { $ifNull: ['$deletedAt', now] }, readAt: { $ifNull: ['$readAt', now] } } },
+    ]);
   });
 
   it('marks every unread entry of a user read', async () => {
