@@ -196,6 +196,10 @@ import { MarkNotificationReadCommand } from '../../src/application/features/noti
 import { MarkNotificationReadCommandHandler } from '../../src/application/features/notifications/commands/markNotificationRead/markNotificationReadCommandHandler.js';
 import { MarkAllNotificationsReadCommand } from '../../src/application/features/notifications/commands/markAllNotificationsRead/markAllNotificationsReadCommand.js';
 import { MarkAllNotificationsReadCommandHandler } from '../../src/application/features/notifications/commands/markAllNotificationsRead/markAllNotificationsReadCommandHandler.js';
+import { DeleteNotificationCommand } from '../../src/application/features/notifications/commands/deleteNotification/deleteNotificationCommand.js';
+import { DeleteNotificationCommandHandler } from '../../src/application/features/notifications/commands/deleteNotification/deleteNotificationCommandHandler.js';
+import { DeleteAllNotificationsCommand } from '../../src/application/features/notifications/commands/deleteAllNotifications/deleteAllNotificationsCommand.js';
+import { DeleteAllNotificationsCommandHandler } from '../../src/application/features/notifications/commands/deleteAllNotifications/deleteAllNotificationsCommandHandler.js';
 import { DismissOfferCommand } from '../../src/application/features/notifications/commands/dismissOffer/dismissOfferCommand.js';
 import { DismissOfferCommandHandler } from '../../src/application/features/notifications/commands/dismissOffer/dismissOfferCommandHandler.js';
 import { BookingExpiryJob } from '../../src/application/features/bookingLifecycle/jobs/bookingExpiryJob.js';
@@ -963,6 +967,8 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     { requestType: MarkNotificationReadCommand, handler: new MarkNotificationReadCommandHandler(notificationRepository, clock) },
     { requestType: MarkAllNotificationsReadCommand, handler: new MarkAllNotificationsReadCommandHandler(notificationRepository, clock) },
     { requestType: DismissOfferCommand, handler: new DismissOfferCommandHandler(notificationRepository, clock) },
+    { requestType: DeleteNotificationCommand, handler: new DeleteNotificationCommandHandler(notificationRepository, clock) },
+    { requestType: DeleteAllNotificationsCommand, handler: new DeleteAllNotificationsCommandHandler(notificationRepository, clock) },
     {
       requestType: CancelBookingsByClientCommand,
       handler: new CancelBookingsByClientCommandHandler({
