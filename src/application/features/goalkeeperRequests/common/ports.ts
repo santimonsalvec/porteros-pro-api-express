@@ -118,6 +118,13 @@ export interface IBookingRepository {
   findUpcomingForGoalkeeper(goalkeeperId: string, now: Date, skip: number, limit: number): Promise<Booking[]>;
   /** Most recent first (ties: id descending). */
   findPastForGoalkeeper(goalkeeperId: string, now: Date, skip: number, limit: number): Promise<Booking[]>;
+  /**
+   * The goalkeeper's played bookings starting in `[from, to)` (feature 026): `completed` and not
+   * `no_show` (an unsettled attendance counts). `earned` adds up their `price.total`.
+   */
+  summarizeCompletedForGoalkeeper(goalkeeperId: string, from: Date, to: Date): Promise<{ earned: number; played: number }>;
+  /** How many of the goalkeeper's bookings are `assigned`, whatever their date (feature 026). */
+  countAssignedForGoalkeeper(goalkeeperId: string): Promise<number>;
   /** Records "No me interesa" on every booking of the request (feature 024). Idempotent. */
   dismissRequestFor(requestId: string, goalkeeperId: string): Promise<void>;
 }

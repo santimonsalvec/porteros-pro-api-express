@@ -172,6 +172,39 @@ describe('BookingRepository (mocked driver)', () => {
     });
   });
 
+  describe("the goalkeeper's month numbers (feature 026)", () => {
+    const from = new Date('2026-10-01T05:00:00.000Z');
+    const to = new Date('2026-11-01T05:00:00.000Z');
+
+    it('sums the price of completed, not no-show, bookings starting in [from, to)', async () => {
+      const collection = createFakeCollection();
+      collection.find.mockReturnValue(toArrayCursor([{ price: { total: 60000 } }, { price: { total: 75000 } }]));
+
+      const summary = await repositoryWith(collection).summarizeCompletedForGoalkeeper('gk-1', from, to);
+
+      expect(collection.find).toHaveBeenCalledWith(
+        { goalkeeperId: 'gk-1', status: 'completed', attendance: { $ne: 'no_show' }, startsAt: { $gte: from, $lt: to } },
+        { projection: { 'price.total': 1 } },
+      );
+      expect(summary).toEqual({ earned: 135000, played: 2 });
+    });
+
+    it('reads zero for a range without played bookings', async () => {
+      const collection = createFakeCollection();
+      collection.find.mockReturnValue(toArrayCursor([]));
+
+      expect(await repositoryWith(collection).summarizeCompletedForGoalkeeper('gk-1', from, to)).toEqual({ earned: 0, played: 0 });
+    });
+
+    it('counts the assigned bookings whatever their date', async () => {
+      const collection = createFakeCollection();
+      collection.countDocuments.mockResolvedValue(3);
+
+      expect(await repositoryWith(collection).countAssignedForGoalkeeper('gk-1')).toBe(3);
+      expect(collection.countDocuments).toHaveBeenCalledWith({ goalkeeperId: 'gk-1', status: 'assigned' });
+    });
+  });
+
   it('records a dismissal on every booking of the request, once (feature 024)', async () => {
     const collection = createFakeCollection();
     collection.updateMany.mockResolvedValue({ modifiedCount: 2 });

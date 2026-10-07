@@ -50,6 +50,8 @@ import { WalletLedger } from '../../src/application/features/wallet/common/walle
 import { ListAvailableBookingsQuery } from '../../src/application/features/goalkeeperRequests/queries/listAvailableBookings/listAvailableBookingsQuery.js';
 import { ListGoalkeeperAgendaQuery } from '../../src/application/features/goalkeeperRequests/queries/listGoalkeeperAgenda/listGoalkeeperAgendaQuery.js';
 import { ListGoalkeeperAgendaQueryHandler } from '../../src/application/features/goalkeeperRequests/queries/listGoalkeeperAgenda/listGoalkeeperAgendaQueryHandler.js';
+import { GetGoalkeeperMonthStatsQuery } from '../../src/application/features/goalkeepers/queries/getGoalkeeperMonthStats/getGoalkeeperMonthStatsQuery.js';
+import { GetGoalkeeperMonthStatsQueryHandler } from '../../src/application/features/goalkeepers/queries/getGoalkeeperMonthStats/getGoalkeeperMonthStatsQueryHandler.js';
 import { AcceptBookingCommand } from '../../src/application/features/goalkeeperRequests/commands/acceptBooking/acceptBookingCommand.js';
 import { DismissBookingCommand } from '../../src/application/features/goalkeeperRequests/commands/dismissBooking/dismissBookingCommand.js';
 import { DismissBookingCommandHandler } from '../../src/application/features/goalkeeperRequests/commands/dismissBooking/dismissBookingCommandHandler.js';
@@ -904,6 +906,10 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
         userRepository,
         clock,
       }),
+    },
+    {
+      requestType: GetGoalkeeperMonthStatsQuery,
+      handler: new GetGoalkeeperMonthStatsQueryHandler({ context: walletContext, bookingRepository, clock }),
     },
     {
       requestType: ListWalletMovementsQuery,
