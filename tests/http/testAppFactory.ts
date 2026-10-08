@@ -24,6 +24,14 @@ import type { ISsoProviderCatalog } from '../../src/application/features/auth/co
 import { CompleteProfileCommand } from '../../src/application/features/profile/commands/completeProfile/completeProfileCommand.js';
 import { CompleteProfileCommandHandler } from '../../src/application/features/profile/commands/completeProfile/completeProfileCommandHandler.js';
 import { Country } from '../../src/domain/countries/country.js';
+import { staffHandlerRegistrations } from '../../src/infrastructure/staffHandlers.js';
+import { FakeAdminSecurityLog } from '../fakes/fakeAdminSecurityLog.js';
+import { FakeStaffMemberRepository } from '../fakes/fakeStaffMemberRepository.js';
+import { FakeStaffRoleRepository } from '../fakes/fakeStaffRoleRepository.js';
+import { FakeAdminSessionStore } from '../fakes/fakeAdminSessionStore.js';
+import { FakeAdminTokenIssuer } from '../fakes/fakeAdminTokenIssuer.js';
+import { FakeAdminAuditLog } from '../fakes/fakeAdminAuditLog.js';
+import { StaffAccessResolver } from '../../src/infrastructure/auth/staffAccessResolver.js';
 import { FakeUserRepository } from '../fakes/fakeUserRepository.js';
 import { FakeRefreshTokenRepository } from '../fakes/fakeRefreshTokenRepository.js';
 import { FakeGoogleIdTokenValidator } from '../fakes/fakeGoogleIdTokenValidator.js';
@@ -318,7 +326,17 @@ export interface TestAppContext {
   /** Empty by default: `seed()` configures Colombia's Wompi settings. */
   paymentGatewaySettingsRepository: FakePaymentGatewaySettingsRepository;
   topUpRepository: FakeTopUpRepository;
+  /** Admin web access (porteros-pro-admin spec 001). */
+  staffMemberRepository: FakeStaffMemberRepository;
+  staffRoleRepository: FakeStaffRoleRepository;
+  adminSessionStore: FakeAdminSessionStore;
+  adminTokenIssuer: FakeAdminTokenIssuer;
+  adminAuditLog: FakeAdminAuditLog;
+  staffAccessResolver: StaffAccessResolver;
 }
+
+/** The only browser origin the admin routes allow in HTTP tests. */
+export const TEST_ADMIN_ORIGIN = 'http://localhost:4200';
 
 /** The API's public base in HTTP tests: the gateway's return address starts with it. */
 export const TEST_PAYMENTS_BASE_URL = 'https://api.test.porterospro.co';
@@ -388,6 +406,12 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
   const matchSurfaceRepository = new FakeMatchSurfaceRepository();
   const bookingSettingsRepository = new FakeBookingSettingsRepository();
   const clock = new FixedClock(QUOTE_NOW);
+  const staffMemberRepository = new FakeStaffMemberRepository();
+  const staffRoleRepository = new FakeStaffRoleRepository(staffMemberRepository);
+  const adminSessionStore = new FakeAdminSessionStore();
+  const adminTokenIssuer = new FakeAdminTokenIssuer();
+  const adminAuditLog = new FakeAdminAuditLog();
+  const staffAccessResolver = new StaffAccessResolver(adminSessionStore, staffMemberRepository, staffRoleRepository, clock);
   const walletStore = new FakeWalletStore(() => clock.now());
   const commissionSettingRepository = new FakeCommissionSettingRepository();
   const walletLedger = new WalletLedger(walletStore, walletStore, { newId: () => uuidv7() }, clock);
@@ -600,6 +624,22 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
   // Quote and booking ids must be real UUIDs: the confirmation answers 404 to anything else.
   const uuidGenerator = { newId: (): string => uuidv7() };
 
+  registerHandlers(
+    mediator,
+    staffHandlerRegistrations({
+      google: googleValidator,
+      users: userRepository,
+      members: staffMemberRepository,
+      roles: staffRoleRepository,
+      sessions: adminSessionStore,
+      tokens: adminTokenIssuer,
+      ids: { newId: () => uuidv7() },
+      clock,
+      securityLog: new FakeAdminSecurityLog(),
+      accessResolver: staffAccessResolver,
+      auditLog: adminAuditLog,
+    }),
+  );
   registerHandlers(mediator, [
     {
       requestType: RunSweepCommand,
@@ -1087,6 +1127,15 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     publisher: mediator,
     verifyInternalCaller: async (token) => token === TEST_INTERNAL_TOKEN,
     paymentReturn: { appOpenUrl: '', androidPackage: '', androidCertSha256: [], iosAppId: '', ...options.paymentReturn },
+    admin: {
+      verifyAccessToken: (token) => adminTokenIssuer.verifyAccessToken(token),
+      accessResolver: staffAccessResolver,
+      auditLog: adminAuditLog,
+      allowedOrigins: [TEST_ADMIN_ORIGIN],
+      sessionCookieSecure: true,
+      newId: () => uuidv7(),
+      now: () => clock.now(),
+    },
   };
 
   return {
@@ -1138,5 +1187,11 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     paymentSecrets,
     paymentGatewaySettingsRepository,
     topUpRepository,
+    staffMemberRepository,
+    staffRoleRepository,
+    adminSessionStore,
+    adminTokenIssuer,
+    adminAuditLog,
+    staffAccessResolver,
   };
 }

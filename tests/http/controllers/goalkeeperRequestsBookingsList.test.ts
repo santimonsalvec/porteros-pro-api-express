@@ -2,7 +2,6 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js';
-import { User } from '../../../src/domain/users/user.js';
 import { buildRequest, buildRequestBookings, POINTS, QUOTE_FORMAT_FIELDS } from '../../fixtures/quoteFixtures.js';
 import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper } from '../walletTestHelpers.js';
 
@@ -161,21 +160,6 @@ describe('GET /goalkeeper-requests/bookings — Story 2: only the caller’s boo
     const exchange = await request(context.app)
       .post('/auth/sso/exchange')
       .send({ provider: 'google', platform: 'mobile', credential: 'cred-new' });
-
-    const response = await list(context, exchange.body.accessToken as string);
-
-    expect(response.status).toBe(403);
-  });
-
-  it('403 for an admin account', async () => {
-    const context = await buildTestApp();
-    await context.userRepository.add(
-      User.createFromExternalIdentity({ id: 'admin-1', email: 'admin@example.com', displayName: null, provider: 'google', subject: 'admin-sub', isAdmin: true }),
-    );
-    context.googleValidator.registerValidCredential('admin-cred', new ExternalIdentity('google', 'admin-sub', 'admin@example.com'));
-    const exchange = await request(context.app)
-      .post('/auth/sso/exchange')
-      .send({ provider: 'google', platform: 'admin-web', credential: 'admin-cred' });
 
     const response = await list(context, exchange.body.accessToken as string);
 

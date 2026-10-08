@@ -112,45 +112,15 @@ describe('ExchangeSsoCredentialCommandHandler', () => {
     expect(await userRepository.getAll()).toHaveLength(0);
   });
 
-  it('rejects an admin-web login with no matching account, creating nothing', async () => {
-    googleValidator.registerValidCredential('good-token', new ExternalIdentity('google', 'sub-1', 'nobody@example.com'));
-
-    const result = await handler.handle(new ExchangeSsoCredentialCommand('google', 'admin-web', 'good-token'));
-
-    expect(result.outcome).toBe('unauthorized_admin_account');
-    expect(await userRepository.getAll()).toHaveLength(0);
-  });
-
-  it('rejects admin-web with an identical outcome when the account exists but is not an admin', async () => {
-    const nonAdmin = User.createFromExternalIdentity({
-      id: 'existing-user',
-      email: 'client@example.com',
-      displayName: null,
-      provider: 'google',
-      subject: 'sub-2',
-    });
-    userRepository.seed(nonAdmin);
-    googleValidator.registerValidCredential('good-token', new ExternalIdentity('google', 'sub-2', 'client@example.com'));
-
-    const result = await handler.handle(new ExchangeSsoCredentialCommand('google', 'admin-web', 'good-token'));
-
-    expect(result.outcome).toBe('unauthorized_admin_account');
-  });
-
-  it('issues a session for an existing admin-web account', async () => {
-    const admin = User.createFromExternalIdentity({
-      id: 'admin-user',
-      email: 'admin@example.com',
-      displayName: null,
-      provider: 'google',
-      subject: 'admin-sub',
-      isAdmin: true,
-    });
-    userRepository.seed(admin);
+  it('sends admin-web to its own sign-in (spec 001), creating nothing, even for an account flagged isAdmin', async () => {
+    userRepository.seed(
+      User.createFromExternalIdentity({ id: 'admin-user', email: 'admin@example.com', displayName: null, provider: 'google', subject: 'admin-sub', isAdmin: true }),
+    );
     googleValidator.registerValidCredential('good-token', new ExternalIdentity('google', 'admin-sub', 'admin@example.com'));
+    googleValidator.registerValidCredential('other-token', new ExternalIdentity('google', 'sub-1', 'nobody@example.com'));
 
-    const result = await handler.handle(new ExchangeSsoCredentialCommand('google', 'admin-web', 'good-token'));
-
-    expect(result.outcome).toBe('success');
+    expect((await handler.handle(new ExchangeSsoCredentialCommand('google', 'admin-web', 'good-token'))).outcome).toBe('admin_sign_in_moved');
+    expect((await handler.handle(new ExchangeSsoCredentialCommand('google', 'admin-web', 'other-token'))).outcome).toBe('admin_sign_in_moved');
+    expect(await userRepository.getAll()).toHaveLength(1);
   });
 });

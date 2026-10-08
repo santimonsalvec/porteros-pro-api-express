@@ -3,7 +3,6 @@ import type { ISender } from '../application/common/mediator/types.js';
 import { GetClientProfileQuery } from '../application/features/clients/queries/getClientProfile/getClientProfileQuery.js';
 import { UpdateClientProfileCommand } from '../application/features/clients/commands/updateClientProfile/updateClientProfileCommand.js';
 import { requireAuth } from '../infrastructure/auth/middleware/requireAuth.js';
-import { requireClientOnly } from '../infrastructure/auth/middleware/requireClientOnly.js';
 import { requireCompleteProfile } from '../infrastructure/auth/middleware/requireCompleteProfile.js';
 import type { AccessTokenClaims } from '../application/features/auth/common/accessTokenClaims.js';
 import { updateClientProfileRequestSchema } from './requests/clients/updateClientProfileRequest.js';
@@ -16,7 +15,7 @@ export interface ClientsControllerDependencies {
 
 export function createClientsController(deps: ClientsControllerDependencies): Router {
   const router = Router();
-  router.use(requireAuth(deps.verifyAccessToken), requireClientOnly());
+  router.use(requireAuth(deps.verifyAccessToken));
 
   router.get('/me', async (req, res) => {
     const claims = req.authClaims!;

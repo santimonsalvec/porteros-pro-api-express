@@ -1,9 +1,14 @@
 import { Router } from 'express';
+import { createAdminRouting, settingsBefore } from './admin/adminRoute.js';
+import { registerTeamRoutes } from './admin/teamRoutes.js';
 import type { ISender } from '../application/common/mediator/types.js';
-import type { AccessTokenClaims } from '../application/features/auth/common/accessTokenClaims.js';
 import { RecordWalletAdjustmentCommand } from '../application/features/wallet/commands/recordWalletAdjustment/recordWalletAdjustmentCommand.js';
-import { requireAdmin } from '../infrastructure/auth/middleware/requireAdmin.js';
-import { requireAuth } from '../infrastructure/auth/middleware/requireAuth.js';
+import type { AdminWebDependencies } from '../appDependencies.js';
+import { requireAdminAuth } from '../infrastructure/auth/middleware/requireAdminAuth.js';
+import { adminCors } from '../infrastructure/http/adminCors.js';
+import { GetAdminMeQuery } from '../application/features/staff/queries/getAdminMe/getAdminMeQuery.js';
+import { GetPermissionCatalogQuery } from '../application/features/staff/queries/getPermissionCatalog/getPermissionCatalogQuery.js';
+import { GetGoalkeeperWalletQuery } from '../application/features/wallet/queries/getGoalkeeperWallet/getGoalkeeperWalletQuery.js';
 import { ApiError } from './apiError.js';
 import { zodFieldErrors } from './requests/goalkeeperRequests/getServiceQuoteRequest.js';
 import { recordWalletAdjustmentRequestSchema } from './requests/wallet/recordWalletAdjustmentRequest.js';
@@ -28,34 +33,70 @@ import { invoicingSettingsRequestSchema, listDocumentsQuerySchema, taxSettingsRe
 
 export interface AdminControllerDependencies {
   mediator: ISender;
-  verifyAccessToken: (token: string) => Promise<AccessTokenClaims | null>;
+  admin: AdminWebDependencies;
 }
 
 /**
- * Administration endpoints (no interface yet — a future admin app only needs screens). Every
- * route requires an administrator's token. Starts with the goalkeeper wallets (feature 011).
+ * Administration endpoints, used by the admin web (porteros-pro-admin). Every route requires an
+ * admin web session of an active staff member (spec 001); permissions are checked per route.
  */
 export function createAdminController(deps: AdminControllerDependencies): Router {
   const router = Router();
 
-  router.use(requireAuth(deps.verifyAccessToken), requireAdmin());
+  router.use(
+    adminCors({ allowedOrigins: deps.admin.allowedOrigins }),
+    requireAdminAuth(deps.admin.verifyAccessToken, deps.admin.accessResolver),
+  );
 
-  router.get('/goalkeepers/:userId/wallet', async (req, res) => {
+  const { route } = createAdminRouting(router, deps.admin);
+  registerTeamRoutes(route, deps.mediator);
+
+  // The fixed permission catalog, for the role screen (any active member).
+  router.get('/permissions', async (_req, res) => {
+    res.status(200).json(await deps.mediator.send(new GetPermissionCatalogQuery()));
+  });
+
+  // The signed-in member and their effective permissions: the admin web's menu, routes and buttons.
+  router.get('/me', async (req, res) => {
+    const access = req.adminAccess!;
+    const result = await deps.mediator.send(new GetAdminMeQuery(access.staffId, access.sessionId));
+    switch (result.outcome) {
+      case 'ok':
+        res.status(200).json(result.me);
+        return;
+      case 'not_found':
+        res.status(401).end();
+        return;
+    }
+  });
+
+  route('get', '/goalkeepers/:userId/wallet', 'wallets.read', async (req, res) => {
     await sendWallet(deps.mediator, req.params.userId, res, { goalkeeperId: req.params.userId });
   });
 
-  router.get('/goalkeepers/:userId/wallet/movements', async (req, res) => {
+  route('get', '/goalkeepers/:userId/wallet/movements', 'wallets.read', async (req, res) => {
     await sendMovements(deps.mediator, req.params.userId, 'admin', req, res);
   });
 
-  router.post('/goalkeepers/:userId/wallet/adjustments', async (req, res) => {
+  route('post', '/goalkeepers/:userId/wallet/adjustments', {
+    permission: 'wallets.adjust',
+    audit: {
+      action: 'wallet.adjust',
+      resourceType: 'wallet',
+      resourceId: (req) => String(req.params.userId),
+      before: async (req) => {
+        const result = await deps.mediator.send(new GetGoalkeeperWalletQuery(String(req.params.userId)));
+        return result.outcome === 'success' ? result.wallet : null;
+      },
+    },
+  }, async (req, res) => {
     const parsed = recordWalletAdjustmentRequestSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
     }
     const { amount, reason, operationKey } = parsed.data;
     const result = await deps.mediator.send(
-      new RecordWalletAdjustmentCommand(req.authClaims!.sub, req.params.userId, amount, reason, operationKey),
+      new RecordWalletAdjustmentCommand(req.adminAccess!.userId, req.params.userId, amount, reason, operationKey),
     );
 
     // Exhaustive on purpose: adding an outcome without mapping it here fails compilation.
@@ -64,6 +105,7 @@ export function createAdminController(deps: AdminControllerDependencies): Router
         res.status(201).json({ ...result.movement, balance: result.balance });
         return;
       case 'replayed':
+        res.locals.auditOutcome = 'replayed';
         res.status(200).json({ ...result.movement, balance: result.balance });
         return;
       case 'insufficient_funds':
@@ -78,24 +120,28 @@ export function createAdminController(deps: AdminControllerDependencies): Router
   });
 
   // A goalkeeper's withdrawals and penalties, and their reversal (feature 018).
-  router.get('/goalkeepers/:userId/withdrawals', async (req, res) => {
+  route('get', '/goalkeepers/:userId/withdrawals', 'goalkeepers.read', async (req, res) => {
     await sendWithdrawals(deps.mediator, req.params.userId, 'admin', req, res);
   });
 
-  router.post('/goalkeepers/:userId/withdrawals/:withdrawalId/reversal', async (req, res) => {
+  route('post', '/goalkeepers/:userId/withdrawals/:withdrawalId/reversal', {
+    permission: 'goalkeepers.penalties.reverse',
+    audit: { action: 'penalty.reverse', resourceType: 'withdrawal', resourceId: (req) => String(req.params.withdrawalId) },
+  }, async (req, res) => {
     const parsed = reverseWithdrawalRequestSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
     }
     const { refund, liftSuspension, reason } = parsed.data;
     const result = await deps.mediator.send(
-      new ReverseWithdrawalPenaltyCommand(req.authClaims!.sub, req.params.userId, req.params.withdrawalId, refund, liftSuspension, reason),
+      new ReverseWithdrawalPenaltyCommand(req.adminAccess!.userId, req.params.userId, req.params.withdrawalId, refund, liftSuspension, reason),
     );
 
     // Exhaustive on purpose: adding an outcome without mapping it here fails compilation.
     switch (result.outcome) {
       case 'reversed':
       case 'replayed':
+        if (result.outcome === 'replayed') res.locals.auditOutcome = 'replayed';
         res.status(200).json({ withdrawal: result.withdrawal, suspendedUntil: result.suspendedUntil });
         return;
       case 'invalid_request':
@@ -112,7 +158,7 @@ export function createAdminController(deps: AdminControllerDependencies): Router
   });
 
   // Cases for manual review (feature 021).
-  router.get('/cases', async (req, res) => {
+  route('get', '/cases', 'cases.read', async (req, res) => {
     const parsed = listCasesQuerySchema.safeParse(req.query);
     if (!parsed.success) {
       throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
@@ -127,7 +173,7 @@ export function createAdminController(deps: AdminControllerDependencies): Router
     });
   });
 
-  router.get('/cases/:caseId', async (req, res) => {
+  route('get', '/cases/:caseId', 'cases.read', async (req, res) => {
     const result = await deps.mediator.send(new GetCaseQuery(req.params.caseId));
     switch (result.outcome) {
       case 'ok':
@@ -138,12 +184,23 @@ export function createAdminController(deps: AdminControllerDependencies): Router
     }
   });
 
-  router.post('/cases/:caseId/resolve', async (req, res) => {
+  route('post', '/cases/:caseId/resolve', {
+    permission: 'cases.resolve',
+    audit: {
+      action: 'case.resolve',
+      resourceType: 'case',
+      resourceId: (req) => String(req.params.caseId),
+      before: async (req) => {
+        const result = await deps.mediator.send(new GetCaseQuery(String(req.params.caseId)));
+        return result.outcome === 'ok' ? result.case : null;
+      },
+    },
+  }, async (req, res) => {
     const parsed = resolveCaseRequestSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
     }
-    const result = await deps.mediator.send(new ResolveCaseCommand(req.authClaims!.sub, req.params.caseId, parsed.data.note));
+    const result = await deps.mediator.send(new ResolveCaseCommand(req.adminAccess!.userId, req.params.caseId, parsed.data.note));
 
     // Exhaustive on purpose: adding an outcome without mapping it here fails compilation.
     switch (result.outcome) {
@@ -160,7 +217,7 @@ export function createAdminController(deps: AdminControllerDependencies): Router
   });
 
   // Each country's top-up gateway (feature 022). Secrets are never here: they live in Secret Manager.
-  router.get('/payment-gateways/:countryId', async (req, res) => {
+  route('get', '/payment-gateways/:countryId', 'payments.settings.manage', async (req, res) => {
     const result = await deps.mediator.send(new GetGatewaySettingsQuery(req.params.countryId));
     switch (result.outcome) {
       case 'success':
@@ -171,14 +228,22 @@ export function createAdminController(deps: AdminControllerDependencies): Router
     }
   });
 
-  router.put('/payment-gateways/:countryId', async (req, res) => {
+  route('put', '/payment-gateways/:countryId', {
+    permission: 'payments.settings.manage',
+    audit: {
+      action: 'paymentGatewaySettings.update',
+      resourceType: 'paymentGatewaySettings',
+      resourceId: (req) => String(req.params.countryId),
+      before: (req) => settingsBefore(deps.mediator.send(new GetGatewaySettingsQuery(String(req.params.countryId)))),
+    },
+  }, async (req, res) => {
     const parsed = gatewaySettingsRequestSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
     }
     const { gateway, publicConfig, costs, amounts } = parsed.data;
     const result = await deps.mediator.send(
-      new SetGatewaySettingsCommand(req.authClaims!.sub, req.params.countryId, gateway, publicConfig, costs, amounts),
+      new SetGatewaySettingsCommand(req.adminAccess!.userId, req.params.countryId, gateway, publicConfig, costs, amounts),
     );
     switch (result.outcome) {
       case 'saved':
@@ -192,7 +257,7 @@ export function createAdminController(deps: AdminControllerDependencies): Router
   });
 
   // VAT per country (feature 023): charged on top of commissions and penalties.
-  router.get('/tax-settings/:countryId', async (req, res) => {
+  route('get', '/tax-settings/:countryId', 'pricing.read', async (req, res) => {
     const result = await deps.mediator.send(new GetTaxSettingsQuery(req.params.countryId));
     switch (result.outcome) {
       case 'success':
@@ -203,12 +268,20 @@ export function createAdminController(deps: AdminControllerDependencies): Router
     }
   });
 
-  router.put('/tax-settings/:countryId', async (req, res) => {
+  route('put', '/tax-settings/:countryId', {
+    permission: 'pricing.manage',
+    audit: {
+      action: 'taxSettings.update',
+      resourceType: 'taxSettings',
+      resourceId: (req) => String(req.params.countryId),
+      before: (req) => settingsBefore(deps.mediator.send(new GetTaxSettingsQuery(String(req.params.countryId)))),
+    },
+  }, async (req, res) => {
     const parsed = taxSettingsRequestSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
     }
-    const result = await deps.mediator.send(new SetTaxSettingsCommand(req.authClaims!.sub, req.params.countryId, parsed.data.vatRateBps));
+    const result = await deps.mediator.send(new SetTaxSettingsCommand(req.adminAccess!.userId, req.params.countryId, parsed.data.vatRateBps));
     switch (result.outcome) {
       case 'saved':
         res.status(200).json(result.settings);
@@ -221,7 +294,7 @@ export function createAdminController(deps: AdminControllerDependencies): Router
   });
 
   // The invoicing provider of each country (feature 023). Credentials live in Secret Manager.
-  router.get('/invoicing/settings/:countryId', async (req, res) => {
+  route('get', '/invoicing/settings/:countryId', 'invoicing.settings.manage', async (req, res) => {
     const result = await deps.mediator.send(new GetInvoicingSettingsQuery(req.params.countryId));
     switch (result.outcome) {
       case 'success':
@@ -232,13 +305,21 @@ export function createAdminController(deps: AdminControllerDependencies): Router
     }
   });
 
-  router.put('/invoicing/settings/:countryId', async (req, res) => {
+  route('put', '/invoicing/settings/:countryId', {
+    permission: 'invoicing.settings.manage',
+    audit: {
+      action: 'invoicingSettings.update',
+      resourceType: 'invoicingSettings',
+      resourceId: (req) => String(req.params.countryId),
+      before: (req) => settingsBefore(deps.mediator.send(new GetInvoicingSettingsQuery(String(req.params.countryId)))),
+    },
+  }, async (req, res) => {
     const parsed = invoicingSettingsRequestSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
     }
     const result = await deps.mediator.send(
-      new SetInvoicingSettingsCommand(req.authClaims!.sub, req.params.countryId, parsed.data.provider, parsed.data.config),
+      new SetInvoicingSettingsCommand(req.adminAccess!.userId, req.params.countryId, parsed.data.provider, parsed.data.config),
     );
     switch (result.outcome) {
       case 'saved':
@@ -251,7 +332,7 @@ export function createAdminController(deps: AdminControllerDependencies): Router
     }
   });
 
-  router.get('/invoicing/documents', async (req, res) => {
+  route('get', '/invoicing/documents', 'invoicing.read', async (req, res) => {
     const parsed = listDocumentsQuerySchema.safeParse(req.query);
     if (!parsed.success) {
       throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
@@ -260,8 +341,11 @@ export function createAdminController(deps: AdminControllerDependencies): Router
     res.status(200).json(result);
   });
 
-  router.post('/invoicing/documents/:documentId/retry', async (req, res) => {
-    const result = await deps.mediator.send(new RetryDocumentCommand(req.authClaims!.sub, req.params.documentId));
+  route('post', '/invoicing/documents/:documentId/retry', {
+    permission: 'invoicing.retry',
+    audit: { action: 'invoicingDocument.retry', resourceType: 'invoicingDocument', resourceId: (req) => String(req.params.documentId) },
+  }, async (req, res) => {
+    const result = await deps.mediator.send(new RetryDocumentCommand(req.adminAccess!.userId, req.params.documentId));
     switch (result.outcome) {
       case 'retried':
         res.status(202).json(result.document);

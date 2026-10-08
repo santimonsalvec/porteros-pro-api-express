@@ -29,36 +29,19 @@ describe('POST /auth/sso/exchange', () => {
     expect(response.body.error).toBe('invalid_credential');
   });
 
-  it('rejects admin-web login with no matching admin account', async () => {
-    const { app, googleValidator } = await buildTestApp();
-    googleValidator.registerValidCredential('good-token', new ExternalIdentity('google', 'sub-2', 'b@example.com'));
-
-    const response = await request(app)
-      .post('/auth/sso/exchange')
-      .send({ provider: 'google', platform: 'admin-web', credential: 'good-token' });
-
-    expect(response.status).toBe(403);
-    expect(response.body.error).toBe('unauthorized_admin_account');
-  });
-
-  it('succeeds for an existing admin-web account', async () => {
+  it("answers 410 to platform admin-web, even for an account flagged isAdmin (spec 001: the admin web has its own sign-in)", async () => {
     const { app, googleValidator, userRepository } = await buildTestApp();
-    const admin = User.createFromExternalIdentity({
-      id: 'admin-1',
-      email: 'admin@example.com',
-      displayName: null,
-      provider: 'google',
-      subject: 'admin-sub',
-      isAdmin: true,
-    });
-    await userRepository.add(admin);
+    await userRepository.add(
+      User.createFromExternalIdentity({ id: 'admin-1', email: 'admin@example.com', displayName: null, provider: 'google', subject: 'admin-sub', isAdmin: true }),
+    );
     googleValidator.registerValidCredential('good-token', new ExternalIdentity('google', 'admin-sub', 'admin@example.com'));
 
     const response = await request(app)
       .post('/auth/sso/exchange')
       .send({ provider: 'google', platform: 'admin-web', credential: 'good-token' });
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(410);
+    expect(response.body.error).toBe('admin_sign_in_moved');
   });
 
   it('rejects a malformed request body', async () => {

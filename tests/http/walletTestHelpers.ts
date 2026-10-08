@@ -2,9 +2,9 @@ import { QUOTE_FORMAT_FIELDS } from '../fixtures/quoteFixtures.js';
 import request from 'supertest';
 import type { buildTestApp } from './testAppFactory.js';
 import { ExternalIdentity } from '../../src/domain/users/externalIdentity.js';
-import { User } from '../../src/domain/users/user.js';
 import { buildGoalkeeperProfile, COLOMBIA_INVOICING } from '../fixtures/walletFixtures.js';
 import type { LedgerOwner } from '../../src/application/features/wallet/common/walletLedger.js';
+import { signInStaff } from './adminTestHelpers.js';
 
 export type TestApp = Awaited<ReturnType<typeof buildTestApp>>;
 
@@ -30,14 +30,10 @@ export async function signInGoalkeeper(context: TestApp, sub: string, zoneIds = 
   return client;
 }
 
-/** An administrator's access token (admin-web sign-in of a user flagged as admin). */
+/** An owner's admin web access token (spec 001: staff member + `POST /auth/admin/sign-in`). */
 export async function signInAdmin(context: TestApp): Promise<{ token: string; userId: string }> {
-  await context.userRepository.add(
-    User.createFromExternalIdentity({ id: 'admin-1', email: 'admin@example.com', displayName: null, provider: 'google', subject: 'admin-sub', isAdmin: true }),
-  );
-  context.googleValidator.registerValidCredential('admin-cred', new ExternalIdentity('google', 'admin-sub', 'admin@example.com'));
-  const exchange = await request(context.app).post('/auth/sso/exchange').send({ provider: 'google', platform: 'admin-web', credential: 'admin-cred' });
-  return { token: exchange.body.accessToken as string, userId: 'admin-1' };
+  const owner = await signInStaff(context, { key: 'admin', userId: 'admin-1' });
+  return { token: owner.token, userId: owner.userId };
 }
 
 export function ownerOf(goalkeeperId: string): LedgerOwner {

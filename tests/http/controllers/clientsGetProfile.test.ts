@@ -37,16 +37,16 @@ describe('GET /clients/me', () => {
     expect(response.body.email).toBe('sub-2@example.com');
   });
 
-  it('rejects an admin account', async () => {
+  it('serves an account flagged isAdmin like any client (spec 001, FR-020)', async () => {
     const { app, googleValidator, userRepository } = await buildTestApp();
     const admin = User.createFromExternalIdentity({ id: 'admin-1', email: 'admin@example.com', displayName: null, provider: 'google', subject: 'admin-sub', isAdmin: true });
     await userRepository.add(admin);
     googleValidator.registerValidCredential('good-token', new ExternalIdentity('google', 'admin-sub', 'admin@example.com'));
-    const exchange = await request(app).post('/auth/sso/exchange').send({ provider: 'google', platform: 'admin-web', credential: 'good-token' });
+    const exchange = await request(app).post('/auth/sso/exchange').send({ provider: 'google', platform: 'mobile', credential: 'good-token' });
 
     const response = await request(app).get('/clients/me').set('Authorization', `Bearer ${exchange.body.accessToken}`);
 
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(200);
   });
 
   it('rejects an unauthenticated request', async () => {

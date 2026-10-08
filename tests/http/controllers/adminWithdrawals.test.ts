@@ -65,7 +65,7 @@ describe('/admin/goalkeepers/:userId/withdrawals — US4: reversal', () => {
     expect((await reverse(context, admin.token, g.userId, withdrawalId, { refund: true })).status).toBe(400);
     expect((await reverse(context, admin.token, g.userId, withdrawalId, { refund: true, reason: 'no' })).status).toBe(400);
     expect((await reverse(context, admin.token, g.userId, withdrawalId, { reason: 'Sin acción' })).status).toBe(400);
-    expect((await reverse(context, g.token, g.userId, withdrawalId, { refund: true, reason: 'Me lo devuelvo' })).status).toBe(403);
+    expect((await reverse(context, g.token, g.userId, withdrawalId, { refund: true, reason: 'Me lo devuelvo' })).status).toBe(401);
     const unknown = await reverse(context, admin.token, g.userId, 'missing', { refund: true, reason: 'Incapacidad médica' });
     expect(unknown.status).toBe(404);
     expect(unknown.body.error).toBe('withdrawal_not_found');

@@ -14,6 +14,8 @@ import { createGoalkeeperController } from './controllers/goalkeeperController.j
 import { createZonesController } from './controllers/zonesController.js';
 import { createGoalkeeperRequestsController } from './controllers/goalkeeperRequestsController.js';
 import { createAdminController } from './controllers/adminController.js';
+import { createAdminAuthController } from './controllers/adminAuthController.js';
+import { adminCors } from './infrastructure/http/adminCors.js';
 import { createRatingsController } from './controllers/ratingsController.js';
 import { createInternalController } from './controllers/internalController.js';
 import { createDevicesController } from './controllers/devicesController.js';
@@ -29,10 +31,14 @@ import { openapiSpec } from './infrastructure/openapi/openapiSpec.js';
  */
 export function createApp(deps: AppDependencies): Express {
   const app = express();
+  // App Hosting (Cloud Run) sits behind Google's proxy: `req.ip` must be the caller's, for the admin audit log.
+  app.set('trust proxy', true);
 
   app.use(pinoHttp({ logger }));
   app.use(express.json());
 
+  // Before `/auth`: the admin web's sessions, with CORS for its origins only (porteros-pro-admin spec 001).
+  app.use('/auth/admin', adminCors({ allowedOrigins: deps.admin.allowedOrigins, credentials: true }), createAdminAuthController(deps));
   app.use('/auth', createAuthController(deps));
   app.use('/profile', createProfileController(deps));
   app.use('/clients', createClientsController(deps));

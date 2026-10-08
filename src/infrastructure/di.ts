@@ -209,6 +209,14 @@ import { MongoBookingLifecycleStore } from './persistence/mongo/bookingLifecycle
 import { GoalkeeperIncidentRepository } from './persistence/mongo/goalkeeperIncidentRepository.js';
 import { RatingRepository } from './persistence/mongo/ratingRepository.js';
 import { CaseRepository } from './persistence/mongo/caseRepository.js';
+import { staffHandlerRegistrations } from './staffHandlers.js';
+import { PinoAdminSecurityLog } from './observability/pinoAdminSecurityLog.js';
+import { JwtAdminTokenIssuer } from './auth/jwtAdminTokenIssuer.js';
+import { StaffAccessResolver } from './auth/staffAccessResolver.js';
+import { MongoAdminAuditLog } from './persistence/mongo/adminAuditLogRepository.js';
+import { MongoStaffMemberRepository } from './persistence/mongo/staffMemberRepository.js';
+import { MongoStaffRoleRepository } from './persistence/mongo/staffRoleRepository.js';
+import { MongoAdminSessionStore } from './persistence/mongo/adminSessionStore.js';
 import { CancelAllJob } from '../application/features/bookingLifecycle/jobs/cancelAllJob.js';
 import { GOALKEEPER_CANCELLATION_EVENT_TYPES, GoalkeeperCancellationNoticeHandler } from '../application/features/bookingLifecycle/handlers/goalkeeperCancellationNoticeHandler.js';
 import { CancelBookingsByClientCommand } from '../application/features/bookingLifecycle/commands/cancelBookingsByClient/cancelBookingsByClientCommand.js';
@@ -294,6 +302,14 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   await ratingRepository.ensureIndexes();
   const caseRepository = new CaseRepository(db);
   await caseRepository.ensureIndexes();
+  // Admin web access (porteros-pro-admin spec 001): staff members, roles and sessions.
+  const staffMemberRepository = new MongoStaffMemberRepository(db, () => connectionProvider.startSession());
+  await staffMemberRepository.ensureIndexes();
+  const staffRoleRepository = new MongoStaffRoleRepository(db, () => connectionProvider.startSession());
+  await staffRoleRepository.ensureIndexes();
+  await staffRoleRepository.ensureOwner(new Date());
+  const adminSessionStore = new MongoAdminSessionStore(db);
+  await adminSessionStore.ensureIndexes();
   const quoteConfirmationStore = new MongoQuoteConfirmationStore(() => connectionProvider.startSession(), db);
   const walletRepository = new WalletRepository(db);
   const walletMovementRepository = new WalletMovementRepository(db);
@@ -341,6 +357,13 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   const auditLogger = new PinoAuditLogger();
   const idGenerator = new UuidIdGenerator();
   const clock = new SystemClock();
+  const adminTokenIssuer = new JwtAdminTokenIssuer({
+    signingKey: config.jwt.signingKey,
+    accessTokenLifetimeSeconds: config.admin.accessTokenLifetimeSeconds,
+  });
+  const staffAccessResolver = new StaffAccessResolver(adminSessionStore, staffMemberRepository, staffRoleRepository, clock);
+  const adminAuditLog = new MongoAdminAuditLog(db);
+  await adminAuditLog.ensureIndexes();
   const walletStore = new MongoWalletStore(() => connectionProvider.startSession(), db, () => clock.now());
   const walletLedger = new WalletLedger(walletStore, walletMovementRepository, idGenerator, clock);
   const topUpStore = new MongoTopUpStore(() => connectionProvider.startSession(), db, () => idGenerator.newId());
@@ -559,6 +582,22 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     logger.warn({ push_mode: 'log' }, 'Push notifications are only logged in production: nothing reaches devices');
   }
 
+  registerHandlers(
+    mediator,
+    staffHandlerRegistrations({
+      google: googleValidator,
+      users: userRepository,
+      members: staffMemberRepository,
+      roles: staffRoleRepository,
+      sessions: adminSessionStore,
+      tokens: adminTokenIssuer,
+      ids: idGenerator,
+      clock,
+      securityLog: new PinoAdminSecurityLog(),
+      accessResolver: staffAccessResolver,
+      auditLog: adminAuditLog,
+    }),
+  );
   registerHandlers(mediator, [
     { requestType: GetSsoOptionsQuery, handler: new GetSsoOptionsQueryHandler(ssoCatalog) },
     {
@@ -1055,6 +1094,15 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         androidPackage: config.payments.androidPackage,
         androidCertSha256: config.payments.androidCertSha256,
         iosAppId: config.payments.iosAppId,
+      },
+      admin: {
+        verifyAccessToken: (token) => adminTokenIssuer.verifyAccessToken(token),
+        accessResolver: staffAccessResolver,
+        auditLog: adminAuditLog,
+        allowedOrigins: config.admin.allowedOrigins,
+        sessionCookieSecure: config.admin.sessionCookieSecure,
+        newId: () => idGenerator.newId(),
+        now: () => clock.now(),
       },
     },
     close: async () => {

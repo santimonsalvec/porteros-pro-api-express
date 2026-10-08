@@ -13,6 +13,17 @@ export interface ISsoProviderCatalog {
 export interface IGoogleIdTokenValidator {
   /** Returns `null` (never throws for "just invalid") on any validation failure. */
   validate(credential: string, platform: string): Promise<ExternalIdentity | null>;
+  /**
+   * The admin web's sign-in: validated against the `admin-web` client, and it keeps what the
+   * staff invitation needs — whether Google verified the email, and the name to show.
+   */
+  validateForAdmin(credential: string): Promise<AdminGoogleIdentity | null>;
+}
+
+export interface AdminGoogleIdentity {
+  identity: ExternalIdentity;
+  emailVerified: boolean;
+  displayName: string | null;
 }
 
 export interface TokenIssueOptions {

@@ -4,7 +4,6 @@ import type { AccessTokenClaims } from '../application/features/auth/common/acce
 import { RateBookingCommand } from '../application/features/ratings/commands/rateBooking/rateBookingCommand.js';
 import { ListPendingRatingsQuery } from '../application/features/ratings/queries/listPendingRatings/listPendingRatingsQuery.js';
 import { requireAuth } from '../infrastructure/auth/middleware/requireAuth.js';
-import { requireClientOnly } from '../infrastructure/auth/middleware/requireClientOnly.js';
 import { requireCompleteProfile } from '../infrastructure/auth/middleware/requireCompleteProfile.js';
 import { ApiError } from './apiError.js';
 import { zodFieldErrors } from './requests/goalkeeperRequests/getServiceQuoteRequest.js';
@@ -21,7 +20,7 @@ export interface RatingsControllerDependencies {
  */
 export function createRatingsController(deps: RatingsControllerDependencies): Router {
   const router = Router();
-  router.use(requireAuth(deps.verifyAccessToken), requireClientOnly(), requireCompleteProfile());
+  router.use(requireAuth(deps.verifyAccessToken), requireCompleteProfile());
 
   router.get('/pending', async (req, res) => {
     const result = await deps.mediator.send(new ListPendingRatingsQuery(req.authClaims!.sub));

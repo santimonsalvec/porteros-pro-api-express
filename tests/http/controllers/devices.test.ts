@@ -1,7 +1,8 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
-import { signInAdmin, signInClient, signInGoalkeeper, type TestApp } from '../walletTestHelpers.js';
+import { signInClient, signInGoalkeeper, type TestApp } from '../walletTestHelpers.js';
+import { User } from '../../../src/domain/users/user.js';
 import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js';
 
 const TOKEN = 'fcm-token-0000000000000000000000000000000000';
@@ -14,6 +15,16 @@ const testPush = (context: TestApp, bearer: string) =>
   request(context.app).post('/devices/test-push').set('Authorization', `Bearer ${bearer}`).send();
 
 /** Signed in through SSO only: the profile is not completed yet. */
+/** An app sign-in of an account flagged `isAdmin` (spec 001, FR-020: the flag no longer blocks the app). */
+async function signInFlaggedAdmin(context: TestApp, sub: string): Promise<string> {
+  await context.userRepository.add(
+    User.createFromExternalIdentity({ id: `user-${sub}`, email: `${sub}@example.com`, displayName: null, provider: 'google', subject: sub, isAdmin: true }),
+  );
+  context.googleValidator.registerValidCredential(`cred-${sub}`, new ExternalIdentity('google', sub, `${sub}@example.com`));
+  const exchange = await request(context.app).post('/auth/sso/exchange').send({ provider: 'google', platform: 'mobile', credential: `cred-${sub}` });
+  return exchange.body.accessToken as string;
+}
+
 async function signInWithoutProfile(context: TestApp, sub: string): Promise<string> {
   context.googleValidator.registerValidCredential(`cred-${sub}`, new ExternalIdentity('google', sub, `${sub}@example.com`));
   const exchange = await request(context.app)
@@ -47,12 +58,12 @@ describe('POST /devices — US1: a signed-in phone can receive notifications', (
     const context = await buildTestApp();
     const newcomer = await signInWithoutProfile(context, 'sub-0003');
     const goalkeeper = await signInGoalkeeper(context, 'sub-0004');
-    const admin = await signInAdmin(context);
+    const admin = await signInFlaggedAdmin(context, 'sub-0005');
 
     const statuses = [
       (await register(context, newcomer, { token: 'tok-new', platform: 'ios' })).status,
       (await register(context, goalkeeper.token, { token: 'tok-gk', platform: 'android' })).status,
-      (await register(context, admin.token, { token: 'tok-admin', platform: 'ios' })).status,
+      (await register(context, admin, { token: 'tok-admin', platform: 'ios' })).status,
     ];
 
     expect(statuses).toEqual([204, 204, 204]);

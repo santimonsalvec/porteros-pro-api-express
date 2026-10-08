@@ -17,6 +17,18 @@ export const openapiSpec = {
   components: {
     securitySchemes: {
       bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+      adminBearerAuth: {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        description: "Admin web access token (audience porterospro-admin, 5 min). The app's tokens are not accepted, and vice versa.",
+      },
+      adminRefreshCookie: {
+        type: 'apiKey',
+        in: 'cookie',
+        name: 'pp_admin_rt',
+        description: 'Admin web refresh value: HttpOnly, Secure, SameSite=Strict, Path=/auth/admin. Never in a response body.',
+      },
     },
     schemas: {
       RegisterDeviceRequest: {
@@ -793,12 +805,132 @@ export const openapiSpec = {
           },
         },
       },
+      AdminSessionResponse: {
+        type: 'object',
+        properties: {
+          accessToken: { type: 'string' },
+          expiresInSeconds: { type: 'integer', example: 300 },
+          session: { type: 'object', properties: { startedAt: { type: 'string', format: 'date-time' }, absoluteExpiresAt: { type: 'string', format: 'date-time' } } },
+        },
+      },
+      StaffMember: {
+        type: 'object',
+        properties: {
+          staffId: { type: 'string' },
+          email: { type: 'string' },
+          displayName: { type: 'string', nullable: true },
+          role: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' }, system: { type: 'boolean' } } },
+          status: { type: 'string', enum: ['invited', 'active', 'disabled'] },
+          invitationExpired: { type: 'boolean', description: 'True when status is invited and the invitation is past its expiry' },
+          inviteExpiresAt: { type: 'string', format: 'date-time', nullable: true },
+          lastSignInAt: { type: 'string', format: 'date-time', nullable: true },
+          invitedBy: {
+            type: 'object',
+            nullable: true,
+            properties: { staffId: { type: 'string', nullable: true }, label: { type: 'string', description: "The inviter's email, or \"Script de operación\"" } },
+          },
+          createdAt: { type: 'string', format: 'date-time' },
+        },
+      },
+      StaffMembersPage: {
+        type: 'object',
+        properties: {
+          items: { type: 'array', items: { $ref: '#/components/schemas/StaffMember' } },
+          page: { type: 'integer' },
+          pageSize: { type: 'integer' },
+          totalItems: { type: 'integer' },
+          totalPages: { type: 'integer' },
+        },
+      },
+      StaffRole: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          name: { type: 'string' },
+          description: { type: 'string' },
+          system: { type: 'boolean' },
+          permissions: { type: 'array', items: { type: 'string' }, description: 'Empty for owner, which has every permission, also future ones' },
+          memberCount: { type: 'integer' },
+          updatedAt: { type: 'string', format: 'date-time' },
+        },
+      },
+      StaffRolesPage: {
+        type: 'object',
+        properties: {
+          items: { type: 'array', items: { $ref: '#/components/schemas/StaffRole' } },
+          page: { type: 'integer' },
+          pageSize: { type: 'integer' },
+          totalItems: { type: 'integer' },
+          totalPages: { type: 'integer' },
+        },
+      },
+      StaffRoleInput: {
+        type: 'object',
+        required: ['name', 'permissions'],
+        properties: {
+          name: { type: 'string', minLength: 2, maxLength: 60 },
+          description: { type: 'string', maxLength: 300 },
+          permissions: { type: 'array', items: { type: 'string' }, description: 'Catalog permissions, without repeats' },
+        },
+      },
+      AdminReason: {
+        type: 'object',
+        required: ['reason'],
+        properties: { reason: { type: 'string', minLength: 3, maxLength: 300, description: 'Kept in the audit entry (request.reason)' } },
+      },
+      AuditEntrySummary: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          at: { type: 'string', format: 'date-time' },
+          kind: { type: 'string', enum: ['write', 'sensitive_read'] },
+          actor: {
+            type: 'object',
+            properties: { type: { type: 'string', enum: ['staff', 'script'] }, staffId: { type: 'string', nullable: true }, label: { type: 'string' } },
+          },
+          permission: { type: 'string' },
+          action: { type: 'string', example: 'staff.disable' },
+          resourceType: { type: 'string' },
+          resourceId: { type: 'string' },
+          outcome: { type: 'string', enum: ['done', 'replayed', 'rejected', 'denied'] },
+          httpStatus: { type: 'integer' },
+          errorCode: { type: 'string', nullable: true },
+        },
+      },
+      AuditEntryDetail: {
+        allOf: [
+          { $ref: '#/components/schemas/AuditEntrySummary' },
+          {
+            type: 'object',
+            properties: {
+              sessionId: { type: 'string', nullable: true },
+              before: { type: 'object', nullable: true, additionalProperties: true },
+              after: { type: 'object', nullable: true, additionalProperties: true },
+              request: { type: 'object', nullable: true, additionalProperties: true, description: 'Redacted request body; holds the reason when there is one' },
+              ip: { type: 'string', nullable: true },
+              userAgent: { type: 'string', nullable: true },
+            },
+          },
+        ],
+      },
+      AdminMeResponse: {
+        type: 'object',
+        properties: {
+          staffId: { type: 'string' },
+          userId: { type: 'string' },
+          email: { type: 'string' },
+          displayName: { type: 'string', nullable: true },
+          role: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' }, system: { type: 'boolean' } } },
+          permissions: { type: 'array', items: { type: 'string' } },
+          session: { type: 'object', properties: { startedAt: { type: 'string', format: 'date-time' }, absoluteExpiresAt: { type: 'string', format: 'date-time' } } },
+        },
+      },
       MeResponse: {
         type: 'object',
         properties: {
           userId: { type: 'string' },
           email: { type: 'string' },
-          isAdmin: { type: 'boolean' },
+          isAdmin: { type: 'boolean', description: 'Always false: admin rights live in staff members (admin web). Kept for the app.' },
           isProfileComplete: { type: 'boolean' },
         },
       },
@@ -994,8 +1126,8 @@ export const openapiSpec = {
             description: 'Invalid credential',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
           },
-          '403': {
-            description: 'No matching administrator account (admin-web only)',
+          '410': {
+            description: '`admin_sign_in_moved`: platform admin-web signs in through POST /auth/admin/sign-in',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
           },
         },
@@ -1648,11 +1780,366 @@ export const openapiSpec = {
         },
       },
     },
+    '/auth/admin/sso-options': {
+      get: {
+        summary: "The admin web's sign-in providers (Google, web client id); same answer as /auth/sso-options?platform=admin-web, with the admin's CORS",
+        tags: ['Admin web session'],
+        responses: {
+          '200': {
+            description: 'Providers',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    providers: {
+                      type: 'array',
+                      items: { type: 'object', properties: { provider: { type: 'string', enum: ['google'] }, clientId: { type: 'string' }, scopes: { type: 'array', items: { type: 'string' } } } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/auth/admin/sign-in': {
+      post: {
+        summary: 'Admin web: exchange a Google ID token for a session',
+        tags: ['Admin web session'],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { type: 'object', properties: { credential: { type: 'string' } }, required: ['credential'] } } },
+        },
+        responses: {
+          '200': {
+            description: 'Session opened; the refresh value is set in the pp_admin_rt cookie',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/AdminSessionResponse' } } },
+          },
+          '400': { description: '`validation_failed`', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '401': { description: '`invalid_credential`', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '403': {
+            description: '`unauthorized_admin_account`: not an active staff member nor a valid invitation for this verified email',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+        },
+      },
+    },
+    '/auth/admin/refresh': {
+      post: {
+        summary: 'Admin web: rotate the session cookie and get a new access token',
+        tags: ['Admin web session'],
+        security: [{ adminRefreshCookie: [] }],
+        parameters: [{ name: 'X-Requested-With', in: 'header', required: true, schema: { type: 'string', enum: ['porteros-admin'] } }],
+        responses: {
+          '200': { description: 'Refreshed', content: { 'application/json': { schema: { $ref: '#/components/schemas/AdminSessionResponse' } } } },
+          '400': { description: '`missing_csrf_header`', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '401': {
+            description: '`invalid_refresh_token`: no cookie, 30 min idle, 12 h reached, revoked, reused, or member without access',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+        },
+      },
+    },
+    '/auth/admin/sign-out': {
+      post: {
+        summary: "Admin web: end this browser's session",
+        tags: ['Admin web session'],
+        security: [{ adminRefreshCookie: [] }],
+        parameters: [{ name: 'X-Requested-With', in: 'header', required: true, schema: { type: 'string', enum: ['porteros-admin'] } }],
+        responses: { '204': { description: 'Signed out; the cookie is cleared' } },
+      },
+    },
+    '/admin/me': {
+      get: {
+        summary: 'The signed-in staff member, role and effective permissions',
+        tags: ['Admin web session'],
+        security: [{ adminBearerAuth: [] }],
+        responses: {
+          '200': { description: 'Member', content: { 'application/json': { schema: { $ref: '#/components/schemas/AdminMeResponse' } } } },
+          '401': { description: 'No admin session' },
+        },
+      },
+    },
+    '/admin/permissions': {
+      get: {
+        summary: 'The fixed permission catalog, by area',
+        tags: ['Admin web session'],
+        security: [{ adminBearerAuth: [] }],
+        responses: {
+          '200': {
+            description: 'Catalog',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    areas: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          id: { type: 'string' },
+                          name: { type: 'string' },
+                          permissions: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, description: { type: 'string' } } } },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '401': { description: 'No admin session' },
+        },
+      },
+    },
+    '/admin/staff': {
+      get: {
+        summary: 'Staff members, ordered by email, one page at a time (staff.read)',
+        tags: ['Admin team'],
+        security: [{ adminBearerAuth: [] }],
+        parameters: [
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['invited', 'active', 'disabled'] } },
+          { name: 'roleId', in: 'query', schema: { type: 'string' } },
+          { name: 'q', in: 'query', schema: { type: 'string', minLength: 1, maxLength: 100 }, description: 'Email or name prefix, case-insensitive' },
+          { name: 'page', in: 'query', schema: { type: 'integer', minimum: 1, default: 1 } },
+          { name: 'pageSize', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 50, default: 20 } },
+        ],
+        responses: {
+          '200': { description: 'One page', content: { 'application/json': { schema: { $ref: '#/components/schemas/StaffMembersPage' } } } },
+          '400': { description: '`validation_failed`', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } } },
+          '401': { description: 'No admin session' },
+          '403': { description: '`forbidden`: the role lacks the permission', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+      post: {
+        summary: 'Invites someone by email with a role for 7 days, or renews a pending/expired invitation (staff.manage)',
+        tags: ['Admin team'],
+        security: [{ adminBearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { type: 'object', required: ['email', 'roleId'], properties: { email: { type: 'string', format: 'email' }, roleId: { type: 'string' } } } } },
+        },
+        responses: {
+          '200': { description: 'Invitation renewed', content: { 'application/json': { schema: { $ref: '#/components/schemas/StaffMember' } } } },
+          '201': { description: 'Invited', content: { 'application/json': { schema: { $ref: '#/components/schemas/StaffMember' } } } },
+          '400': { description: '`validation_failed`', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } } },
+          '401': { description: 'No admin session' },
+          '403': { description: '`forbidden`, or `owner_requires_owner`: only an owner invites an owner', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '404': { description: '`role_not_found`', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '409': { description: '`already_member`: active or disabled member', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/admin/staff/{staffId}': {
+      get: {
+        summary: 'One staff member (staff.read)',
+        tags: ['Admin team'],
+        security: [{ adminBearerAuth: [] }],
+        parameters: [{ name: 'staffId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          '200': { description: 'Member', content: { 'application/json': { schema: { $ref: '#/components/schemas/StaffMember' } } } },
+          '401': { description: 'No admin session' },
+          '403': { description: '`forbidden`: the role lacks the permission', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '404': { description: '`staff_not_found`', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+      patch: {
+        summary: "Changes a member's role, with a reason (staff.manage). The same role answers 200 without changes",
+        tags: ['Admin team'],
+        security: [{ adminBearerAuth: [] }],
+        parameters: [{ name: 'staffId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { type: 'object', required: ['roleId', 'reason'], properties: { roleId: { type: 'string' }, reason: { type: 'string', minLength: 3, maxLength: 300 } } },
+            },
+          },
+        },
+        responses: {
+          '200': { description: 'Member', content: { 'application/json': { schema: { $ref: '#/components/schemas/StaffMember' } } } },
+          '400': { description: '`validation_failed`', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } } },
+          '401': { description: 'No admin session' },
+          '403': { description: '`forbidden`, or `owner_requires_owner`: giving, removing or touching an owner takes an owner', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '404': { description: '`staff_not_found` or `role_not_found`', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '409': { description: '`last_owner`: it would leave no active owner', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/admin/staff/{staffId}/disable': {
+      post: {
+        summary: 'Disables a staff member (staff.manage). Already so answers 200 without changes',
+        tags: ['Admin team'],
+        security: [{ adminBearerAuth: [] }],
+        parameters: [{ name: 'staffId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/AdminReason' } } } },
+        responses: {
+          '200': { description: 'Member', content: { 'application/json': { schema: { $ref: '#/components/schemas/StaffMember' } } } },
+          '400': { description: '`validation_failed`: reason missing or out of 3–300', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } } },
+          '401': { description: 'No admin session' },
+          '403': { description: '`forbidden`: the role lacks the permission', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '404': { description: '`staff_not_found`', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '409': { description: '`cannot_disable_self` or `last_owner`', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/admin/staff/{staffId}/enable': {
+      post: {
+        summary: 'Enables a staff member (staff.manage). Already so answers 200 without changes',
+        tags: ['Admin team'],
+        security: [{ adminBearerAuth: [] }],
+        parameters: [{ name: 'staffId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/AdminReason' } } } },
+        responses: {
+          '200': { description: 'Member', content: { 'application/json': { schema: { $ref: '#/components/schemas/StaffMember' } } } },
+          '400': { description: '`validation_failed`: reason missing or out of 3–300', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } } },
+          '401': { description: 'No admin session' },
+          '403': { description: '`forbidden`: the role lacks the permission', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '404': { description: '`staff_not_found`', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '409': { description: '`last_owner`', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/admin/roles': {
+      get: {
+        summary: 'Roles: owner first, then by name (roles.read)',
+        tags: ['Admin team'],
+        security: [{ adminBearerAuth: [] }],
+        parameters: [
+          { name: 'page', in: 'query', schema: { type: 'integer', minimum: 1, default: 1 } },
+          { name: 'pageSize', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 50, default: 20 } },
+        ],
+        responses: {
+          '200': { description: 'One page', content: { 'application/json': { schema: { $ref: '#/components/schemas/StaffRolesPage' } } } },
+          '401': { description: 'No admin session' },
+          '403': { description: '`forbidden`: the role lacks the permission', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+      post: {
+        summary: 'Creates a role; without id, the id is a slug of the name (roles.manage)',
+        tags: ['Admin team'],
+        security: [{ adminBearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { allOf: [{ $ref: '#/components/schemas/StaffRoleInput' }, { type: 'object', properties: { id: { type: 'string', pattern: '^[a-z][a-z0-9-]{1,39}$' } } }] },
+            },
+          },
+        },
+        responses: {
+          '201': { description: 'Created', content: { 'application/json': { schema: { $ref: '#/components/schemas/StaffRole' } } } },
+          '400': { description: '`validation_failed`', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } } },
+          '401': { description: 'No admin session' },
+          '403': { description: '`forbidden`: the role lacks the permission', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '409': { description: '`role_name_taken` (case-insensitive) or `system_role_immutable`', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/admin/roles/{roleId}': {
+      get: {
+        summary: 'One role (roles.read)',
+        tags: ['Admin team'],
+        security: [{ adminBearerAuth: [] }],
+        parameters: [{ name: 'roleId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          '200': { description: 'Role', content: { 'application/json': { schema: { $ref: '#/components/schemas/StaffRole' } } } },
+          '401': { description: 'No admin session' },
+          '403': { description: '`forbidden`: the role lacks the permission', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '404': { description: '`role_not_found`', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+      put: {
+        summary: "Replaces a role's name, description and permissions; members see it within 30 s (roles.manage)",
+        tags: ['Admin team'],
+        security: [{ adminBearerAuth: [] }],
+        parameters: [{ name: 'roleId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/StaffRoleInput' } } } },
+        responses: {
+          '200': { description: 'Role', content: { 'application/json': { schema: { $ref: '#/components/schemas/StaffRole' } } } },
+          '400': { description: '`validation_failed`', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } } },
+          '401': { description: 'No admin session' },
+          '403': { description: '`forbidden`: the role lacks the permission', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '404': { description: '`role_not_found`', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '409': { description: '`role_name_taken` or `system_role_immutable`', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/admin/roles/{roleId}/delete': {
+      post: {
+        summary: 'Deletes a role without members, with a reason (roles.manage)',
+        tags: ['Admin team'],
+        security: [{ adminBearerAuth: [] }],
+        parameters: [{ name: 'roleId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/AdminReason' } } } },
+        responses: {
+          '204': { description: 'Deleted' },
+          '400': { description: '`validation_failed`', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } } },
+          '401': { description: 'No admin session' },
+          '403': { description: '`forbidden`: the role lacks the permission', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '404': { description: '`role_not_found`', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '409': { description: '`role_in_use` (with memberCount) or `system_role_immutable`', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/admin/audit-log': {
+      get: {
+        summary: 'Audit entries, newest first (at, then id), by cursor (audit.read). Reading it is not audited',
+        tags: ['Admin team'],
+        security: [{ adminBearerAuth: [] }],
+        parameters: [
+          { name: 'staffId', in: 'query', schema: { type: 'string' } },
+          { name: 'resourceType', in: 'query', schema: { type: 'string' } },
+          { name: 'action', in: 'query', schema: { type: 'string' } },
+          { name: 'outcome', in: 'query', schema: { type: 'string', enum: ['done', 'replayed', 'rejected', 'denied'] } },
+          { name: 'from', in: 'query', schema: { type: 'string', format: 'date-time' } },
+          { name: 'to', in: 'query', schema: { type: 'string', format: 'date-time' }, description: 'Not before from' },
+          { name: 'cursor', in: 'query', schema: { type: 'string' }, description: 'Opaque; nextCursor of the previous page' },
+          { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 100, default: 50 } },
+        ],
+        responses: {
+          '200': {
+            description: 'One page; nextCursor is null on the last one',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    items: { type: 'array', items: { $ref: '#/components/schemas/AuditEntrySummary' } },
+                    nextCursor: { type: 'string', nullable: true },
+                  },
+                },
+              },
+            },
+          },
+          '400': { description: '`validation_failed`: malformed cursor (fieldErrors.cursor) or from after to', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } } },
+          '401': { description: 'No admin session' },
+          '403': { description: '`forbidden`: the role lacks the permission', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/admin/audit-log/{entryId}': {
+      get: {
+        summary: 'One audit entry in full: before, after, request, ip and user agent (audit.read)',
+        tags: ['Admin team'],
+        security: [{ adminBearerAuth: [] }],
+        parameters: [{ name: 'entryId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          '200': { description: 'Entry', content: { 'application/json': { schema: { $ref: '#/components/schemas/AuditEntryDetail' } } } },
+          '401': { description: 'No admin session' },
+          '403': { description: '`forbidden`: the role lacks the permission', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '404': { description: '`audit_entry_not_found`', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
     '/admin/payment-gateways/{countryId}': {
       get: {
         summary: "A country's top-up gateway settings (administrators only, feature 022)",
         tags: ['Admin'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         parameters: [{ name: 'countryId', in: 'path', required: true, schema: { type: 'string' } }],
         responses: {
           '200': { description: 'The settings, never a secret', content: { 'application/json': { schema: { $ref: '#/components/schemas/GatewaySettingsResponse' } } } },
@@ -1665,7 +2152,7 @@ export const openapiSpec = {
         summary: "Sets a country's top-up gateway, public key, costs and amounts (administrators only, feature 022)",
         description: 'Pending top-ups keep the gateway and environment they started with.',
         tags: ['Admin'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         parameters: [{ name: 'countryId', in: 'path', required: true, schema: { type: 'string' } }],
         requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/GatewaySettingsRequest' } } } },
         responses: {
@@ -1681,7 +2168,7 @@ export const openapiSpec = {
       post: {
         summary: 'Accepts the current terms and privacy policy versions (feature 022)',
         tags: ['Profile'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         responses: {
           '201': {
             description: 'Recorded with the IP and user agent',
@@ -1722,7 +2209,7 @@ export const openapiSpec = {
       get: {
         summary: "The goalkeeper's invoices and credit notes, newest first (feature 023)",
         tags: ['Invoicing'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         parameters: [
           { name: 'page', in: 'query', required: false, schema: { type: 'integer', minimum: 1, default: 1 } },
           { name: 'pageSize', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 50, default: 20 } },
@@ -1739,7 +2226,7 @@ export const openapiSpec = {
       get: {
         summary: 'One of the goalkeeper\'s documents (feature 023)',
         tags: ['Invoicing'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         parameters: [{ name: 'documentId', in: 'path', required: true, schema: { type: 'string' } }],
         responses: {
           '200': { description: 'The document', content: { 'application/json': { schema: { $ref: '#/components/schemas/InvoicingDocumentItem' } } } },
@@ -1751,7 +2238,7 @@ export const openapiSpec = {
       get: {
         summary: 'Downloads the PDF or XML of an issued document, from its provider (feature 023)',
         tags: ['Invoicing'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         parameters: [
           { name: 'documentId', in: 'path', required: true, schema: { type: 'string' } },
           { name: 'format', in: 'path', required: true, schema: { type: 'string', enum: ['pdf', 'xml'] } },
@@ -1768,7 +2255,7 @@ export const openapiSpec = {
       get: {
         summary: "A country's VAT rate (administrators only, feature 023)",
         tags: ['Admin'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         parameters: [{ name: 'countryId', in: 'path', required: true, schema: { type: 'string' } }],
         responses: {
           '200': { description: 'The rate', content: { 'application/json': { schema: { $ref: '#/components/schemas/TaxSettingsResponse' } } } },
@@ -1779,7 +2266,7 @@ export const openapiSpec = {
       put: {
         summary: "Sets a country's VAT rate, charged on top of commissions and penalties from now on (administrators only, feature 023)",
         tags: ['Admin'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         parameters: [{ name: 'countryId', in: 'path', required: true, schema: { type: 'string' } }],
         requestBody: {
           required: true,
@@ -1797,7 +2284,7 @@ export const openapiSpec = {
       get: {
         summary: "A country's invoicing provider (administrators only, feature 023)",
         tags: ['Admin'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         parameters: [{ name: 'countryId', in: 'path', required: true, schema: { type: 'string' } }],
         responses: {
           '200': { description: 'The settings, never credentials', content: { 'application/json': { schema: { $ref: '#/components/schemas/InvoicingSettingsResponse' } } } },
@@ -1809,7 +2296,7 @@ export const openapiSpec = {
         summary: "Sets a country's invoicing provider and its non-secret configuration (administrators only, feature 023)",
         description: 'Documents already sent keep their provider. Credentials are set in Secret Manager ({PROVIDER}_{COUNTRY}_USERNAME / _ACCESS_KEY).',
         tags: ['Admin'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         parameters: [{ name: 'countryId', in: 'path', required: true, schema: { type: 'string' } }],
         requestBody: {
           required: true,
@@ -1827,7 +2314,7 @@ export const openapiSpec = {
       get: {
         summary: 'Invoicing documents by status, oldest first, with reasons (administrators only, feature 023)',
         tags: ['Admin'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         parameters: [
           { name: 'status', in: 'query', required: false, schema: { type: 'string', enum: ['pending', 'awaiting_authority', 'issued', 'rejected'] } },
           { name: 'page', in: 'query', required: false, schema: { type: 'integer', minimum: 1, default: 1 } },
@@ -1846,7 +2333,7 @@ export const openapiSpec = {
       post: {
         summary: 'Retries a rejected document with the buyer\'s current data (administrators only, feature 023)',
         tags: ['Admin'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         parameters: [{ name: 'documentId', in: 'path', required: true, schema: { type: 'string' } }],
         responses: {
           '202': { description: 'Retried at once', content: { 'application/json': { schema: { $ref: '#/components/schemas/AdminInvoicingDocumentItem' } } } },
@@ -1860,7 +2347,7 @@ export const openapiSpec = {
       get: {
         summary: "Any goalkeeper's wallet (administrators only)",
         tags: ['Admin'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }],
         responses: {
           '200': { description: 'The wallet, plus goalkeeperId', content: { 'application/json': { schema: { $ref: '#/components/schemas/WalletViewResponse' } } } },
@@ -1875,7 +2362,7 @@ export const openapiSpec = {
       get: {
         summary: "Any goalkeeper's wallet movements, with actor, cause key and invoicing data (administrators only)",
         tags: ['Admin'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }, ...[
           { name: 'page', in: 'query', required: false, schema: { type: 'integer', minimum: 1, default: 1 } },
           { name: 'pageSize', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 50, default: 20 } },
@@ -1895,7 +2382,7 @@ export const openapiSpec = {
         description:
           'A debit may not leave the balance below zero (only penalties can). Until payment-gateway top-ups exist, this is how money enters a wallet in development.',
         tags: ['Admin'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }],
         requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/RecordWalletAdjustmentRequest' } } } },
         responses: {
@@ -1916,7 +2403,7 @@ export const openapiSpec = {
         description:
           'Upload the photo first with POST /images, then send its id. Allowed from start − 30 min to start + 15 min (per country, inclusive, platform clock); no check-in after the window. The location is optional evidence and never blocks. Repeating it answers the recorded check-in.',
         tags: ['Goalkeeper bookings'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         parameters: [{ name: 'bookingId', in: 'path', required: true, schema: { type: 'string' } }],
         requestBody: {
           required: true,
@@ -1959,7 +2446,7 @@ export const openapiSpec = {
         description:
           'Allowed strictly before the start. The commission is not refunded. While the search is open (start − travel margin), a replacement booking with the same price is created and offered to other goalkeepers; the client is told. Less notice than the country threshold (2 h) suspends 3 days, and the 3rd withdrawal within 7 days suspends 7 days; suspensions never add up. Repeating it answers the same.',
         tags: ['Goalkeeper bookings'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         parameters: [{ name: 'bookingId', in: 'path', required: true, schema: { type: 'string' } }],
         requestBody: {
           required: false,
@@ -1990,7 +2477,7 @@ export const openapiSpec = {
       get: {
         summary: "The caller's withdrawals and penalties, newest first (feature 018)",
         tags: ['Goalkeeper bookings'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         parameters: PAGING,
         responses: {
           '200': { description: 'A page of withdrawals and the suspension in force', content: { 'application/json': { schema: { $ref: '#/components/schemas/WithdrawalPage' } } } },
@@ -2004,7 +2491,7 @@ export const openapiSpec = {
       get: {
         summary: "A goalkeeper's withdrawals and penalties, with who reversed what (administrators only)",
         tags: ['Admin'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }, ...PAGING],
         responses: {
           '200': { description: 'A page of withdrawals', content: { 'application/json': { schema: { $ref: '#/components/schemas/WithdrawalPage' } } } },
@@ -2021,7 +2508,7 @@ export const openapiSpec = {
         description:
           'refund gives back the booking commission once (a commission_refund by the administrator); liftSuspension lifts its penalties and recomputes the suspension end immediately. Either one forgives the withdrawal: it no longer counts toward the weekly limit. Repeating it changes nothing.',
         tags: ['Admin'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         parameters: [
           { name: 'userId', in: 'path', required: true, schema: { type: 'string' } },
           { name: 'withdrawalId', in: 'path', required: true, schema: { type: 'string' } },
@@ -2071,7 +2558,7 @@ export const openapiSpec = {
       get: {
         summary: "The caller's ratings still to give (feature 021), shown when the app opens (no push)",
         tags: ['Ratings'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         responses: {
           '200': {
             description: 'Newest match first. side client → question goalkeeper_arrived; side goalkeeper → question payment_received',
@@ -2114,7 +2601,7 @@ export const openapiSpec = {
         description:
           'The client answers whether the goalkeeper came; the goalkeeper whether they were paid. A client "no" without a check-in records a no-show at once (3-day suspension) and opens a case; other "no" answers open a case. Open from the end of the match (the client also from the check-in) until 7 days after.',
         tags: ['Ratings'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         parameters: [{ name: 'bookingId', in: 'path', required: true, schema: { type: 'string' } }],
         requestBody: {
           required: true,
@@ -2141,7 +2628,7 @@ export const openapiSpec = {
       get: {
         summary: 'Cases for manual review, open first (administrators only; feature 021)',
         tags: ['Admin'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         parameters: [{ name: 'status', in: 'query', required: false, schema: { type: 'string', enum: ['open', 'resolved'] } }, ...PAGING],
         responses: {
           '200': {
@@ -2179,7 +2666,7 @@ export const openapiSpec = {
       get: {
         summary: 'One case with the rating that opened it and the check-in evidence (location included)',
         tags: ['Admin'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         parameters: [{ name: 'caseId', in: 'path', required: true, schema: { type: 'string' } }],
         responses: {
           '200': { description: 'The case, plus rating and checkIn' },
@@ -2194,7 +2681,7 @@ export const openapiSpec = {
         summary: 'Close a case with a mandatory note (administrators only)',
         description: 'Resolving undoes nothing by itself: to lift a no-show penalty, reverse its incident (noShowIncidentId) with the withdrawal reversal.',
         tags: ['Admin'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         parameters: [{ name: 'caseId', in: 'path', required: true, schema: { type: 'string' } }],
         requestBody: {
           required: true,
@@ -2214,7 +2701,7 @@ export const openapiSpec = {
       get: {
         summary: "Get the caller's current goalkeeper registration status",
         tags: ['Goalkeepers'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         responses: {
           '200': {
             description: 'Current registration state (not_started/in_progress/active)',
@@ -2229,7 +2716,7 @@ export const openapiSpec = {
       patch: {
         summary: 'Save (partially) the identification section',
         tags: ['Goalkeepers'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         requestBody: {
           required: true,
           content: {
@@ -2268,7 +2755,7 @@ export const openapiSpec = {
       patch: {
         summary: 'Save (partially) the physical data section',
         tags: ['Goalkeepers'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         requestBody: {
           required: true,
           content: {
@@ -2302,7 +2789,7 @@ export const openapiSpec = {
       patch: {
         summary: 'Save the availability section — the chosen service city and its service zones, together',
         tags: ['Goalkeepers'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         requestBody: {
           required: true,
           content: {
@@ -2340,7 +2827,7 @@ export const openapiSpec = {
       post: {
         summary: 'Upload one or both identification document photos',
         tags: ['Goalkeepers'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         requestBody: {
           required: true,
           content: {
@@ -2387,7 +2874,7 @@ export const openapiSpec = {
         description:
           'Does not change the goalkeeper’s status or require reactivation. Idempotent; last write wins. Authorized against the database (an existing goalkeeper profile), not the isGoalkeeper token claim.',
         tags: ['Goalkeepers'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         requestBody: {
           required: true,
           content: {
@@ -2431,7 +2918,7 @@ export const openapiSpec = {
         description:
           'City and zones are saved together, atomically. Same validations as the draft registration. Does not change the goalkeeper’s status. Idempotent; last write wins.',
         tags: ['Goalkeepers'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         requestBody: {
           required: true,
           content: {
@@ -2473,7 +2960,7 @@ export const openapiSpec = {
       post: {
         summary: 'Activate the goalkeeper profile once all sections are complete',
         tags: ['Goalkeepers'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         responses: {
           '200': {
             description:
@@ -2490,7 +2977,7 @@ export const openapiSpec = {
       post: {
         summary: 'Cancel an in-progress registration, discarding all saved data and photos',
         tags: ['Goalkeepers'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         responses: {
           '200': {
             description: 'Reset to not_started',
@@ -2511,7 +2998,7 @@ export const openapiSpec = {
         description:
           'Call after sign-in, on every app start with a session, and on every token refresh. Any signed-in user, with or without a completed profile. A token belongs to one user: registering a token another user had moves it to the caller. Tokens travel only in the body.',
         tags: ['Devices'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/RegisterDeviceRequest' } } } },
         responses: {
           '204': { description: 'Stored (new, refreshed or moved from another user — indistinguishable on purpose)' },
@@ -2525,7 +3012,7 @@ export const openapiSpec = {
         summary: 'Forget this device (call before signing out)',
         description: "Removes the token only when it is the caller's. Answers 204 whatever the token was, and is idempotent.",
         tags: ['Devices'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/UnregisterDeviceRequest' } } } },
         responses: {
           '204': { description: 'Done' },
@@ -2539,7 +3026,7 @@ export const openapiSpec = {
         summary: "Send a test push to the caller's own devices",
         description: 'data.type is "test". Limited per user (default 5 per minute).',
         tags: ['Devices'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         responses: {
           '200': { description: 'Per-device result for the caller', content: { 'application/json': { schema: { $ref: '#/components/schemas/UserPushResult' } } } },
           '401': { description: 'Not signed in' },
@@ -2556,7 +3043,7 @@ export const openapiSpec = {
         description:
           'Any signed-in user. In feature 015 the entries are match offers to goalkeepers (type booking.available). Entries the user deleted (feature 025) are left out of the items, totals and unread count.',
         tags: ['Notifications'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         parameters: [
           { name: 'page', in: 'query', required: false, schema: { type: 'integer', minimum: 1, default: 1 } },
           { name: 'pageSize', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 50, default: 20 } },
@@ -2572,7 +3059,7 @@ export const openapiSpec = {
       post: {
         summary: "Mark every unread entry of the caller read",
         tags: ['Notifications'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         responses: { '204': { description: 'Done' }, '401': { description: 'Not signed in' } },
       },
     },
@@ -2582,7 +3069,7 @@ export const openapiSpec = {
         description:
           'Logical delete (feature 025): entries stay stored for dedupe and the 90-day retention, but leave the inbox and are marked read. `before` is the createdAt of the newest entry the user had, so newer ones are kept.',
         tags: ['Notifications'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         requestBody: {
           required: true,
           content: {
@@ -2607,7 +3094,7 @@ export const openapiSpec = {
         description:
           'Logical delete (feature 025): the entry is hidden and marked read, so an offer is no longer reminded; the match itself is not rejected.',
         tags: ['Notifications'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         parameters: [{ name: 'notificationId', in: 'path', required: true, schema: { type: 'string' } }],
         responses: {
           '204': { description: 'Deleted (idempotent)' },
@@ -2620,7 +3107,7 @@ export const openapiSpec = {
       post: {
         summary: 'Mark one entry read (for an offer: opened, so it is never reminded again)',
         tags: ['Notifications'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         parameters: [{ name: 'notificationId', in: 'path', required: true, schema: { type: 'string' } }],
         responses: {
           '204': { description: 'Read (idempotent)' },
@@ -2633,7 +3120,7 @@ export const openapiSpec = {
       post: {
         summary: 'Dismiss an offer: never reminded again, and marked read',
         tags: ['Notifications'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         parameters: [{ name: 'notificationId', in: 'path', required: true, schema: { type: 'string' } }],
         responses: {
           '204': { description: 'Dismissed (idempotent)' },
@@ -2649,7 +3136,7 @@ export const openapiSpec = {
         description:
           'Off: no offers (first notifications or reminders), an empty available-matches list and no accepting; the agenda is unaffected. Turning it on sends the offers for the open matches the goalkeeper can take right away, in one push.',
         tags: ['Goalkeeper bookings'],
-        security: [{ bearerAuth: [] }],
+        security: [{ adminBearerAuth: [] }],
         requestBody: {
           required: true,
           content: { 'application/json': { schema: { type: 'object', properties: { available: { type: 'boolean' } }, required: ['available'] } } },

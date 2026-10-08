@@ -14,7 +14,6 @@ import { ActivateGoalkeeperCommand } from '../application/features/goalkeepers/c
 import { CancelGoalkeeperRegistrationCommand } from '../application/features/goalkeepers/commands/cancelGoalkeeperRegistration/cancelGoalkeeperRegistrationCommand.js';
 import type { GoalkeeperRegistrationResponse } from '../application/features/goalkeepers/common/goalkeeperRegistrationResponse.js';
 import { requireAuth } from '../infrastructure/auth/middleware/requireAuth.js';
-import { requireClientOnly } from '../infrastructure/auth/middleware/requireClientOnly.js';
 import { requireCompleteProfile } from '../infrastructure/auth/middleware/requireCompleteProfile.js';
 import type { AccessTokenClaims } from '../application/features/auth/common/accessTokenClaims.js';
 import { config } from '../infrastructure/config.js';
@@ -66,7 +65,7 @@ export function createGoalkeeperController(deps: GoalkeeperControllerDependencie
     res.status(200).json({ documentTypes: result.documentTypes });
   });
 
-  router.use('/me', requireAuth(deps.verifyAccessToken), requireClientOnly(), requireCompleteProfile());
+  router.use('/me', requireAuth(deps.verifyAccessToken), requireCompleteProfile());
 
   router.get('/me', async (req, res) => {
     const claims = req.authClaims!;

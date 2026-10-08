@@ -43,7 +43,7 @@ describe('/admin/payment-gateways/{countryId} — US5: an administrator chooses 
     expect(response.body.error).toBe('validation_failed');
   });
 
-  it('404 for an unknown country, 403 for a non-administrator', async () => {
+  it('404 for an unknown country, 401 for an app token (spec 001: other audience)', async () => {
     const context = await buildTestApp();
     const admin = await signInAdmin(context);
     const client = await signInClient(context, 'sub-2221');
@@ -53,6 +53,6 @@ describe('/admin/payment-gateways/{countryId} — US5: an administrator chooses 
 
     expect(unknown.status).toBe(404);
     expect(unknown.body.error).toBe('country_not_found');
-    expect(forbidden.status).toBe(403);
+    expect(forbidden.status).toBe(401);
   });
 });

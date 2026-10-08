@@ -29,6 +29,13 @@ export class ExchangeSsoCredentialCommandHandler
   ) {}
 
   async handle(command: ExchangeSsoCredentialCommand): Promise<ExchangeSsoCredentialResult> {
+    // The admin web has its own sessions (staff members, porteros-pro-admin spec 001): this
+    // exchange is only the app's, and `users.isAdmin` no longer grants anything.
+    if (command.platform === 'admin-web') {
+      this.auditLogger.logSsoAttempt({ provider: command.provider, platform: command.platform, success: false, reason: 'admin_sign_in_moved' });
+      return { outcome: 'admin_sign_in_moved' };
+    }
+
     const identity = await this.googleValidator.validate(command.credential, command.platform);
     if (!identity) {
       this.auditLogger.logSsoAttempt({
@@ -42,17 +49,7 @@ export class ExchangeSsoCredentialCommandHandler
 
     let user = await this.userRepository.findByExternalIdentity(identity.provider, identity.subject);
 
-    if (command.platform === 'admin-web') {
-      if (!user || !user.isAdmin) {
-        this.auditLogger.logSsoAttempt({
-          provider: command.provider,
-          platform: command.platform,
-          success: false,
-          reason: 'unauthorized_admin_account',
-        });
-        return { outcome: 'unauthorized_admin_account' };
-      }
-    } else if (!user) {
+    if (!user) {
       user = User.createFromExternalIdentity({
         id: this.idGenerator.newId(),
         email: identity.email,

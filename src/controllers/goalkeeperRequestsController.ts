@@ -9,7 +9,6 @@ import { IssueServiceQuoteCommand } from '../application/features/goalkeeperRequ
 import { ListClientRequestsQuery } from '../application/features/goalkeeperRequests/queries/listClientRequests/listClientRequestsQuery.js';
 import { logger } from '../infrastructure/observability/logger.js';
 import { requireAuth } from '../infrastructure/auth/middleware/requireAuth.js';
-import { requireClientOnly } from '../infrastructure/auth/middleware/requireClientOnly.js';
 import { requireCompleteProfile } from '../infrastructure/auth/middleware/requireCompleteProfile.js';
 import { PARTIAL_FULFILLMENT_DEFAULT } from '../domain/bookings/goalkeeperRequest.js';
 import { ApiError } from './apiError.js';
@@ -54,7 +53,7 @@ function serviceNotConfigured(source: string, cityId: string, missing: MissingSe
 export function createGoalkeeperRequestsController(deps: GoalkeeperRequestsControllerDependencies): Router {
   const router = Router();
 
-  router.use(requireAuth(deps.verifyAccessToken), requireClientOnly(), requireCompleteProfile());
+  router.use(requireAuth(deps.verifyAccessToken), requireCompleteProfile());
 
   router.get('/config', async (req, res) => {
     const parsed = getBookingConfigRequestSchema.safeParse(req.query);
