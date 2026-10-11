@@ -1,3 +1,5 @@
+import { geographyPaths } from './openapiGeography.js';
+
 /** Hand-written OpenAPI 3.0 document mirroring specs/001-porteros-api-migration/contracts/. */
 /** `page` / `pageSize` query parameters of the paged lists (1-based, 20 by default, at most 50). */
 const PAGING = [
@@ -1073,6 +1075,7 @@ export const openapiSpec = {
     },
   },
   paths: {
+    ...geographyPaths,
     '/auth/sso-options': {
       get: {
         summary: 'Discover available SSO providers for a platform',

@@ -89,6 +89,19 @@ describe('auditTrail', () => {
     expect(log.entries[0]!.outcome).toBe('replayed');
   });
 
+  it('takes the action and the resource id the handler decided, when it set them (admin spec 003)', async () => {
+    const { log, trail } = setup();
+    const res = fakeResponse();
+
+    await run(trail.audited(spec), fakeRequest({}), res, (r) => {
+      r.locals.auditAction = 'zone.deactivate';
+      r.locals.auditResourceId = 'zone-new';
+      r.status(200).json({ countryId: 'country-co' });
+    });
+
+    expect(log.entries[0]).toMatchObject({ action: 'zone.deactivate', resourceId: 'zone-new' });
+  });
+
   it('records a refused write with its error code and without an after', async () => {
     const { log, trail } = setup();
 

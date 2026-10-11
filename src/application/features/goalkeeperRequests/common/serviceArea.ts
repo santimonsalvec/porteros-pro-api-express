@@ -1,5 +1,6 @@
 import type { City } from '../../../../domain/locations/city.js';
-import type { LeadTimeSurcharge } from '../../../../domain/pricing/bookingSettings.js';
+import type { BookingSettings, LeadTimeSurcharge } from '../../../../domain/pricing/bookingSettings.js';
+import type { Country } from '../../../../domain/countries/country.js';
 import { InvalidConfigurationError } from '../../../../domain/pricing/invalidConfigurationError.js';
 import type { Zone } from '../../../../domain/zones/zone.js';
 import type { ICityRepository, IRegionRepository } from '../../locations/common/ports.js';
@@ -74,7 +75,18 @@ export async function resolveAreaSettings(deps: AreaSettingsDependencies, city: 
     deps.bookingSettingsRepository.findFor(city.id, countryId),
     countryId === null ? Promise.resolve(null) : deps.countryLookup.getById(countryId),
   ]);
+  return areaSettingsFrom(settingsDocuments, country);
+}
 
+/**
+ * The booking rules of an area from its documents already read: the city's and its country's
+ * settings, and the country (its currency). Shared with the admin's readiness, which reads many
+ * areas at once, so both judge an area the same way.
+ */
+export function areaSettingsFrom(
+  settingsDocuments: { city: BookingSettings | null; country: BookingSettings | null },
+  country: Country | null,
+): AreaSettingsResult {
   const currency = country?.currency ?? null;
   if (currency !== null && !CURRENCY_PATTERN.test(currency)) {
     throw new InvalidConfigurationError(`countries document ${country?.id}: '${currency}' is not a 3-letter uppercase currency code`);

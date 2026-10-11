@@ -26,7 +26,7 @@ function geometryContains(zone: Zone, lng: number, lat: number): boolean {
 }
 
 export class FakeZoneRepository implements IZoneRepository {
-  private readonly zones = new Map<string, Zone>();
+  readonly zones = new Map<string, Zone>();
 
   seed(zone: Zone): void {
     this.zones.set(zone.id, zone);

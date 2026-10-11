@@ -133,3 +133,21 @@ describe('BookingSettingsRepository (mocked driver)', () => {
     expect(found.city?.goalkeeperPenalties).toBeNull();
   });
 });
+
+describe('BookingSettingsRepository.findMany (admin readiness)', () => {
+  it('reads the rules of many cities and countries in one query', async () => {
+    const collection = createFakeCollection();
+    collection.find.mockReturnValue(toArrayResult([{ _id: 'bs-co', scope: 'country', refId: 'co', minNoticeMinutes: 60 }]));
+
+    const found = await repositoryWith(collection).findMany({ cityIds: ['med', 'bog'], countryIds: ['co'] });
+
+    expect(collection.find).toHaveBeenCalledWith({ $or: [{ scope: 'city', refId: { $in: ['med', 'bog'] } }, { scope: 'country', refId: { $in: ['co'] } }] });
+    expect(found.map((settings) => [settings.scope, settings.refId, settings.minNoticeMinutes])).toEqual([['country', 'co', 60]]);
+  });
+
+  it('asks nothing for no refs', async () => {
+    const collection = createFakeCollection();
+    expect(await repositoryWith(collection).findMany({ cityIds: [], countryIds: [] })).toEqual([]);
+    expect(collection.find).not.toHaveBeenCalled();
+  });
+});

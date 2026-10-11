@@ -2,7 +2,7 @@ import type { IDocumentTypeRepository } from '../../src/application/features/goa
 import { DocumentType } from '../../src/domain/goalkeepers/documentType.js';
 
 export class FakeDocumentTypeRepository implements IDocumentTypeRepository {
-  private readonly documentTypes = new Map<string, DocumentType>();
+  readonly documentTypes = new Map<string, DocumentType>();
 
   seed(documentType: DocumentType): void {
     this.documentTypes.set(documentType.id, documentType);

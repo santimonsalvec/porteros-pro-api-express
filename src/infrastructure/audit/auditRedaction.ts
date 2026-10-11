@@ -27,6 +27,19 @@ const ALLOWED_FIELDS: Readonly<Record<string, readonly string[]>> = {
     'inviteExpiresAt', 'lastSignInAt', 'reason',
   ],
   staffRole: ['id', 'name', 'description', 'permissions', 'system', 'memberCount', 'reason'],
+  // Geography and catalogs (spec 003 of the admin): reference data, nothing personal or secret.
+  country: ['id', 'name', 'countryCode', 'dialCode', 'currency', 'operating', 'regionCount', 'revision', 'reason'],
+  region: ['id', 'name', 'countryId', 'countryName', 'cityCount', 'revision', 'reason'],
+  city: [
+    'id', 'name', 'region', 'country', 'countryCode', 'timeZone', 'timeZoneValid', 'daneStateCode', 'daneCityCode',
+    'zoneCity', 'zoneCount', 'satelliteCount', 'state', 'revision', 'reason',
+  ],
+  zone: [
+    'id', 'cityId', 'name', 'slug', 'active', 'displayOrder', 'geometry', 'type', 'coordinates', 'geometryValid', 'inUse',
+    'revision', 'reason',
+  ],
+  documentType: ['id', 'code', 'name', 'invoiceable', 'inUse', 'revision', 'reason'],
+  matchSurface: ['id', 'name', 'active', 'order', 'inUse', 'revision', 'reason'],
 };
 
 /** Never stored, at any depth and whatever the resource: secrets, identity documents, phones, comments. */

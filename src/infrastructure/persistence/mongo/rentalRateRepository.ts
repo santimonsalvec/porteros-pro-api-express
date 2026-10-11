@@ -1,4 +1,5 @@
 import type { Collection, Db, Document } from 'mongodb';
+import type { IRatePresence } from '../../../application/features/geography/common/ports.js';
 import type { IRentalRateRepository } from '../../../application/features/goalkeeperRequests/common/ports.js';
 import { RentalRate } from '../../../domain/pricing/rentalRate.js';
 import { dropIndexIfExists } from './dropIndexIfExists.js';
@@ -8,7 +9,7 @@ import { dropIndexIfExists } from './dropIndexIfExists.js';
  * write methods at all. A malformed document throws (via the `RentalRate` constructor)
  * rather than being skipped, so a bad price is never silently ignored.
  */
-export class RentalRateRepository implements IRentalRateRepository {
+export class RentalRateRepository implements IRentalRateRepository, IRatePresence {
   private readonly collection: Collection<Document>;
 
   constructor(db: Db) {
@@ -55,5 +56,16 @@ export class RentalRateRepository implements IRentalRateRepository {
       zone: rates.filter((rate) => rate.scope === 'zone'),
       city: rates.filter((rate) => rate.scope === 'city'),
     };
+  }
+
+  /** Which durations have a rate for these refs; the indexed `scope`/`refId` pair serves it. */
+  async pricedDurations(refs: { cityIds: string[]; zoneIds: string[] }): Promise<{ scope: 'city' | 'zone'; refId: string; durationMinutes: number }[]> {
+    const or = [
+      ...(refs.cityIds.length > 0 ? [{ scope: 'city', refId: { $in: refs.cityIds } }] : []),
+      ...(refs.zoneIds.length > 0 ? [{ scope: 'zone', refId: { $in: refs.zoneIds } }] : []),
+    ];
+    if (or.length === 0) return [];
+    const docs = await this.collection.find({ $or: or }, { projection: { scope: 1, refId: 1, durationMinutes: 1 } }).toArray();
+    return docs.map((doc) => ({ scope: doc.scope as 'city' | 'zone', refId: String(doc.refId), durationMinutes: doc.durationMinutes as number }));
   }
 }

@@ -14,7 +14,7 @@ const TIMEOUT_MS = 15_000;
 const TOKEN_MARGIN_MS = 10 * 60_000;
 
 /** Siigo's `id_type` for our document types (research.md §6). */
-const ID_TYPES: Record<string, string> = {
+export const SIIGO_ID_TYPES: Readonly<Record<string, string>> = {
   cedula_ciudadania: '13',
   CC: '13',
   cedula_extranjeria: '22',
@@ -120,7 +120,7 @@ export class SiigoInvoicingProvider implements IInvoicingProvider {
 
   /** Creates the buyer in Siigo, or updates the name and email of an existing one. */
   private async ensureCustomer(buyer: ProviderBuyer, context: ProviderContext): Promise<void> {
-    const idType = ID_TYPES[buyer.documentType];
+    const idType = SIIGO_ID_TYPES[buyer.documentType];
     if (!idType) throw new InvoicingProviderError('rejected', 'buyer_document_type_unsupported', `Document type ${buyer.documentType} is not supported`);
     if (!buyer.stateCode || !buyer.cityCode) {
       throw new InvoicingProviderError('rejected', 'buyer_city_not_coded', `City ${buyer.cityId} has no DANE codes`);

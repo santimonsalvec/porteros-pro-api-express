@@ -2,7 +2,7 @@ import type { IRegionRepository } from '../../src/application/features/locations
 import { Region } from '../../src/domain/locations/region.js';
 
 export class FakeRegionRepository implements IRegionRepository {
-  private readonly regions = new Map<string, Region>();
+  readonly regions = new Map<string, Region>();
 
   seed(region: Region): void {
     this.regions.set(region.id, region);
