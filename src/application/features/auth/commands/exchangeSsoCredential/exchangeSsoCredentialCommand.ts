@@ -1,7 +1,8 @@
 import { ICommand } from '../../../../common/mediator/types.js';
 import type { TokenPairResponse } from '../../common/dtos.js';
 
-export type ExchangeSsoCredentialOutcome = 'success' | 'invalid_credential' | 'unauthorized_admin_account';
+/** `admin_sign_in_moved`: the admin web signs in through `POST /auth/admin/sign-in` (porteros-pro-admin spec 001). */
+export type ExchangeSsoCredentialOutcome = 'success' | 'invalid_credential' | 'admin_sign_in_moved';
 
 export interface ExchangeSsoCredentialResult {
   outcome: ExchangeSsoCredentialOutcome;

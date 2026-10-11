@@ -38,13 +38,13 @@ describe('/admin/tax-settings/{countryId} — US4: VAT per country', () => {
     expect((await admin(context, token).putTax('country-co', body)).status).toBe(400);
   });
 
-  it('404 for an unknown country and 403 for a non-administrator', async () => {
+  it('404 for an unknown country and 401 for an app token (spec 001: other audience)', async () => {
     const context = await buildTestApp();
     const { token } = await signInAdmin(context);
     const client = await signInClient(context, 'sub-2311');
 
     expect((await admin(context, token).putTax('nowhere', { vatRateBps: 1900 })).status).toBe(404);
-    expect((await admin(context, client.token).putTax('country-co', { vatRateBps: 1900 })).status).toBe(403);
+    expect((await admin(context, client.token).putTax('country-co', { vatRateBps: 1900 })).status).toBe(401);
   });
 });
 
@@ -110,12 +110,12 @@ describe('/admin/invoicing/documents — US4: watching invoicing and retrying fa
     expect(context.invoicingProvider.invoices()).toHaveLength(2);
   });
 
-  it('404 for an unknown document and 403 for a non-administrator', async () => {
+  it('404 for an unknown document and 401 for an app token (spec 001: other audience)', async () => {
     const context = await buildTestApp();
     const { token } = await signInAdmin(context);
     const client = await signInClient(context, 'sub-2314');
 
     expect((await admin(context, token).retry('unknown')).status).toBe(404);
-    expect((await admin(context, client.token).documents()).status).toBe(403);
+    expect((await admin(context, client.token).documents()).status).toBe(401);
   });
 });

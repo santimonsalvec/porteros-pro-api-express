@@ -73,6 +73,17 @@ export const config = {
     /** Documents handled per sweep and step. */
     issuerCap: Number(optionalEnv('INVOICING_ISSUER_CAP', '100')),
   },
+  /** The admin web (porteros-pro-admin spec 001). */
+  admin: {
+    /** Exact origins allowed to call `/admin` and `/auth/admin` from a browser; empty = none. */
+    allowedOrigins: optionalEnv('ADMIN_ALLOWED_ORIGINS', '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter((value) => value !== ''),
+    /** `false` only for local development over plain HTTP. */
+    sessionCookieSecure: optionalEnv('ADMIN_SESSION_COOKIE_SECURE', 'true') !== 'false',
+    accessTokenLifetimeSeconds: 300,
+  },
   otel: {
     otlpEndpoint: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
   },

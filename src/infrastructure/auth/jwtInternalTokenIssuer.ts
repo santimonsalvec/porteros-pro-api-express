@@ -15,7 +15,8 @@ export class JwtInternalTokenIssuer implements IInternalTokenIssuer {
 
     const accessToken = await new SignJWT({
       email: user.email,
-      isAdmin: user.isAdmin ? 'true' : 'false',
+      // Always "false": admin rights live in staff members and admin web tokens (porteros-pro-admin spec 001).
+      isAdmin: 'false',
       profileComplete: user.isProfileComplete ? 'true' : 'false',
       ...(options.isGoalkeeper ? { isGoalkeeper: 'true' } : {}),
     })
@@ -40,7 +41,7 @@ export class JwtInternalTokenIssuer implements IInternalTokenIssuer {
       return {
         sub: payload.sub,
         email: payload.email,
-        isAdmin: payload.isAdmin === 'true' ? 'true' : 'false',
+        isAdmin: 'false',
         profileComplete: payload.profileComplete === 'true' ? 'true' : 'false',
         ...(payload.isGoalkeeper === 'true' ? { isGoalkeeper: 'true' as const } : {}),
       };

@@ -90,12 +90,12 @@ describe('/admin/goalkeepers/:userId/wallet — US5: admin inspection and adjust
     expect(response.body.error).toBe('goalkeeper_not_found');
   });
 
-  it('403 for a non-administrator, on every admin route', async () => {
+  it('401 for an app token, on every admin route (spec 001: other audience)', async () => {
     const { context, goalkeeper } = await setUp();
     const auth = { Authorization: `Bearer ${goalkeeper.token}` };
 
-    expect((await request(context.app).get(`/admin/goalkeepers/${goalkeeper.userId}/wallet`).set(auth)).status).toBe(403);
-    expect((await adjust(context, goalkeeper.token, goalkeeper.userId, { amount: 5000, reason: 'Saldo', operationKey: KEY_1 })).status).toBe(403);
+    expect((await request(context.app).get(`/admin/goalkeepers/${goalkeeper.userId}/wallet`).set(auth)).status).toBe(401);
+    expect((await adjust(context, goalkeeper.token, goalkeeper.userId, { amount: 5000, reason: 'Saldo', operationKey: KEY_1 })).status).toBe(401);
   });
 
   it("reads any goalkeeper's wallet and movements, with the administrator-only fields", async () => {

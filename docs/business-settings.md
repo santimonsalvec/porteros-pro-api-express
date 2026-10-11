@@ -29,6 +29,7 @@ Las configuraciones técnicas (nube, llaves, variables de despliegue) están en 
 15. [Operación diaria del administrador](#15-operación-diaria-del-administrador)
 16. [Reglas fijas del sistema (no configurables)](#16-reglas-fijas-del-sistema-no-configurables)
 17. [Configuración mínima para abrir una ciudad o un país](#17-configuración-mínima-para-abrir-una-ciudad-o-un-país)
+18. [Equipo del administrador: miembros, roles y permisos](#18-equipo-del-administrador-miembros-roles-y-permisos)
 
 ---
 
@@ -37,10 +38,10 @@ Las configuraciones técnicas (nube, llaves, variables de despliegue) están en 
 | Lugar | Qué se configura ahí | Quién lo cambia | Cuándo aplica |
 |---|---|---|---|
 | **Colecciones de MongoDB sembradas** | Países, regiones, ciudades, zonas, tipos de documento, tarifas (`rentalRates`), reglas de reserva (`bookingSettings`), comisiones (`commissionSettings`) | El responsable de los datos, con `mongosh` o Atlas | De inmediato, en la siguiente operación |
-| **Endpoints de administración** (`/api/admin/...`, rol admin) | Pasarela de recargas por país, IVA por país, proveedor de facturación por país, ajustes de billetera, reversión de penalidades, casos, facturas | Un administrador | De inmediato, solo a operaciones posteriores |
+| **Administrador web** (`porteros-pro-admin`) y sus endpoints `/admin/...` | Pasarela de recargas por país, IVA por país, proveedor de facturación por país, ajustes de billetera, reversión de penalidades, casos, facturas | Un miembro del equipo con el permiso de esa acción (§18) | De inmediato, solo a operaciones posteriores |
 | **Variables de entorno** (App Hosting) | Recordatorios de ofertas, versión de términos, activación de la facturación, modos técnicos | Quien despliega | Al reiniciar el backend |
 
-Todavía no existe interfaz de administración: los endpoints se usan con `curl` o Postman, con el token de un usuario administrador.
+El administrador web (`porteros-pro-admin`) ya existe, pero en esta entrega solo tiene el ingreso y el armazón: sus pantallas llegan por entregas. Mientras tanto, los endpoints se usan con el token de una sesión del administrador (`POST /auth/admin/sign-in`). Cada endpoint exige un permiso (§18), y cada cambio queda en el registro de auditoría `adminAuditLog`.
 
 **Validación:**
 - Un documento sembrado con un valor inválido **no se ignora**: la operación que lo lee falla con un error de configuración que queda en el log. Por eso conviene revisar cada cambio contra los rangos de esta guía.
@@ -398,14 +399,14 @@ Ver `docs/invoicing.md` para la operación.
 
 ## 15. Operación diaria del administrador
 
-| Acción | Endpoint | Detalle |
+| Acción | Endpoint (permiso) | Detalle |
 |---|---|---|
-| Ver la billetera de un portero | `GET /api/admin/goalkeepers/{userId}/wallet` y `…/wallet/movements` | Movimientos con actor, clave de causa y datos de facturación |
-| Ajuste manual (crédito o débito) | `POST /api/admin/goalkeepers/{userId}/wallet/adjustments` con `{ amount, reason, operationKey }` | `amount` ≠ 0 (negativo = débito, no deja saldo negativo); `reason` de 3–500 caracteres; `operationKey` es un UUID que evita duplicados. Los ajustes **no** se facturan |
-| Ver retiros e inasistencias | `GET /api/admin/goalkeepers/{userId}/withdrawals` | Con sus penalidades |
-| Revertir una penalidad | `POST /api/admin/goalkeepers/{userId}/withdrawals/{id}/reversal` con `{ refund, liftSuspension, reason }` | `refund: true` devuelve la comisión (y su IVA, con nota crédito); `liftSuspension: true` levanta la suspensión. El incidente deja de contar para el límite semanal |
-| Casos (PQRS) | `GET /api/admin/cases?status=open`, `GET /api/admin/cases/{id}`, `POST /api/admin/cases/{id}/resolve` con `{ note }` | Se abren cuando el cliente dice "no llegó" o el portero "no me pagaron" |
-| Facturas con problemas | `GET /api/admin/invoicing/documents?status=rejected` y `POST …/{id}/retry` | Corregir los datos (códigos DANE, documento del portero) y reintentar |
+| Ver la billetera de un portero | `GET /admin/goalkeepers/{userId}/wallet` y `…/wallet/movements` (`wallets.read`) | Movimientos con actor, clave de causa y datos de facturación |
+| Ajuste manual (crédito o débito) | `POST /admin/goalkeepers/{userId}/wallet/adjustments` con `{ amount, reason, operationKey }` (`wallets.adjust`) | `amount` ≠ 0 (negativo = débito, no deja saldo negativo); `reason` de 3–500 caracteres; `operationKey` es un UUID que evita duplicados. Los ajustes **no** se facturan |
+| Ver retiros e inasistencias | `GET /admin/goalkeepers/{userId}/withdrawals` (`goalkeepers.read`) | Con sus penalidades |
+| Revertir una penalidad | `POST /admin/goalkeepers/{userId}/withdrawals/{id}/reversal` con `{ refund, liftSuspension, reason }` (`goalkeepers.penalties.reverse`) | `refund: true` devuelve la comisión (y su IVA, con nota crédito); `liftSuspension: true` levanta la suspensión. El incidente deja de contar para el límite semanal |
+| Casos (PQRS) | `GET /admin/cases?status=open`, `GET /admin/cases/{id}`, `POST /admin/cases/{id}/resolve` con `{ note }` (`cases.read; resolver: cases.resolve`) | Se abren cuando el cliente dice "no llegó" o el portero "no me pagaron" |
+| Facturas con problemas | `GET /admin/invoicing/documents?status=rejected` y `POST …/{id}/retry` (`invoicing.read; reintentar: invoicing.retry`) | Corregir los datos (códigos DANE, documento del portero) y reintentar |
 
 ## 16. Reglas fijas del sistema (no configurables)
 
@@ -438,7 +439,41 @@ Cambiar cualquiera de estas reglas requiere un cambio de código.
 1. El país con `currency` y `countryCode`, y sus regiones.
 2. Un `bookingSettings` del país con al menos `bookingWindowDays`, `minNoticeMinutes` y `leadTimeSurcharge`.
 3. La comisión del país en `commissionSettings`.
-4. El IVA: `PUT /api/admin/tax-settings/{countryId}`.
-5. La pasarela: sus secretos en Secret Manager (`{PASARELA}_{PAÍS}_…`) y `PUT /api/admin/payment-gateways/{countryId}`. Si la pasarela del país no es Wompi, antes hay que desarrollar su adaptador.
-6. La facturación: sus credenciales en Secret Manager (`{PROVEEDOR}_{PAÍS}_…`) y `PUT /api/admin/invoicing/settings/{countryId}`. Si el proveedor no es Siigo, antes hay que desarrollar su adaptador (`docs/invoicing.md` §3).
+4. El IVA: `PUT /admin/tax-settings/{countryId}`.
+5. La pasarela: sus secretos en Secret Manager (`{PASARELA}_{PAÍS}_…`) y `PUT /admin/payment-gateways/{countryId}`. Si la pasarela del país no es Wompi, antes hay que desarrollar su adaptador.
+6. La facturación: sus credenciales en Secret Manager (`{PROVEEDOR}_{PAÍS}_…`) y `PUT /admin/invoicing/settings/{countryId}`. Si el proveedor no es Siigo, antes hay que desarrollar su adaptador (`docs/invoicing.md` §3).
 7. Tipos de documento válidos para ese país en `documentTypes`.
+
+## 18. Equipo del administrador: miembros, roles y permisos
+
+El acceso al administrador **no** depende de la marca `isAdmin` de la cuenta (que ya no se lee: esas cuentas usan la app como cualquier cliente). Depende de ser **miembro del equipo** (`staffMembers`) con un **rol** (`staffRoles`).
+
+| Concepto | Regla |
+|---|---|
+| Rol `owner` (Dueño) | Tiene todos los permisos, también los que se agreguen después. No se edita ni se borra. Siempre queda al menos un dueño activo |
+| Roles personalizados | Una lista de permisos del catálogo (32 permisos en 16 áreas; `GET /admin/permissions`). Un rol por miembro |
+| Invitación | Por correo y con un rol; dura **7 días**. Se activa en el primer ingreso con Google con ese correo verificado (crea la cuenta si no existía) |
+| Sesión | Solo con Google. Dura **12 horas** desde el ingreso y termina antes con **30 minutos** sin uso. Cerrar sesión cierra ese navegador; desactivar al miembro cierra todas sus sesiones |
+| Cambios de permisos | Surten efecto en 30 segundos o menos |
+| Auditoría | Toda escritura (y todo intento sin permiso) queda en `adminAuditLog`, sin vencimiento y sin secretos |
+| Quién administra a quién | `staff.manage` invita, cambia de rol, desactiva y reactiva a cualquiera **menos a un dueño**. Solo un dueño invita como dueño, da o quita el rol `owner` y actúa sobre otro dueño. Nadie se desactiva a sí mismo |
+| Motivo | Desactivar, reactivar, cambiar de rol y borrar un rol piden un motivo de 3 a 300 caracteres, que queda en la auditoría |
+| Roles en uso | Un rol con miembros no se borra: primero se les cambia el rol |
+| Reinvitar | Invitar de nuevo un correo pendiente o vencido renueva los 7 días; un miembro activo o desactivado no se reinvita |
+
+**Dónde se administra:** en el administrador web, Equipo → Miembros, Roles y Auditoría (spec 002; rutas `/admin/staff`, `/admin/roles` y `/admin/audit-log`).
+
+**Comandos, solo para el primer dueño de cada ambiente y para emergencias** (por ejemplo, si nadie puede entrar):
+
+```sh
+npx tsx scripts/seed-owner.ts --email dueno@example.com            # el primer dueño de cada ambiente
+npx tsx scripts/staff.ts upsert-role --id soporte --name "Soporte" --permissions cases.read,cases.resolve
+npx tsx scripts/staff.ts invite --email ana@example.com --role soporte
+npx tsx scripts/staff.ts disable --email ana@example.com
+npx tsx scripts/staff.ts enable --email ana@example.com
+```
+
+Los scripts dejan su registro de auditoría con el actor `system:script`.
+
+**Variables de entorno del administrador:** `GOOGLE_CLIENT_ID_WEB` (cliente OAuth Web de Google), `ADMIN_ALLOWED_ORIGINS` (orígenes del administrador, separados por comas) y, solo en local por HTTP, `ADMIN_SESSION_COOKIE_SECURE=false`.
+

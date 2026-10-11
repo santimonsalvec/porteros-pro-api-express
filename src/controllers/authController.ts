@@ -46,8 +46,8 @@ export function createAuthController(deps: AuthControllerDependencies): Router {
       res.status(200).json(result.tokens);
       return;
     }
-    if (result.outcome === 'unauthorized_admin_account') {
-      throw new ApiError(403, 'unauthorized_admin_account', 'No administrator account is associated with this identity.');
+    if (result.outcome === 'admin_sign_in_moved') {
+      throw new ApiError(410, 'admin_sign_in_moved', 'The admin web signs in through POST /auth/admin/sign-in.');
     }
     throw new ApiError(401, 'invalid_credential', 'The provided credential could not be verified.');
   });
@@ -68,7 +68,8 @@ export function createAuthController(deps: AuthControllerDependencies): Router {
     const response: MeResponse = {
       userId: claims.sub,
       email: claims.email,
-      isAdmin: claims.isAdmin === 'true',
+      // Kept for the app, which reads it as a required boolean; nothing grants admin rights here anymore (spec 001).
+      isAdmin: false,
       isProfileComplete: claims.profileComplete === 'true',
     };
     res.status(200).json(response);
