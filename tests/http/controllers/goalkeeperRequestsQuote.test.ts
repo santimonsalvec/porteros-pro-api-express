@@ -9,6 +9,7 @@ import { InvalidConfigurationError } from '../../../src/domain/pricing/invalidCo
 import { City } from '../../../src/domain/locations/city.js';
 import { Zone } from '../../../src/domain/zones/zone.js';
 import { logger } from '../../../src/infrastructure/observability/logger.js';
+import { geographyStaff } from '../geographyTestHelpers.js';
 
 type TestApp = Awaited<ReturnType<typeof buildTestApp>>;
 
@@ -413,6 +414,22 @@ describe('POST /goalkeeper-requests/quote — Story 4: configuration', () => {
     } finally {
       warn.mockRestore();
     }
+  });
+});
+
+describe('POST /goalkeeper-requests/quote — zones the admin deactivates (admin spec 003)', () => {
+  it('no longer quotes a point of a deactivated zone', async () => {
+    const context = await buildTestApp();
+    const { editor } = await geographyStaff(context);
+    const token = await signInAndComplete(context, 'sub-0300');
+
+    const open = await post(context, token, validBody);
+    const zone = await editor.get('/admin/zones/zone-cali-norte');
+    await editor.patch('/admin/zones/zone-cali-norte', { revision: zone.body.revision, active: false, reason: 'Cierre' });
+    const closed = await post(context, token, validBody);
+
+    expect(open.status).toBe(200);
+    expect([closed.status, closed.body.error]).toEqual([400, 'location_not_covered']);
   });
 });
 

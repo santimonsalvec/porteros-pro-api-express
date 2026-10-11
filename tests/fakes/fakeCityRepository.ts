@@ -2,7 +2,7 @@ import type { ICityRepository } from '../../src/application/features/locations/c
 import { City } from '../../src/domain/locations/city.js';
 
 export class FakeCityRepository implements ICityRepository {
-  private readonly cities = new Map<string, City>();
+  readonly cities = new Map<string, City>();
 
   seed(city: City): void {
     this.cities.set(city.id, city);

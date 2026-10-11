@@ -1,7 +1,8 @@
 import type { IBookingSettingsRepository } from '../../src/application/features/goalkeeperRequests/common/ports.js';
 import type { BookingSettings } from '../../src/domain/pricing/bookingSettings.js';
+import type { IBookingSettingsBatch } from '../../src/application/features/geography/common/ports.js';
 
-export class FakeBookingSettingsRepository implements IBookingSettingsRepository {
+export class FakeBookingSettingsRepository implements IBookingSettingsRepository, IBookingSettingsBatch {
   private readonly settings: BookingSettings[] = [];
 
   seed(settings: BookingSettings): void {
@@ -22,5 +23,9 @@ export class FakeBookingSettingsRepository implements IBookingSettingsRepository
       country:
         countryId === null ? null : (this.settings.find((item) => item.scope === 'country' && item.refId === countryId) ?? null),
     };
+  }
+
+  async findMany(refs: { cityIds: string[]; countryIds: string[] }): Promise<BookingSettings[]> {
+    return this.settings.filter((item) => (item.scope === 'city' ? refs.cityIds : refs.countryIds).includes(item.refId));
   }
 }

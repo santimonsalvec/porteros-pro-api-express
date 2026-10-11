@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import { createAdminRouting, settingsBefore } from './admin/adminRoute.js';
 import { registerTeamRoutes } from './admin/teamRoutes.js';
+import { registerGeographyRoutes } from './admin/geographyRoutes.js';
+import { registerCatalogRoutes } from './admin/catalogRoutes.js';
+import { registerReadinessRoutes } from './admin/readinessRoutes.js';
 import type { ISender } from '../application/common/mediator/types.js';
 import { RecordWalletAdjustmentCommand } from '../application/features/wallet/commands/recordWalletAdjustment/recordWalletAdjustmentCommand.js';
 import type { AdminWebDependencies } from '../appDependencies.js';
@@ -50,6 +53,9 @@ export function createAdminController(deps: AdminControllerDependencies): Router
 
   const { route } = createAdminRouting(router, deps.admin);
   registerTeamRoutes(route, deps.mediator);
+  registerGeographyRoutes(route, deps.mediator);
+  registerCatalogRoutes(route, deps.mediator);
+  registerReadinessRoutes(route, deps.mediator);
 
   // The fixed permission catalog, for the role screen (any active member).
   router.get('/permissions', async (_req, res) => {

@@ -1,4 +1,5 @@
 import { Entity } from '../common/entity.js';
+import { readRevision } from '../common/revision.js';
 
 /** Pre-existing, externally-owned reference data — this system only reads it. */
 export class City extends Entity<string> {
@@ -11,6 +12,8 @@ export class City extends Entity<string> {
   /** Official codes of the city and its department (DANE in Colombia), for electronic invoicing (feature 023). */
   readonly daneStateCode: string | null;
   readonly daneCityCode: string | null;
+  /** Edit counter for the admin's optimistic concurrency; 0 when never edited there. */
+  readonly revision: number;
 
   constructor(params: {
     id: string;
@@ -20,6 +23,7 @@ export class City extends Entity<string> {
     timeZone?: string | null;
     daneStateCode?: string | null;
     daneCityCode?: string | null;
+    revision?: number;
   }) {
     super(params.id);
     this.name = params.name;
@@ -28,5 +32,6 @@ export class City extends Entity<string> {
     this.timeZone = params.timeZone ?? null;
     this.daneStateCode = params.daneStateCode ?? null;
     this.daneCityCode = params.daneCityCode ?? null;
+    this.revision = readRevision(params.revision, `cities document ${params.id}`);
   }
 }

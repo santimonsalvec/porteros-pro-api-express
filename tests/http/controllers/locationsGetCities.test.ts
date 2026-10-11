@@ -2,6 +2,7 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js';
+import { geographyStaff } from '../geographyTestHelpers.js';
 
 async function signIn(
   app: Awaited<ReturnType<typeof buildTestApp>>['app'],
@@ -44,5 +45,21 @@ describe('GET /locations/cities', () => {
     const response = await request(app).get('/locations/cities?q=medel');
 
     expect(response.status).toBe(401);
+  });
+
+  it('shows a city the admin created, and one that now uses an anchor as having zones (admin spec 003)', async () => {
+    const context = await buildTestApp();
+    const { editor } = await geographyStaff(context);
+    const accessToken = await signIn(context.app, context.googleValidator, 'good-token', 'sub-3');
+    const search = (q: string) => request(context.app).get(`/locations/cities?q=${q}`).set('Authorization', `Bearer ${accessToken}`);
+
+    await editor.post('/admin/cities', { name: 'Sabaneta', regionId: 'region-antioquia' });
+    const created = await search('sabane');
+    await editor.patch('/admin/cities/city-bogota', { revision: 0, zoneCityId: 'city-medellin' });
+    const satellite = await search('bogo');
+
+    expect(created.body.cities).toEqual([expect.objectContaining({ name: 'Sabaneta', region: 'Antioquia', hasZones: false })]);
+    expect(satellite.body.cities).toEqual([expect.objectContaining({ id: 'city-bogota', hasZones: true })]);
+    expect(Object.keys(satellite.body.cities[0])).not.toContain('revision');
   });
 });

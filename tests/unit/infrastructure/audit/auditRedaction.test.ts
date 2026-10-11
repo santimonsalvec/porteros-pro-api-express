@@ -88,5 +88,35 @@ describe('redactForAudit', () => {
       redactForAudit('staffRole', { id: 'soporte', name: 'Soporte', description: 'x', permissions: ['cases.read'], memberCount: 2, reason: 'Ya no se usa', updatedAt: 'x' }),
     ).toEqual({ id: 'soporte', name: 'Soporte', description: 'x', permissions: ['cases.read'], memberCount: 2, reason: 'Ya no se usa' });
   });
+
+  it('keeps the geography and catalog views of spec 003 of the admin, with their revision and reason', () => {
+    expect(
+      redactForAudit('country', { id: 'co', name: 'Colombia', countryCode: 'CO', dialCode: '+57', currency: 'COP', operating: true, regionCount: 33, revision: 2, reason: 'x', secretName: 'WOMPI_CO' }),
+    ).toEqual({ id: 'co', name: 'Colombia', countryCode: 'CO', dialCode: '+57', currency: 'COP', operating: true, regionCount: 33, revision: 2, reason: 'x' });
+    expect(redactForAudit('region', { id: 'ant', name: 'Antioquia', countryId: 'co', countryName: 'Colombia', cityCount: 125, revision: 0, extra: 1 })).toEqual({
+      id: 'ant', name: 'Antioquia', countryId: 'co', countryName: 'Colombia', cityCount: 125, revision: 0,
+    });
+    expect(
+      redactForAudit('city', {
+        id: 'env', name: 'Envigado', region: { id: 'ant', name: 'Antioquia' }, country: { id: 'co', name: 'Colombia', countryCode: 'CO' },
+        timeZone: 'America/Bogota', timeZoneValid: true, daneStateCode: '05', daneCityCode: '05266', zoneCity: { id: 'med', name: 'Medellín' },
+        zoneCount: 0, satelliteCount: 0, state: 'operating', revision: 1, reason: 'r', readiness: { ready: true },
+      }),
+    ).toEqual({
+      id: 'env', name: 'Envigado', region: { id: 'ant', name: 'Antioquia' }, country: { id: 'co', name: 'Colombia', countryCode: 'CO' },
+      timeZone: 'America/Bogota', timeZoneValid: true, daneStateCode: '05', daneCityCode: '05266', zoneCity: { id: 'med', name: 'Medellín' },
+      zoneCount: 0, satelliteCount: 0, state: 'operating', revision: 1, reason: 'r',
+    });
+    const geometry = { type: 'Polygon', coordinates: [[[-75.6, 6.2], [-75.5, 6.2], [-75.5, 6.3], [-75.6, 6.2]]] };
+    expect(redactForAudit('zone', { id: 'z', cityId: 'med', name: 'Laureles', slug: 'laureles', active: false, displayOrder: 3, geometry, geometryValid: true, inUse: true, revision: 4, reason: 'cierre', note: 'n' })).toEqual({
+      id: 'z', cityId: 'med', name: 'Laureles', slug: 'laureles', active: false, displayOrder: 3, geometry, geometryValid: true, inUse: true, revision: 4, reason: 'cierre',
+    });
+    expect(redactForAudit('documentType', { id: 'cc', code: 'cedula_ciudadania', name: 'Cédula', invoiceable: true, inUse: false, revision: 0, other: 1 })).toEqual({
+      id: 'cc', code: 'cedula_ciudadania', name: 'Cédula', invoiceable: true, inUse: false, revision: 0,
+    });
+    expect(redactForAudit('matchSurface', { id: 'arena', name: 'Arena', active: true, order: 4, inUse: false, revision: 0, reason: 'nueva', x: 1 })).toEqual({
+      id: 'arena', name: 'Arena', active: true, order: 4, inUse: false, revision: 0, reason: 'nueva',
+    });
+  });
 });
 

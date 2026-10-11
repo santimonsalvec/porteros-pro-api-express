@@ -11,7 +11,7 @@ export const DEFAULT_TEST_SURFACES = [
 ];
 
 export class FakeMatchSurfaceRepository implements IMatchSurfaceRepository {
-  private readonly surfaces: MatchSurface[];
+  readonly surfaces: MatchSurface[];
 
   constructor(surfaces: MatchSurface[] = DEFAULT_TEST_SURFACES) {
     this.surfaces = [...surfaces];

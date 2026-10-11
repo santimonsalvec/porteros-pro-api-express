@@ -25,6 +25,16 @@ import { CompleteProfileCommand } from '../../src/application/features/profile/c
 import { CompleteProfileCommandHandler } from '../../src/application/features/profile/commands/completeProfile/completeProfileCommandHandler.js';
 import { Country } from '../../src/domain/countries/country.js';
 import { staffHandlerRegistrations } from '../../src/infrastructure/staffHandlers.js';
+import { geographyHandlerRegistrations } from '../../src/infrastructure/geographyHandlers.js';
+import {
+  FakeAdminCityRepository,
+  FakeAdminCountryRepository,
+  FakeAdminDocumentTypeRepository,
+  FakeAdminMatchSurfaceRepository,
+  FakeAdminRegionRepository,
+  FakeAdminZoneRepository,
+} from '../fakes/fakeAdminGeography.js';
+import { FakeFutureBookingsProbe, FakeReferenceUsage } from '../fakes/fakeReferenceUsage.js';
 import { FakeAdminSecurityLog } from '../fakes/fakeAdminSecurityLog.js';
 import { FakeStaffMemberRepository } from '../fakes/fakeStaffMemberRepository.js';
 import { FakeStaffRoleRepository } from '../fakes/fakeStaffRoleRepository.js';
@@ -272,6 +282,9 @@ export interface TestAppContext {
   cityRepository: FakeCityRepository;
   regionRepository: FakeRegionRepository;
   zoneRepository: FakeZoneRepository;
+  /** What points at reference data, set per test (admin spec 003). */
+  referenceUsage: FakeReferenceUsage;
+  futureBookings: FakeFutureBookingsProbe;
   rentalRateRepository: FakeRentalRateRepository;
   matchSurfaceRepository: FakeMatchSurfaceRepository;
   bookingSettingsRepository: FakeBookingSettingsRepository;
@@ -402,6 +415,13 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
   );
 
   const quoteCountryRepository = new FakeCountryRepository();
+  // The admin's geography (spec 003 of the admin) edits the same data the app's routes read.
+  const adminCountries = new FakeAdminCountryRepository(countryRepository);
+  const adminRegions = new FakeAdminRegionRepository(regionRepository);
+  const adminCities = new FakeAdminCityRepository(cityRepository);
+  const adminZones = new FakeAdminZoneRepository(zoneRepository);
+  const referenceUsage = new FakeReferenceUsage();
+  const futureBookings = new FakeFutureBookingsProbe();
   const rentalRateRepository = new FakeRentalRateRepository();
   const matchSurfaceRepository = new FakeMatchSurfaceRepository();
   const bookingSettingsRepository = new FakeBookingSettingsRepository();
@@ -638,6 +658,27 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       securityLog: new FakeAdminSecurityLog(),
       accessResolver: staffAccessResolver,
       auditLog: adminAuditLog,
+    }),
+  );
+  registerHandlers(
+    mediator,
+    geographyHandlerRegistrations({
+      countries: adminCountries,
+      regions: adminRegions,
+      cities: adminCities,
+      zones: adminZones,
+      usage: referenceUsage,
+      futureBookings,
+      bookingSettings: bookingSettingsRepository,
+      rentalRates: rentalRateRepository,
+      commissions: commissionSettingRepository,
+      taxSettings: taxSettingsRepository,
+      gatewaySettings: paymentGatewaySettingsRepository,
+      invoicingSettings: invoicingSettingsRepository,
+      documentTypes: new FakeAdminDocumentTypeRepository(documentTypeRepository),
+      surfaces: new FakeAdminMatchSurfaceRepository(matchSurfaceRepository),
+      ids: { newId: () => uuidv7() },
+      clock,
     }),
   );
   registerHandlers(mediator, [
@@ -1139,6 +1180,8 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
   };
 
   return {
+    referenceUsage,
+    futureBookings,
     app: await listenOnLoopback(createApp(dependencies)),
     userRepository,
     refreshTokenRepository,

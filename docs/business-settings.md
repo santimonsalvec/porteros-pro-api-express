@@ -14,7 +14,7 @@ Las configuraciones técnicas (nube, llaves, variables de despliegue) están en 
 
 1. [Cómo se configura (tres lugares)](#1-cómo-se-configura-tres-lugares)
 2. [Herencia: país → ciudad ancla → zona](#2-herencia-país--ciudad-ancla--zona)
-3. [Datos de referencia: países, regiones, ciudades, zonas y tipos de documento](#3-datos-de-referencia)
+3. [Datos de referencia: países, regiones, ciudades, zonas, tipos de documento y superficies](#3-datos-de-referencia)
 4. [Tarifa del portero](#4-tarifa-del-portero-rentalrates)
 5. [Reglas de reserva (`bookingSettings`)](#5-reglas-de-reserva-bookingsettings)
 6. [Ventana de check-in](#6-ventana-de-check-in)
@@ -37,8 +37,8 @@ Las configuraciones técnicas (nube, llaves, variables de despliegue) están en 
 
 | Lugar | Qué se configura ahí | Quién lo cambia | Cuándo aplica |
 |---|---|---|---|
-| **Colecciones de MongoDB sembradas** | Países, regiones, ciudades, zonas, tipos de documento, tarifas (`rentalRates`), reglas de reserva (`bookingSettings`), comisiones (`commissionSettings`) | El responsable de los datos, con `mongosh` o Atlas | De inmediato, en la siguiente operación |
-| **Administrador web** (`porteros-pro-admin`) y sus endpoints `/admin/...` | Pasarela de recargas por país, IVA por país, proveedor de facturación por país, ajustes de billetera, reversión de penalidades, casos, facturas | Un miembro del equipo con el permiso de esa acción (§18) | De inmediato, solo a operaciones posteriores |
+| **Colecciones de MongoDB sembradas** | La carga en bloque de regiones y ciudades de un país, tarifas (`rentalRates`), reglas de reserva (`bookingSettings`), comisiones (`commissionSettings`) | El responsable de los datos, con `mongosh` o Atlas | De inmediato, en la siguiente operación |
+| **Administrador web** (`porteros-pro-admin`) y sus endpoints `/admin/...` | Países, regiones, ciudades y zonas (Geografía), tipos de documento y superficies (Catálogos), la página Preparación (§17), pasarela de recargas por país, IVA por país, proveedor de facturación por país, ajustes de billetera, reversión de penalidades, casos, facturas | Un miembro del equipo con el permiso de esa acción (§18) | De inmediato, solo a operaciones posteriores |
 | **Variables de entorno** (App Hosting) | Recordatorios de ofertas, versión de términos, activación de la facturación, modos técnicos | Quien despliega | Al reiniciar el backend |
 
 El administrador web (`porteros-pro-admin`) ya existe, pero en esta entrega solo tiene el ingreso y el armazón: sus pantallas llegan por entregas. Mientras tanto, los endpoints se usan con el token de una sesión del administrador (`POST /auth/admin/sign-in`). Cada endpoint exige un permiso (§18), y cada cambio queda en el registro de auditoría `adminAuditLog`.
@@ -62,7 +62,14 @@ El país de una ciudad se encuentra así: ciudad → región (`regionId`) → pa
 
 ## 3. Datos de referencia
 
+Desde la spec 003 del administrador estos datos se editan en **Geografía** y **Catálogos**. Reglas comunes:
+- Cada edición lleva la `revision` que leyó; si otra persona guardó antes, responde `409 stale_revision` ("Este registro cambió mientras lo editabas"). Los documentos sembrados sin `revision` cuentan como 0.
+- Nada que esté en uso se borra (`409` con el motivo: `city_has_zones`, `zone_in_use`…). Zonas y superficies se **desactivan** en su lugar. Borrar y desactivar piden un motivo, que queda en la auditoría.
+- Algunas escrituras advierten antes de guardar (`409 warnings_unacknowledged`) y se repiten con `acknowledgeWarnings: true` al confirmar.
+
 ### 3.1 Países (`countries`)
+
+Pantalla: **Geografía → Países** (un país no se borra). El código ISO se guarda en mayúsculas y es único; cambiarlo pide confirmación porque los secretos de la pasarela y de la facturación se buscan por él. **La moneda se puede poner o corregir mientras el país no tenga billeteras, recargas ni reservas; después queda bloqueada** (`currency_locked`).
 
 | Campo | Obligatorio | Descripción |
 |---|---|---|
@@ -73,12 +80,20 @@ El país de una ciudad se encuentra así: ciudad → región (`regionId`) → pa
 
 ### 3.2 Regiones (`regions`)
 
+Pantalla: **Geografía → Regiones** (crear y editar en un diálogo). Desde el administrador una región siempre tiene país.
+
 | Campo | Descripción |
 |---|---|
 | `name` | Nombre (departamento, estado) |
 | `countryId` | El `_id` del país. **Sin él, las ciudades de la región no tienen país**: no cotizan ni tienen billetera |
 
 ### 3.3 Ciudades (`cities`)
+
+Pantalla: **Geografía → Ciudades**. Una ciudad está **disponible** (existe, sin zonas propias ni ciudad ancla) o **en operación** (con zonas propias o con `zoneCityId`); solo a las que están en operación les aplica la lista de §17. Reglas del formulario:
+- la zona horaria se elige de la lista IANA del servidor (`GET /admin/time-zones`); los alias se siguen leyendo, pero no se guardan;
+- la ciudad ancla debe existir, no ser la misma ciudad y tener sus propias zonas (sin cadenas); una ciudad con zonas o que es ancla de otras no puede pasar a usar las de otra;
+- los códigos DANE son texto: departamento de 2 dígitos y municipio de 5 que empieza por el departamento;
+- cambiar la zona horaria de un área con partidos futuros pide confirmación (conservan su hora real; solo cambia cómo se muestran).
 
 | Campo | Obligatorio | Descripción |
 |---|---|---|
@@ -89,6 +104,12 @@ El país de una ciudad se encuentra así: ciudad → región (`regionId`) → pa
 | `daneStateCode`, `daneCityCode` | Sí, para facturar en Colombia | Códigos DANE del departamento (`05`) y del municipio (`05001`). **Guárdalos como texto** para conservar los ceros a la izquierda. Sin ellos la factura queda rechazada (`buyer_city_not_coded`) |
 
 ### 3.4 Zonas (`zones`)
+
+Pantalla: **Geografía → Zonas**, con un editor de mapa (Leaflet + Geoman sobre OpenStreetMap; sin llave) donde se dibuja, se editan vértices, se pega y se descarga el GeoJSON. Solo una ciudad ancla tiene zonas, y la ciudad de una zona no cambia. Antes de guardar, el API valida el polígono:
+- **bloquea**: tipo distinto de `Polygon`/`MultiPolygon`, anillo abierto, menos de 4 puntos, coordenadas fuera de rango, autointersección o más de 20.000 puntos;
+- **advierte** (se confirma): solapamiento de más de 1.000 m² con otra zona activa de la ciudad (en el área común gana la de menor `displayOrder`), o algún punto a más de 5 km de las demás zonas de la ciudad. No existe un límite oficial de la ciudad, por eso no se bloquea.
+
+Desactivar una zona, y redibujar una que tiene porteros o reservas, pide motivo.
 
 | Campo | Descripción |
 |---|---|
@@ -108,6 +129,21 @@ Un punto fuera de toda zona activa no se puede cotizar.
 | `name` | Nombre visible |
 
 El código se usa en la facturación: Siigo solo acepta `cedula_ciudadania` (o `CC`), `cedula_extranjeria` (`CE`), `pasaporte` (`PA`) y `nit` (`NIT`). Un tipo distinto deja la factura rechazada (`buyer_document_type_unsupported`).
+
+Pantalla: **Catálogos → Tipos de documento** (escribir pide `catalogs.manage`). Crear un código que la facturación no acepta pide confirmación. Los porteros guardan el **código**, así que no se puede cambiar mientras alguno lo use.
+
+### 3.6 Superficies (`matchSurfaces`)
+
+Las superficies de juego que el cliente elige al cotizar (feature 024 de la app). No cambian el precio; la solicitud guarda el nombre de la que se eligió.
+
+| Campo | Descripción |
+|---|---|
+| `_id` | Identificador; las sembradas usan texto (`synthetic_grass`) |
+| `name` | Nombre visible (2 a 60 caracteres) |
+| `active` | `false` = no se ofrece en cotizaciones nuevas; las solicitudes anteriores la siguen mostrando |
+| `order` | Orden en la lista (ascendente) |
+
+Pantalla: **Catálogos → Superficies** (escribir pide `catalogs.manage`). Desactivar pide motivo; una superficie usada por solicitudes o cotizaciones no se borra.
 
 ---
 
@@ -427,6 +463,8 @@ Ver `docs/invoicing.md` para la operación.
 Cambiar cualquiera de estas reglas requiere un cambio de código.
 
 ## 17. Configuración mínima para abrir una ciudad o un país
+
+La página **Geografía → Preparación** muestra esta lista por país: el estado del país, sus ciudades en operación con lo que les falta y cuántas ciudades están disponibles. El detalle de cada ciudad en operación tiene su propia lista. Usa los mismos datos y funciones que la cotización: una ciudad "Lista para cotizar" cotiza sin errores de configuración. Lo que todavía no tiene pantalla en el administrador dice en qué sección de esta guía se configura.
 
 **Nueva ciudad en un país que ya opera:**
 1. La ciudad en `cities` con `regionId`, `timeZone` y (en Colombia) los códigos DANE; su región con `countryId`.

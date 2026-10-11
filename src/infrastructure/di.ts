@@ -59,7 +59,8 @@ import { MongoConnectionProvider } from './persistence/mongo/mongoConnectionProv
 import { UserRepository } from './persistence/mongo/userRepository.js';
 import { RefreshTokenRepository } from './persistence/mongo/refreshTokenRepository.js';
 import { TermsAcceptanceRepository } from './persistence/mongo/termsAcceptanceRepository.js';
-import { CountryRepository } from './persistence/mongo/countryRepository.js';
+import { CountryRepository, MongoAdminCountryRepository } from './persistence/mongo/countryRepository.js';
+import { MongoReferenceUsage } from './persistence/mongo/referenceUsage.js';
 import { CommissionResolver } from '../application/features/wallet/common/commissionResolver.js';
 import { WalletLedger } from '../application/features/wallet/common/walletLedger.js';
 import { ListAvailableBookingsQuery } from '../application/features/goalkeeperRequests/queries/listAvailableBookings/listAvailableBookingsQuery.js';
@@ -210,6 +211,7 @@ import { GoalkeeperIncidentRepository } from './persistence/mongo/goalkeeperInci
 import { RatingRepository } from './persistence/mongo/ratingRepository.js';
 import { CaseRepository } from './persistence/mongo/caseRepository.js';
 import { staffHandlerRegistrations } from './staffHandlers.js';
+import { geographyHandlerRegistrations } from './geographyHandlers.js';
 import { PinoAdminSecurityLog } from './observability/pinoAdminSecurityLog.js';
 import { JwtAdminTokenIssuer } from './auth/jwtAdminTokenIssuer.js';
 import { StaffAccessResolver } from './auth/staffAccessResolver.js';
@@ -283,6 +285,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   const cityRepository = new CityRepository(db);
   await cityRepository.ensureIndexes();
   const regionRepository = new RegionRepository(db);
+  await regionRepository.ensureIndexes();
   const zoneRepository = new ZoneRepository(db);
   await zoneRepository.ensureIndexes();
   const rentalRateRepository = new RentalRateRepository(db);
@@ -596,6 +599,28 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       securityLog: new PinoAdminSecurityLog(),
       accessResolver: staffAccessResolver,
       auditLog: adminAuditLog,
+    }),
+  );
+  const referenceUsage = new MongoReferenceUsage(db);
+  registerHandlers(
+    mediator,
+    geographyHandlerRegistrations({
+      countries: new MongoAdminCountryRepository(db),
+      regions: regionRepository,
+      cities: cityRepository,
+      zones: zoneRepository,
+      usage: referenceUsage,
+      futureBookings: referenceUsage,
+      bookingSettings: bookingSettingsRepository,
+      rentalRates: rentalRateRepository,
+      commissions: commissionSettingRepository,
+      taxSettings: taxSettingsRepository,
+      gatewaySettings: paymentGatewaySettingsRepository,
+      invoicingSettings: invoicingSettingsRepository,
+      documentTypes: documentTypeRepository,
+      surfaces: matchSurfaceRepository,
+      ids: idGenerator,
+      clock,
     }),
   );
   registerHandlers(mediator, [

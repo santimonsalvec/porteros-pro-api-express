@@ -1,3 +1,4 @@
+import type { IBookingSettingsBatch } from '../../../application/features/geography/common/ports.js';
 import type { Collection, Db, Document } from 'mongodb';
 import type { IBookingSettingsRepository } from '../../../application/features/goalkeeperRequests/common/ports.js';
 import type { CheckInWindowConfig } from '../../../domain/bookings/checkInWindow.js';
@@ -9,7 +10,7 @@ import { BookingSettings, type SurchargeTier } from '../../../domain/pricing/boo
  * write methods at all. Every setting on a document is optional (absent ⇒ inherit);
  * a malformed value throws via the `BookingSettings` constructor.
  */
-export class BookingSettingsRepository implements IBookingSettingsRepository {
+export class BookingSettingsRepository implements IBookingSettingsRepository, IBookingSettingsBatch {
   private readonly collection: Collection<Document>;
 
   constructor(db: Db) {
@@ -52,5 +53,15 @@ export class BookingSettingsRepository implements IBookingSettingsRepository {
       city: settings.find((item) => item.scope === 'city') ?? null,
       country: settings.find((item) => item.scope === 'country') ?? null,
     };
+  }
+
+  async findMany(refs: { cityIds: string[]; countryIds: string[] }): Promise<BookingSettings[]> {
+    const or = [
+      ...(refs.cityIds.length > 0 ? [{ scope: 'city', refId: { $in: refs.cityIds } }] : []),
+      ...(refs.countryIds.length > 0 ? [{ scope: 'country', refId: { $in: refs.countryIds } }] : []),
+    ];
+    if (or.length === 0) return [];
+    const docs = await this.collection.find({ $or: or }).toArray();
+    return docs.map((doc) => this.fromDocument(doc));
   }
 }

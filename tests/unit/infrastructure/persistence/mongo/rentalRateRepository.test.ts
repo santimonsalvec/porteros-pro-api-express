@@ -96,3 +96,27 @@ describe('RentalRateRepository (mocked driver)', () => {
     );
   });
 });
+
+describe('RentalRateRepository.pricedDurations (admin readiness)', () => {
+  it('reads which durations have a rate, for many cities and zones in one query', async () => {
+    const collection = createFakeCollection();
+    collection.find.mockReturnValue(toArrayResult([{ scope: 'city', refId: 'med', durationMinutes: 60 }, { scope: 'zone', refId: 'z1', durationMinutes: 90 }]));
+
+    const priced = await repositoryWith(collection).pricedDurations({ cityIds: ['med'], zoneIds: ['z1', 'z2'] });
+
+    expect(collection.find).toHaveBeenCalledWith(
+      { $or: [{ scope: 'city', refId: { $in: ['med'] } }, { scope: 'zone', refId: { $in: ['z1', 'z2'] } }] },
+      { projection: { scope: 1, refId: 1, durationMinutes: 1 } },
+    );
+    expect(priced).toEqual([
+      { scope: 'city', refId: 'med', durationMinutes: 60 },
+      { scope: 'zone', refId: 'z1', durationMinutes: 90 },
+    ]);
+  });
+
+  it('asks nothing for no refs', async () => {
+    const collection = createFakeCollection();
+    expect(await repositoryWith(collection).pricedDurations({ cityIds: [], zoneIds: [] })).toEqual([]);
+    expect(collection.find).not.toHaveBeenCalled();
+  });
+});

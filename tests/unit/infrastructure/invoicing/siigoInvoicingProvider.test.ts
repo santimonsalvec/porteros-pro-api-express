@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
+import { INVOICEABLE_DOCUMENT_TYPE_CODES } from '../../../../src/domain/goalkeepers/documentType.js';
 import { InvoicingProviderError, type ProviderBuyer, type ProviderContext } from '../../../../src/application/features/invoicing/common/ports.js';
 import { InvoicingDocument } from '../../../../src/domain/invoicing/invoicingDocument.js';
-import { SiigoInvoicingProvider } from '../../../../src/infrastructure/invoicing/siigoInvoicingProvider.js';
+import { SiigoInvoicingProvider, SIIGO_ID_TYPES } from '../../../../src/infrastructure/invoicing/siigoInvoicingProvider.js';
 
 const NOW = new Date('2026-09-29T15:00:00.000Z');
 const CONTEXT: ProviderContext = {
@@ -228,5 +229,11 @@ describe('SiigoInvoicingProvider', () => {
 
     expect(await provider.getFile(issued, 'pdf', CONTEXT)).toEqual({ contentType: 'application/pdf', fileName: 'FV-2-22.pdf', content: Buffer.from('%PDF-1.4') });
     expect(await provider.getFile(issued, 'xml', CONTEXT)).toBeNull();
+  });
+});
+
+describe('Siigo document types (admin spec 003)', () => {
+  it('maps exactly the codes the domain calls invoiceable', () => {
+    expect(Object.keys(SIIGO_ID_TYPES).sort()).toEqual([...INVOICEABLE_DOCUMENT_TYPE_CODES].sort());
   });
 });

@@ -28,7 +28,8 @@ export interface AuditSpec {
  * The audit of the admin web (research §5), as route middleware so the existing handlers stay as
  * they are. The entry is written when the route answers — after a JSON body is ready and before it
  * leaves — so a client that saw the answer can find its entry. A handler marks an idempotent repeat
- * with `res.locals.auditOutcome = 'replayed'`.
+ * with `res.locals.auditOutcome = 'replayed'`, and may set `res.locals.auditAction` (the action it
+ * took) and `res.locals.auditResourceId` (an id it created).
  */
 export function auditTrail(deps: AuditTrailDependencies) {
   const write = async (entry: AuditEntry): Promise<void> => {
@@ -71,7 +72,14 @@ export function auditTrail(deps: AuditTrailDependencies) {
         const succeeded = status >= 200 && status < 300;
         const entry = entryFor(
           req,
-          { kind, permission: spec.permission, action: spec.action, resourceType: spec.resourceType, resourceId },
+          {
+            kind,
+            permission: spec.permission,
+            // A handler may name the action it took (zone.deactivate…) or the id it created.
+            action: (res.locals.auditAction as string | undefined) ?? spec.action,
+            resourceType: spec.resourceType,
+            resourceId: (res.locals.auditResourceId as string | undefined) ?? resourceId,
+          },
           {
             outcome: succeeded ? ((res.locals.auditOutcome as AuditOutcome | undefined) ?? 'done') : 'rejected',
             httpStatus: status,

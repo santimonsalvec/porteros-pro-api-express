@@ -2,7 +2,7 @@ import type { ICountryRepository } from '../../src/application/features/profile/
 import { Country } from '../../src/domain/countries/country.js';
 
 export class FakeCountryRepository implements ICountryRepository {
-  private readonly countries = new Map<string, Country>();
+  readonly countries = new Map<string, Country>();
 
   seed(country: Country): void {
     this.countries.set(country.id, country);

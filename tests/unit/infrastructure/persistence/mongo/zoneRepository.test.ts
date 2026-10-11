@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Collection, Db, Document } from 'mongodb';
 import { ZoneRepository } from '../../../../../src/infrastructure/persistence/mongo/zoneRepository.js';
 import { createFakeCollection, toArrayCursor, toArrayResult } from '../../../../fakes/fakeMongoCollection.js';
+import { Zone } from '../../../../../src/domain/zones/zone.js';
 
 function repositoryWith(collection: ReturnType<typeof createFakeCollection>) {
   const db = { collection: () => collection as unknown as Collection<Document> } as unknown as Db;
@@ -95,5 +96,82 @@ describe('ZoneRepository (mocked driver)', () => {
     for (const call of collection.createIndex.mock.calls) {
       expect(JSON.stringify(call[0])).not.toContain('2dsphere');
     }
+  });
+});
+
+describe('ZoneRepository admin methods (spec 003)', () => {
+  it("lists all of a city's zones, active or not, by order then id", async () => {
+    const collection = createFakeCollection();
+    const cursor = toArrayCursor([doc]);
+    collection.find.mockReturnValue(cursor);
+
+    const zones = await repositoryWith(collection).listByCity('city-medellin');
+
+    expect(collection.find).toHaveBeenCalledWith({ cityId: 'city-medellin' });
+    expect(cursor.sort).toHaveBeenCalledWith({ displayOrder: 1, _id: 1 });
+    expect(zones.map((zone) => zone.id)).toEqual(['zone-bello']);
+  });
+
+  it('finds by id and by slug, counts per city and lists the cities with zones', async () => {
+    const collection = createFakeCollection();
+    collection.findOne.mockResolvedValue(doc);
+    collection.aggregate.mockReturnValue(toArrayResult([{ _id: 'city-medellin', count: 12 }]));
+    collection.distinct.mockResolvedValue(['city-medellin']);
+    const repository = repositoryWith(collection);
+
+    expect((await repository.getById('zone-bello'))?.slug).toBe('medellin-co-bello');
+    await repository.findBySlug('medellin-co-bello');
+    expect(collection.findOne).toHaveBeenLastCalledWith({ slug: 'medellin-co-bello' });
+    expect(await repository.countByCity(['city-medellin'])).toEqual(new Map([['city-medellin', 12]]));
+    expect(await repository.zoneOwnerIds()).toEqual(['city-medellin']);
+    expect(collection.distinct).toHaveBeenCalledWith('cityId');
+  });
+
+  it('creates at revision 0, updates at the revision read (the city never changes) and deletes', async () => {
+    const collection = createFakeCollection();
+    collection.updateOne.mockResolvedValue({ matchedCount: 1 });
+    collection.deleteOne.mockResolvedValue({ deletedCount: 1 });
+    const repository = repositoryWith(collection);
+    const zone = new Zone({ ...doc, id: 'z9', revision: 3 } as never);
+
+    await repository.create(zone);
+    expect(collection.insertOne).toHaveBeenCalledWith({
+      _id: 'z9', cityId: doc.cityId, name: doc.name, slug: doc.slug, geometry: doc.geometry, active: doc.active, displayOrder: doc.displayOrder, revision: 0,
+    });
+    await repository.update(zone);
+    expect(collection.updateOne).toHaveBeenCalledWith(
+      { _id: 'z9', revision: 3 },
+      { $set: { name: doc.name, slug: doc.slug, geometry: doc.geometry, active: doc.active, displayOrder: doc.displayOrder }, $inc: { revision: 1 } },
+    );
+    expect(await repository.delete('z9')).toBe(true);
+  });
+
+  it('still creates no 2dsphere or unique index', async () => {
+    const collection = createFakeCollection();
+    await repositoryWith(collection).ensureIndexes();
+    for (const [, options] of collection.createIndex.mock.calls) expect(options?.unique).toBeUndefined();
+    expect(JSON.stringify(collection.createIndex.mock.calls)).not.toContain('2dsphere');
+  });
+});
+
+describe('ZoneRepository.summariesByCities (admin lists and readiness)', () => {
+  it('reads the zones of many cities in one query, without their polygons', async () => {
+    const collection = createFakeCollection();
+    const cursor = toArrayCursor([{ ...doc, geometry: undefined, revision: 2 }]);
+    collection.find.mockReturnValue(cursor);
+
+    const zones = await repositoryWith(collection).summariesByCities(['city-medellin', 'city-cali']);
+
+    expect(collection.find).toHaveBeenCalledWith({ cityId: { $in: ['city-medellin', 'city-cali'] } }, { projection: { geometry: 0 } });
+    expect(cursor.sort).toHaveBeenCalledWith({ displayOrder: 1, _id: 1 });
+    expect(zones).toEqual([
+      { id: 'zone-bello', cityId: 'city-medellin', name: 'Bello', slug: 'medellin-co-bello', active: true, displayOrder: 1, revision: 2 },
+    ]);
+  });
+
+  it('asks nothing for no cities', async () => {
+    const collection = createFakeCollection();
+    expect(await repositoryWith(collection).summariesByCities([])).toEqual([]);
+    expect(collection.find).not.toHaveBeenCalled();
   });
 });

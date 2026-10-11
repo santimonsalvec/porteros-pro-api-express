@@ -18,3 +18,14 @@ describe('MatchSurface', () => {
     expect(() => new MatchSurface({ ...valid, ...override } as never)).toThrow(InvalidConfigurationError);
   });
 });
+
+describe('MatchSurface revision', () => {
+  it('defaults to 0 and keeps a stored value', () => {
+    expect(new MatchSurface(valid).revision).toBe(0);
+    expect(new MatchSurface({ ...valid, revision: 5 }).revision).toBe(5);
+  });
+
+  it('rejects a broken revision', () => {
+    expect(() => new MatchSurface({ ...valid, revision: -1 })).toThrow(/matchSurfaces document synthetic_grass: revision/);
+  });
+});
