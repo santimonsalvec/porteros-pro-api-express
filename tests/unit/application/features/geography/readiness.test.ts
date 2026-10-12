@@ -83,7 +83,12 @@ describe('cityReadiness', () => {
       city_booking_settings: 'optional',
       city_commission: 'optional',
     });
-    expect(item(result.items, 'rental_rates')).toMatchObject({ detail: '60 y 90 min', target: { kind: 'guide', section: '§4' } });
+    expect(item(result.items, 'rental_rates')).toMatchObject({ detail: '60 y 90 min', target: { kind: 'admin', screen: 'rentalRates', id: 'med' } });
+    // Prices and booking rules have their screens now (admin spec 004, FR-023).
+    expect(item(result.items, 'booking_settings')).toMatchObject({ target: { kind: 'admin', screen: 'bookingSettings', id: 'med' } });
+    expect(item(result.items, 'commission')).toMatchObject({ target: { kind: 'admin', screen: 'commissions', id: 'med' } });
+    expect(item(result.items, 'city_booking_settings')).toMatchObject({ target: { kind: 'admin', screen: 'bookingSettings', id: 'med' } });
+    expect(item(result.items, 'city_commission')).toMatchObject({ target: { kind: 'admin', screen: 'commissions', id: 'med' } });
     expect(result).toMatchObject({ ready: true, missingCount: 0 });
   });
 
@@ -165,7 +170,9 @@ describe('countryReadiness', () => {
     const result = await countryReadiness(fresh, (await deps.kit.countries.getById('co'))!);
 
     expect(item(result.items, 'currency')).toMatchObject({ status: 'missing', target: { kind: 'admin', screen: 'country', id: 'co' } });
-    expect(item(result.items, 'tax')).toMatchObject({ status: 'missing', target: { kind: 'guide', section: '§10' } });
+    expect(item(result.items, 'tax')).toMatchObject({ status: 'missing', target: { kind: 'admin', screen: 'taxSettings', id: 'co' } });
+    expect(item(result.items, 'booking_settings')).toMatchObject({ target: { kind: 'admin', screen: 'countryBookingSettings', id: 'co' } });
+    expect(item(result.items, 'commission')).toMatchObject({ target: { kind: 'admin', screen: 'countryCommissions', id: 'co' } });
     expect(item(result.items, 'payment_gateway')).toMatchObject({ status: 'missing', target: { kind: 'guide', section: '§12' } });
     expect(item(result.items, 'invoicing')).toMatchObject({ status: 'missing', target: { kind: 'guide', section: '§13' } });
     expect(item(result.items, 'document_types')).toMatchObject({ status: 'missing', target: { kind: 'admin', screen: 'documentTypes' } });

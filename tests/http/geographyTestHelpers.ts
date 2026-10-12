@@ -8,6 +8,7 @@ export const as = (context: TestApp, token: string) => ({
   get: (path: string) => request(context.app).get(path).set('Authorization', `Bearer ${token}`),
   post: (path: string, body: object = {}) => request(context.app).post(path).set('Authorization', `Bearer ${token}`).send(body),
   patch: (path: string, body: object) => request(context.app).patch(path).set('Authorization', `Bearer ${token}`).send(body),
+  put: (path: string, body: object) => request(context.app).put(path).set('Authorization', `Bearer ${token}`).send(body),
 });
 
 /** An owner, a reader (`geography.read` only) and an editor (`geography.read` + `geography.manage`). */

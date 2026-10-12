@@ -47,3 +47,14 @@ describe('RentalRate', () => {
     expect(() => new RentalRate({ ...valid, ...override })).toThrow(InvalidConfigurationError);
   });
 });
+
+describe('RentalRate revision', () => {
+  it('is 0 when the document has none, and keeps a stored one', () => {
+    expect(new RentalRate(valid).revision).toBe(0);
+    expect(new RentalRate({ ...valid, revision: 4 }).revision).toBe(4);
+  });
+
+  it.each([-1, 1.5])('rejects a broken revision (%s)', (revision) => {
+    expect(() => new RentalRate({ ...valid, revision })).toThrow(/rentalRates document r1: revision/);
+  });
+});

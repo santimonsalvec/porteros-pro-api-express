@@ -98,3 +98,14 @@ describe('BookingSettings', () => {
     expect(() => new BookingSettings({ ...base, goalkeeperPenalties: { weeklyLimit: value } })).toThrow(/goalkeeperPenalties.weeklyLimit/);
   });
 });
+
+describe('BookingSettings revision', () => {
+  it('is 0 when the document has none, and keeps a stored one', () => {
+    expect(new BookingSettings(base).revision).toBe(0);
+    expect(new BookingSettings({ ...base, revision: 2 }).revision).toBe(2);
+  });
+
+  it.each([-1, 1.5])('rejects a broken revision (%s)', (revision) => {
+    expect(() => new BookingSettings({ ...base, revision })).toThrow(/bookingSettings document s1: revision/);
+  });
+});

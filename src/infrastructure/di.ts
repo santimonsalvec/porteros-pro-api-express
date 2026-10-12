@@ -212,6 +212,7 @@ import { RatingRepository } from './persistence/mongo/ratingRepository.js';
 import { CaseRepository } from './persistence/mongo/caseRepository.js';
 import { staffHandlerRegistrations } from './staffHandlers.js';
 import { geographyHandlerRegistrations } from './geographyHandlers.js';
+import { pricingHandlerRegistrations } from './pricingHandlers.js';
 import { PinoAdminSecurityLog } from './observability/pinoAdminSecurityLog.js';
 import { JwtAdminTokenIssuer } from './auth/jwtAdminTokenIssuer.js';
 import { StaffAccessResolver } from './auth/staffAccessResolver.js';
@@ -602,10 +603,11 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     }),
   );
   const referenceUsage = new MongoReferenceUsage(db);
+  const adminCountryRepository = new MongoAdminCountryRepository(db);
   registerHandlers(
     mediator,
     geographyHandlerRegistrations({
-      countries: new MongoAdminCountryRepository(db),
+      countries: adminCountryRepository,
       regions: regionRepository,
       cities: cityRepository,
       zones: zoneRepository,
@@ -619,6 +621,26 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       invoicingSettings: invoicingSettingsRepository,
       documentTypes: documentTypeRepository,
       surfaces: matchSurfaceRepository,
+      ids: idGenerator,
+      clock,
+    }),
+  );
+  registerHandlers(
+    mediator,
+    pricingHandlerRegistrations({
+      regionRepository,
+      countryLookup: countryRepository,
+      rentalRateRepository,
+      bookingSettingsRepository,
+      commissionResolver,
+      countries: adminCountryRepository,
+      regions: regionRepository,
+      cities: cityRepository,
+      zones: zoneRepository,
+      rentalRates: rentalRateRepository,
+      commissions: commissionSettingRepository,
+      bookingSettings: bookingSettingsRepository,
+      taxSettings: taxSettingsRepository,
       ids: idGenerator,
       clock,
     }),

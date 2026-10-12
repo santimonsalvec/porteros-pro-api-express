@@ -118,5 +118,29 @@ describe('redactForAudit', () => {
       id: 'arena', name: 'Arena', active: true, order: 4, inUse: false, revision: 0, reason: 'nueva',
     });
   });
+
+  it('keeps every field of a rate, a commission and booking rules (spec 004 of the admin)', () => {
+    const rate = {
+      id: 'r1', scope: 'zone', refId: 'bello', durationMinutes: 90, modality: 'futbol_11', level: 'competitive', amount: 60000,
+      revision: 2, invalid: false, currency: 'COP', countryId: 'co', countryName: 'Colombia', cityId: 'med', cityName: 'Medellín',
+      zoneName: 'Bello', zoneActive: true, targetValid: true, reason: 'Precio viejo',
+    };
+    expect(redactForAudit('rentalRate', rate)).toEqual(rate);
+    const commission = { ...rate, scope: 'country', vatRateBps: 1900, vatAmount: 1330, totalWithVat: 8330 };
+    delete (commission as Record<string, unknown>).durationMinutes;
+    expect(redactForAudit('commissionSetting', commission)).toEqual(commission);
+    const settings = {
+      cityId: 'med', cityName: 'Medellín', countryId: 'co', countryName: 'Colombia', currency: 'COP', revision: 1,
+      own: {
+        bookingWindowDays: 7, minNoticeMinutes: 60, freeCancellationMinutes: 60, travelBufferMinutes: 45,
+        leadTimeSurcharge: { tiers: [{ fromMinutes: 0, toMinutes: null, amount: 0 }] },
+        goalkeeperPenalties: { lateNoticeMinutes: 120, lateSuspensionDays: 3, weeklyLimit: 3, windowDays: 7, limitSuspensionDays: 7 },
+        checkInWindow: { opensMinutesBefore: 30, closesMinutesAfter: 15 }, noShowGraceMinutes: 60,
+      },
+      effective: { travelBufferMinutes: { value: 45, origin: 'city' } },
+      defaults: { freeCancellationMinutes: 60 },
+    };
+    expect(redactForAudit('bookingSettings', { ...settings, country: settings.own })).toEqual({ ...settings, country: settings.own });
+  });
 });
 

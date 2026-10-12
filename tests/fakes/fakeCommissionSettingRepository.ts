@@ -2,7 +2,8 @@ import type { ICommissionSettingRepository } from '../../src/application/feature
 import type { CommissionSetting } from '../../src/domain/wallet/commissionSetting.js';
 
 export class FakeCommissionSettingRepository implements ICommissionSettingRepository {
-  private readonly settings: CommissionSetting[] = [];
+  /** The stored commissions, shared with the admin web's fake (spec 004 of the admin). */
+  readonly settings: CommissionSetting[] = [];
   calls = 0;
 
   seed(setting: CommissionSetting): void {

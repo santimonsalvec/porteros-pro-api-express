@@ -39,8 +39,13 @@ export class CommissionResolver implements ICommissionResolver {
 
   /** The commission of one match in this zone, `null` when none is configured. */
   async resolveForMatch(zoneId: string, match: MatchTier): Promise<number | null> {
+    return (await this.resolveSettingForMatch(zoneId, match))?.amount ?? null;
+  }
+
+  /** The document that sets that commission: the admin's simulator shows its level and tier (spec 004). */
+  async resolveSettingForMatch(zoneId: string, match: MatchTier): Promise<CommissionSetting | null> {
     const levels = await this.levelsFor([zoneId]);
-    return resolveTiered(levels.get(zoneId) ?? [], match)?.amount ?? null;
+    return resolveTiered(levels.get(zoneId) ?? [], match);
   }
 
   private async levelsFor(zoneIds: string[]): Promise<CommissionLevels> {

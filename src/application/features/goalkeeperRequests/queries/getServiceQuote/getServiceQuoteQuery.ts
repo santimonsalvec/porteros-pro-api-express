@@ -41,7 +41,8 @@ export interface ServiceQuote {
   matchFormat: MatchFormatResponse;
 }
 
-export type InvalidStartTimeReason = 'not_on_slot' | 'nonexistent_local_time' | 'ambiguous_local_time';
+export type { InvalidStartTimeReason } from '../../common/quoteEvaluation.js';
+import type { InvalidStartTimeReason } from '../../common/quoteEvaluation.js';
 
 export type GetServiceQuoteResult =
   | {

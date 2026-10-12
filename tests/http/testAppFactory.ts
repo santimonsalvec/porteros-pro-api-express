@@ -26,6 +26,8 @@ import { CompleteProfileCommandHandler } from '../../src/application/features/pr
 import { Country } from '../../src/domain/countries/country.js';
 import { staffHandlerRegistrations } from '../../src/infrastructure/staffHandlers.js';
 import { geographyHandlerRegistrations } from '../../src/infrastructure/geographyHandlers.js';
+import { pricingHandlerRegistrations } from '../../src/infrastructure/pricingHandlers.js';
+import { FakeBookingSettingsAdmin, FakeCommissionAdmin, FakeRentalRateAdmin } from '../fakes/fakePricingAdmin.js';
 import {
   FakeAdminCityRepository,
   FakeAdminCountryRepository,
@@ -677,6 +679,27 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       invoicingSettings: invoicingSettingsRepository,
       documentTypes: new FakeAdminDocumentTypeRepository(documentTypeRepository),
       surfaces: new FakeAdminMatchSurfaceRepository(matchSurfaceRepository),
+      ids: { newId: () => uuidv7() },
+      clock,
+    }),
+  );
+  registerHandlers(
+    mediator,
+    pricingHandlerRegistrations({
+      regionRepository,
+      countryLookup: quoteCountryRepository,
+      rentalRateRepository,
+      bookingSettingsRepository,
+      commissionResolver,
+      // The quote reads its own country store; prices must see the same currencies it does.
+      countries: new FakeAdminCountryRepository(quoteCountryRepository),
+      regions: adminRegions,
+      cities: adminCities,
+      zones: adminZones,
+      rentalRates: new FakeRentalRateAdmin(rentalRateRepository),
+      commissions: new FakeCommissionAdmin(commissionSettingRepository),
+      bookingSettings: new FakeBookingSettingsAdmin(bookingSettingsRepository),
+      taxSettings: taxSettingsRepository,
       ids: { newId: () => uuidv7() },
       clock,
     }),

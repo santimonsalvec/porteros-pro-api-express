@@ -3,6 +3,11 @@
  * of field names per resource type, applied at every depth, plus names that never pass anywhere.
  * A field not listed is left out — the log never learns a secret by accident.
  */
+const PRICE_FIELDS = [
+  'id', 'scope', 'refId', 'modality', 'level', 'amount', 'revision', 'invalid', 'currency', 'countryId', 'countryName',
+  'cityId', 'cityName', 'zoneName', 'zoneActive', 'targetValid', 'reason',
+];
+
 const ALLOWED_FIELDS: Readonly<Record<string, readonly string[]>> = {
   wallet: [
     'goalkeeperId', 'balance', 'currency', 'id', 'movementId', 'type', 'amount', 'reason', 'operationKey',
@@ -40,6 +45,16 @@ const ALLOWED_FIELDS: Readonly<Record<string, readonly string[]>> = {
   ],
   documentType: ['id', 'code', 'name', 'invoiceable', 'inUse', 'revision', 'reason'],
   matchSurface: ['id', 'name', 'active', 'order', 'inUse', 'revision', 'reason'],
+  // Prices and booking rules (spec 004 of the admin): configuration values, nothing personal or secret.
+  rentalRate: [...PRICE_FIELDS, 'durationMinutes'],
+  commissionSetting: [...PRICE_FIELDS, 'vatRateBps', 'vatAmount', 'totalWithVat'],
+  bookingSettings: [
+    'countryId', 'countryName', 'cityId', 'cityName', 'currency', 'revision', 'own', 'country', 'defaults', 'effective',
+    'value', 'origin', 'bookingWindowDays', 'minNoticeMinutes', 'freeCancellationMinutes', 'travelBufferMinutes',
+    'leadTimeSurcharge', 'tiers', 'fromMinutes', 'toMinutes', 'amount', 'goalkeeperPenalties', 'lateNoticeMinutes',
+    'lateSuspensionDays', 'weeklyLimit', 'windowDays', 'limitSuspensionDays', 'checkInWindow', 'opensMinutesBefore',
+    'closesMinutesAfter', 'noShowGraceMinutes',
+  ],
 };
 
 /** Never stored, at any depth and whatever the resource: secrets, identity documents, phones, comments. */

@@ -3,7 +3,8 @@ import type { BookingSettings } from '../../src/domain/pricing/bookingSettings.j
 import type { IBookingSettingsBatch } from '../../src/application/features/geography/common/ports.js';
 
 export class FakeBookingSettingsRepository implements IBookingSettingsRepository, IBookingSettingsBatch {
-  private readonly settings: BookingSettings[] = [];
+  /** The stored levels, shared with the admin web's fake (spec 004 of the admin). */
+  readonly settings: BookingSettings[] = [];
 
   seed(settings: BookingSettings): void {
     this.settings.push(settings);

@@ -3,7 +3,8 @@ import type { RentalRate } from '../../src/domain/pricing/rentalRate.js';
 import type { IRatePresence } from '../../src/application/features/geography/common/ports.js';
 
 export class FakeRentalRateRepository implements IRentalRateRepository, IRatePresence {
-  private readonly rates: RentalRate[] = [];
+  /** The stored rates, shared with the admin web's fake (spec 004 of the admin). */
+  readonly rates: RentalRate[] = [];
 
   seed(rate: RentalRate): void {
     this.rates.push(rate);

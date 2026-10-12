@@ -91,3 +91,17 @@ describe('CommissionResolver — feature 024: modality and level tiers', () => {
     expect(Object.fromEntries(resolved)).toEqual({ 'zone-laureles': 9000, 'zone-poblado': 8000, 'zone-cali-norte': 5000 });
   });
 });
+
+describe('CommissionResolver.resolveSettingForMatch (admin spec 004, the simulator)', () => {
+  const recreational = { modality: 'futbol_11' as const, level: 'recreational' as const };
+
+  it('answers the winning document, so the simulator can say where the commission comes from', async () => {
+    expect((await resolver.resolveSettingForMatch('zone-laureles', recreational))?.id).toBe('c-lau');
+    expect((await resolver.resolveSettingForMatch('zone-poblado', recreational))?.id).toBe('c-med');
+    expect((await resolver.resolveSettingForMatch('zone-cali-norte', recreational))?.id).toBe('c-co');
+  });
+
+  it('answers null where nothing applies', async () => {
+    expect(await resolver.resolveSettingForMatch('zone-cdmx', recreational)).toBeNull();
+  });
+});

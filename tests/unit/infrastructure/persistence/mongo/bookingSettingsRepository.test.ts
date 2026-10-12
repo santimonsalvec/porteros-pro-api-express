@@ -151,3 +151,81 @@ describe('BookingSettingsRepository.findMany (admin readiness)', () => {
     expect(collection.find).not.toHaveBeenCalled();
   });
 });
+
+describe('BookingSettingsRepository — admin web (spec 004 of the admin)', () => {
+  const empty = {
+    bookingWindowDays: null, minNoticeMinutes: null, leadTimeSurcharge: null, freeCancellationMinutes: null, travelBufferMinutes: null,
+    goalkeeperPenalties: null, checkInWindow: null, noShowGraceMinutes: null,
+  };
+
+  it('reads one level with every field, null where it sets none', async () => {
+    const collection = createFakeCollection();
+    collection.findOne.mockResolvedValue({ _id: 's-med', scope: 'city', refId: 'med', travelBufferMinutes: 45, revision: 3 });
+    expect(await repositoryWith(collection).getByScope('city', 'med')).toEqual({
+      scope: 'city', refId: 'med', fields: { ...empty, travelBufferMinutes: 45 }, revision: 3, invalid: false,
+    });
+    expect(collection.findOne).toHaveBeenCalledWith({ scope: 'city', refId: 'med' });
+  });
+
+  it('marks a seeded level the domain refuses', async () => {
+    const collection = createFakeCollection();
+    collection.findOne.mockResolvedValue({ _id: 's', scope: 'country', refId: 'co', bookingWindowDays: 0 });
+    expect(await repositoryWith(collection).getByScope('country', 'co')).toMatchObject({ invalid: true, fields: { bookingWindowDays: 0 } });
+  });
+
+  it('is null for a level with no document', async () => {
+    const collection = createFakeCollection();
+    collection.findOne.mockResolvedValue(null);
+    expect(await repositoryWith(collection).getByScope('country', 'co')).toBeNull();
+  });
+
+  it('creates a level with only its values and revision 0', async () => {
+    const collection = createFakeCollection();
+    collection.insertOne.mockResolvedValue({});
+    const result = await repositoryWith(collection).save('city', 'med', null, {
+      ...empty, travelBufferMinutes: 45, checkInWindow: { opensMinutesBefore: 30, closesMinutesAfter: null },
+    });
+    expect(result).toBe('saved');
+    expect(collection.insertOne).toHaveBeenCalledWith({
+      _id: 'city:med', scope: 'city', refId: 'med', travelBufferMinutes: 45, checkInWindow: { opensMinutesBefore: 30 }, revision: 0,
+    });
+  });
+
+  it('is stale when another level was created meanwhile', async () => {
+    const collection = createFakeCollection();
+    collection.insertOne.mockRejectedValue(Object.assign(new Error('E11000'), { code: 11000 }));
+    expect(await repositoryWith(collection).save('city', 'med', null, empty)).toBe('stale');
+  });
+
+  it('replaces the values at the revision read, removing the ones now empty', async () => {
+    const collection = createFakeCollection();
+    collection.updateOne.mockResolvedValue({ matchedCount: 1 });
+    const result = await repositoryWith(collection).save('country', 'co', 2, { ...empty, bookingWindowDays: 7 });
+    expect(result).toBe('saved');
+    expect(collection.updateOne).toHaveBeenCalledWith(
+      { scope: 'country', refId: 'co', revision: 2 },
+      {
+        $set: { bookingWindowDays: 7 },
+        $unset: {
+          minNoticeMinutes: '', leadTimeSurcharge: '', freeCancellationMinutes: '', travelBufferMinutes: '',
+          goalkeeperPenalties: '', checkInWindow: '', noShowGraceMinutes: '',
+        },
+        $inc: { revision: 1 },
+      },
+    );
+  });
+
+  it('is stale when the revision moved', async () => {
+    const collection = createFakeCollection();
+    collection.updateOne.mockResolvedValue({ matchedCount: 0 });
+    expect(await repositoryWith(collection).save('country', 'co', 0, { ...empty, bookingWindowDays: 7 })).toBe('stale');
+    expect(collection.updateOne.mock.calls[0]?.[0]).toEqual({ scope: 'country', refId: 'co', $or: [{ revision: 0 }, { revision: { $exists: false } }] });
+  });
+
+  it('lists every city level', async () => {
+    const collection = createFakeCollection();
+    collection.find.mockReturnValue(toArrayResult([{ _id: 's', scope: 'city', refId: 'med', travelBufferMinutes: 45 }]));
+    expect(await repositoryWith(collection).listCityScoped()).toMatchObject([{ refId: 'med', fields: { travelBufferMinutes: 45 } }]);
+    expect(collection.find).toHaveBeenCalledWith({ scope: 'city' });
+  });
+});

@@ -10,36 +10,15 @@ import type {
 } from '../../common/ports.js';
 import { MatchFormat } from '../../../../../domain/bookings/matchFormat.js';
 import { matchFormatResponse } from '../../common/matchFormatResponse.js';
-import { computeAmounts, selectSurchargeTier, selectUnitRate } from '../../common/pricing.js';
-import { SLOT_STEP_MINUTES } from '../../common/bookingLimits.js';
-import { resolveAreaSettings, resolveServiceArea } from '../../common/serviceArea.js';
-import type { MissingSetting } from '../../common/resolveBookingSettings.js';
+import { evaluateQuoteInArea } from '../../common/quoteEvaluation.js';
+import { resolveServiceArea } from '../../common/serviceArea.js';
 import type { ICommissionResolver } from '../../../wallet/common/ports.js';
-import type { ParsedStartsAt } from '../../common/startsAt.js';
-import { formatLocalIso, localDayNumber, resolveLocalDateTime, toLocalParts } from '../../common/zonedTime.js';
-import {
-  GetServiceQuoteQuery,
-  type GetServiceQuoteResult,
-  type InvalidStartTimeReason,
-} from './getServiceQuoteQuery.js';
-
-type StartInstant = { kind: 'ok'; epochMs: number } | { kind: 'invalid'; reason: InvalidStartTimeReason };
-
-/** With an explicit offset the instant is fixed; without one the wall-clock time is read in the city's zone. */
-function resolveStartInstant(startsAt: ParsedStartsAt, timeZone: string): StartInstant {
-  const { local, offsetMinutes } = startsAt;
-  if (offsetMinutes !== null) {
-    const asIfUtc = Date.UTC(local.year, local.month - 1, local.day, local.hour, local.minute, local.second, local.millisecond);
-    return { kind: 'ok', epochMs: asIfUtc - offsetMinutes * 60_000 };
-  }
-  const resolved = resolveLocalDateTime(local, timeZone);
-  if (resolved.kind === 'ok') return { kind: 'ok', epochMs: resolved.epochMs };
-  return { kind: 'invalid', reason: resolved.kind === 'nonexistent' ? 'nonexistent_local_time' : 'ambiguous_local_time' };
-}
+import { GetServiceQuoteQuery, type GetServiceQuoteResult } from './getServiceQuoteQuery.js';
 
 /**
  * Read-only: prices a goalkeeper booking. Evaluation follows research.md §11 — the
  * first failing rule is the one reported. Nothing here writes to any repository (FR-020).
+ * Steps (3) to (9) live in `evaluateQuoteInArea`, which the admin's simulator shares.
  */
 export class GetServiceQuoteQueryHandler implements IQueryHandler<GetServiceQuoteQuery, GetServiceQuoteResult> {
   constructor(
@@ -64,7 +43,6 @@ export class GetServiceQuoteQueryHandler implements IQueryHandler<GetServiceQuot
     const surface = await this.matchSurfaceRepository.findById(surfaceId);
     if (!surface?.active) return { outcome: 'unknown_surface', surfaceId };
     const format = new MatchFormat({ modality, level, surfaceId: surface.id, surfaceName: surface.name });
-    const match = { modality, level };
 
     // (1)(2) Which active zone contains the point, and the (anchor) city that owns it: it supplies
     //        the time zone, the rate fallback and the settings scope.
@@ -72,67 +50,24 @@ export class GetServiceQuoteQueryHandler implements IQueryHandler<GetServiceQuot
     if (area.outcome !== 'ok') return area;
     const { zone, city, timeZone } = area;
 
-    // (3) The start instant, read in the city's own time zone.
-    const start = resolveStartInstant(startsAt, timeZone);
-    if (start.kind === 'invalid') return { outcome: 'invalid_start_time', reason: start.reason };
-    const startEpochMs = start.epochMs;
+    // (3)–(9) Start, configuration, notice, window, rate, surcharge and totals.
+    const priced = await evaluateQuoteInArea(
+      {
+        regionRepository: this.regionRepository,
+        countryLookup: this.countryLookup,
+        rentalRateRepository: this.rentalRateRepository,
+        bookingSettingsRepository: this.bookingSettingsRepository,
+        commissionResolver: this.commissionResolver,
+      },
+      { zone, city, timeZone, startsAt, goalkeeperCount, durationMinutes, match: { modality, level }, nowMs },
+    );
+    if (priced.outcome !== 'priced') return priced;
 
-    // (3b) The start must sit on a local slot mark (:00 or :30) — judged in the city's own time, so
-    //      half-hour and 45-minute offsets (India, Nepal) are handled correctly.
-    const startLocal = toLocalParts(startEpochMs, timeZone);
-    if (startLocal.minute % SLOT_STEP_MINUTES !== 0 || startLocal.second !== 0 || startLocal.millisecond !== 0) {
-      return { outcome: 'invalid_start_time', reason: 'not_on_slot' };
-    }
-
-    // (3c) In the past? Needs no configuration, so it is reported even in an unconfigured area.
-    if (startEpochMs < nowMs) return { outcome: 'start_time_in_past' };
-
-    // (4)(5)(6) The rates for this duration, and the area's settings + currency (city → region →
-    //          country), in parallel. Every setting must be defined at the city or its country — no
-    //          built-in defaults — and the country must say which currency its prices are in.
-    //          The platform commission is fixed here too, for the whole flow (012): no commission, no
-    //          quote — a booking nobody could be offered must not be sold.
-    const [rates, areaSettings, commission] = await Promise.all([
-      this.rentalRateRepository.findForDuration(zone.id, city.id, durationMinutes),
-      resolveAreaSettings(
-        {
-          regionRepository: this.regionRepository,
-          countryLookup: this.countryLookup,
-          bookingSettingsRepository: this.bookingSettingsRepository,
-        },
-        city,
-      ),
-      this.commissionResolver.resolveForMatch(zone.id, match),
-    ]);
-    if (!areaSettings.ok || commission === null) {
-      const missing: MissingSetting[] = [...(areaSettings.ok ? [] : areaSettings.missing), ...(commission === null ? ['commission' as const] : [])];
-      return { outcome: 'service_not_configured', cityId: city.id, missing };
-    }
-    const { currency, bookingWindowDays, minNoticeMinutes, leadTimeSurcharge, freeCancellationMinutes, travelBufferMinutes } = areaSettings;
-
-    // (6b) Minimum notice, on real elapsed time. Exactly the minimum is accepted.
-    if (startEpochMs - nowMs < minNoticeMinutes * 60_000) return { outcome: 'insufficient_notice', minNoticeMinutes };
-
-    // (6c) Booking window: N days = today plus the next N−1 LOCAL calendar days in the city's zone.
-    const daysAhead = localDayNumber(startLocal) - localDayNumber(toLocalParts(nowMs, timeZone));
-    if (daysAhead > bookingWindowDays - 1) return { outcome: 'outside_booking_window', bookingWindowDays };
-
-    // (7) The unit rate: the zone's own rates, else the city's — decided per duration, since
-    //     the repository already filtered on the requested one, then by modality + level →
-    //     modality → general within each (feature 024). None ⇒ refused, never free.
-    const rate = selectUnitRate(rates, match);
-    if (!rate) return { outcome: 'rate_not_configured', zoneId: zone.id, cityId: city.id, durationMinutes };
-
-    // (8) Lead-time surcharge, on real elapsed time. The tier's amount is per goalkeeper.
-    const leadMinutes = (startEpochMs - nowMs) / 60_000;
-    const unitSurcharge = selectSurchargeTier(leadTimeSurcharge.tiers, leadMinutes)?.amount ?? 0;
-
-    // (9) Totals: the rate and the surcharge are each charged once per goalkeeper.
-    const { subtotal, surcharge, total } = computeAmounts(rate.amount, goalkeeperCount, unitSurcharge);
+    const { unitRate, subtotal, unitSurcharge, surcharge, total, currency, startEpochMs, startsAtLocal } = priced;
     return {
       outcome: 'success',
       quote: {
-        unitRate: rate.amount,
+        unitRate,
         goalkeeperCount,
         subtotal,
         unitSurcharge,
@@ -140,11 +75,18 @@ export class GetServiceQuoteQueryHandler implements IQueryHandler<GetServiceQuot
         total,
         currency,
         startsAt: new Date(startEpochMs).toISOString(),
-        startsAtLocal: formatLocalIso(startEpochMs, timeZone),
+        startsAtLocal,
         timeZone,
         matchFormat: matchFormatResponse(format),
       },
-      area: { zoneId: zone.id, cityId: city.id, freeCancellationMinutes, commission, travelBufferMinutes, format },
+      area: {
+        zoneId: zone.id,
+        cityId: city.id,
+        freeCancellationMinutes: priced.freeCancellationMinutes,
+        commission: priced.commission,
+        travelBufferMinutes: priced.travelBufferMinutes,
+        format,
+      },
     };
   }
 }

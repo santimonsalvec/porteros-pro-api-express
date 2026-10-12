@@ -43,3 +43,49 @@ describe('CommissionSettingRepository (mocked driver)', () => {
     expect(collection.find).not.toHaveBeenCalled();
   });
 });
+
+describe('CommissionSettingRepository — admin web (spec 004 of the admin)', () => {
+  const stored = { _id: 'c1', scope: 'country', refId: 'co', amount: 7000 };
+
+  it('finds the commissions of the given refs and modality', async () => {
+    const collection = createFakeCollection();
+    collection.find.mockReturnValue(toArrayResult([stored]));
+    const found = await repositoryWith(collection).find({ refs: [{ scope: 'country', refIds: ['co'] }], modality: 'general' });
+    expect(collection.find).toHaveBeenCalledWith({ $or: [{ scope: 'country', refId: { $in: ['co'] } }], modality: null });
+    expect(found).toEqual([{ id: 'c1', scope: 'country', refId: 'co', modality: null, level: null, amount: 7000, revision: 0, invalid: false }]);
+  });
+
+  it('marks a seeded commission the domain refuses', async () => {
+    const collection = createFakeCollection();
+    collection.find.mockReturnValue(toArrayResult([{ ...stored, amount: 0 }]));
+    expect((await repositoryWith(collection).find({ refs: null }))[0]?.invalid).toBe(true);
+  });
+
+  it('creates with explicit nulls, and answers duplicate on the unique index', async () => {
+    const collection = createFakeCollection();
+    collection.insertOne.mockResolvedValueOnce({}).mockRejectedValueOnce(Object.assign(new Error('E11000'), { code: 11000 }));
+    collection.findOne.mockResolvedValue({ _id: 'c1' });
+    const repository = repositoryWith(collection);
+    const input = { id: 'c2', scope: 'zone' as const, refId: 'poblado', modality: null, level: null, amount: 9000 };
+
+    expect(await repository.create(input)).toEqual({ outcome: 'created' });
+    expect(collection.insertOne).toHaveBeenCalledWith({ _id: 'c2', scope: 'zone', refId: 'poblado', modality: null, level: null, amount: 9000, revision: 0 });
+    expect(await repository.create(input)).toEqual({ outcome: 'duplicate', existingId: 'c1' });
+  });
+
+  it('reads, edits the amount at a revision and deletes', async () => {
+    const collection = createFakeCollection();
+    collection.findOne.mockResolvedValue(stored);
+    collection.updateOne.mockResolvedValue({ matchedCount: 1 });
+    collection.deleteOne.mockResolvedValue({ deletedCount: 0 });
+    const repository = repositoryWith(collection);
+
+    expect(await repository.getById('c1')).toMatchObject({ id: 'c1', amount: 7000 });
+    expect(await repository.updateAmount('c1', 0, 8000)).toBe('saved');
+    expect(collection.updateOne).toHaveBeenCalledWith(
+      { _id: 'c1', $or: [{ revision: 0 }, { revision: { $exists: false } }] },
+      { $set: { amount: 8000 }, $inc: { revision: 1 } },
+    );
+    expect(await repository.delete('c1')).toBe(false);
+  });
+});

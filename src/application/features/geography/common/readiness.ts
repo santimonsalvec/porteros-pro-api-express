@@ -28,7 +28,23 @@ import type {
  */
 
 export type ReadinessTarget =
-  | { kind: 'admin'; screen: 'city' | 'region' | 'country' | 'zones' | 'documentTypes'; id?: string }
+  | {
+      kind: 'admin';
+      screen:
+        | 'city'
+        | 'region'
+        | 'country'
+        | 'zones'
+        | 'documentTypes'
+        // Prices and booking rules (admin spec 004): a city's, or a country's.
+        | 'rentalRates'
+        | 'commissions'
+        | 'countryCommissions'
+        | 'bookingSettings'
+        | 'countryBookingSettings'
+        | 'taxSettings';
+      id?: string;
+    }
   | { kind: 'guide'; section: string };
 
 export interface ReadinessItem {
@@ -188,23 +204,24 @@ function cityItems(facts: CityFacts): ReadinessItem[] {
       zoneIds.length > 0 ? `${zoneIds.length} ${zoneIds.length === 1 ? 'zona activa' : 'zonas activas'}${anchorName}` : `Sin zonas activas${anchorName}`,
       admin('zones', anchor.id),
     ),
-    check('rental_rates', durations.length > 0, durations.length > 0 ? `${listWords(durations)} min` : 'Sin tarifas', guide('§4')),
-    bookingSettingsItem(settings, facts.anchorCountry),
-    check('commission', commissions.length > 0, commissions.length > 0 ? 'Configurada' : 'Sin comisión', guide('§9')),
-    check('city_booking_settings', settings.city !== null, settings.city ? 'Reglas propias de la ciudad' : 'Usa las del país', guide('§5'), true),
-    check('city_commission', cityLevel.length > 0, cityLevel.length > 0 ? 'Comisión propia' : 'Usa la del país', guide('§9'), true),
+    check('rental_rates', durations.length > 0, durations.length > 0 ? `${listWords(durations)} min` : 'Sin tarifas', admin('rentalRates', anchor.id)),
+    bookingSettingsItem(settings, facts.anchorCountry, anchor.id),
+    check('commission', commissions.length > 0, commissions.length > 0 ? 'Configurada' : 'Sin comisión', admin('commissions', anchor.id)),
+    check('city_booking_settings', settings.city !== null, settings.city ? 'Reglas propias de la ciudad' : 'Usa las del país', admin('bookingSettings', anchor.id), true),
+    check('city_commission', cityLevel.length > 0, cityLevel.length > 0 ? 'Comisión propia' : 'Usa la del país', admin('commissions', anchor.id), true),
   );
   return items;
 }
 
 /** The quote's own judgement of the rules and currency (`areaSettingsFrom`). */
-function bookingSettingsItem(settings: CityFacts['settings'], country: Country | null): ReadinessItem {
+function bookingSettingsItem(settings: CityFacts['settings'], country: Country | null, anchorId: string): ReadinessItem {
+  const target = admin('bookingSettings', anchorId);
   try {
     const result = areaSettingsFrom(settings, country);
-    return check('booking_settings', result.ok, result.ok ? 'Completas' : `Falta: ${result.missing.join(', ')}`, guide('§5'));
+    return check('booking_settings', result.ok, result.ok ? 'Completas' : `Falta: ${result.missing.join(', ')}`, target);
   } catch (error) {
     if (!(error instanceof InvalidConfigurationError)) throw error;
-    return check('booking_settings', false, 'Hay un valor inválido en la configuración', guide('§5'));
+    return check('booking_settings', false, 'Hay un valor inválido en la configuración', target);
   }
 }
 
@@ -226,9 +243,9 @@ export async function countryReadiness(deps: ReadinessDependencies, country: Cou
     check('currency', country.currency !== null && CURRENCY.test(country.currency), country.currency ?? 'Sin moneda', admin('country', country.id)),
     check('country_code', COUNTRY_CODE.test(country.countryCode), country.countryCode, admin('country', country.id)),
     check('regions', regions.length > 0, `${regions.length} ${regions.length === 1 ? 'región' : 'regiones'}`, admin('region')),
-    check('booking_settings', hasMinimumRules(settings[0] ?? null), hasMinimumRules(settings[0] ?? null) ? 'Completas' : 'Faltan reglas del país', guide('§5')),
-    check('commission', commissions.length > 0, commissions.length > 0 ? 'Configurada' : 'Sin comisión del país', guide('§9')),
-    check('tax', tax !== null, tax ? 'Configurado' : 'Sin IVA configurado', guide('§10')),
+    check('booking_settings', hasMinimumRules(settings[0] ?? null), hasMinimumRules(settings[0] ?? null) ? 'Completas' : 'Faltan reglas del país', admin('countryBookingSettings', country.id)),
+    check('commission', commissions.length > 0, commissions.length > 0 ? 'Configurada' : 'Sin comisión del país', admin('countryCommissions', country.id)),
+    check('tax', tax !== null, tax ? 'Configurado' : 'Sin IVA configurado', admin('taxSettings', country.id)),
     check('payment_gateway', gateway !== null, gateway ? 'Configurada' : 'Sin pasarela', guide('§12')),
     check('invoicing', invoicing !== null, invoicing ? 'Configurada' : 'Sin facturación', guide('§13')),
     check(
