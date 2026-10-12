@@ -12,6 +12,8 @@ export class GoalkeeperProfileRepository extends MongoRepository<GoalkeeperProfi
   async ensureIndexes(): Promise<void> {
     await this.collection.createIndex({ userId: 1 }, { unique: true, name: 'userId_unique' });
     await this.collection.createIndex({ zoneIds: 1, availableForOffers: 1 }, { name: 'zone_offers' });
+    // The admin's goalkeeper list by city (admin spec 005).
+    await this.collection.createIndex({ cityId: 1, activatedAt: -1 }, { name: 'cityId_activatedAt' });
   }
 
   protected toDocument(entity: GoalkeeperProfile): Document {

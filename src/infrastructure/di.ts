@@ -1,4 +1,5 @@
 import { Mediator, registerHandlers, registerSubscribers } from '../application/common/mediator/mediator.js';
+import { WithdrawalAdminDetails } from '../application/features/bookingLifecycle/common/withdrawalAdminDetails.js';
 import { GetSsoOptionsQuery } from '../application/features/auth/queries/getSsoOptions/getSsoOptionsQuery.js';
 import { GetSsoOptionsQueryHandler } from '../application/features/auth/queries/getSsoOptions/getSsoOptionsQueryHandler.js';
 import { ExchangeSsoCredentialCommand } from '../application/features/auth/commands/exchangeSsoCredential/exchangeSsoCredentialCommand.js';
@@ -213,6 +214,12 @@ import { CaseRepository } from './persistence/mongo/caseRepository.js';
 import { staffHandlerRegistrations } from './staffHandlers.js';
 import { geographyHandlerRegistrations } from './geographyHandlers.js';
 import { pricingHandlerRegistrations } from './pricingHandlers.js';
+import { usersHandlerRegistrations } from './usersHandlers.js';
+import { UserBlockRepository } from './persistence/mongo/userBlockRepository.js';
+import { UserAdminReader } from './persistence/mongo/userAdminReader.js';
+import { GoalkeeperAdminReader } from './persistence/mongo/goalkeeperAdminReader.js';
+import { MongoGoalkeeperDocumentWriter } from './persistence/mongo/goalkeeperDocumentWriter.js';
+import { goalkeepersAdminHandlerRegistrations } from './goalkeepersAdminHandlers.js';
 import { PinoAdminSecurityLog } from './observability/pinoAdminSecurityLog.js';
 import { JwtAdminTokenIssuer } from './auth/jwtAdminTokenIssuer.js';
 import { StaffAccessResolver } from './auth/staffAccessResolver.js';
@@ -273,6 +280,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   const db = connectionProvider.getDb();
 
   const userRepository = new UserRepository(db);
+  const userBlockRepository = new UserBlockRepository(db);
   await userRepository.ensureIndexes();
   const refreshTokenRepository = new RefreshTokenRepository(db);
   const termsAcceptanceRepository = new TermsAcceptanceRepository(db);
@@ -304,6 +312,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   await goalkeeperIncidentRepository.ensureIndexes();
   const ratingRepository = new RatingRepository(db);
   await ratingRepository.ensureIndexes();
+  await termsAcceptanceRepository.ensureIndexes();
   const caseRepository = new CaseRepository(db);
   await caseRepository.ensureIndexes();
   // Admin web access (porteros-pro-admin spec 001): staff members, roles and sessions.
@@ -645,6 +654,42 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       clock,
     }),
   );
+  const userAdminReader = new UserAdminReader(db);
+  const goalkeeperAdminReader = new GoalkeeperAdminReader(db);
+  registerHandlers(
+    mediator,
+    usersHandlerRegistrations({
+      users: userRepository,
+      contacts: userRepository,
+      profiles: goalkeeperProfileRepository,
+      blocks: userBlockRepository,
+      countries: countryRepository,
+      staff: staffMemberRepository,
+      goalkeeperReader: goalkeeperAdminReader,
+      zones: zoneRepository,
+      cities: cityRepository,
+      clock,
+      reader: userAdminReader,
+    }),
+  );
+  registerHandlers(
+    mediator,
+    goalkeepersAdminHandlerRegistrations({
+      reader: goalkeeperAdminReader,
+      userReader: userAdminReader,
+      users: userRepository,
+      blocks: userBlockRepository,
+      profiles: goalkeeperProfileRepository,
+      cities: cityRepository,
+      zones: zoneRepository,
+      documentTypes: documentTypeRepository,
+      monthStats: (goalkeeperId) => mediator.send(new GetGoalkeeperMonthStatsQuery(goalkeeperId)),
+      clock,
+      registrations: goalkeeperRegistrationRepository,
+      images: imageRepository,
+      documentWriter: new MongoGoalkeeperDocumentWriter(() => connectionProvider.startSession(), db),
+    }),
+  );
   registerHandlers(mediator, [
     { requestType: GetSsoOptionsQuery, handler: new GetSsoOptionsQueryHandler(ssoCatalog) },
     {
@@ -658,6 +703,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         idGenerator,
         auditLogger,
         refreshTokenLifetimeMs,
+        userBlockRepository,
       ),
     },
     {
@@ -669,6 +715,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         goalkeeperProfileRepository,
         idGenerator,
         refreshTokenLifetimeMs,
+        userBlockRepository,
       ),
     },
     {
@@ -1006,7 +1053,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     },
     {
       requestType: SetOffersAvailabilityCommand,
-      handler: new SetOffersAvailabilityCommandHandler({ goalkeeperProfileRepository, eligibility: offerEligibility, sender: offerSender, clock, logger }),
+      handler: new SetOffersAvailabilityCommandHandler({ goalkeeperProfileRepository, eligibility: offerEligibility, sender: offerSender, clock, logger, blocks: userBlockRepository }),
     },
     {
       requestType: ListNotificationsQuery,
@@ -1034,7 +1081,12 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     },
     {
       requestType: ListGoalkeeperWithdrawalsQuery,
-      handler: new ListGoalkeeperWithdrawalsQueryHandler({ goalkeeperProfileRepository, incidents: goalkeeperIncidentRepository, clock }),
+      handler: new ListGoalkeeperWithdrawalsQueryHandler({
+        goalkeeperProfileRepository,
+        incidents: goalkeeperIncidentRepository,
+        clock,
+        adminDetails: new WithdrawalAdminDetails({ bookings: bookingRepository, zones: zoneRepository, cities: cityRepository, movements: walletMovementRepository }),
+      }),
     },
     {
       requestType: ReverseWithdrawalPenaltyCommand,

@@ -46,7 +46,7 @@ describe('role commands (spec 002, US3)', () => {
       outcome: 'invalid',
       fieldErrors: { name: expect.any(String) },
     });
-    expect(await create.handle(new CreateStaffRoleCommand({ name: 'Ok rol', description: '', permissions: ['users.block'] }))).toMatchObject({
+    expect(await create.handle(new CreateStaffRoleCommand({ name: 'Ok rol', description: '', permissions: ['requests.cancel'] }))).toMatchObject({
       outcome: 'invalid',
       fieldErrors: { permissions: expect.any(String) },
     });

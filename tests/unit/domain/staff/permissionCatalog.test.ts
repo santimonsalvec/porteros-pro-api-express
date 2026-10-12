@@ -11,6 +11,7 @@ const EXPECTED: [area: string, areaName: string, permission: string, description
   ['dashboard', 'Panel', 'dashboard.read', 'Ver las métricas del panel'],
   ['users', 'Usuarios', 'users.read', 'Ver usuarios, sus dispositivos y términos aceptados'],
   ['users', 'Usuarios', 'users.update', 'Corregir nombre y WhatsApp de un usuario'],
+  ['users', 'Usuarios', 'users.block', 'Bloquear y desbloquear usuarios'],
   ['goalkeepers', 'Porteros', 'goalkeepers.read', 'Ver porteros, registros, retiros e inasistencias'],
   ['goalkeepers', 'Porteros', 'goalkeepers.update', 'Corregir los datos de identificación de un portero'],
   ['goalkeepers', 'Porteros', 'goalkeepers.registrations.review', 'Revisar registros de portero en curso'],
@@ -38,7 +39,7 @@ const EXPECTED: [area: string, areaName: string, permission: string, description
 ];
 
 describe('permission catalog', () => {
-  it('lists the 32 permissions of 16 areas, in the contract order', () => {
+  it('lists the 33 permissions of 16 areas, in the contract order', () => {
     const flattened = PERMISSION_AREAS.flatMap((area) =>
       area.permissions.map((permission) => [area.id, area.name, permission.id, permission.description]),
     );
@@ -49,7 +50,6 @@ describe('permission catalog', () => {
   });
 
   it('leaves out the rules not yet confirmed by the owner', () => {
-    expect(PERMISSION_CATALOG).not.toContain('users.block');
     expect(PERMISSION_CATALOG).not.toContain('requests.cancel');
   });
 

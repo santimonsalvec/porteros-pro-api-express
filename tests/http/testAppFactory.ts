@@ -1,4 +1,5 @@
 import type { Server } from 'node:http';
+import { WithdrawalAdminDetails } from '../../src/application/features/bookingLifecycle/common/withdrawalAdminDetails.js';
 import { v7 as uuidv7 } from 'uuid';
 import { createApp } from '../../src/app.js';
 import { listenOnLoopback } from './testServers.js';
@@ -27,6 +28,13 @@ import { Country } from '../../src/domain/countries/country.js';
 import { staffHandlerRegistrations } from '../../src/infrastructure/staffHandlers.js';
 import { geographyHandlerRegistrations } from '../../src/infrastructure/geographyHandlers.js';
 import { pricingHandlerRegistrations } from '../../src/infrastructure/pricingHandlers.js';
+import { usersHandlerRegistrations } from '../../src/infrastructure/usersHandlers.js';
+import { FakeUserBlockRepository } from '../fakes/fakeUserBlockRepository.js';
+import { FakeUserAdminReader } from '../fakes/fakeUserAdminReader.js';
+import { FakeGoalkeeperAdminReader } from '../fakes/fakeGoalkeeperAdminReader.js';
+import { FakeGoalkeeperDocumentWriter } from '../fakes/fakeGoalkeeperDocumentWriter.js';
+import { GetGoalkeeperMonthStatsQuery as AdminMonthStatsQuery } from '../../src/application/features/goalkeepers/queries/getGoalkeeperMonthStats/getGoalkeeperMonthStatsQuery.js';
+import { goalkeepersAdminHandlerRegistrations } from '../../src/infrastructure/goalkeepersAdminHandlers.js';
 import { FakeBookingSettingsAdmin, FakeCommissionAdmin, FakeRentalRateAdmin } from '../fakes/fakePricingAdmin.js';
 import {
   FakeAdminCityRepository,
@@ -348,6 +356,8 @@ export interface TestAppContext {
   adminTokenIssuer: FakeAdminTokenIssuer;
   adminAuditLog: FakeAdminAuditLog;
   staffAccessResolver: StaffAccessResolver;
+  /** Users blocked from the admin web (admin spec 005). */
+  userBlockRepository: FakeUserBlockRepository;
 }
 
 /** The only browser origin the admin routes allow in HTTP tests. */
@@ -377,6 +387,7 @@ export const TEST_INTERNAL_TOKEN = 'test-internal-token';
 export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<TestAppContext> {
   const mediator = new Mediator();
   const userRepository = new FakeUserRepository();
+  const userBlockRepository = new FakeUserBlockRepository();
   const refreshTokenRepository = new FakeRefreshTokenRepository();
   const googleValidator = new FakeGoogleIdTokenValidator();
   const tokenIssuer = new FakeInternalTokenIssuer();
@@ -704,6 +715,50 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       clock,
     }),
   );
+  const goalkeeperAdminReader = new FakeGoalkeeperAdminReader({ profiles: goalkeeperProfileRepository, wallets: walletStore, lifecycle: lifecycleStore, bookings: bookingRepository });
+  const userAdminReader = new FakeUserAdminReader({
+    users: userRepository,
+    profiles: goalkeeperProfileRepository,
+    blocks: userBlockRepository,
+    terms: termsAcceptanceRepository,
+    devices: deviceRepository,
+    requests: requestRepository,
+    bookings: bookingRepository,
+  });
+  registerHandlers(
+    mediator,
+    usersHandlerRegistrations({
+      users: userRepository,
+      contacts: userRepository,
+      profiles: goalkeeperProfileRepository,
+      blocks: userBlockRepository,
+      countries: countryRepository,
+      staff: staffMemberRepository,
+      goalkeeperReader: goalkeeperAdminReader,
+      zones: zoneRepository,
+      cities: cityRepository,
+      clock,
+      reader: userAdminReader,
+    }),
+  );
+  registerHandlers(
+    mediator,
+    goalkeepersAdminHandlerRegistrations({
+      reader: goalkeeperAdminReader,
+      userReader: userAdminReader,
+      users: userRepository,
+      blocks: userBlockRepository,
+      profiles: goalkeeperProfileRepository,
+      cities: cityRepository,
+      zones: zoneRepository,
+      documentTypes: documentTypeRepository,
+      monthStats: (goalkeeperId) => mediator.send(new AdminMonthStatsQuery(goalkeeperId)),
+      clock,
+      registrations: goalkeeperRegistrationRepository,
+      images: imageRepository,
+      documentWriter: new FakeGoalkeeperDocumentWriter(goalkeeperProfileRepository, goalkeeperRegistrationRepository),
+    }),
+  );
   registerHandlers(mediator, [
     {
       requestType: RunSweepCommand,
@@ -783,6 +838,8 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
         goalkeeperProfileRepository,
         idGenerator,
         auditLogger,
+        undefined,
+        userBlockRepository,
       ),
     },
     {
@@ -793,6 +850,8 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
         tokenIssuer,
         goalkeeperProfileRepository,
         idGenerator,
+        undefined,
+        userBlockRepository,
       ),
     },
     {
@@ -1068,7 +1127,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     },
     {
       requestType: SetOffersAvailabilityCommand,
-      handler: new SetOffersAvailabilityCommandHandler({ goalkeeperProfileRepository, eligibility: offerEligibility, sender: offerSender, clock, logger: offersLogger }),
+      handler: new SetOffersAvailabilityCommandHandler({ goalkeeperProfileRepository, eligibility: offerEligibility, sender: offerSender, clock, logger: offersLogger, blocks: userBlockRepository }),
     },
     {
       requestType: ListNotificationsQuery,
@@ -1096,7 +1155,12 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     },
     {
       requestType: ListGoalkeeperWithdrawalsQuery,
-      handler: new ListGoalkeeperWithdrawalsQueryHandler({ goalkeeperProfileRepository, incidents: goalkeeperIncidentRepository, clock }),
+      handler: new ListGoalkeeperWithdrawalsQueryHandler({
+        goalkeeperProfileRepository,
+        incidents: goalkeeperIncidentRepository,
+        clock,
+        adminDetails: new WithdrawalAdminDetails({ bookings: bookingRepository, zones: zoneRepository, cities: cityRepository, movements: walletStore }),
+      }),
     },
     {
       requestType: ReverseWithdrawalPenaltyCommand,
@@ -1259,5 +1323,6 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     adminTokenIssuer,
     adminAuditLog,
     staffAccessResolver,
+    userBlockRepository,
   };
 }

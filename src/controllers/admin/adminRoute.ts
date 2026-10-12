@@ -7,7 +7,14 @@ import { requirePermission } from '../../infrastructure/auth/middleware/requireP
 import { logger } from '../../infrastructure/observability/logger.js';
 import { maskEmails } from '../../infrastructure/observability/maskEmails.js';
 
-export type AdminRouteGuard = Permission | { permission: Permission; audit: Omit<AuditSpec, 'permission'> };
+/**
+ * A route's permission and, optionally, its audit: `audit` for a write (before and after), `read`
+ * for a read that shows sensitive personal data (FR-023a of spec 001: who looked, never the data).
+ */
+export type AdminRouteGuard =
+  | Permission
+  | { permission: Permission; audit: Omit<AuditSpec, 'permission'> }
+  | { permission: Permission; read: Omit<AuditSpec, 'permission' | 'before'> };
 
 /**
  * How every `/admin/*` route is declared (spec 001, reused by spec 002's team routes): the
@@ -34,7 +41,12 @@ export function createAdminRouting(router: Router, admin: Pick<AdminWebDependenc
     ...handlers: RequestHandler<RouteParameters<Path>>[]
   ) => {
     const permission = typeof guard === 'string' ? guard : guard.permission;
-    const audit = typeof guard === 'string' ? [] : [trail.audited({ ...guard.audit, permission })];
+    const audit =
+      typeof guard === 'string'
+        ? []
+        : 'audit' in guard
+          ? [trail.audited({ ...guard.audit, permission })]
+          : [trail.auditedRead({ ...guard.read, permission })];
     router[method](path, requirePermission(permission, { onDenied: trail.onDenied }), ...audit, ...(handlers as RequestHandler[]));
   };
 

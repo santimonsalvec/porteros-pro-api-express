@@ -26,6 +26,15 @@ const baseParams = {
 };
 
 describe('GoalkeeperProfileRepository (mocked driver)', () => {
+  it('ensureIndexes lists goalkeepers by city for the admin (admin spec 005)', async () => {
+    const collection = createFakeCollection();
+    collection.createIndex.mockResolvedValue('ok');
+
+    await repositoryWith(collection).ensureIndexes();
+
+    expect(collection.createIndex).toHaveBeenCalledWith({ cityId: 1, activatedAt: -1 }, { name: 'cityId_activatedAt' });
+  });
+
   it('maps a GoalkeeperProfile to its document shape on add', async () => {
     const collection = createFakeCollection();
     collection.insertOne.mockResolvedValue({ acknowledged: true, insertedId: 'profile-1' });

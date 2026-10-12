@@ -1,4 +1,5 @@
 import type { Db, Document } from 'mongodb';
+import type { ContactFields, ContactWriteResult, IUserContactWriter } from '../../../application/features/users/common/ports.js';
 import type { IUserRepository } from '../../../application/features/auth/common/ports.js';
 import { ExternalIdentity } from '../../../domain/users/externalIdentity.js';
 import { User } from '../../../domain/users/user.js';
@@ -17,7 +18,7 @@ function parseCreatedAt(raw: unknown): Date {
   return new Date(raw as string | Date);
 }
 
-export class UserRepository extends MongoRepository<User, string> implements IUserRepository {
+export class UserRepository extends MongoRepository<User, string> implements IUserRepository, IUserContactWriter {
   constructor(db: Db) {
     super(db.collection('users'));
   }
@@ -32,6 +33,8 @@ export class UserRepository extends MongoRepository<User, string> implements IUs
       { normalizedPhoneNumber: 1 },
       { unique: true, sparse: true, name: 'normalizedPhoneNumber_unique_sparse' },
     );
+    // The admin's user list, newest first (admin spec 005).
+    await this.collection.createIndex({ createdAt: -1, _id: -1 }, { name: 'createdAt_id' });
   }
 
   protected toDocument(entity: User): Document {
@@ -85,6 +88,21 @@ export class UserRepository extends MongoRepository<User, string> implements IUs
       'externalIdentities.subject': subject,
     });
     return doc ? this.fromDocument(doc) : null;
+  }
+
+  /**
+   * An administrator's correction (admin spec 005, research §9–§10): written only if the user still
+   * has the values read (`null` also matches an absent field); the phone's unique index answers a
+   * number another user took meanwhile.
+   */
+  async updateContactIfUnchanged(userId: string, expected: Omit<ContactFields, 'whatsAppNumber'>, next: ContactFields): Promise<ContactWriteResult> {
+    try {
+      const result = await this.collection.updateOne({ _id: userId, ...expected } as Document, { $set: { ...next } });
+      return result.matchedCount > 0 ? 'saved' : 'stale';
+    } catch (error) {
+      if ((error as { code?: number }).code === 11000) return 'duplicate';
+      throw error;
+    }
   }
 
   async existsByPhoneNumber(

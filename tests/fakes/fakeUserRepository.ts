@@ -1,7 +1,8 @@
+import type { ContactFields, ContactWriteResult, IUserContactWriter } from '../../src/application/features/users/common/ports.js';
 import type { IUserRepository } from '../../src/application/features/auth/common/ports.js';
 import { User } from '../../src/domain/users/user.js';
 
-export class FakeUserRepository implements IUserRepository {
+export class FakeUserRepository implements IUserRepository, IUserContactWriter {
   private readonly users = new Map<string, User>();
   updateCalled = false;
 
@@ -52,5 +53,16 @@ export class FakeUserRepository implements IUserRepository {
       if (user.normalizedPhoneNumber === normalized) return true;
     }
     return false;
+  }
+
+  /** Like the Mongo writer: only if the user still has the values read; the phone stays unique. */
+  async updateContactIfUnchanged(userId: string, expected: Omit<ContactFields, 'whatsAppNumber'>, next: ContactFields): Promise<ContactWriteResult> {
+    const user = this.users.get(userId);
+    if (!user || (Object.keys(expected) as (keyof typeof expected)[]).some((key) => user[key] !== expected[key])) return 'stale';
+    for (const other of this.users.values()) {
+      if (other.id !== userId && next.normalizedPhoneNumber !== null && other.normalizedPhoneNumber === next.normalizedPhoneNumber) return 'duplicate';
+    }
+    Object.assign(user, next);
+    return 'saved';
   }
 }

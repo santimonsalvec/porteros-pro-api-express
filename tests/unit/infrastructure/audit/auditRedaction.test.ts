@@ -142,5 +142,22 @@ describe('redactForAudit', () => {
     };
     expect(redactForAudit('bookingSettings', { ...settings, country: settings.own })).toEqual({ ...settings, country: settings.own });
   });
-});
 
+  it('keeps a user correction without the phone number nor the email (spec 005 of the admin)', () => {
+    const user = {
+      id: 'u1', firstName: 'Laura', lastName: 'Gómez', countryCallingCode: '+57', numberEnding: '4567',
+      changedFields: ['whatsAppNumber'], version: 'abc', isProfileComplete: true,
+    };
+    expect(redactForAudit('user', { ...user, whatsAppNumber: '3001234567', normalizedPhoneNumber: '573001234567', email: 'laura@x.co' })).toEqual(user);
+  });
+
+  it('keeps a document correction without the document number nor its photos', () => {
+    const goalkeeper = { userId: 'g1', documentType: { code: 'CC', name: 'Cédula' }, idNumberChanged: true, changedFields: ['documentNumber'], version: 'v1' };
+    expect(redactForAudit('goalkeeper', { ...goalkeeper, documentNumber: '1020304050', photos: { front: 'https://x' } })).toEqual(goalkeeper);
+  });
+
+  it('keeps a block or unblock, with its reason', () => {
+    const block = { userId: 'u1', blocked: true, reason: 'Acoso a clientes', blockedAt: '2026-10-12T14:00:00.000Z', unblockedAt: null, availableForOffers: false };
+    expect(redactForAudit('userBlock', { ...block, email: 'laura@x.co' })).toEqual(block);
+  });
+});

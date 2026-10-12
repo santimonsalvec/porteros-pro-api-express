@@ -3,12 +3,15 @@ import type { IQueryHandler } from '../../../../common/mediator/types.js';
 import type { IGoalkeeperProfileRepository } from '../../../goalkeepers/common/ports.js';
 import type { IGoalkeeperIncidentRepository } from '../../common/ports.js';
 import { toWithdrawalItem } from '../../common/withdrawalResponses.js';
+import type { IWithdrawalAdminDetails } from '../../common/withdrawalAdminDetails.js';
 import { ListGoalkeeperWithdrawalsQuery, type ListGoalkeeperWithdrawalsResult } from './listGoalkeeperWithdrawalsQuery.js';
 
 export interface ListGoalkeeperWithdrawalsDependencies {
   goalkeeperProfileRepository: IGoalkeeperProfileRepository;
   incidents: IGoalkeeperIncidentRepository;
   clock: IClock;
+  /** The admin view's city and commission per booking (admin spec 005); without it, the view is as before. */
+  adminDetails?: IWithdrawalAdminDetails;
 }
 
 /** The history behind "why can't I see matches?" (FR-015–FR-017), one page at a time. */
@@ -25,9 +28,10 @@ export class ListGoalkeeperWithdrawalsQueryHandler implements IQueryHandler<List
       this.deps.incidents.countForGoalkeeper(goalkeeperId),
     ]);
     const suspended = profile.suspendedUntil && profile.suspendedUntil > this.deps.clock.now() ? profile.suspendedUntil : null;
+    const extras = view === 'admin' && this.deps.adminDetails ? await this.deps.adminDetails.forBookings(incidents.map((incident) => incident.bookingId)) : null;
     return {
       outcome: 'ok',
-      items: incidents.map((incident) => toWithdrawalItem(incident, view)),
+      items: incidents.map((incident) => ({ ...toWithdrawalItem(incident, view), ...extras?.get(incident.bookingId) })),
       page,
       pageSize,
       totalItems,

@@ -24,6 +24,7 @@ describe('RatingRepository and CaseRepository (mocked driver, feature 021)', () 
     await new CaseRepository(dbOf(cases)).ensureIndexes();
 
     expect(ratings.createIndex).toHaveBeenCalledWith({ bookingId: 1, side: 1 }, { name: 'booking_side_unique', unique: true });
+    expect(ratings.createIndex).toHaveBeenCalledWith({ subjectId: 1, side: 1 }, { name: 'subject_side' });
     expect(cases.createIndex).toHaveBeenCalledWith({ bookingId: 1, type: 1 }, { name: 'booking_type_unique', unique: true });
     expect(cases.createIndex).toHaveBeenCalledWith({ status: 1, createdAt: -1 }, { name: 'status_created' });
   });

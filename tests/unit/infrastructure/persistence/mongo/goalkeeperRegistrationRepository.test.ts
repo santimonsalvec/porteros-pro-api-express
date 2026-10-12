@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Collection, Db, Document } from 'mongodb';
 import { GoalkeeperRegistrationRepository } from '../../../../../src/infrastructure/persistence/mongo/goalkeeperRegistrationRepository.js';
 import { GoalkeeperRegistration } from '../../../../../src/domain/goalkeepers/goalkeeperRegistration.js';
-import { createFakeCollection } from '../../../../fakes/fakeMongoCollection.js';
+import { createFakeCollection, toArrayCursor } from '../../../../fakes/fakeMongoCollection.js';
 
 function repositoryWith(collection: ReturnType<typeof createFakeCollection>) {
   const db = { collection: () => collection as unknown as Collection<Document> } as unknown as Db;
@@ -106,9 +106,23 @@ describe('GoalkeeperRegistrationRepository (mocked driver)', () => {
     await repository.ensureIndexes();
 
     expect(collection.createIndex).toHaveBeenCalledWith({ userId: 1 }, expect.objectContaining({ unique: true }));
+    expect(collection.createIndex).toHaveBeenCalledWith({ status: 1, updatedAt: 1 }, { name: 'status_updatedAt' });
     expect(collection.createIndex).toHaveBeenCalledWith(
       { 'identification.documentType': 1, 'identification.documentNumber': 1 },
       expect.objectContaining({ unique: true, sparse: true }),
     );
+  });
+
+  it('reads the registrations in progress, longest idle first, filtered by city and idleness (admin spec 005)', async () => {
+    const collection = createFakeCollection();
+    const at = new Date('2026-10-01T00:00:00.000Z');
+    const cursor = toArrayCursor([{ _id: 'r1', userId: 'u1', status: 'in_progress', identification: {}, physicalData: {}, availability: { zoneIds: [] }, createdAt: at, updatedAt: at }]);
+    collection.find.mockReturnValue(cursor);
+
+    const result = await repositoryWith(collection).inProgress({ cityId: 'med', updatedBefore: at });
+
+    expect(collection.find).toHaveBeenCalledWith({ status: 'in_progress', 'availability.cityId': 'med', updatedAt: { $lte: at } });
+    expect(cursor.sort).toHaveBeenCalledWith({ updatedAt: 1, _id: 1 });
+    expect(result.map((registration) => [registration.userId, registration.status])).toEqual([['u1', 'in_progress']]);
   });
 });

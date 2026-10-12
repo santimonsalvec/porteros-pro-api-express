@@ -9,6 +9,11 @@ export class TermsAcceptanceRepository extends MongoRepository<TermsAcceptance, 
     super(db.collection('termsAcceptances'));
   }
 
+  /** A user's acceptances, newest first: `findLatestForUser` and the admin's user detail (spec 005). */
+  async ensureIndexes(): Promise<void> {
+    await this.collection.createIndex({ userId: 1, acceptedAt: -1 }, { name: 'userId_acceptedAt' });
+  }
+
   async findLatestForUser(userId: string): Promise<TermsAcceptance | null> {
     const docs = await this.collection.find({ userId }).sort({ acceptedAt: -1 }).limit(1).toArray();
     return docs[0] ? this.fromDocument(docs[0]) : null;

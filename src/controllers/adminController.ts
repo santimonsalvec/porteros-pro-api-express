@@ -4,6 +4,8 @@ import { registerTeamRoutes } from './admin/teamRoutes.js';
 import { registerGeographyRoutes } from './admin/geographyRoutes.js';
 import { registerCatalogRoutes } from './admin/catalogRoutes.js';
 import { registerPricingRoutes } from './admin/pricingRoutes.js';
+import { registerUsersRoutes } from './admin/usersRoutes.js';
+import { registerGoalkeeperAdminRoutes } from './admin/goalkeepersRoutes.js';
 import { registerReadinessRoutes } from './admin/readinessRoutes.js';
 import type { ISender } from '../application/common/mediator/types.js';
 import { RecordWalletAdjustmentCommand } from '../application/features/wallet/commands/recordWalletAdjustment/recordWalletAdjustmentCommand.js';
@@ -57,6 +59,8 @@ export function createAdminController(deps: AdminControllerDependencies): Router
   registerGeographyRoutes(route, deps.mediator);
   registerCatalogRoutes(route, deps.mediator);
   registerPricingRoutes(route, deps.mediator);
+  registerUsersRoutes(route, deps.mediator);
+  registerGoalkeeperAdminRoutes(route, deps.mediator);
   registerReadinessRoutes(route, deps.mediator);
 
   // The fixed permission catalog, for the role screen (any active member).

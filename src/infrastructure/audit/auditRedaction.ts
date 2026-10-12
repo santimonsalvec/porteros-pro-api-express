@@ -45,6 +45,11 @@ const ALLOWED_FIELDS: Readonly<Record<string, readonly string[]>> = {
   ],
   documentType: ['id', 'code', 'name', 'invoiceable', 'inUse', 'revision', 'reason'],
   matchSurface: ['id', 'name', 'active', 'order', 'inUse', 'revision', 'reason'],
+  // Users and goalkeepers (spec 005 of the admin): a correction keeps only the last 4 digits of the
+  // phone (`numberEnding`) and whether the document number changed — never the numbers themselves.
+  user: ['id', 'firstName', 'lastName', 'countryCallingCode', 'numberEnding', 'changedFields', 'version', 'isProfileComplete'],
+  goalkeeper: ['userId', 'documentType', 'code', 'name', 'idNumberChanged', 'changedFields', 'version'],
+  userBlock: ['userId', 'blocked', 'reason', 'blockedAt', 'unblockedAt', 'availableForOffers'],
   // Prices and booking rules (spec 004 of the admin): configuration values, nothing personal or secret.
   rentalRate: [...PRICE_FIELDS, 'durationMinutes'],
   commissionSetting: [...PRICE_FIELDS, 'vatRateBps', 'vatAmount', 'totalWithVat'],

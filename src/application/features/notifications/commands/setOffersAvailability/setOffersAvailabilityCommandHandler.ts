@@ -4,6 +4,7 @@ import type { IGoalkeeperProfileRepository } from '../../../goalkeepers/common/p
 import type { OfferEligibilityService } from '../../common/offerEligibilityService.js';
 import type { OfferSender } from '../../common/offerSender.js';
 import type { IOffersLogger } from '../../common/ports.js';
+import { isBlocked, NO_BLOCKED_USERS, type BlockedUsers } from '../../../users/common/blockedUsers.js';
 import { SetOffersAvailabilityCommand, type SetOffersAvailabilityResult } from './setOffersAvailabilityCommand.js';
 
 export interface SetOffersAvailabilityDependencies {
@@ -12,6 +13,8 @@ export interface SetOffersAvailabilityDependencies {
   sender: OfferSender;
   clock: IClock;
   logger: IOffersLogger;
+  /** Who is blocked; a blocked goalkeeper can't turn offers on (porteros-pro-admin spec 005, FR-029). */
+  blocks?: BlockedUsers;
 }
 
 /**
@@ -26,6 +29,7 @@ export class SetOffersAvailabilityCommandHandler
 
   async handle(command: SetOffersAvailabilityCommand): Promise<SetOffersAvailabilityResult> {
     const { goalkeeperId, available } = command;
+    if (available && (await isBlocked(this.deps.blocks ?? NO_BLOCKED_USERS, goalkeeperId))) return { outcome: 'account_blocked' };
     const changed = await this.deps.goalkeeperProfileRepository.setAvailableForOffers(goalkeeperId, available);
     if (!changed) return { outcome: 'not_a_goalkeeper' };
     this.deps.logger.info(

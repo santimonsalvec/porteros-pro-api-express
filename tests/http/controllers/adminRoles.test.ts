@@ -61,7 +61,7 @@ describe('/admin/roles (spec 002, US3)', () => {
 
   it.each([
     [{ name: 'S', permissions: [] }, 'name'],
-    [{ name: 'Soporte', permissions: ['users.block'] }, 'permissions'],
+    [{ name: 'Soporte', permissions: ['requests.cancel'] }, 'permissions'],
     [{ name: 'Soporte', description: 'x'.repeat(301), permissions: [] }, 'description'],
     [{ name: 'Soporte' }, 'permissions'],
   ])('400 for %j', async (body, field) => {
