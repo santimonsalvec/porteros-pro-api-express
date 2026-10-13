@@ -42,7 +42,7 @@ Siigo envía cada documento por correo al portero (PDF y XML). El portero los co
 
 ## 3. Proveedor por país
 
-- **Configuración no secreta**, desde el administrador: `PUT /admin/invoicing/settings/{countryId}` con `{"provider":"siigo","config":{…}}`. La respuesta dice si existen las credenciales del país (`credentialsPresent`), sin mostrarlas.
+- **Configuración no secreta**, desde el administrador: **Configuración → Proveedor de facturación**, por país (`invoicing.settings.manage`). La pantalla dice si existen las credenciales del país, sin mostrarlas, y cada guardado exige la revisión leída (admin spec 007).
 - **Credenciales**, en Secret Manager, por proveedor y país: `{PROVEEDOR}_{PAÍS}_USERNAME` y `{PROVEEDOR}_{PAÍS}_ACCESS_KEY` (por ejemplo `SIIGO_CO_USERNAME` y `SIIGO_CO_ACCESS_KEY`), referenciadas en `apphosting.yaml`. Nunca van en la base de datos, los logs ni las respuestas.
 - **Cada documento conserva su proveedor**, y la configuración con la que se envió. Si el país cambia de proveedor, los documentos ya enviados siguen con el anterior; los no enviados usan el nuevo.
 - **País sin proveedor**: sus documentos quedan pendientes (`provider_not_configured`) y se emiten cuando el país se configure.
@@ -73,12 +73,7 @@ firebase apphosting:secrets:set siigo-co-access-key
 firebase apphosting:secrets:grantaccess siigo-co-username,siigo-co-access-key --backend <backend>
 ```
 
-```bash
-curl -X PUT "$API/admin/invoicing/settings/$CO" -H "Authorization: Bearer $TA" -H "Content-Type: application/json" -d '{
-  "provider": "siigo",
-  "config": { "partnerId": "PorterosPRO", "invoiceDocumentId": 24446, "creditNoteDocumentId": 24447, "sellerId": 629,
-              "commissionProductCode": "COMISION", "penaltyProductCode": "PENALIDAD", "vatTaxId": 13156, "paymentMethodId": 5636 } }'
-```
+5. En el administrador, **Configuración → Proveedor de facturación → Colombia**: elegir Siigo y llenar los ocho campos (nombre de la integración, tipos de documento de factura y nota crédito, vendedor, códigos de producto de comisión y penalidad, id del IVA y forma de pago). Cada campo dice dónde encontrarlo en Siigo Nube.
 
 **Datos del comprador:** el tipo y número de documento del perfil de portero (al momento del cobro),
 el nombre y el correo de la cuenta, y la ciudad del perfil. Siigo exige los **códigos DANE** del
@@ -88,8 +83,12 @@ departamento y la ciudad: el responsable de la base de datos debe llenar `daneSt
 
 ## 5. Operación
 
-- **Rechazados**: `GET /admin/invoicing/documents?status=rejected` muestra el motivo (`lastError`). Se corrigen los datos y se reintenta con `POST /admin/invoicing/documents/{id}/retry`, que toma los datos actuales del portero.
-- **Atascados**: el log `invoicing_pending_too_long` aparece cuando hay documentos pendientes por más de 24 h; el listado los marca `stale: true`.
+Desde el administrador, **Finanzas → Facturación** (`invoicing.read`):
+
+- **Rechazados**: filtro "Rechazado"; el detalle explica el motivo en español (`lastError`) y enlaza a dónde se corrige (por ejemplo, Geografía → Ciudades para los códigos DANE). Se corrige el dato y se pulsa "Reintentar" (`invoicing.retry`), que toma los datos actuales del portero.
+- **Atascados**: el interruptor "Pendientes hace más de 24 h" (`stale=true`) los muestra; el log `invoicing_pending_too_long` sigue avisando.
+- **Archivos**: "Descargar PDF" y "Descargar XML" de un documento emitido; cada descarga queda en la auditoría como lectura sensible.
+- **Contabilidad**: "Exportar CSV" con los filtros puestos (hasta 10 000 filas, sin documento ni correo del comprador).
 - **Recuperados**: el log `invoicing_document_recovered` indica que la red de seguridad creó un documento cuyo evento se perdió.
 
 ## 6. Pendiente de confirmar en el sandbox de Siigo

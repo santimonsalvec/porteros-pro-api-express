@@ -45,18 +45,21 @@ el navegador. En la app hay que declarar el dominio (Android: `intent-filter` co
 
 ## 3. La pasarela de cada país (administrador)
 
-`PUT /admin/payment-gateways/{countryId}`:
+Se configura en el administrador: **Configuración → Pasarela de pagos**, por país (`payments.settings.manage`).
 
-```json
-{ "gateway": "wompi",
-  "publicConfig": { "publicKey": "pub_test_…", "environment": "sandbox" },
-  "costs": { "percentBps": 265, "fixed": 700, "vatBps": 1900 },
-  "amounts": [10000, 20000, 30000, 50000, 100000] }
-```
+| Campo | Ejemplo | Notas |
+|---|---|---|
+| Pasarela | Wompi | Hoy solo `wompi` |
+| Entorno | Pruebas (sandbox) o Producción | |
+| Llave pública | `pub_test_…` / `pub_prod_…` | Debe coincidir con el entorno |
+| Porcentaje | 2,65 % | Se guarda en puntos básicos (265) |
+| Valor fijo | $700 | En pesos |
+| IVA sobre la comisión | 19 % | 1900 puntos básicos |
+| Montos | $10.000 … $100.000 | De 1 a 10, distintos; cada uno debe dejar un neto ≥ 1 |
 
-- `percentBps` 265 = 2,65 %; `fixed` en pesos; `vatBps` 1900 = IVA del 19 % sobre la comisión. El
-  costo se redondea hacia arriba: 20.000 → 1.464, neto 18.536. Usar las tarifas reales del contrato.
-- La llave pública debe coincidir con el entorno (`pub_test_` en sandbox, `pub_prod_` en producción).
+- El costo se redondea hacia arriba: 20.000 → 1.464, neto 18.536. El formulario lo muestra para cada monto. Usar las tarifas reales del contrato.
+- La pantalla dice si los tres secretos del país están en Secret Manager ("Credenciales cargadas"), nunca su valor.
+- Cada guardado exige la revisión leída: si otra persona guardó antes, se rechaza y se muestra el valor actual (admin spec 007).
 - Las recargas en curso conservan la pasarela y el entorno con que empezaron.
 
 ## 4. Panel de Wompi

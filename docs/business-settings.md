@@ -382,15 +382,7 @@ curl "$API/admin/tax-settings/<countryCoId>" -H "Authorization: Bearer $TA"
   - El **costo de la pasarela lo paga el portero**: antes de pagar ve el monto, el costo y el neto; al aprobarse se acreditan el monto (`top_up`) y se descuenta el costo (`gateway_fee`).
   - Una recarga cubre primero la deuda.
   - El saldo **no se puede retirar**.
-- **Dónde:** endpoint de administración, **por país**:
-
-```bash
-curl -X PUT "$API/admin/payment-gateways/<countryCoId>" -H "Authorization: Bearer $TA" -H "Content-Type: application/json" -d '{
-  "gateway": "wompi",
-  "publicConfig": { "publicKey": "pub_test_…", "environment": "sandbox" },
-  "costs": { "percentBps": 265, "fixed": 700, "vatBps": 1900 },
-  "amounts": [10000, 20000, 30000, 50000, 100000] }'
-```
+- **Dónde:** administrador → **Configuración → Pasarela de pagos**, **por país**. El formulario muestra el costo y el neto de cada monto, si las credenciales del país están cargadas y avisa que los secretos van en Secret Manager. Cada guardado exige la `revision` leída (`null` crea la del país): si otra persona guardó antes, se rechaza con `409 stale_revision` (admin spec 007). Por debajo usa `GET|PUT /admin/payment-gateways/{countryId}` (`payments.settings.manage`).
 
 | Campo | Valores | Descripción |
 |---|---|---|
@@ -414,14 +406,7 @@ curl -X PUT "$API/admin/payment-gateways/<countryCoId>" -H "Authorization: Beare
   - Cada comisión cobrada genera **una factura electrónica** al portero.
   - Cada comisión devuelta genera **una nota crédito** que referencia su factura.
   - El proveedor envía cada documento al correo del portero, y el portero los descarga en la app.
-- **Dónde:** endpoint de administración, **por país**:
-
-```bash
-curl -X PUT "$API/admin/invoicing/settings/<countryCoId>" -H "Authorization: Bearer $TA" -H "Content-Type: application/json" -d '{
-  "provider": "siigo",
-  "config": { "partnerId": "PorterosPRO", "invoiceDocumentId": 24446, "creditNoteDocumentId": 24447, "sellerId": 629,
-              "commissionProductCode": "COMISION", "penaltyProductCode": "PENALIDAD", "vatTaxId": 13156, "paymentMethodId": 5636 } }'
-```
+- **Dónde:** administrador → **Configuración → Proveedor de facturación**, **por país**: los campos de Siigo con la ayuda de dónde encontrarlos, si las credenciales están cargadas y el aviso de Secret Manager. Cada guardado exige la `revision` leída, como la pasarela. Por debajo usa `GET|PUT /admin/invoicing/settings/{countryId}` (`invoicing.settings.manage`).
 
 | Campo (Siigo) | Valores | Descripción |
 |---|---|---|
@@ -473,7 +458,12 @@ Ver `docs/invoicing.md` para la operación.
 | Calificaciones | `GET /admin/ratings` (portero, cliente, sentido, estrellas, fechas) (`ratings.read`) | Con el partido y el caso que abrió cada una; los comentarios nunca van a los logs |
 | "¿Le llegó el aviso?" | `GET /admin/notifications?userId=…` (`notifications.read`) | Todos los avisos guardados (90 días), también los que el usuario borró, con su envío: las ofertas registran cuándo se enviaron y sus recordatorios; los demás se envían al crearse. El sistema no sabe si el teléfono lo mostró |
 | Aviso de prueba a un usuario | `POST /admin/users/{userId}/test-push` (`notifications.send`) | El mismo aviso de prueba de la app, a los dispositivos de ese usuario, con el mismo límite (compartido) por minuto |
-| Facturas con problemas | `GET /admin/invoicing/documents?status=rejected` y `POST …/{id}/retry` (`invoicing.read; reintentar: invoicing.retry`) | Corregir los datos (códigos DANE, documento del portero) y reintentar |
+| Facturas con problemas | Finanzas → Facturación: `GET /admin/invoicing/documents` (estado, tipo, país, fechas, `stale=true`), `GET …/{id}` y `POST …/{id}/retry` (`invoicing.read; reintentar: invoicing.retry`) | Corregir los datos (códigos DANE, documento del portero) y reintentar. La lista sigue del más antiguo al más reciente y dice si la emisión está encendida (`issuingEnabled`) |
+| Descargar el PDF o el XML de un documento | `GET /admin/invoicing/documents/{id}/pdf` o `…/xml` (`invoicing.read`) | Lectura sensible: queda en la auditoría quién lo descargó, sin el archivo. Un 404 `file_not_available` dice que el proveedor no entrega ese archivo |
+| Ver las billeteras | Finanzas → Billeteras: `GET /admin/wallets` (país, `negative=true`, orden por saldo) (`wallets.read`) | Solo los porteros con al menos un movimiento; cada fila abre la pestaña Billetera del portero |
+| "Recargué y no me llegó el saldo" | Finanzas → Recargas: `GET /admin/top-ups` (estado, país, portero, fechas) y `GET …/{id}` (`topups.read`) | El detalle trae cada consulta a la pasarela (`checkLog`: cuándo, quién —barrido o miembro—, qué respondió y qué cambió), la próxima consulta y el vencimiento |
+| Conciliar una recarga ya | `POST /admin/top-ups/{id}/reconcile` (`topups.reconcile`) | La misma consulta del barrido, sin mover su calendario. Acredita una aprobación una sola vez; dos consultas a la vez por la misma recarga no ocurren (turno de 30 s, `409 reconcile_in_progress`) |
+| Exportar para contabilidad | `GET /admin/top-ups/export` y `GET /admin/invoicing/documents/export`, con los filtros de su lista | CSV en UTF-8 con BOM y `;`, hasta 10 000 filas (si hay más, `422 export_too_large`); sin documento ni correo del comprador. Cada exportación queda en la auditoría con los filtros y las filas |
 
 ## 16. Reglas fijas del sistema (no configurables)
 
