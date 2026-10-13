@@ -161,3 +161,22 @@ describe('redactForAudit', () => {
     expect(redactForAudit('userBlock', { ...block, email: 'laura@x.co' })).toEqual(block);
   });
 });
+
+describe('operations writes (spec 006 of the admin)', () => {
+  it('keeps an administrator cancellation, with its internal reason, and nothing from the bookings beyond their status', () => {
+    const before = { requestId: 'r-1', status: 'partially_assigned', bookings: [{ bookingId: 'b-1', status: 'assigned' }] };
+    expect(redactForAudit('request', { ...before, bookings: [{ ...before.bookings[0], checkIn: { photoUrl: 'https://x' }, cancellationNote: 'n' }] })).toEqual(before);
+
+    const after = { requestId: 'r-1', bookingId: 'b-1', status: 'cancelled', cancelledBy: 'admin', cancelled: ['b-1'], refunds: 1, reason: 'La cancha cerró' };
+    expect(redactForAudit('request', { ...after, comment: 'x', photoUrl: 'https://x', note: 'nota' })).toEqual(after);
+  });
+
+  it('keeps nothing of a booking read: a sensitive read stores no body', () => {
+    expect(redactForAudit('booking', { photoUrl: 'https://x', at: '2026-10-18T20:00:00.000Z' })).toEqual({});
+  });
+
+  it('keeps the result of a test push, without its text', () => {
+    const result = { userId: 'u-1', reached: 2, removed: 1, failed: 0, noDevice: false };
+    expect(redactForAudit('user', { ...result, title: 'PorterosPRO', body: 'Notificación de prueba' })).toEqual(result);
+  });
+});

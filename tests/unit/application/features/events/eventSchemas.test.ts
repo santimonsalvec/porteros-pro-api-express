@@ -119,3 +119,23 @@ describe('event parsing at the edge', () => {
   });
 });
 
+
+describe('an administrator cancellation (admin spec 006)', () => {
+  const cancelled = {
+    id: 'ev-1',
+    version: 1,
+    occurredAt: '2026-10-18T21:00:00.000Z',
+    bookingId: 'b-1',
+    requestId: 'r-1',
+    type: 'booking.cancelled',
+    payload: { clientId: 'c', zoneId: 'z', startsAt: '2026-10-19T01:00:00.000Z', goalkeeperId: 'gk-1', refundedAmount: 7000, currency: 'COP', reason: 'admin_cancelled', by: 'admin' },
+  };
+
+  it('parses reason admin_cancelled by admin', () => {
+    expect(parseEvent(cancelled)).toMatchObject({ type: 'booking.cancelled', payload: { reason: 'admin_cancelled', by: 'admin' } });
+  });
+
+  it('still refuses an unknown author', () => {
+    expect(parseEvent({ ...cancelled, payload: { ...cancelled.payload, by: 'staff' } })).toBeNull();
+  });
+});

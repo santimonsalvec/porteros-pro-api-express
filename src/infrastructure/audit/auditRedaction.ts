@@ -47,9 +47,17 @@ const ALLOWED_FIELDS: Readonly<Record<string, readonly string[]>> = {
   matchSurface: ['id', 'name', 'active', 'order', 'inUse', 'revision', 'reason'],
   // Users and goalkeepers (spec 005 of the admin): a correction keeps only the last 4 digits of the
   // phone (`numberEnding`) and whether the document number changed — never the numbers themselves.
-  user: ['id', 'firstName', 'lastName', 'countryCallingCode', 'numberEnding', 'changedFields', 'version', 'isProfileComplete'],
+  // Spec 006 adds the result of a test push sent to the user (never its text).
+  user: [
+    'id', 'firstName', 'lastName', 'countryCallingCode', 'numberEnding', 'changedFields', 'version', 'isProfileComplete',
+    'userId', 'reached', 'removed', 'failed', 'noDevice',
+  ],
   goalkeeper: ['userId', 'documentType', 'code', 'name', 'idNumberChanged', 'changedFields', 'version'],
   userBlock: ['userId', 'blocked', 'reason', 'blockedAt', 'unblockedAt', 'availableForOffers'],
+  // Operations (spec 006 of the admin): an administrator cancellation keeps its internal reason and
+  // the status of each booking; a check-in photo read (`booking`) stores no body at all.
+  request: ['requestId', 'bookingId', 'status', 'bookings', 'cancelledBy', 'reason', 'refunds', 'cancelled'],
+  booking: [],
   // Prices and booking rules (spec 004 of the admin): configuration values, nothing personal or secret.
   rentalRate: [...PRICE_FIELDS, 'durationMinutes'],
   commissionSetting: [...PRICE_FIELDS, 'vatRateBps', 'vatAmount', 'totalWithVat'],

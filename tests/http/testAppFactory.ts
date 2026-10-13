@@ -35,6 +35,10 @@ import { FakeGoalkeeperAdminReader } from '../fakes/fakeGoalkeeperAdminReader.js
 import { FakeGoalkeeperDocumentWriter } from '../fakes/fakeGoalkeeperDocumentWriter.js';
 import { GetGoalkeeperMonthStatsQuery as AdminMonthStatsQuery } from '../../src/application/features/goalkeepers/queries/getGoalkeeperMonthStats/getGoalkeeperMonthStatsQuery.js';
 import { goalkeepersAdminHandlerRegistrations } from '../../src/infrastructure/goalkeepersAdminHandlers.js';
+import { operationsHandlerRegistrations } from '../../src/infrastructure/operationsAdminHandlers.js';
+import { FakeRequestAdminReader } from '../fakes/fakeRequestAdminReader.js';
+import { FakeNotificationAdminReader } from '../fakes/fakeNotificationAdminReader.js';
+import { FakeRatingAdminReader } from '../fakes/fakeRatingAdminReader.js';
 import { FakeBookingSettingsAdmin, FakeCommissionAdmin, FakeRentalRateAdmin } from '../fakes/fakePricingAdmin.js';
 import {
   FakeAdminCityRepository,
@@ -269,6 +273,8 @@ import { ContactsRevealJob } from '../../src/application/features/bookingLifecyc
 import { CLIENT_ASSIGNMENT_EVENT_TYPES, ClientAssignmentNoticeHandler } from '../../src/application/features/bookingLifecycle/handlers/clientAssignmentNoticeHandler.js';
 import { WITHDRAWAL_NOTICE_EVENT_TYPES, WithdrawalNoticeHandler } from '../../src/application/features/bookingLifecycle/handlers/withdrawalNoticeHandler.js';
 import { FakeGoalkeeperIncidentRepository } from '../fakes/fakeGoalkeeperIncidentRepository.js';
+import { CancelBookingsByAdminCommand } from '../../src/application/features/bookingLifecycle/commands/cancelBookingsByAdmin/cancelBookingsByAdminCommand.js';
+import { CancelBookingsByAdminCommandHandler } from '../../src/application/features/bookingLifecycle/commands/cancelBookingsByAdmin/cancelBookingsByAdminCommandHandler.js';
 import { CancelBookingsByClientCommandHandler } from '../../src/application/features/bookingLifecycle/commands/cancelBookingsByClient/cancelBookingsByClientCommandHandler.js';
 import { NotifyBookingOffersHandler, OFFER_EVENT_TYPES } from '../../src/application/features/notifications/handlers/notifyBookingOffersHandler.js';
 import { OFFER_WITHDRAWAL_EVENT_TYPES, OfferWithdrawalHandler } from '../../src/application/features/notifications/handlers/offerWithdrawalHandler.js';
@@ -759,6 +765,31 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       documentWriter: new FakeGoalkeeperDocumentWriter(goalkeeperProfileRepository, goalkeeperRegistrationRepository),
     }),
   );
+  registerHandlers(
+    mediator,
+    operationsHandlerRegistrations({
+      reader: new FakeRequestAdminReader({
+        regions: regionRepository,
+        cities: cityRepository,
+        requests: requestRepository,
+        bookings: bookingRepository,
+        wallet: walletStore,
+        lifecycle: lifecycleStore,
+        notifications: notificationRepository,
+      }),
+      users: userRepository,
+      cities: cityRepository,
+      zones: zoneRepository,
+      staff: staffMemberRepository,
+      clock,
+      cases: caseRepository,
+      ratings: ratingRepository,
+      requests: requestRepository,
+      send: (query) => mediator.send(query),
+      notificationReader: new FakeNotificationAdminReader(notificationRepository, deviceRepository),
+      ratingReader: new FakeRatingAdminReader(lifecycleStore),
+    }),
+  );
   registerHandlers(mediator, [
     {
       requestType: RunSweepCommand,
@@ -1144,6 +1175,20 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
         requestRepository,
         bookingRepository,
         userRepository,
+        store: lifecycleStore,
+        walletContext,
+        relay: eventRelay,
+        idGenerator: lifecycleIds,
+        clock,
+        audit: bookingAuditLogger,
+        logger: offersLogger,
+      }),
+    },
+    {
+      // The administrator's cancellation (admin spec 006): the client's transaction, the administrator's policy.
+      requestType: CancelBookingsByAdminCommand,
+      handler: new CancelBookingsByAdminCommandHandler({
+        bookingRepository,
         store: lifecycleStore,
         walletContext,
         relay: eventRelay,

@@ -40,8 +40,9 @@ export interface BookingCancelledPayload {
   /** The commission given back to that goalkeeper, when there was one. */
   refundedAmount: number | null;
   currency: string;
-  reason: 'cancel_all' | 'client_cancelled';
-  by: 'system' | 'client';
+  reason: 'cancel_all' | 'client_cancelled' | 'admin_cancelled';
+  /** `admin` since admin spec 006: an administrator cancelled it from the web admin. */
+  by: 'system' | 'client' | 'admin';
 }
 
 export interface GoalkeeperWithdrewPayload {

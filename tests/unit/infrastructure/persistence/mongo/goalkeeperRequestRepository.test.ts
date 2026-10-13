@@ -123,3 +123,13 @@ describe('GoalkeeperRequestRepository (mocked driver)', () => {
     expect(await repositoryWith(createFakeCollection()).findByIds([])).toEqual([]);
   });
 });
+
+describe('the admin request list indexes (admin spec 006, data-model)', () => {
+  it('creates the date and city-date indexes', async () => {
+    const collection = createFakeCollection();
+    await repositoryWith(collection).ensureIndexes();
+
+    expect(collection.createIndex).toHaveBeenCalledWith({ startsAt: -1, _id: -1 }, { name: 'startsAt_id' });
+    expect(collection.createIndex).toHaveBeenCalledWith({ 'match.cityId': 1, startsAt: -1 }, { name: 'city_startsAt' });
+  });
+});

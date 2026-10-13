@@ -2765,7 +2765,16 @@ export const openapiSpec = {
         summary: 'Cases for manual review, open first (administrators only; feature 021)',
         tags: ['Admin'],
         security: [{ adminBearerAuth: [] }],
-        parameters: [{ name: 'status', in: 'query', required: false, schema: { type: 'string', enum: ['open', 'resolved'] } }, ...PAGING],
+        description: 'Needs cases.read. Admin spec 006 adds countryId, type, from/to (opening instants) and order=oldest; without them the list and its order are 021\'s. Each item also gains match, client and goalkeeper.',
+        parameters: [
+          { name: 'status', in: 'query', required: false, schema: { type: 'string', enum: ['open', 'resolved'] } },
+          { name: 'countryId', in: 'query', schema: { type: 'string' } },
+          { name: 'type', in: 'query', schema: { type: 'string', enum: ['goalkeeper_no_show', 'payment_not_received', 'late_attendance_claim'] } },
+          { name: 'from', in: 'query', schema: { type: 'string', format: 'date-time' } },
+          { name: 'to', in: 'query', schema: { type: 'string', format: 'date-time' } },
+          { name: 'order', in: 'query', schema: { type: 'string', enum: ['default', 'oldest'] } },
+          ...PAGING,
+        ],
         responses: {
           '200': {
             description: 'A page of cases',
@@ -2800,12 +2809,13 @@ export const openapiSpec = {
     },
     '/admin/cases/{caseId}': {
       get: {
-        summary: 'One case with the rating that opened it and the check-in evidence (location included)',
+        summary: 'One case with the rating that opened it, its booking and the check-in, without the photo',
         tags: ['Admin'],
         security: [{ adminBearerAuth: [] }],
+        description: 'Needs cases.read. Since admin spec 006 the photo is a sensitive read of its own (/admin/cases/{caseId}/check-in-photo): checkIn has hasPhoto, never photoUrl.',
         parameters: [{ name: 'caseId', in: 'path', required: true, schema: { type: 'string' } }],
         responses: {
-          '200': { description: 'The case, plus rating and checkIn' },
+          '200': { description: 'The case, plus rating, checkIn (hasPhoto), booking, requestStatus and names' },
           '401': { description: 'Not signed in' },
           '403': { description: 'Not an administrator' },
           '404': { description: 'case_not_found', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
@@ -2831,6 +2841,134 @@ export const openapiSpec = {
           '404': { description: 'case_not_found', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
           '409': { description: 'case_already_resolved', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
         },
+      },
+    },
+    '/admin/cases/{caseId}/check-in-photo': {
+      get: {
+        summary: "The case's check-in photo: a sensitive read, audited without the photo",
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs cases.read (porteros-pro-admin spec 006).',
+        parameters: [{ name: 'caseId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'photoUrl and at' }, '404': { description: 'case_not_found or check_in_not_found' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/requests': {
+      get: {
+        summary: 'Requests with their status, filtered by place, match dates, client or goalkeeper',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs requests.read (porteros-pro-admin spec 006). from/to are instants of the match start (to excluded).',
+        parameters: [
+          ...PAGING,
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['searching', 'partially_assigned', 'assigned', 'completed', 'cancelled', 'expired', 'closed'] } },
+          { name: 'countryId', in: 'query', schema: { type: 'string' } },
+          { name: 'cityId', in: 'query', schema: { type: 'string' } },
+          { name: 'zoneId', in: 'query', schema: { type: 'string' } },
+          { name: 'from', in: 'query', schema: { type: 'string', format: 'date-time' } },
+          { name: 'to', in: 'query', schema: { type: 'string', format: 'date-time' } },
+          { name: 'clientId', in: 'query', schema: { type: 'string' } },
+          { name: 'goalkeeperId', in: 'query', schema: { type: 'string' } },
+        ],
+        responses: { '200': { description: 'A page of requests' }, '400': { description: 'validation_failed or search_too_broad' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/requests/{requestId}': {
+      get: {
+        summary: "A request's facts for its timeline: quote, bookings, money, incidents, ratings and cases",
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs requests.read (porteros-pro-admin spec 006). Never a phone nor the check-in photo (hasPhoto).',
+        parameters: [{ name: 'requestId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'The request detail' }, '404': { description: 'request_not_found' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/requests/{requestId}/bookings/{bookingId}/check-in-photo': {
+      get: {
+        summary: "A booking's check-in photo: a sensitive read, audited without the photo",
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs requests.read (porteros-pro-admin spec 006).',
+        parameters: [{ name: 'requestId', in: 'path', required: true, schema: { type: 'string' } }, { name: 'bookingId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'photoUrl and at' }, '404': { description: 'booking_not_found or check_in_not_found' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/requests/{requestId}/cancel': {
+      post: {
+        summary: 'Cancel every live booking of a request as an administrator',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description:
+          'Needs requests.cancel (porteros-pro-admin spec 006). No free-cancellation deadline: each assigned goalkeeper gets the whole commission back once; nobody gets an incident; client and goalkeeper are told without the reason, which is internal. Audited as request.cancel.',
+        parameters: [{ name: 'requestId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['reason'], properties: { reason: { type: 'string', minLength: 3, maxLength: 300 } } } } } },
+        responses: {
+          '200': { description: 'cancelled or replayed: requestId, status, cancelled booking ids, refunds, reason' },
+          '400': { description: 'validation_failed: reason' },
+          '404': { description: 'request_not_found' },
+          '409': { description: 'booking_not_cancellable (details.status)' },
+          '503': { description: 'cancellation_temporarily_unavailable: nothing changed' },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'permission_denied' },
+        },
+      },
+    },
+    '/admin/requests/{requestId}/bookings/{bookingId}/cancel': {
+      post: {
+        summary: 'Cancel one live booking as an administrator',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'As the whole-request cancellation, for one booking; the others stay as they are. Audited as booking.cancel.',
+        parameters: [{ name: 'requestId', in: 'path', required: true, schema: { type: 'string' } }, { name: 'bookingId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['reason'], properties: { reason: { type: 'string', minLength: 3, maxLength: 300 } } } } } },
+        responses: {
+          '200': { description: 'cancelled or replayed' },
+          '400': { description: 'validation_failed: reason' },
+          '404': { description: 'request_not_found or booking_not_found' },
+          '409': { description: 'booking_not_cancellable (details.status)' },
+          '503': { description: 'cancellation_temporarily_unavailable: nothing changed' },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'permission_denied' },
+        },
+      },
+    },
+    '/admin/ratings': {
+      get: {
+        summary: 'Ratings, newest first, with the match and the case each one opened',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs ratings.read (porteros-pro-admin spec 006). Comments are answered, never logged.',
+        parameters: [
+          ...PAGING,
+          { name: 'goalkeeperId', in: 'query', schema: { type: 'string' } },
+          { name: 'clientId', in: 'query', schema: { type: 'string' } },
+          { name: 'side', in: 'query', schema: { type: 'string', enum: ['client', 'goalkeeper'] } },
+          { name: 'starsMin', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 5 } },
+          { name: 'starsMax', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 5 } },
+          { name: 'from', in: 'query', schema: { type: 'string', format: 'date-time' } },
+          { name: 'to', in: 'query', schema: { type: 'string', format: 'date-time' } },
+        ],
+        responses: { '200': { description: 'A page of ratings' }, '400': { description: 'validation_failed' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/notifications': {
+      get: {
+        summary: "A user's notices, the deleted ones included, and their devices (never tokens)",
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs notifications.read (porteros-pro-admin spec 006).',
+        parameters: [...PAGING, { name: 'userId', in: 'query', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'A page of notices plus devices { count, lastSeenAt }' }, '400': { description: 'validation_failed' }, '404': { description: 'user_not_found' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/users/{userId}/test-push': {
+      post: {
+        summary: "The app's test push, sent to that user's devices",
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs notifications.send (porteros-pro-admin spec 006). Shares the per-user limit of /devices/test-push. Audited as user.test_push, without the text.',
+        parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'reached, removed, failed, noDevice' }, '404': { description: 'user_not_found' }, '429': { description: 'too_many_requests (retryAfterSeconds, Retry-After)' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
       },
     },
     '/goalkeepers/me': {

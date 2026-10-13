@@ -16,13 +16,36 @@ export const BOOKING_STATUSES = [
 ] as const;
 export type BookingStatus = (typeof BOOKING_STATUSES)[number];
 
-/** Why a booking ended without being played (features 016, 017 and 018). */
-export type BookingEndReason = 'search_ended' | 'cancel_all' | 'client_cancelled' | 'goalkeeper_withdrew';
-/** Who ended it: the system (016), the client (017) or the goalkeeper who withdrew (018). */
-export type BookingEndedBy = 'system' | 'client' | 'goalkeeper';
+/** Why a booking ended without being played (features 016, 017 and 018; admin spec 006). */
+export type BookingEndReason = 'search_ended' | 'cancel_all' | 'client_cancelled' | 'goalkeeper_withdrew' | 'admin_cancelled';
+/** Who ended it: the system (016), the client (017), the goalkeeper who withdrew (018) or an administrator (admin 006). */
+export type BookingEndedBy = 'system' | 'client' | 'goalkeeper' | 'admin';
 
 /** The client's optional reason when cancelling (feature 017). */
 export const MAX_CANCELLATION_NOTE_LENGTH = 200;
+
+/** An administrator's reason when cancelling (admin spec 006): internal, never shown to the app. */
+export const ADMIN_CANCELLATION_REASON_MIN = 3;
+export const ADMIN_CANCELLATION_REASON_MAX = 300;
+
+/** Trimmed; throws unless 3–300 characters. */
+export function normalizeAdminCancellationReason(raw: string): string {
+  const reason = raw.trim();
+  if (reason.length < ADMIN_CANCELLATION_REASON_MIN || reason.length > ADMIN_CANCELLATION_REASON_MAX) {
+    throw new Error(
+      `Admin cancellation reason must have between ${ADMIN_CANCELLATION_REASON_MIN} and ${ADMIN_CANCELLATION_REASON_MAX} characters`,
+    );
+  }
+  return reason;
+}
+
+/**
+ * Whether the booking left its request on purpose — cancelled by the client (017) or by an
+ * administrator (admin 006). Those no longer count for "cancel all" (016) nor for the client's outcome.
+ */
+export function leftTheRequest(booking: Pick<Booking, 'cancelledBy'>): boolean {
+  return booking.cancelledBy === 'client' || booking.cancelledBy === 'admin';
+}
 
 /** The trimmed reason, `null` when empty; throws when longer than allowed. */
 export function normalizeCancellationNote(raw?: string | null): string | null {
@@ -66,8 +89,10 @@ export interface BookingProps {
   endedAt?: Date | null;
   endReason?: BookingEndReason | null;
   cancelledBy?: BookingEndedBy | null;
-  /** The client's reason when they cancelled it, or the goalkeeper's when they withdrew. */
+  /** The client's reason when they cancelled it, the goalkeeper's when they withdrew, or the administrator's (internal). */
   cancellationNote?: string | null;
+  /** The staff member (user id) who cancelled it as an administrator (admin 006); absent otherwise. */
+  cancelledByStaffId?: string | null;
   /** The withdrawn booking this one replaces (feature 018). */
   replacesBookingId?: string | null;
   /** Goalkeepers who can never take it: those who withdrew from the bookings it replaces. */
@@ -110,6 +135,7 @@ export class Booking extends Entity<string> {
   readonly endReason: BookingEndReason | null;
   readonly cancelledBy: BookingEndedBy | null;
   readonly cancellationNote: string | null;
+  readonly cancelledByStaffId: string | null;
   readonly replacesBookingId: string | null;
   readonly excludedGoalkeeperIds: readonly string[];
   readonly dismissedGoalkeeperIds: readonly string[];
@@ -146,6 +172,7 @@ export class Booking extends Entity<string> {
     this.endReason = props.endReason ?? null;
     this.cancelledBy = props.cancelledBy ?? null;
     this.cancellationNote = props.cancellationNote ?? null;
+    this.cancelledByStaffId = props.cancelledByStaffId ?? null;
     this.replacesBookingId = props.replacesBookingId ?? null;
     this.excludedGoalkeeperIds = [...(props.excludedGoalkeeperIds ?? [])];
     this.dismissedGoalkeeperIds = [...(props.dismissedGoalkeeperIds ?? [])];

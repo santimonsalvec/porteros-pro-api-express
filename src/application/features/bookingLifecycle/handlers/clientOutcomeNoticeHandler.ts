@@ -1,10 +1,11 @@
 import type { IClock } from '../../../common/clock.js';
 import type { INotificationHandler } from '../../../common/mediator/types.js';
-import type { Booking } from '../../../../domain/bookings/booking.js';
+import { leftTheRequest, type Booking } from '../../../../domain/bookings/booking.js';
 import { completionRound } from '../../../../domain/bookings/contactVisibility.js';
 import type { BookingCancelledPayload } from '../../../../domain/events/bookingEvents.js';
 import type { DomainEvent } from '../../../../domain/events/domainEvent.js';
 import {
+  adminCancelledMessage,
   requestCancelledMessage,
   requestExpiredMessage,
   requestPartiallyExpiredMessage,
@@ -45,8 +46,16 @@ export class ClientOutcomeNoticeHandler implements INotificationHandler<DomainEv
   constructor(private readonly deps: ClientOutcomeNoticeDependencies) {}
 
   async handle(event: DomainEvent): Promise<void> {
-    // The client is never told about a cancellation they made themselves (feature 017).
-    if (event.type === 'booking.cancelled' && (event.payload as BookingCancelledPayload).by === 'client') return;
+    if (event.type === 'booking.cancelled') {
+      const by = (event.payload as BookingCancelledPayload).by;
+      // The client is never told about a cancellation they made themselves (feature 017).
+      if (by === 'client') return;
+      // An administrator's cancellation has its own notice, right away (admin spec 006, FR-024).
+      if (by === 'admin') {
+        await runOnce(this.deps.processed, this.deps.clock, this.name, event.id, () => this.notifyAdminCancellation(event));
+        return;
+      }
+    }
     await runOnce(this.deps.processed, this.deps.clock, this.name, event.id, () => this.notify(event.requestId));
   }
 
@@ -54,9 +63,9 @@ export class ClientOutcomeNoticeHandler implements INotificationHandler<DomainEv
     const [request] = await this.deps.requestRepository.findByIds([requestId]);
     if (!request) return;
     const all = await this.deps.bookingRepository.findByRequestIds([requestId]);
-    // Bookings the client cancelled themselves are not part of the outcome (feature 017), nor are
+    // Bookings the client (017) or an administrator (admin 006) cancelled are not part of the outcome, nor are
     // the ones a goalkeeper withdrew from: their replacement stands in their place (feature 018).
-    const bookings = all.filter((booking) => booking.cancelledBy !== 'client' && booking.status !== 'goalkeeper_withdrew');
+    const bookings = all.filter((booking) => !leftTheRequest(booking) && booking.status !== 'goalkeeper_withdrew');
     if (bookings.length === 0) return;
     // Not final while a booking is still searching: the notice waits for the outcome.
     if (bookings.some((booking) => booking.status === 'pending_assignment')) return;
@@ -93,6 +102,43 @@ export class ClientOutcomeNoticeHandler implements INotificationHandler<DomainEv
     this.deps.logger.info(
       { outcome: 'outcome_notice_sent', type: message.data.type, requestId, reached: result.totals.reached },
       'Client told how their request ended',
+    );
+  }
+
+  /**
+   * One notice per administrator cancellation, however many bookings it ended: they share the
+   * instant, which keys the notice. Never the internal reason.
+   */
+  private async notifyAdminCancellation(event: DomainEvent): Promise<void> {
+    const [request] = await this.deps.requestRepository.findByIds([event.requestId]);
+    if (!request) return;
+    const all = await this.deps.bookingRepository.findByRequestIds([event.requestId]);
+    const remaining = all.filter((booking) => booking.status === 'pending_assignment' || booking.status === 'assigned').length;
+    const [zones, cities] = await Promise.all([
+      this.deps.zoneRepository.getManyByIds([request.match.zoneId]),
+      this.deps.cityRepository.getByIds([request.match.cityId]),
+    ]);
+    const message = adminCancelledMessage(
+      { zoneName: zones[0]?.name ?? null, cityName: cities[0]?.name ?? null, startsAt: request.match.startsAt, timeZone: request.match.timeZone },
+      event.requestId,
+      event.bookingId,
+      { remaining },
+    );
+    const created = await this.deps.notifications.createIfAbsent({
+      id: this.deps.idGenerator.newId(),
+      userId: request.clientId,
+      type: message.data.type!,
+      title: message.title,
+      body: message.body,
+      data: message.data,
+      createdAt: this.deps.clock.now(),
+      dedupeKey: `admin-cancel:${event.requestId}:${new Date(event.occurredAt).getTime()}`,
+    });
+    if (!created) return;
+    const result = await this.deps.pushNotifier.sendToUsers([request.clientId], message);
+    this.deps.logger.info(
+      { outcome: 'outcome_notice_sent', type: message.data.type, requestId: event.requestId, reached: result.totals.reached },
+      'Client told an administrator cancelled',
     );
   }
 }

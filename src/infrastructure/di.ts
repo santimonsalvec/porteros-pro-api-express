@@ -220,6 +220,10 @@ import { UserAdminReader } from './persistence/mongo/userAdminReader.js';
 import { GoalkeeperAdminReader } from './persistence/mongo/goalkeeperAdminReader.js';
 import { MongoGoalkeeperDocumentWriter } from './persistence/mongo/goalkeeperDocumentWriter.js';
 import { goalkeepersAdminHandlerRegistrations } from './goalkeepersAdminHandlers.js';
+import { operationsHandlerRegistrations } from './operationsAdminHandlers.js';
+import { RequestAdminReader } from './persistence/mongo/requestAdminReader.js';
+import { NotificationAdminReader } from './persistence/mongo/notificationAdminReader.js';
+import { RatingAdminReader } from './persistence/mongo/ratingAdminReader.js';
 import { PinoAdminSecurityLog } from './observability/pinoAdminSecurityLog.js';
 import { JwtAdminTokenIssuer } from './auth/jwtAdminTokenIssuer.js';
 import { StaffAccessResolver } from './auth/staffAccessResolver.js';
@@ -230,6 +234,8 @@ import { MongoAdminSessionStore } from './persistence/mongo/adminSessionStore.js
 import { CancelAllJob } from '../application/features/bookingLifecycle/jobs/cancelAllJob.js';
 import { GOALKEEPER_CANCELLATION_EVENT_TYPES, GoalkeeperCancellationNoticeHandler } from '../application/features/bookingLifecycle/handlers/goalkeeperCancellationNoticeHandler.js';
 import { CancelBookingsByClientCommand } from '../application/features/bookingLifecycle/commands/cancelBookingsByClient/cancelBookingsByClientCommand.js';
+import { CancelBookingsByAdminCommand } from '../application/features/bookingLifecycle/commands/cancelBookingsByAdmin/cancelBookingsByAdminCommand.js';
+import { CancelBookingsByAdminCommandHandler } from '../application/features/bookingLifecycle/commands/cancelBookingsByAdmin/cancelBookingsByAdminCommandHandler.js';
 import { CancelBookingsByClientCommandHandler } from '../application/features/bookingLifecycle/commands/cancelBookingsByClient/cancelBookingsByClientCommandHandler.js';
 import { ListGoalkeeperWithdrawalsQuery } from '../application/features/bookingLifecycle/queries/listGoalkeeperWithdrawals/listGoalkeeperWithdrawalsQuery.js';
 import { ListGoalkeeperWithdrawalsQueryHandler } from '../application/features/bookingLifecycle/queries/listGoalkeeperWithdrawals/listGoalkeeperWithdrawalsQueryHandler.js';
@@ -690,6 +696,23 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       documentWriter: new MongoGoalkeeperDocumentWriter(() => connectionProvider.startSession(), db),
     }),
   );
+  registerHandlers(
+    mediator,
+    operationsHandlerRegistrations({
+      reader: new RequestAdminReader(db),
+      users: userRepository,
+      cities: cityRepository,
+      zones: zoneRepository,
+      staff: staffMemberRepository,
+      clock,
+      cases: caseRepository,
+      ratings: ratingRepository,
+      requests: requestRepository,
+      send: (query) => mediator.send(query),
+      notificationReader: new NotificationAdminReader(db),
+      ratingReader: new RatingAdminReader(db),
+    }),
+  );
   registerHandlers(mediator, [
     { requestType: GetSsoOptionsQuery, handler: new GetSsoOptionsQueryHandler(ssoCatalog) },
     {
@@ -1070,6 +1093,20 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         requestRepository,
         bookingRepository,
         userRepository,
+        store: lifecycleStore,
+        walletContext,
+        relay: eventRelay,
+        idGenerator: idGenerator,
+        clock,
+        audit: auditLogger,
+        logger: logger,
+      }),
+    },
+    {
+      // The administrator's cancellation (admin spec 006): the client's transaction, the administrator's policy.
+      requestType: CancelBookingsByAdminCommand,
+      handler: new CancelBookingsByAdminCommandHandler({
+        bookingRepository,
         store: lifecycleStore,
         walletContext,
         relay: eventRelay,

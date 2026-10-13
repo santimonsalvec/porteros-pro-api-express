@@ -7,6 +7,10 @@ import { registerPricingRoutes } from './admin/pricingRoutes.js';
 import { registerUsersRoutes } from './admin/usersRoutes.js';
 import { registerGoalkeeperAdminRoutes } from './admin/goalkeepersRoutes.js';
 import { registerReadinessRoutes } from './admin/readinessRoutes.js';
+import { registerRequestsRoutes } from './admin/requestsRoutes.js';
+import { registerCasesRoutes } from './admin/casesRoutes.js';
+import { registerNotificationsRoutes } from './admin/notificationsRoutes.js';
+import { registerRatingsRoutes } from './admin/ratingsRoutes.js';
 import type { ISender } from '../application/common/mediator/types.js';
 import { RecordWalletAdjustmentCommand } from '../application/features/wallet/commands/recordWalletAdjustment/recordWalletAdjustmentCommand.js';
 import type { AdminWebDependencies } from '../appDependencies.js';
@@ -22,10 +26,6 @@ import { goalkeeperNotFound, sendMovements, sendWallet, walletNotConfigured } fr
 import { ReverseWithdrawalPenaltyCommand } from '../application/features/bookingLifecycle/commands/reverseWithdrawalPenalty/reverseWithdrawalPenaltyCommand.js';
 import { reverseWithdrawalRequestSchema } from './requests/withdrawals/reverseWithdrawalRequest.js';
 import { sendWithdrawals } from './withdrawals/withdrawalsHttp.js';
-import { ListCasesQuery } from '../application/features/cases/queries/listCases/listCasesQuery.js';
-import { GetCaseQuery } from '../application/features/cases/queries/getCase/getCaseQuery.js';
-import { ResolveCaseCommand } from '../application/features/cases/commands/resolveCase/resolveCaseCommand.js';
-import { listCasesQuerySchema, resolveCaseRequestSchema } from './requests/cases/caseRequests.js';
 import { SetGatewaySettingsCommand } from '../application/features/payments/commands/setGatewaySettings/setGatewaySettingsCommand.js';
 import { GetGatewaySettingsQuery } from '../application/features/payments/queries/getGatewaySettings/getGatewaySettingsQuery.js';
 import { gatewaySettingsRequestSchema } from './requests/payments/gatewaySettingsRequest.js';
@@ -61,6 +61,10 @@ export function createAdminController(deps: AdminControllerDependencies): Router
   registerPricingRoutes(route, deps.mediator);
   registerUsersRoutes(route, deps.mediator);
   registerGoalkeeperAdminRoutes(route, deps.mediator);
+  registerRequestsRoutes(route, deps.mediator);
+  registerCasesRoutes(route, deps.mediator);
+  registerNotificationsRoutes(route, deps.mediator);
+  registerRatingsRoutes(route, deps.mediator);
   registerReadinessRoutes(route, deps.mediator);
 
   // The fixed permission catalog, for the role screen (any active member).
@@ -166,65 +170,6 @@ export function createAdminController(deps: AdminControllerDependencies): Router
         throw walletNotConfigured(result.cityId);
       case 'missing_charge':
         throw new ApiError(409, 'missing_charge', 'This booking has no commission charge to refund.', undefined, { bookingId: result.bookingId });
-    }
-  });
-
-  // Cases for manual review (feature 021).
-  route('get', '/cases', 'cases.read', async (req, res) => {
-    const parsed = listCasesQuerySchema.safeParse(req.query);
-    if (!parsed.success) {
-      throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
-    }
-    const result = await deps.mediator.send(new ListCasesQuery(parsed.data.status ?? null, parsed.data.page, parsed.data.pageSize));
-    res.status(200).json({
-      items: result.items,
-      page: result.page,
-      pageSize: result.pageSize,
-      totalItems: result.totalItems,
-      totalPages: result.totalPages,
-    });
-  });
-
-  route('get', '/cases/:caseId', 'cases.read', async (req, res) => {
-    const result = await deps.mediator.send(new GetCaseQuery(req.params.caseId));
-    switch (result.outcome) {
-      case 'ok':
-        res.status(200).json(result.case);
-        return;
-      case 'case_not_found':
-        throw new ApiError(404, 'case_not_found', 'This case does not exist.');
-    }
-  });
-
-  route('post', '/cases/:caseId/resolve', {
-    permission: 'cases.resolve',
-    audit: {
-      action: 'case.resolve',
-      resourceType: 'case',
-      resourceId: (req) => String(req.params.caseId),
-      before: async (req) => {
-        const result = await deps.mediator.send(new GetCaseQuery(String(req.params.caseId)));
-        return result.outcome === 'ok' ? result.case : null;
-      },
-    },
-  }, async (req, res) => {
-    const parsed = resolveCaseRequestSchema.safeParse(req.body ?? {});
-    if (!parsed.success) {
-      throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
-    }
-    const result = await deps.mediator.send(new ResolveCaseCommand(req.adminAccess!.userId, req.params.caseId, parsed.data.note));
-
-    // Exhaustive on purpose: adding an outcome without mapping it here fails compilation.
-    switch (result.outcome) {
-      case 'resolved':
-        res.status(200).json(result.case);
-        return;
-      case 'case_not_found':
-        throw new ApiError(404, 'case_not_found', 'This case does not exist.');
-      case 'case_already_resolved':
-        throw new ApiError(409, 'case_already_resolved', 'This case is already resolved.');
-      case 'invalid_note':
-        throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', { note: result.message });
     }
   });
 

@@ -41,7 +41,10 @@ export const PERMISSION_AREAS = [
   {
     id: 'requests',
     name: 'Solicitudes',
-    permissions: [{ id: 'requests.read', description: 'Ver solicitudes, reservas y su línea de tiempo' }],
+    permissions: [
+      { id: 'requests.read', description: 'Ver solicitudes, reservas y su línea de tiempo' },
+      { id: 'requests.cancel', description: 'Cancelar solicitudes y reservas' },
+    ],
   },
   { id: 'ratings', name: 'Calificaciones', permissions: [{ id: 'ratings.read', description: 'Ver calificaciones' }] },
   {

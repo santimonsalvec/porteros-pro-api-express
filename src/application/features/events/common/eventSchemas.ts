@@ -66,8 +66,8 @@ const eventSchema = z.discriminatedUnion('type', [
       goalkeeperId: z.string().nullable(),
       refundedAmount: z.number().nullable(),
       currency: z.string(),
-      reason: z.enum(['cancel_all', 'client_cancelled']),
-      by: z.enum(['system', 'client']),
+      reason: z.enum(['cancel_all', 'client_cancelled', 'admin_cancelled']),
+      by: z.enum(['system', 'client', 'admin']),
     }),
   }),
   z.object({

@@ -7,12 +7,10 @@ import type { IEventRelay } from '../../../events/common/ports.js';
 import { loadContacts } from '../../../goalkeeperRequests/common/contacts.js';
 import type { IBookingAuditLogger, IBookingRepository, IGoalkeeperRequestRepository } from '../../../goalkeeperRequests/common/ports.js';
 import { assignedGoalkeeperIds, toRequestResponse } from '../../../goalkeeperRequests/common/requestResponse.js';
-import {
-  resolveGoalkeeperWalletContext,
-  type GoalkeeperWalletContextDependencies,
-} from '../../../wallet/common/goalkeeperWalletContext.js';
+import type { GoalkeeperWalletContextDependencies } from '../../../wallet/common/goalkeeperWalletContext.js';
 import type { LedgerOwner } from '../../../wallet/common/walletLedger.js';
 import type { ClientCancelResult, IBookingLifecycleStore, ILifecycleLogger } from '../../common/ports.js';
+import { addLedgerOwner } from '../../common/resolveOwners.js';
 import { CancelBookingsByClientCommand, type CancelBookingsByClientResult } from './cancelBookingsByClientCommand.js';
 
 export interface CancelBookingsByClientDependencies {
@@ -104,14 +102,8 @@ export class CancelBookingsByClientCommandHandler
   }
 
   /** False when the goalkeeper's wallet can't be resolved (a configuration gap). */
-  private async addOwner(owners: Map<string, LedgerOwner>, goalkeeperId: string): Promise<boolean> {
-    const context = await resolveGoalkeeperWalletContext(this.deps.walletContext, goalkeeperId);
-    if (context.kind !== 'ok') {
-      this.deps.logger.warn({ outcome: 'client_cancel_owner_unresolved', goalkeeperId, reason: context.kind }, 'Refund owner unresolved');
-      return false;
-    }
-    owners.set(goalkeeperId, { goalkeeperId, currency: context.currency, invoicing: context.invoicing });
-    return true;
+  private addOwner(owners: Map<string, LedgerOwner>, goalkeeperId: string): Promise<boolean> {
+    return addLedgerOwner(this.deps, owners, goalkeeperId, 'client_cancel_owner_unresolved');
   }
 
   /** The request with its bookings as they are now, and the contacts of whoever still holds one. */

@@ -74,6 +74,9 @@ export class GoalkeeperRequestRepository implements IGoalkeeperRequestRepository
     await this.collection.createIndex({ clientId: 1, startsAt: 1, _id: 1 }, { name: 'client_startsAt' });
     await this.collection.createIndex({ partialFulfillment: 1, cancelAllEvaluatedAt: 1, startsAt: 1 }, { name: 'cancelAll_due' });
     await this.collection.createIndex({ contactsRevealedAt: 1, startsAt: 1 }, { name: 'contactsReveal_due' });
+    // The admin's request list (admin spec 006): by date, and by city (or country) and date.
+    await this.collection.createIndex({ startsAt: -1, _id: -1 }, { name: 'startsAt_id' });
+    await this.collection.createIndex({ 'match.cityId': 1, startsAt: -1 }, { name: 'city_startsAt' });
   }
 
   async findDueForCancelAll(now: Date, cap: number): Promise<GoalkeeperRequest[]> {
