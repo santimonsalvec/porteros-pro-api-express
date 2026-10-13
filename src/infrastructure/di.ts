@@ -80,6 +80,8 @@ import { RecordWalletAdjustmentCommandHandler } from '../application/features/wa
 import { ApplyGatewayEventCommand } from '../application/features/payments/commands/applyGatewayEvent/applyGatewayEventCommand.js';
 import { ApplyGatewayEventCommandHandler } from '../application/features/payments/commands/applyGatewayEvent/applyGatewayEventCommandHandler.js';
 import { TopUpReconcileJob } from '../application/features/payments/jobs/topUpReconcileJob.js';
+import { ReconcileTopUpCommand } from '../application/features/payments/commands/reconcileTopUp/reconcileTopUpCommand.js';
+import { ReconcileTopUpCommandHandler } from '../application/features/payments/commands/reconcileTopUp/reconcileTopUpCommandHandler.js';
 import { ListTopUpsQuery } from '../application/features/payments/queries/listTopUps/listTopUpsQuery.js';
 import { ListTopUpsQueryHandler } from '../application/features/payments/queries/listTopUps/listTopUpsQueryHandler.js';
 import { GetTopUpQuery } from '../application/features/payments/queries/getTopUp/getTopUpQuery.js';
@@ -115,8 +117,6 @@ import { SetInvoicingSettingsCommand } from '../application/features/invoicing/c
 import { SetInvoicingSettingsCommandHandler } from '../application/features/invoicing/commands/setInvoicingSettings/setInvoicingSettingsCommandHandler.js';
 import { GetInvoicingSettingsQuery } from '../application/features/invoicing/queries/getInvoicingSettings/getInvoicingSettingsQuery.js';
 import { GetInvoicingSettingsQueryHandler } from '../application/features/invoicing/queries/getInvoicingSettings/getInvoicingSettingsQueryHandler.js';
-import { ListDocumentsForAdminQuery } from '../application/features/invoicing/queries/listDocumentsForAdmin/listDocumentsForAdminQuery.js';
-import { ListDocumentsForAdminQueryHandler } from '../application/features/invoicing/queries/listDocumentsForAdmin/listDocumentsForAdminQueryHandler.js';
 import { RetryDocumentCommand } from '../application/features/invoicing/commands/retryDocument/retryDocumentCommand.js';
 import { RetryDocumentCommandHandler } from '../application/features/invoicing/commands/retryDocument/retryDocumentCommandHandler.js';
 import { GetTopUpOptionsQuery } from '../application/features/payments/queries/getTopUpOptions/getTopUpOptionsQuery.js';
@@ -223,6 +223,10 @@ import { goalkeepersAdminHandlerRegistrations } from './goalkeepersAdminHandlers
 import { operationsHandlerRegistrations } from './operationsAdminHandlers.js';
 import { RequestAdminReader } from './persistence/mongo/requestAdminReader.js';
 import { NotificationAdminReader } from './persistence/mongo/notificationAdminReader.js';
+import { TopUpAdminReader } from './persistence/mongo/topUpAdminReader.js';
+import { WalletAdminReader } from './persistence/mongo/walletAdminReader.js';
+import { InvoicingDocumentAdminReader } from './persistence/mongo/invoicingDocumentAdminReader.js';
+import { financeHandlerRegistrations } from './financeAdminHandlers.js';
 import { RatingAdminReader } from './persistence/mongo/ratingAdminReader.js';
 import { PinoAdminSecurityLog } from './observability/pinoAdminSecurityLog.js';
 import { JwtAdminTokenIssuer } from './auth/jwtAdminTokenIssuer.js';
@@ -343,6 +347,8 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   // Electronic invoicing (feature 023): providers per country, credentials from Secret Manager.
   const invoicingDocumentRepository = new InvoicingDocumentRepository(db);
   await invoicingDocumentRepository.ensureIndexes();
+  await invoicingDocumentRepository.ensureAdminIndexes();
+  await walletRepository.ensureAdminIndexes();
   const invoicingSettingsRepository = new InvoicingSettingsRepository(db);
   const billableMovementScanner = new BillableMovementScanner(db);
   const invoicingProviders = new InvoicingProviderRegistry([new SiigoInvoicingProvider(config.invoicing.siigoBaseUrl)]);
@@ -350,6 +356,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   // Wallet top-ups (feature 022). Secrets come from the environment (Secret Manager), never the database.
   const topUpRepository = new TopUpRepository(db);
   await topUpRepository.ensureIndexes();
+  await topUpRepository.ensureAdminIndexes();
   const paymentGatewaySettingsRepository = new PaymentGatewaySettingsRepository(db);
   const paymentGatewayRegistry = new PaymentGatewayRegistry([new WompiGateway()]);
   const paymentSecrets = new EnvPaymentSecrets(process.env);
@@ -713,6 +720,21 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       ratingReader: new RatingAdminReader(db),
     }),
   );
+  registerHandlers(
+    mediator,
+    financeHandlerRegistrations({
+      topUpReader: new TopUpAdminReader(db),
+      walletReader: new WalletAdminReader(db),
+      cities: cityRepository,
+      regions: regionRepository,
+      documentReader: new InvoicingDocumentAdminReader(db),
+      documents: invoicingDocumentRepository,
+      clock,
+      issuingEnabled: config.invoicing.enabled,
+      users: userRepository,
+      countries: countryRepository,
+    }),
+  );
   registerHandlers(mediator, [
     { requestType: GetSsoOptionsQuery, handler: new GetSsoOptionsQueryHandler(ssoCatalog) },
     {
@@ -870,9 +892,9 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     { requestType: GetTopUpByReferenceQuery, handler: new GetTopUpByReferenceQueryHandler(topUpRepository) },
     {
       requestType: SetGatewaySettingsCommand,
-      handler: new SetGatewaySettingsCommandHandler(countryRepository, paymentGatewaySettingsRepository, clock, logger),
+      handler: new SetGatewaySettingsCommandHandler(countryRepository, paymentGatewaySettingsRepository, paymentSecrets, clock, logger),
     },
-    { requestType: GetGatewaySettingsQuery, handler: new GetGatewaySettingsQueryHandler(paymentGatewaySettingsRepository) },
+    { requestType: GetGatewaySettingsQuery, handler: new GetGatewaySettingsQueryHandler(paymentGatewaySettingsRepository, paymentSecrets, countryRepository) },
     { requestType: ListMyDocumentsQuery, handler: new ListMyDocumentsQueryHandler(goalkeeperProfileRepository, invoicingDocumentRepository) },
     { requestType: GetMyDocumentQuery, handler: new GetMyDocumentQueryHandler(invoicingDocumentRepository) },
     { requestType: GetDocumentFileQuery, handler: new GetDocumentFileQueryHandler(invoicingDeps) },
@@ -886,7 +908,21 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       handler: new SetInvoicingSettingsCommandHandler(countryRepository, invoicingSettingsRepository, invoicingDeps.secrets, clock, invoicingDeps.logger),
     },
     { requestType: GetInvoicingSettingsQuery, handler: new GetInvoicingSettingsQueryHandler(invoicingSettingsRepository, invoicingDeps.secrets, countryRepository) },
-    { requestType: ListDocumentsForAdminQuery, handler: new ListDocumentsForAdminQueryHandler(invoicingDocumentRepository, clock) },
+    {
+      // "Conciliar ahora" (admin spec 007): the sweep's ask for one top-up, by a member.
+      requestType: ReconcileTopUpCommand,
+      handler: new ReconcileTopUpCommandHandler({
+        walletContext,
+        store: topUpStore,
+        notices: { notifications: notificationRepository, pushNotifier, idGenerator: idGenerator, clock },
+        logger: logger,
+        topUpRepository,
+        gateways: paymentGatewayRegistry,
+        secrets: paymentSecrets,
+        countryLookup: countryRepository,
+        clock,
+      }),
+    },
     {
       requestType: RetryDocumentCommand,
       handler: new RetryDocumentCommandHandler({ ...invoicingDeps, profiles: goalkeeperProfileRepository }),

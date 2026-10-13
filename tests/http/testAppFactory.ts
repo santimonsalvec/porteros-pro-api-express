@@ -36,6 +36,12 @@ import { FakeGoalkeeperDocumentWriter } from '../fakes/fakeGoalkeeperDocumentWri
 import { GetGoalkeeperMonthStatsQuery as AdminMonthStatsQuery } from '../../src/application/features/goalkeepers/queries/getGoalkeeperMonthStats/getGoalkeeperMonthStatsQuery.js';
 import { goalkeepersAdminHandlerRegistrations } from '../../src/infrastructure/goalkeepersAdminHandlers.js';
 import { operationsHandlerRegistrations } from '../../src/infrastructure/operationsAdminHandlers.js';
+import { financeHandlerRegistrations } from '../../src/infrastructure/financeAdminHandlers.js';
+import { ReconcileTopUpCommand } from '../../src/application/features/payments/commands/reconcileTopUp/reconcileTopUpCommand.js';
+import { ReconcileTopUpCommandHandler } from '../../src/application/features/payments/commands/reconcileTopUp/reconcileTopUpCommandHandler.js';
+import { FakeTopUpAdminReader } from '../fakes/fakeTopUpAdminReader.js';
+import { FakeWalletAdminReader } from '../fakes/fakeWalletAdminReader.js';
+import { FakeInvoicingDocumentAdminReader } from '../fakes/fakeInvoicingDocumentAdminReader.js';
 import { FakeRequestAdminReader } from '../fakes/fakeRequestAdminReader.js';
 import { FakeNotificationAdminReader } from '../fakes/fakeNotificationAdminReader.js';
 import { FakeRatingAdminReader } from '../fakes/fakeRatingAdminReader.js';
@@ -131,8 +137,6 @@ import { SetInvoicingSettingsCommand } from '../../src/application/features/invo
 import { SetInvoicingSettingsCommandHandler } from '../../src/application/features/invoicing/commands/setInvoicingSettings/setInvoicingSettingsCommandHandler.js';
 import { GetInvoicingSettingsQuery } from '../../src/application/features/invoicing/queries/getInvoicingSettings/getInvoicingSettingsQuery.js';
 import { GetInvoicingSettingsQueryHandler } from '../../src/application/features/invoicing/queries/getInvoicingSettings/getInvoicingSettingsQueryHandler.js';
-import { ListDocumentsForAdminQuery } from '../../src/application/features/invoicing/queries/listDocumentsForAdmin/listDocumentsForAdminQuery.js';
-import { ListDocumentsForAdminQueryHandler } from '../../src/application/features/invoicing/queries/listDocumentsForAdmin/listDocumentsForAdminQueryHandler.js';
 import { RetryDocumentCommand } from '../../src/application/features/invoicing/commands/retryDocument/retryDocumentCommand.js';
 import { RetryDocumentCommandHandler } from '../../src/application/features/invoicing/commands/retryDocument/retryDocumentCommandHandler.js';
 import { GetTopUpOptionsQuery } from '../../src/application/features/payments/queries/getTopUpOptions/getTopUpOptionsQuery.js';
@@ -790,6 +794,35 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       ratingReader: new FakeRatingAdminReader(lifecycleStore),
     }),
   );
+  // Finance (admin spec 007): the admin's reads of money and "Conciliar ahora".
+  registerHandlers(mediator, [
+    ...financeHandlerRegistrations({
+      topUpReader: new FakeTopUpAdminReader(topUpRepository),
+      walletReader: new FakeWalletAdminReader({ wallets: walletStore, profiles: goalkeeperProfileRepository, cities: cityRepository, regions: regionRepository }),
+      cities: cityRepository,
+      regions: regionRepository,
+      documentReader: new FakeInvoicingDocumentAdminReader(invoicingDocumentRepository),
+      documents: invoicingDocumentRepository,
+      clock,
+      issuingEnabled: true,
+      users: userRepository,
+      countries: quoteCountryRepository,
+    }),
+    {
+      requestType: ReconcileTopUpCommand,
+      handler: new ReconcileTopUpCommandHandler({
+        walletContext,
+        store: topUpStore,
+        notices: { notifications: notificationRepository, pushNotifier, idGenerator: lifecycleIds, clock },
+        logger: offersLogger,
+        topUpRepository,
+        gateways: paymentGatewayRegistry,
+        secrets: paymentSecrets,
+        countryLookup: quoteCountryRepository,
+        clock,
+      }),
+    },
+  ]);
   registerHandlers(mediator, [
     {
       requestType: RunSweepCommand,
@@ -1014,9 +1047,9 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     { requestType: GetTopUpByReferenceQuery, handler: new GetTopUpByReferenceQueryHandler(topUpRepository) },
     {
       requestType: SetGatewaySettingsCommand,
-      handler: new SetGatewaySettingsCommandHandler(quoteCountryRepository, paymentGatewaySettingsRepository, clock, offersLogger),
+      handler: new SetGatewaySettingsCommandHandler(quoteCountryRepository, paymentGatewaySettingsRepository, paymentSecrets, clock, offersLogger),
     },
-    { requestType: GetGatewaySettingsQuery, handler: new GetGatewaySettingsQueryHandler(paymentGatewaySettingsRepository) },
+    { requestType: GetGatewaySettingsQuery, handler: new GetGatewaySettingsQueryHandler(paymentGatewaySettingsRepository, paymentSecrets, quoteCountryRepository) },
     { requestType: ListMyDocumentsQuery, handler: new ListMyDocumentsQueryHandler(goalkeeperProfileRepository, invoicingDocumentRepository) },
     { requestType: GetMyDocumentQuery, handler: new GetMyDocumentQueryHandler(invoicingDocumentRepository) },
     { requestType: GetDocumentFileQuery, handler: new GetDocumentFileQueryHandler(invoicingDeps) },
@@ -1030,7 +1063,6 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       handler: new SetInvoicingSettingsCommandHandler(quoteCountryRepository, invoicingSettingsRepository, invoicingDeps.secrets, clock, invoicingDeps.logger),
     },
     { requestType: GetInvoicingSettingsQuery, handler: new GetInvoicingSettingsQueryHandler(invoicingSettingsRepository, invoicingDeps.secrets, quoteCountryRepository) },
-    { requestType: ListDocumentsForAdminQuery, handler: new ListDocumentsForAdminQueryHandler(invoicingDocumentRepository, clock) },
     {
       requestType: RetryDocumentCommand,
       handler: new RetryDocumentCommandHandler({ ...invoicingDeps, profiles: goalkeeperProfileRepository }),

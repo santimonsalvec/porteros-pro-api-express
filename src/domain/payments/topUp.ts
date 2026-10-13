@@ -12,6 +12,47 @@ export const EXPIRY_MINUTES = 2880;
 
 const MINUTE_MS = 60_000;
 
+/** How many checks a top-up keeps, newest last (admin spec 007, research §1). */
+export const CHECK_LOG_MAX = 50;
+/** How long one ask to the gateway holds a top-up, so two are never in flight at once (research §2). */
+export const CHECK_LEASE_SECONDS = 30;
+
+/** What the gateway answered, or why it could not be asked. */
+export type TopUpCheckAnswer = 'APPROVED' | 'DECLINED' | 'VOIDED' | 'ERROR' | 'PENDING' | 'NOT_FOUND' | 'UNAVAILABLE' | 'MISSING_SECRETS';
+/** What the answer did to the top-up. */
+export type TopUpCheckResult = 'applied' | 'unchanged' | 'mismatch' | 'still_pending' | 'expired' | 'failed';
+
+/**
+ * One ask to the gateway about a top-up, by the sweep or by an administrator (admin spec 007,
+ * FR-005). Kept on the top-up's document (`checkLog`); equal failures in a row share one entry.
+ */
+export interface TopUpCheck {
+  at: Date;
+  /** The latest of the repeats, `at` when there is one. */
+  lastAt: Date;
+  by: 'sweep' | 'staff';
+  staffUserId: string | null;
+  answer: TopUpCheckAnswer;
+  result: TopUpCheckResult;
+  statusAfter: TopUpStatus;
+  repeats: number;
+}
+
+/** Whether a new check repeats the last one: the same caller got the same answer. */
+export function isSameCheck(last: TopUpCheck, next: TopUpCheck): boolean {
+  return last.by === next.by && last.staffUserId === next.staffUserId && last.answer === next.answer && last.result === next.result;
+}
+
+/** Whether an administrator may ask the gateway now: a late payment can still turn an expired top-up approved. */
+export function canReconcile(status: TopUpStatus): boolean {
+  return status === 'pending' || status === 'expired';
+}
+
+/** When a top-up without a final answer expires. */
+export function expiresAtOf(createdAt: Date): Date {
+  return new Date(createdAt.getTime() + EXPIRY_MINUTES * MINUTE_MS);
+}
+
 export interface TopUpProps {
   id: string;
   goalkeeperId: string;

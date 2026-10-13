@@ -8,12 +8,13 @@ export class GetDocumentFileQueryHandler implements IQueryHandler<GetDocumentFil
 
   async handle(query: GetDocumentFileQuery): Promise<GetDocumentFileResult> {
     const document = await this.deps.documents.getById(query.documentId);
-    if (!document || document.goalkeeperId !== query.goalkeeperId) return { outcome: 'not_found' };
+    if (!document || (query.goalkeeperId !== null && document.goalkeeperId !== query.goalkeeperId)) return { outcome: 'not_found' };
     if (document.status !== 'issued') return { outcome: 'not_issued', status: document.status };
     const resolved = await resolveTarget(this.deps, document, null);
     if (resolved.kind === 'gap') return { outcome: 'provider_unavailable' };
     try {
       const file = await resolved.target.provider.getFile(document, query.kind, resolved.target.context);
+      if (query.goalkeeperId === null) this.deps.logger.info({ outcome: 'invoicing_file_read', documentId: document.id, kind: query.kind }, 'Invoicing file read by an administrator');
       return file ? { outcome: 'success', file } : { outcome: 'file_not_available' };
     } catch (error) {
       this.deps.logger.warn(

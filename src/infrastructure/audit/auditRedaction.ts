@@ -21,10 +21,10 @@ const ALLOWED_FIELDS: Readonly<Record<string, readonly string[]>> = {
   case: ['caseId', 'id', 'type', 'status', 'bookingId', 'requestId', 'resolution', 'by', 'at', 'note'],
   paymentGatewaySettings: [
     'countryId', 'gateway', 'publicConfig', 'environment', 'currency', 'costs', 'percentBps', 'fixed', 'vatBps',
-    'amounts', 'updatedAt', 'updatedBy',
+    'amounts', 'updatedAt', 'updatedBy', 'revision', 'credentialsPresent',
   ],
   taxSettings: ['countryId', 'vatRateBps', 'updatedAt', 'updatedBy'],
-  invoicingSettings: ['countryId', 'provider', 'updatedAt', 'updatedBy'],
+  invoicingSettings: ['countryId', 'provider', 'updatedAt', 'updatedBy', 'revision', 'credentialsPresent'],
   invoicingDocument: ['documentId', 'id', 'kind', 'status', 'attempts', 'sourceMovementId', 'errorCode', 'retriedAt'],
   // The team (spec 002): the member's email may go to the audit log, never to the logs.
   staffMember: [
@@ -58,6 +58,11 @@ const ALLOWED_FIELDS: Readonly<Record<string, readonly string[]>> = {
   // the status of each booking; a check-in photo read (`booking`) stores no body at all.
   request: ['requestId', 'bookingId', 'status', 'bookings', 'cancelledBy', 'reason', 'refunds', 'cancelled'],
   booking: [],
+  // Finance (spec 007 of the admin): a forced reconciliation keeps its outcome, never the payment's
+  // references; an export keeps its filters and how many rows left, never a row.
+  topUp: ['topUpId', 'status', 'answer', 'result', 'statusAfter'],
+  topUps: ['status', 'countryId', 'goalkeeperId', 'from', 'to', 'rows'],
+  invoicingDocuments: ['status', 'kind', 'countryId', 'goalkeeperId', 'from', 'to', 'stale', 'rows'],
   // Prices and booking rules (spec 004 of the admin): configuration values, nothing personal or secret.
   rentalRate: [...PRICE_FIELDS, 'durationMinutes'],
   commissionSetting: [...PRICE_FIELDS, 'vatRateBps', 'vatAmount', 'totalWithVat'],
@@ -73,6 +78,9 @@ const ALLOWED_FIELDS: Readonly<Record<string, readonly string[]>> = {
 /** Never stored, at any depth and whatever the resource: secrets, identity documents, phones, comments. */
 const FORBIDDEN = /token|password|secret|credential|cookie|authorization|accesskey|privatekey|publickey|documentnumber|phone|whatsapp|comment/i;
 
+/** Names that match `FORBIDDEN` but only say whether something exists (spec 007): a boolean, never the value. */
+const PRESENCE_FLAGS: ReadonlySet<string> = new Set(['credentialsPresent']);
+
 export function redactForAudit(resourceType: string, value: unknown): Record<string, unknown> | null {
   const allowed = ALLOWED_FIELDS[resourceType];
   if (!allowed || !isPlainObject(value)) return null;
@@ -82,7 +90,8 @@ export function redactForAudit(resourceType: string, value: unknown): Record<str
 function redactObject(value: Record<string, unknown>, allowed: ReadonlySet<string>): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [key, item] of Object.entries(value)) {
-    if (!allowed.has(key) || FORBIDDEN.test(key)) continue;
+    if (!allowed.has(key) || (FORBIDDEN.test(key) && !PRESENCE_FLAGS.has(key))) continue;
+    if (PRESENCE_FLAGS.has(key) && typeof item !== 'boolean') continue;
     result[key] = redactValue(item, allowed);
   }
   return result;

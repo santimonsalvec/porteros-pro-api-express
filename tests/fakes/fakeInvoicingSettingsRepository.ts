@@ -30,7 +30,20 @@ export class FakeInvoicingSettingsRepository implements IInvoicingSettingsReposi
     return this.state.get(countryId) ?? null;
   }
 
-  async save(settings: InvoicingSettings): Promise<void> {
-    this.state.set(settings.countryId, settings);
+  async create(settings: InvoicingSettings): Promise<'saved' | 'stale'> {
+    if (this.state.has(settings.countryId)) return 'stale';
+    this.state.set(settings.countryId, this.at(settings, 0));
+    return 'saved';
+  }
+
+  async update(settings: InvoicingSettings, expectedRevision: number): Promise<'saved' | 'stale'> {
+    const current = this.state.get(settings.countryId);
+    if (!current || current.revision !== expectedRevision) return 'stale';
+    this.state.set(settings.countryId, this.at(settings, expectedRevision + 1));
+    return 'saved';
+  }
+
+  private at(settings: InvoicingSettings, revision: number): InvoicingSettings {
+    return InvoicingSettings.rehydrate({ countryId: settings.countryId, provider: settings.provider, config: { ...settings.config }, updatedAt: settings.updatedAt, updatedBy: settings.updatedBy, revision });
   }
 }

@@ -8,10 +8,13 @@ export type GetDocumentFileResult =
   | { outcome: 'file_not_available' }
   | { outcome: 'provider_unavailable' };
 
-/** The PDF or XML of one of the goalkeeper's issued documents, read from its provider (research.md §8). */
+/**
+ * The PDF or XML of an issued document, read from its provider (research.md §8): the goalkeeper's own,
+ * or any for an administrator (`goalkeeperId` null, admin spec 007).
+ */
 export class GetDocumentFileQuery extends IQuery<GetDocumentFileResult> {
   constructor(
-    public readonly goalkeeperId: string,
+    public readonly goalkeeperId: string | null,
     public readonly documentId: string,
     public readonly kind: 'pdf' | 'xml',
   ) {

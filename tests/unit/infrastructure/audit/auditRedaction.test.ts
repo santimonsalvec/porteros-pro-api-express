@@ -179,4 +179,29 @@ describe('operations writes (spec 006 of the admin)', () => {
     const result = { userId: 'u-1', reached: 2, removed: 1, failed: 0, noDevice: false };
     expect(redactForAudit('user', { ...result, title: 'PorterosPRO', body: 'Notificación de prueba' })).toEqual(result);
   });
+
+  // Finance (spec 007 of the admin).
+  it('keeps the outcome of a forced reconciliation, without the payment references', () => {
+    const kept = { topUpId: 't-1', status: 'approved', answer: 'APPROVED', result: 'applied', statusAfter: 'approved' };
+    expect(redactForAudit('topUp', { ...kept, reference: 'PPR-1', gatewayTransactionId: 'w-9' })).toEqual(kept);
+  });
+
+  it("keeps an export's filters and row count, never personal data", () => {
+    const filters = { status: 'rejected', kind: 'invoice', countryId: 'country-co', goalkeeperId: 'u-1', from: '2026-10-01', to: '2026-10-14', stale: true, rows: 12 };
+    const topUpFilters = { status: 'pending', countryId: 'country-co', goalkeeperId: 'u-1', from: '2026-10-01', to: '2026-10-14', rows: 2 };
+    expect(redactForAudit('topUps', { ...topUpFilters, email: 'ana@example.com' })).toEqual(topUpFilters);
+    expect(redactForAudit('invoicingDocuments', { ...filters, buyer: { documentNumber: '123', email: 'a@b.co' } })).toEqual(filters);
+  });
+
+  it('keeps the revision and whether the credentials exist, never the credentials', () => {
+    expect(
+      redactForAudit('paymentGatewaySettings', { countryId: 'country-co', revision: 3, credentialsPresent: true, privateKey: 'prv', eventsSecret: 's', integritySecret: 'i' }),
+    ).toEqual({ countryId: 'country-co', revision: 3, credentialsPresent: true });
+    expect(redactForAudit('invoicingSettings', { countryId: 'country-co', provider: 'siigo', revision: 1, credentialsPresent: false, username: 'u', accessKey: 'k' })).toEqual({
+      countryId: 'country-co',
+      provider: 'siigo',
+      revision: 1,
+      credentialsPresent: false,
+    });
+  });
 });

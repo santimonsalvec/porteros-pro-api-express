@@ -444,6 +444,7 @@ export const openapiSpec = {
         type: 'object',
         additionalProperties: false,
         properties: {
+          revision: { type: 'integer', minimum: 0, nullable: true, description: 'The revision read; null creates the country\'s first (porteros-pro-admin spec 007, FR-025). Required.' },
           gateway: { type: 'string', enum: ['wompi'] },
           publicConfig: {
             type: 'object',
@@ -458,7 +459,7 @@ export const openapiSpec = {
           },
           amounts: { type: 'array', minItems: 1, maxItems: 10, items: { type: 'integer', minimum: 1 } },
         },
-        required: ['gateway', 'publicConfig', 'costs', 'amounts'],
+        required: ['revision', 'gateway', 'publicConfig', 'costs', 'amounts'],
         description: 'No secrets: they live in Google Secret Manager.',
       },
       GatewaySettingsResponse: {
@@ -473,6 +474,8 @@ export const openapiSpec = {
           options: { type: 'array', items: { $ref: '#/components/schemas/TopUpOption' } },
           updatedAt: { type: 'string', format: 'date-time' },
           updatedBy: { type: 'string' },
+          revision: { type: 'integer', description: 'What the next save must send (porteros-pro-admin spec 007)' },
+          credentialsPresent: { type: 'boolean', description: "Whether the gateway's secrets for the country exist in Secret Manager; never their values" },
         },
       },
       InvoicingDocumentItem: {
@@ -536,6 +539,7 @@ export const openapiSpec = {
           credentialsPresent: { type: 'boolean', description: "Whether the provider's credentials for the country exist in Secret Manager; never their values" },
           updatedAt: { type: 'string', format: 'date-time' },
           updatedBy: { type: 'string' },
+          revision: { type: 'integer', description: 'What the next save must send (porteros-pro-admin spec 007)' },
         },
       },
       ErrorResponse: {
@@ -2166,6 +2170,7 @@ export const openapiSpec = {
           '401': { description: 'Not signed in' },
           '403': { description: 'Not an administrator' },
           '404': { description: 'country_not_found' },
+          '409': { description: 'stale_revision: an old revision, or null over existing settings' },
         },
       },
     },
@@ -2305,23 +2310,29 @@ export const openapiSpec = {
         parameters: [{ name: 'countryId', in: 'path', required: true, schema: { type: 'string' } }],
         requestBody: {
           required: true,
-          content: { 'application/json': { schema: { type: 'object', additionalProperties: false, properties: { provider: { type: 'string', enum: ['siigo'] }, config: { type: 'object' } }, required: ['provider', 'config'] } } },
+          content: { 'application/json': { schema: { type: 'object', additionalProperties: false, properties: { revision: { type: 'integer', minimum: 0, nullable: true, description: 'The revision read; null creates the first (porteros-pro-admin spec 007)' }, provider: { type: 'string', enum: ['siigo'] }, config: { type: 'object' } }, required: ['revision', 'provider', 'config'] } } },
         },
         responses: {
           '200': { description: 'Saved', content: { 'application/json': { schema: { $ref: '#/components/schemas/InvoicingSettingsResponse' } } } },
           '400': { description: 'validation_failed (unsupported provider, missing or unknown config field)' },
           '403': { description: 'Not an administrator' },
           '404': { description: 'country_not_found' },
+          '409': { description: 'stale_revision: an old revision, or null over existing settings' },
         },
       },
     },
     '/admin/invoicing/documents': {
       get: {
-        summary: 'Invoicing documents by status, oldest first, with reasons (administrators only, feature 023)',
+        summary: 'Invoicing documents, oldest first, with reasons (administrators only, feature 023; filters by porteros-pro-admin spec 007)',
         tags: ['Admin'],
         security: [{ adminBearerAuth: [] }],
         parameters: [
           { name: 'status', in: 'query', required: false, schema: { type: 'string', enum: ['pending', 'awaiting_authority', 'issued', 'rejected'] } },
+          { name: 'kind', in: 'query', required: false, schema: { type: 'string', enum: ['invoice', 'credit_note'] } },
+          { name: 'countryId', in: 'query', required: false, schema: { type: 'string' } },
+          { name: 'from', in: 'query', required: false, schema: { type: 'string', format: 'date-time' }, description: 'The charge (occurredAt), included' },
+          { name: 'to', in: 'query', required: false, schema: { type: 'string', format: 'date-time' }, description: 'The charge (occurredAt), excluded' },
+          { name: 'stale', in: 'query', required: false, schema: { type: 'string', enum: ['true'] }, description: 'Pending or awaiting the authority for more than 24 hours' },
           { name: 'page', in: 'query', required: false, schema: { type: 'integer', minimum: 1, default: 1 } },
           { name: 'pageSize', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 50, default: 20 } },
         ],
@@ -2949,6 +2960,120 @@ export const openapiSpec = {
           { name: 'to', in: 'query', schema: { type: 'string', format: 'date-time' } },
         ],
         responses: { '200': { description: 'A page of ratings' }, '400': { description: 'validation_failed' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/wallets': {
+      get: {
+        summary: "The goalkeepers' wallets (one movement or more), by balance",
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs wallets.read (porteros-pro-admin spec 007). Country and city come from the goalkeeper profile.',
+        parameters: [
+          ...PAGING,
+          { name: 'countryId', in: 'query', schema: { type: 'string' } },
+          { name: 'negative', in: 'query', schema: { type: 'string', enum: ['true'] } },
+          { name: 'sort', in: 'query', schema: { type: 'string', enum: ['balance_asc', 'balance_desc'], default: 'balance_asc' } },
+        ],
+        responses: { '200': { description: 'A page of wallets' }, '400': { description: 'validation_failed' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/top-ups': {
+      get: {
+        summary: 'Top-ups, newest first, with the goalkeeper and the country',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs topups.read (porteros-pro-admin spec 007).',
+        parameters: [
+          ...PAGING,
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['pending', 'approved', 'declined', 'voided', 'error', 'expired'] } },
+          { name: 'countryId', in: 'query', schema: { type: 'string' } },
+          { name: 'goalkeeperId', in: 'query', schema: { type: 'string' } },
+          { name: 'from', in: 'query', schema: { type: 'string', format: 'date-time' } },
+          { name: 'to', in: 'query', schema: { type: 'string', format: 'date-time' } },
+        ],
+        responses: { '200': { description: 'A page of top-ups' }, '400': { description: 'validation_failed' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/top-ups/export': {
+      get: {
+        summary: 'The filtered top-ups as a CSV (UTF-8 with BOM, ";"), at most 10 000 rows',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs topups.read; audited with the filters and the row count (porteros-pro-admin spec 007).',
+        responses: {
+          '200': { description: 'The CSV', content: { 'text/csv': { schema: { type: 'string' } } } },
+          '400': { description: 'validation_failed' },
+          '403': { description: 'permission_denied' },
+          '422': { description: 'export_too_large, with count and limit' },
+        },
+      },
+    },
+    '/admin/top-ups/{topUpId}': {
+      get: {
+        summary: 'One top-up with every ask to the gateway (checkLog), the next check and its expiry',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs topups.read (porteros-pro-admin spec 007).',
+        parameters: [{ name: 'topUpId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'The top-up' }, '403': { description: 'permission_denied' }, '404': { description: 'top_up_not_found' } },
+      },
+    },
+    '/admin/top-ups/{topUpId}/reconcile': {
+      post: {
+        summary: '"Conciliar ahora": asks the gateway now, through the sweep\'s own ask; credits an approval once',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs topups.reconcile; audited (porteros-pro-admin spec 007). Answers reconciled, already_final or gateway_unavailable.',
+        parameters: [{ name: 'topUpId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          '200': { description: 'The outcome and the top-up' },
+          '403': { description: 'permission_denied' },
+          '404': { description: 'top_up_not_found' },
+          '409': { description: 'reconcile_in_progress, or gateway_unavailable (no credentials for the country)' },
+        },
+      },
+    },
+    '/admin/invoicing/documents/export': {
+      get: {
+        summary: 'The filtered invoicing documents as a CSV, without the buyer document nor email, at most 10 000 rows',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs invoicing.read; audited with the filters and the row count (porteros-pro-admin spec 007).',
+        responses: {
+          '200': { description: 'The CSV', content: { 'text/csv': { schema: { type: 'string' } } } },
+          '400': { description: 'validation_failed' },
+          '403': { description: 'permission_denied' },
+          '422': { description: 'export_too_large, with count and limit' },
+        },
+      },
+    },
+    '/admin/invoicing/documents/{documentId}': {
+      get: {
+        summary: 'One invoicing document with its request, the invoice it corrects or its credit notes',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs invoicing.read (porteros-pro-admin spec 007).',
+        parameters: [{ name: 'documentId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'The document' }, '403': { description: 'permission_denied' }, '404': { description: 'invoicing_document_not_found' } },
+      },
+    },
+    '/admin/invoicing/documents/{documentId}/{kind}': {
+      get: {
+        summary: "An issued document's PDF or XML, from the provider it was issued with",
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs invoicing.read. A sensitive read: who downloaded it is audited, never the file (porteros-pro-admin spec 007).',
+        parameters: [
+          { name: 'documentId', in: 'path', required: true, schema: { type: 'string' } },
+          { name: 'kind', in: 'path', required: true, schema: { type: 'string', enum: ['pdf', 'xml'] } },
+        ],
+        responses: {
+          '200': { description: 'The file, as an attachment' },
+          '403': { description: 'permission_denied' },
+          '404': { description: 'invoicing_document_not_found or file_not_available' },
+          '409': { description: 'document_not_issued' },
+          '503': { description: 'provider_unavailable' },
+        },
       },
     },
     '/admin/notifications': {

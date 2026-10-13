@@ -38,6 +38,8 @@ export interface PaymentGatewaySettingsProps {
   amounts: number[];
   updatedAt: Date;
   updatedBy: string;
+  /** Moves up one with each save (admin spec 007, FR-025); a document without one is revision 0. */
+  revision?: number;
 }
 
 export const MAX_TOP_UP_AMOUNTS = 10;
@@ -104,6 +106,7 @@ export class PaymentGatewaySettings extends Entity<string> {
   readonly amounts: number[];
   readonly updatedAt: Date;
   readonly updatedBy: string;
+  readonly revision: number;
 
   private constructor(props: PaymentGatewaySettingsProps) {
     super(props.countryId);
@@ -114,6 +117,7 @@ export class PaymentGatewaySettings extends Entity<string> {
     this.amounts = [...props.amounts].sort((a, b) => a - b);
     this.updatedAt = new Date(props.updatedAt);
     this.updatedBy = props.updatedBy;
+    this.revision = props.revision ?? 0;
   }
 
   get countryId(): string {

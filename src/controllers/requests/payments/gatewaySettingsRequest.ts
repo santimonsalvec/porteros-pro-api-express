@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { revisionField } from '../geography/geographyRequests.js';
 
 const integer = (field: string) =>
   z.number({ required_error: `${field} is required`, invalid_type_error: `${field} must be a number` }).int(`${field} must be a whole number`);
@@ -6,9 +7,11 @@ const integer = (field: string) =>
 /**
  * A country's gateway settings (contracts §7). Only the shape is checked here; the domain checks
  * the rules (supported gateway, key prefix, ranges, amounts). A secret has no field to go in.
+ * `revision` is required (admin spec 007, FR-025): the one read, or `null` to create the country's first.
  */
 export const gatewaySettingsRequestSchema = z
   .object({
+    revision: revisionField.nullable(),
     gateway: z.string({ required_error: 'gateway is required', invalid_type_error: 'gateway must be a string' }),
     publicConfig: z
       .object({

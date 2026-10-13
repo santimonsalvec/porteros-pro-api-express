@@ -13,6 +13,7 @@ export function toInvoicingSettingsResponse(settings: InvoicingSettings, credent
     credentialsPresent,
     updatedAt: settings.updatedAt.toISOString(),
     updatedBy: settings.updatedBy,
+    revision: settings.revision,
   };
 }
 
@@ -47,12 +48,14 @@ export class SetInvoicingSettingsCommandHandler implements ICommandHandler<SetIn
     });
     if (!created.ok) return { outcome: 'invalid', fieldErrors: toFieldErrors(created.problems) };
     const previous = await this.repository.getByCountry(country.id);
-    await this.repository.save(created.settings);
-    const credentialsPresent = this.secrets.forProvider(created.settings.provider, country.countryCode) !== null;
+    const written = command.revision === null ? await this.repository.create(created.settings) : await this.repository.update(created.settings, command.revision);
+    if (written === 'stale') return { outcome: 'stale' };
+    const saved = (await this.repository.getByCountry(country.id)) ?? created.settings;
+    const credentialsPresent = this.secrets.forProvider(saved.provider, country.countryCode) !== null;
     this.logger.info(
       { outcome: 'invoicing_settings_saved', countryId: country.id, adminUserId: command.adminUserId, provider: created.settings.provider, previousProvider: previous?.provider ?? null, credentialsPresent },
       'Invoicing provider settings saved',
     );
-    return { outcome: 'saved', settings: toInvoicingSettingsResponse(created.settings, credentialsPresent) };
+    return { outcome: 'saved', settings: toInvoicingSettingsResponse(saved, credentialsPresent) };
   }
 }

@@ -2,8 +2,8 @@ import type { IClock } from '../../../../common/clock.js';
 import type { ICommandHandler } from '../../../../common/mediator/types.js';
 import { PaymentGatewaySettings, type GatewayName } from '../../../../../domain/payments/gatewaySettings.js';
 import type { ICountryLookup } from '../../../goalkeeperRequests/common/ports.js';
-import { toGatewaySettingsResponse } from '../../common/gatewaySettingsResponse.js';
-import type { IPaymentGatewaySettingsRepository, IPaymentsLogger } from '../../common/ports.js';
+import { gatewayCredentialsPresent, toGatewaySettingsResponse } from '../../common/gatewaySettingsResponse.js';
+import type { IPaymentGatewaySettingsRepository, IPaymentSecrets, IPaymentsLogger } from '../../common/ports.js';
 import { SetGatewaySettingsCommand, type SetGatewaySettingsResult } from './setGatewaySettingsCommand.js';
 
 /** "amounts: values must be distinct" → { amounts: 'values must be distinct' }. */
@@ -21,6 +21,7 @@ export class SetGatewaySettingsCommandHandler implements ICommandHandler<SetGate
   constructor(
     private readonly countryLookup: ICountryLookup,
     private readonly settingsRepository: IPaymentGatewaySettingsRepository,
+    private readonly secrets: IPaymentSecrets,
     private readonly clock: IClock,
     private readonly logger: IPaymentsLogger,
   ) {}
@@ -43,7 +44,10 @@ export class SetGatewaySettingsCommandHandler implements ICommandHandler<SetGate
     if (!created.ok) return { outcome: 'invalid', fieldErrors: toFieldErrors(created.problems) };
 
     const previous = await this.settingsRepository.getByCountry(country.id);
-    await this.settingsRepository.save(created.settings);
+    const written =
+      command.revision === null ? await this.settingsRepository.create(created.settings) : await this.settingsRepository.update(created.settings, command.revision);
+    if (written === 'stale') return { outcome: 'stale' };
+    const saved = (await this.settingsRepository.getByCountry(country.id)) ?? created.settings;
     this.logger.info(
       {
         outcome: 'gateway_settings_saved',
@@ -55,6 +59,7 @@ export class SetGatewaySettingsCommandHandler implements ICommandHandler<SetGate
       },
       'Payment gateway settings saved',
     );
-    return { outcome: 'saved', settings: toGatewaySettingsResponse(created.settings) };
+    const credentialsPresent = await gatewayCredentialsPresent({ secrets: this.secrets, countryLookup: this.countryLookup }, saved);
+    return { outcome: 'saved', settings: toGatewaySettingsResponse(saved, credentialsPresent) };
   }
 }
