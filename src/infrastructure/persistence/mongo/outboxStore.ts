@@ -1,4 +1,5 @@
 import type { ClientSession, Collection, Db, Document } from 'mongodb';
+import type { IOutboxAdminReader, PendingEventRecord } from '../../../application/features/events/common/adminPorts.js';
 import type { IOutboxStore } from '../../../application/features/events/common/ports.js';
 import type { DomainEvent } from '../../../domain/events/domainEvent.js';
 
@@ -56,7 +57,7 @@ export async function appendEventsInSession(
   );
 }
 
-export class MongoOutboxStore implements IOutboxStore {
+export class MongoOutboxStore implements IOutboxStore, IOutboxAdminReader {
   private readonly collection: Collection<Document>;
 
   constructor(db: Db) {
@@ -65,6 +66,8 @@ export class MongoOutboxStore implements IOutboxStore {
 
   async ensureIndexes(): Promise<void> {
     await this.collection.createIndex({ status: 1, claimedUntil: 1, createdAt: 1 }, { name: 'status_claimed_created' });
+    // Admin spec 008: the pending events listed oldest first, a page at a time.
+    await this.collection.createIndex({ status: 1, createdAt: 1, _id: 1 }, { name: 'status_created' });
     // Pending events have no `publishedAt`, which the TTL monitor ignores: they are never removed.
     await this.collection.createIndex(
       { publishedAt: 1 },
@@ -101,5 +104,35 @@ export class MongoOutboxStore implements IOutboxStore {
       this.collection.findOne({ status: 'pending' }, { sort: { createdAt: 1 }, projection: { createdAt: 1 } }),
     ]);
     return { count, oldestCreatedAt: (oldest?.createdAt as Date | undefined) ?? null };
+  }
+
+  /** Admin spec 008 (research §7): the projection leaves the payload out, it may carry match data. */
+  async listPending(filter: { retried: boolean }, page: number, pageSize: number): Promise<{ items: PendingEventRecord[]; totalItems: number }> {
+    const match: Document = { status: 'pending', ...(filter.retried ? { attempts: { $gte: 2 } } : {}) };
+    const [docs, totalItems] = await Promise.all([
+      this.collection
+        .find(match, { projection: { type: 1, bookingId: 1, requestId: 1, createdAt: 1, attempts: 1, claimedUntil: 1 } })
+        .sort({ createdAt: 1, _id: 1 })
+        .skip((page - 1) * pageSize)
+        .limit(pageSize)
+        .toArray(),
+      this.collection.countDocuments(match),
+    ]);
+    return {
+      items: docs.map((doc) => ({
+        id: String(doc._id),
+        type: doc.type as string,
+        bookingId: doc.bookingId as string,
+        requestId: doc.requestId as string,
+        createdAt: doc.createdAt as Date,
+        attempts: doc.attempts as number,
+        claimedUntil: doc.claimedUntil as Date,
+      })),
+      totalItems,
+    };
+  }
+
+  async retriedCount(): Promise<number> {
+    return this.collection.countDocuments({ status: 'pending', attempts: { $gte: 2 } });
   }
 }

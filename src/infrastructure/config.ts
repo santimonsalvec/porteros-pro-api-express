@@ -19,6 +19,18 @@ export function optionalEnv(name: string, defaultValue: string): string {
   return value === undefined || value.trim() === '' ? defaultValue : value;
 }
 
+/**
+ * The defaults of the read-only parameters the admin's Sistema shows (admin spec 008), shared with
+ * `config` below so both always agree.
+ */
+export const PARAMETER_DEFAULTS = {
+  OFFER_REMINDER_INTERVAL_MINUTES: '5',
+  OFFER_MAX_REMINDERS: '3',
+  LEGAL_TERMS_VERSION: '1.0',
+  LEGAL_PRIVACY_POLICY_VERSION: '1.0',
+  INVOICING_ENABLED: 'false',
+} as const;
+
 export const config = {
   port: Number(optionalEnv('PORT', '3000')),
   // Read lazily (called at first use, not at module load) so a missing value only
@@ -40,8 +52,8 @@ export const config = {
     clientIdAndroidServer: process.env.GOOGLE_CLIENT_ID_ANDROID_SERVER,
   },
   legal: {
-    termsVersion: optionalEnv('LEGAL_TERMS_VERSION', '1.0'),
-    privacyPolicyVersion: optionalEnv('LEGAL_PRIVACY_POLICY_VERSION', '1.0'),
+    termsVersion: optionalEnv('LEGAL_TERMS_VERSION', PARAMETER_DEFAULTS.LEGAL_TERMS_VERSION),
+    privacyPolicyVersion: optionalEnv('LEGAL_PRIVACY_POLICY_VERSION', PARAMETER_DEFAULTS.LEGAL_PRIVACY_POLICY_VERSION),
   },
   /**
    * Wallet top-ups (feature 022). Gateway secrets are NOT here: they are read per gateway and
@@ -68,7 +80,7 @@ export const config = {
    */
   invoicing: {
     /** Off by default (local): documents are still created and wait, pending, until it's on. */
-    enabled: optionalEnv('INVOICING_ENABLED', 'false') === 'true',
+    enabled: optionalEnv('INVOICING_ENABLED', PARAMETER_DEFAULTS.INVOICING_ENABLED) === 'true',
     siigoBaseUrl: optionalEnv('SIIGO_BASE_URL', 'https://api.siigo.com'),
     /** Documents handled per sweep and step. */
     issuerCap: Number(optionalEnv('INVOICING_ISSUER_CAP', '100')),
@@ -126,8 +138,8 @@ export const config = {
   // Offers to eligible goalkeepers (feature 015). Global while Colombia is the only country;
   // they move to per-country booking settings when a second country launches.
   offers: {
-    reminderIntervalMinutes: Number(optionalEnv('OFFER_REMINDER_INTERVAL_MINUTES', '5')),
-    maxReminders: Number(optionalEnv('OFFER_MAX_REMINDERS', '3')),
+    reminderIntervalMinutes: Number(optionalEnv('OFFER_REMINDER_INTERVAL_MINUTES', PARAMETER_DEFAULTS.OFFER_REMINDER_INTERVAL_MINUTES)),
+    maxReminders: Number(optionalEnv('OFFER_MAX_REMINDERS', PARAMETER_DEFAULTS.OFFER_MAX_REMINDERS)),
     /** At most this many open bookings are read by one reminder round. */
     roundCap: 2000,
   },

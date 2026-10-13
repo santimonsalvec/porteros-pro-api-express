@@ -13,6 +13,8 @@ import { registerNotificationsRoutes } from './admin/notificationsRoutes.js';
 import { registerRatingsRoutes } from './admin/ratingsRoutes.js';
 import { registerFinanceRoutes } from './admin/financeRoutes.js';
 import { registerSettingsRoutes } from './admin/settingsRoutes.js';
+import { registerDashboardRoutes } from './admin/dashboardRoutes.js';
+import { registerSystemRoutes } from './admin/systemRoutes.js';
 import type { ISender } from '../application/common/mediator/types.js';
 import { RecordWalletAdjustmentCommand } from '../application/features/wallet/commands/recordWalletAdjustment/recordWalletAdjustmentCommand.js';
 import type { AdminWebDependencies } from '../appDependencies.js';
@@ -61,6 +63,8 @@ export function createAdminController(deps: AdminControllerDependencies): Router
   registerNotificationsRoutes(route, deps.mediator);
   registerRatingsRoutes(route, deps.mediator);
   registerFinanceRoutes(route, deps.mediator);
+  registerDashboardRoutes(route, deps.mediator);
+  registerSystemRoutes(route, deps.mediator);
   registerSettingsRoutes(route, deps.mediator);
   registerReadinessRoutes(route, deps.mediator);
 

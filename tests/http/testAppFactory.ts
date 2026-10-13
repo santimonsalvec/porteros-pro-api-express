@@ -15,6 +15,7 @@ import { FakeJobLockStore } from '../fakes/fakeJobLockStore.js';
 import { EventRelay } from '../../src/application/features/events/common/eventRelay.js';
 import { RunSweepCommand } from '../../src/application/features/events/commands/runSweep/runSweepCommand.js';
 import { RunSweepCommandHandler } from '../../src/application/features/events/commands/runSweep/runSweepCommandHandler.js';
+import type { IScheduledJob } from '../../src/application/features/events/common/ports.js';
 import { GetSsoOptionsQuery } from '../../src/application/features/auth/queries/getSsoOptions/getSsoOptionsQuery.js';
 import { GetSsoOptionsQueryHandler } from '../../src/application/features/auth/queries/getSsoOptions/getSsoOptionsQueryHandler.js';
 import { ExchangeSsoCredentialCommand } from '../../src/application/features/auth/commands/exchangeSsoCredential/exchangeSsoCredentialCommand.js';
@@ -37,6 +38,16 @@ import { GetGoalkeeperMonthStatsQuery as AdminMonthStatsQuery } from '../../src/
 import { goalkeepersAdminHandlerRegistrations } from '../../src/infrastructure/goalkeepersAdminHandlers.js';
 import { operationsHandlerRegistrations } from '../../src/infrastructure/operationsAdminHandlers.js';
 import { financeHandlerRegistrations } from '../../src/infrastructure/financeAdminHandlers.js';
+import { dashboardSystemHandlerRegistrations } from '../../src/infrastructure/dashboardSystemAdminHandlers.js';
+import { FakeDashboardReader } from '../fakes/fakeDashboardReader.js';
+import { readSystemParameters } from '../../src/infrastructure/systemParameterSource.js';
+
+/** The server environment Sistema reads in the HTTP tests (admin spec 008): secrets that must never show. */
+export const TEST_SYSTEM_ENV = {
+  MONGODB_CONNECTION_STRING: 'mongodb+srv://porteros:TestOnlyPass42@cluster.test/app',
+  JWT_SIGNING_KEY: 'test-only-signing-key-9f8e7d6c5b4a',
+  LEGAL_TERMS_VERSION: '1.2',
+};
 import { ReconcileTopUpCommand } from '../../src/application/features/payments/commands/reconcileTopUp/reconcileTopUpCommand.js';
 import { ReconcileTopUpCommandHandler } from '../../src/application/features/payments/commands/reconcileTopUp/reconcileTopUpCommandHandler.js';
 import { FakeTopUpAdminReader } from '../fakes/fakeTopUpAdminReader.js';
@@ -365,6 +376,10 @@ export interface TestAppContext {
   adminSessionStore: FakeAdminSessionStore;
   adminTokenIssuer: FakeAdminTokenIssuer;
   adminAuditLog: FakeAdminAuditLog;
+  /** Admin spec 008: the dashboard's areas, set by each test. */
+  dashboardReader: FakeDashboardReader;
+  /** Admin spec 008: the sweep's job leases. */
+  jobLockStore: FakeJobLockStore;
   staffAccessResolver: StaffAccessResolver;
   /** Users blocked from the admin web (admin spec 005). */
   userBlockRepository: FakeUserBlockRepository;
@@ -823,6 +838,62 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       }),
     },
   ]);
+  // As in the composition root: one list of jobs, run by the sweep and shown by Sistema (admin spec 008).
+  const jobLockStore = new FakeJobLockStore();
+  const scheduledJobs: IScheduledJob[] = [
+    cancelAllJob,
+    bookingExpiryJob,
+    new BookingCompletionJob({ bookingRepository, store: lifecycleStore, relay: eventRelay, idGenerator: lifecycleIds, logger: offersLogger }),
+    new NoShowWatchJob({
+      walletContext,
+      bookingSettingsRepository,
+      logger: offersLogger,
+      bookingRepository,
+      requestRepository,
+      store: lifecycleStore,
+      relay: eventRelay,
+      idGenerator: lifecycleIds,
+      clock,
+      graceResolver: () => createNoShowGraceResolver({ cityRepository, regionRepository, bookingSettingsRepository, logger: offersLogger }),
+    }),
+    new OfferRemindersJob({ bookingRepository, eligibility: offerEligibility, sender: offerSender, logger: offersLogger, roundCap: 2000 }),
+    new ContactsRevealJob({
+      requestRepository,
+      bookingRepository,
+      userRepository,
+      zoneRepository,
+      cityRepository,
+      notifications: notificationRepository,
+      pushNotifier,
+      idGenerator: lifecycleIds,
+      clock,
+      logger: offersLogger,
+    }),
+    new CheckInWatchJob({
+      bookingRepository,
+      requestRepository,
+      userRepository,
+      zoneRepository,
+      cityRepository,
+      notifications: notificationRepository,
+      pushNotifier,
+      idGenerator: lifecycleIds,
+      clock,
+      logger: offersLogger,
+      windowResolver: () => createCheckInWindowResolver({ cityRepository, regionRepository, bookingSettingsRepository, logger: offersLogger }),
+    }),
+    new TopUpReconcileJob({
+      walletContext,
+      store: topUpStore,
+      notices: { notifications: notificationRepository, pushNotifier, idGenerator: lifecycleIds, clock },
+      logger: offersLogger,
+      topUpRepository,
+      gateways: paymentGatewayRegistry,
+      secrets: paymentSecrets,
+      countryLookup: quoteCountryRepository,
+    }),
+    new InvoicingIssuerJob({ ...invoicingDeps, scanner: new FakeBillableMovementScanner(walletStore, invoicingDocumentRepository), cap: 100 }),
+  ];
   registerHandlers(mediator, [
     {
       requestType: RunSweepCommand,
@@ -834,61 +905,8 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
         logger: eventLogger,
         batchLimit: 200,
         pendingWarningMinutes: 5,
-        jobs: [
-          cancelAllJob,
-          bookingExpiryJob,
-          new BookingCompletionJob({ bookingRepository, store: lifecycleStore, relay: eventRelay, idGenerator: lifecycleIds, logger: offersLogger }),
-          new NoShowWatchJob({
-            walletContext,
-            bookingSettingsRepository,
-            logger: offersLogger,
-            bookingRepository,
-            requestRepository,
-            store: lifecycleStore,
-            relay: eventRelay,
-            idGenerator: lifecycleIds,
-            clock,
-            graceResolver: () => createNoShowGraceResolver({ cityRepository, regionRepository, bookingSettingsRepository, logger: offersLogger }),
-          }),
-          new OfferRemindersJob({ bookingRepository, eligibility: offerEligibility, sender: offerSender, logger: offersLogger, roundCap: 2000 }),
-          new ContactsRevealJob({
-            requestRepository,
-            bookingRepository,
-            userRepository,
-            zoneRepository,
-            cityRepository,
-            notifications: notificationRepository,
-            pushNotifier,
-            idGenerator: lifecycleIds,
-            clock,
-            logger: offersLogger,
-          }),
-          new CheckInWatchJob({
-            bookingRepository,
-            requestRepository,
-            userRepository,
-            zoneRepository,
-            cityRepository,
-            notifications: notificationRepository,
-            pushNotifier,
-            idGenerator: lifecycleIds,
-            clock,
-            logger: offersLogger,
-            windowResolver: () => createCheckInWindowResolver({ cityRepository, regionRepository, bookingSettingsRepository, logger: offersLogger }),
-          }),
-          new TopUpReconcileJob({
-            walletContext,
-            store: topUpStore,
-            notices: { notifications: notificationRepository, pushNotifier, idGenerator: lifecycleIds, clock },
-            logger: offersLogger,
-            topUpRepository,
-            gateways: paymentGatewayRegistry,
-            secrets: paymentSecrets,
-            countryLookup: quoteCountryRepository,
-          }),
-          new InvoicingIssuerJob({ ...invoicingDeps, scanner: new FakeBillableMovementScanner(walletStore, invoicingDocumentRepository), cap: 100 }),
-        ],
-        jobLocks: new FakeJobLockStore(),
+        jobs: scheduledJobs,
+        jobLocks: jobLockStore,
       }),
     },
     { requestType: GetSsoOptionsQuery, handler: new GetSsoOptionsQueryHandler(ssoCatalog) },
@@ -1322,6 +1340,31 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       handler: new SendTestPushCommandHandler({ notifier: pushNotifier, limiter: new InMemoryRateLimiter(), clock, limitPerMinute: 5 }),
     },
   ]);
+  // Dashboard and system (admin spec 008).
+  const dashboardReader = new FakeDashboardReader();
+  registerHandlers(
+    mediator,
+    dashboardSystemHandlerRegistrations({
+      dashboardReader,
+      countries: adminCountries,
+      regions: adminRegions,
+      cities: adminCities,
+      clock,
+      logger: offersLogger,
+      outbox: outboxStore,
+      jobs: scheduledJobs,
+      jobLocks: jobLockStore,
+      checkHealth: async () => health,
+      stuckAfterMinutes: 5,
+      parameters: {
+        parameters: () => readSystemParameters(TEST_SYSTEM_ENV),
+        gatewaySettings: paymentGatewaySettingsRepository,
+        invoicingSettings: invoicingSettingsRepository,
+        paymentSecrets,
+        invoicingSecrets,
+      },
+    }),
+  );
 
   const health: HealthReportResponse = { status: 'Healthy', checks: [{ name: 'mongodb', status: 'Healthy' }] };
 
@@ -1399,6 +1442,8 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     adminSessionStore,
     adminTokenIssuer,
     adminAuditLog,
+    dashboardReader,
+    jobLockStore,
     staffAccessResolver,
     userBlockRepository,
   };

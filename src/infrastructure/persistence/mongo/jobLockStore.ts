@@ -1,4 +1,5 @@
 import type { Collection, Db, Document } from 'mongodb';
+import type { IJobLockReader, JobLease } from '../../../application/features/events/common/adminPorts.js';
 import type { IJobLockStore } from '../../../application/features/events/common/ports.js';
 
 export const JOB_LOCKS_COLLECTION = 'jobLocks';
@@ -12,7 +13,7 @@ function isDuplicateKey(error: unknown): boolean {
  * lease is still held, the upsert tries to insert a second document with the same `_id` and the
  * duplicate-key error means "someone else has it".
  */
-export class MongoJobLockStore implements IJobLockStore {
+export class MongoJobLockStore implements IJobLockStore, IJobLockReader {
   private readonly collection: Collection<Document>;
 
   constructor(db: Db) {
@@ -35,5 +36,11 @@ export class MongoJobLockStore implements IJobLockStore {
 
   async release(name: string, now: Date): Promise<void> {
     await this.collection.updateOne({ _id: name } as Document, { $set: { lockedUntil: now } });
+  }
+
+  /** Admin spec 008 (research §8): reads only, so looking never takes or extends a lease. */
+  async list(names: readonly string[]): Promise<Map<string, JobLease>> {
+    const docs = await this.collection.find({ _id: { $in: [...names] } } as Document).toArray();
+    return new Map(docs.map((doc) => [String(doc._id), { lockedAt: doc.lockedAt as Date, lockedUntil: doc.lockedUntil as Date }]));
   }
 }
