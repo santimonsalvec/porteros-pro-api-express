@@ -2962,6 +2962,72 @@ export const openapiSpec = {
         responses: { '200': { description: 'A page of ratings' }, '400': { description: 'validation_failed' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
       },
     },
+    '/admin/dashboard/summary': {
+      get: {
+        summary: "The dashboard's numbers for the platform, a country or a city",
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description:
+          "Needs dashboard.read; each area also needs its list's permission and is left out without it (porteros-pro-admin spec 008). Requests and bookings count by match date in the scope's time zone. An area that fails is { status: 'failed' }.",
+        parameters: [
+          { name: 'countryId', in: 'query', schema: { type: 'string' } },
+          { name: 'cityId', in: 'query', schema: { type: 'string' }, description: 'Needs countryId' },
+        ],
+        responses: {
+          '200': { description: 'The summary: computedAt, scope (time zone and windows) and the visible areas' },
+          '400': { description: 'validation_failed or city_not_in_country' },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'permission_denied' },
+          '404': { description: 'country_not_found or city_not_found' },
+        },
+      },
+    },
+    '/admin/dashboard/areas': {
+      get: {
+        summary: "The countries and cities of the dashboard's filter",
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs dashboard.read (porteros-pro-admin spec 008).',
+        responses: { '200': { description: '{ countries: [{ id, name, countryCode }], cities: [{ id, name, countryId }] }' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/system/health': {
+      get: {
+        summary: 'The platform health, as /health, answered as data',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs system.read (porteros-pro-admin spec 008). 200 also when Unhealthy; never error details.',
+        responses: { '200': { description: '{ status, checks, checkedAt }' }, '400': { description: 'validation_failed' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/system/events': {
+      get: {
+        summary: "The outbox's pending events, oldest first",
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: "Needs system.read (porteros-pro-admin spec 008). Never an event's payload. retried: only those the sweep tried more than once.",
+        parameters: [...PAGING, { name: 'retried', in: 'query', schema: { type: 'string', enum: ['true', 'false'], default: 'false' } }],
+        responses: { '200': { description: '{ checkedAt, stuckAfterMinutes, pending, page }' }, '400': { description: 'validation_failed' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/system/jobs': {
+      get: {
+        summary: "The sweep's scheduled jobs and their leases",
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs system.read (porteros-pro-admin spec 008). When each job last started and whether it runs now; not whether a run failed.',
+        responses: { '200': { description: '{ checkedAt, lateAfterMinutes, sweepLate, jobs }' }, '400': { description: 'validation_failed' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/system/parameters': {
+      get: {
+        summary: "The server's read-only parameters and whether each secret is there",
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: "Needs system.read (porteros-pro-admin spec 008). Secrets and each country's credentials only as present: true/false, never their value.",
+        responses: { '200': { description: '{ values, secrets, countryCredentials }' }, '400': { description: 'validation_failed' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
     '/admin/wallets': {
       get: {
         summary: "The goalkeepers' wallets (one movement or more), by balance",

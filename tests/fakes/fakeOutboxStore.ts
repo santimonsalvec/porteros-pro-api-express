@@ -1,3 +1,4 @@
+import type { IOutboxAdminReader, PendingEventRecord } from '../../src/application/features/events/common/adminPorts.js';
 import type { IOutboxStore } from '../../src/application/features/events/common/ports.js';
 import type { DomainEvent } from '../../src/domain/events/domainEvent.js';
 
@@ -11,7 +12,7 @@ export interface FakeOutboxEntry {
 }
 
 /** In-memory outbox with the Mongo store's rules: 30 s initial lease, leased claims, oldest first. */
-export class FakeOutboxStore implements IOutboxStore {
+export class FakeOutboxStore implements IOutboxStore, IOutboxAdminReader {
   private readonly entries = new Map<string, FakeOutboxEntry>();
 
   /** What `appendEventsInSession` does inside a store's transaction. */
@@ -59,5 +60,27 @@ export class FakeOutboxStore implements IOutboxStore {
   async pendingStats(): Promise<{ count: number; oldestCreatedAt: Date | null }> {
     const pending = this.pending().sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
     return { count: pending.length, oldestCreatedAt: pending[0]?.createdAt ?? null };
+  }
+
+  async listPending(filter: { retried: boolean }, page: number, pageSize: number): Promise<{ items: PendingEventRecord[]; totalItems: number }> {
+    const matching = this.pending()
+      .filter((entry) => !filter.retried || entry.attempts >= 2)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || (a.event.id < b.event.id ? -1 : 1));
+    return {
+      items: matching.slice((page - 1) * pageSize, page * pageSize).map((entry) => ({
+        id: entry.event.id,
+        type: entry.event.type,
+        bookingId: entry.event.bookingId,
+        requestId: entry.event.requestId,
+        createdAt: entry.createdAt,
+        attempts: entry.attempts,
+        claimedUntil: entry.claimedUntil,
+      })),
+      totalItems: matching.length,
+    };
+  }
+
+  async retriedCount(): Promise<number> {
+    return this.pending().filter((entry) => entry.attempts >= 2).length;
   }
 }

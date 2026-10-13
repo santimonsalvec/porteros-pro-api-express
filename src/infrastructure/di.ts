@@ -173,6 +173,7 @@ import { PubSubEventPublisher } from './events/pubSubEventPublisher.js';
 import { InProcessEventPublisher } from './events/inProcessEventPublisher.js';
 import { EventRelay } from '../application/features/events/common/eventRelay.js';
 import { RunSweepCommand } from '../application/features/events/commands/runSweep/runSweepCommand.js';
+import type { IScheduledJob } from '../application/features/events/common/ports.js';
 import { RunSweepCommandHandler } from '../application/features/events/commands/runSweep/runSweepCommandHandler.js';
 import { RegisterDeviceCommand } from '../application/features/devices/commands/registerDevice/registerDeviceCommand.js';
 import { RegisterDeviceCommandHandler } from '../application/features/devices/commands/registerDevice/registerDeviceCommandHandler.js';
@@ -227,6 +228,9 @@ import { TopUpAdminReader } from './persistence/mongo/topUpAdminReader.js';
 import { WalletAdminReader } from './persistence/mongo/walletAdminReader.js';
 import { InvoicingDocumentAdminReader } from './persistence/mongo/invoicingDocumentAdminReader.js';
 import { financeHandlerRegistrations } from './financeAdminHandlers.js';
+import { dashboardSystemHandlerRegistrations } from './dashboardSystemAdminHandlers.js';
+import { readSystemParameters } from './systemParameterSource.js';
+import { MongoDashboardReader } from './persistence/mongo/dashboardReader.js';
 import { RatingAdminReader } from './persistence/mongo/ratingAdminReader.js';
 import { PinoAdminSecurityLog } from './observability/pinoAdminSecurityLog.js';
 import { JwtAdminTokenIssuer } from './auth/jwtAdminTokenIssuer.js';
@@ -735,6 +739,61 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       countries: countryRepository,
     }),
   );
+  // The sweep's jobs, built once: the sweep runs them and the admin's Sistema shows their leases (admin spec 008).
+  const scheduledJobs: IScheduledJob[] = [
+    cancelAllJob,
+    bookingExpiryJob,
+    new BookingCompletionJob({ bookingRepository, store: lifecycleStore, relay: eventRelay, idGenerator, logger }),
+    new NoShowWatchJob({
+      walletContext,
+      bookingSettingsRepository,
+      logger: logger,
+      bookingRepository,
+      requestRepository,
+      store: lifecycleStore,
+      relay: eventRelay,
+      idGenerator: idGenerator,
+      clock,
+      graceResolver: () => createNoShowGraceResolver({ cityRepository, regionRepository, bookingSettingsRepository, logger: logger }),
+    }),
+    new OfferRemindersJob({ bookingRepository, eligibility: offerEligibility, sender: offerSender, logger: logger, roundCap: config.offers.roundCap }),
+    new ContactsRevealJob({
+      requestRepository,
+      bookingRepository,
+      userRepository,
+      zoneRepository,
+      cityRepository,
+      notifications: notificationRepository,
+      pushNotifier,
+      idGenerator: idGenerator,
+      clock,
+      logger: logger,
+    }),
+    new CheckInWatchJob({
+      bookingRepository,
+      requestRepository,
+      userRepository,
+      zoneRepository,
+      cityRepository,
+      notifications: notificationRepository,
+      pushNotifier,
+      idGenerator: idGenerator,
+      clock,
+      logger: logger,
+      windowResolver: () => createCheckInWindowResolver({ cityRepository, regionRepository, bookingSettingsRepository, logger: logger }),
+    }),
+    new TopUpReconcileJob({
+      walletContext,
+      store: topUpStore,
+      notices: { notifications: notificationRepository, pushNotifier, idGenerator: idGenerator, clock },
+      logger: logger,
+      topUpRepository,
+      gateways: paymentGatewayRegistry,
+      secrets: paymentSecrets,
+      countryLookup: countryRepository,
+    }),
+    new InvoicingIssuerJob({ ...invoicingDeps, scanner: billableMovementScanner, cap: config.invoicing.issuerCap }),
+  ];
   registerHandlers(mediator, [
     { requestType: GetSsoOptionsQuery, handler: new GetSsoOptionsQueryHandler(ssoCatalog) },
     {
@@ -1053,60 +1112,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         logger,
         batchLimit: config.events.sweepBatchLimit,
         pendingWarningMinutes: config.events.pendingWarningMinutes,
-        jobs: [
-          cancelAllJob,
-          bookingExpiryJob,
-          new BookingCompletionJob({ bookingRepository, store: lifecycleStore, relay: eventRelay, idGenerator, logger }),
-          new NoShowWatchJob({
-            walletContext,
-            bookingSettingsRepository,
-            logger: logger,
-            bookingRepository,
-            requestRepository,
-            store: lifecycleStore,
-            relay: eventRelay,
-            idGenerator: idGenerator,
-            clock,
-            graceResolver: () => createNoShowGraceResolver({ cityRepository, regionRepository, bookingSettingsRepository, logger: logger }),
-          }),
-          new OfferRemindersJob({ bookingRepository, eligibility: offerEligibility, sender: offerSender, logger: logger, roundCap: config.offers.roundCap }),
-          new ContactsRevealJob({
-            requestRepository,
-            bookingRepository,
-            userRepository,
-            zoneRepository,
-            cityRepository,
-            notifications: notificationRepository,
-            pushNotifier,
-            idGenerator: idGenerator,
-            clock,
-            logger: logger,
-          }),
-          new CheckInWatchJob({
-            bookingRepository,
-            requestRepository,
-            userRepository,
-            zoneRepository,
-            cityRepository,
-            notifications: notificationRepository,
-            pushNotifier,
-            idGenerator: idGenerator,
-            clock,
-            logger: logger,
-            windowResolver: () => createCheckInWindowResolver({ cityRepository, regionRepository, bookingSettingsRepository, logger: logger }),
-          }),
-          new TopUpReconcileJob({
-            walletContext,
-            store: topUpStore,
-            notices: { notifications: notificationRepository, pushNotifier, idGenerator: idGenerator, clock },
-            logger: logger,
-            topUpRepository,
-            gateways: paymentGatewayRegistry,
-            secrets: paymentSecrets,
-            countryLookup: countryRepository,
-          }),
-          new InvoicingIssuerJob({ ...invoicingDeps, scanner: billableMovementScanner, cap: config.invoicing.issuerCap }),
-        ],
+        jobs: scheduledJobs,
         jobLocks: jobLockStore,
       }),
     },
@@ -1253,6 +1259,30 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       handler: new CancelGoalkeeperRegistrationCommandHandler(mediator, goalkeeperRegistrationRepository),
     },
   ]);
+  // Dashboard and system (admin spec 008): reads only.
+  registerHandlers(
+    mediator,
+    dashboardSystemHandlerRegistrations({
+      dashboardReader: new MongoDashboardReader(db),
+      countries: adminCountryRepository,
+      regions: regionRepository,
+      cities: cityRepository,
+      clock,
+      logger,
+      outbox: outboxStore,
+      jobs: scheduledJobs,
+      jobLocks: jobLockStore,
+      checkHealth: () => mongoHealthCheck.check(),
+      stuckAfterMinutes: config.events.pendingWarningMinutes,
+      parameters: {
+        parameters: () => readSystemParameters(process.env),
+        gatewaySettings: paymentGatewaySettingsRepository,
+        invoicingSettings: invoicingSettingsRepository,
+        paymentSecrets,
+        invoicingSecrets,
+      },
+    }),
+  );
 
   return {
     dependencies: {

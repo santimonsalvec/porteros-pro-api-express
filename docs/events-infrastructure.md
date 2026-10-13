@@ -109,6 +109,7 @@ Mientras no se configure, el backend desplegado corre en modo `local`: registra 
 
 ## Operación
 
+- **Desde el admin** (spec 008 del admin): **Sistema → Estado** muestra, con `system.read`, la salud (la misma de `/health`), los eventos pendientes del outbox (cuántos, el más antiguo, los que el barrido reintentó y los atascados de más de 5 minutos) y los trabajos del barrido (cuándo arrancó cada uno por última vez y si está corriendo, a partir de `jobLocks`). No muestra el `payload` de los eventos, ni si una pasada del barrido falló, ni los fallos de los consumidores: esos siguen en el log `event_handlers_failed` y en el dead-letter (abajo).
 - **Mensajes en el dead-letter**:
   ```bash
   gcloud pubsub subscriptions pull booking-events-dlq-review --project=PROJECT --limit=10 --auto-ack=false
