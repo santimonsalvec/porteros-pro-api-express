@@ -1,6 +1,7 @@
 import type { ICommandHandler } from '../../../../common/mediator/types.js';
 import type { IIdGenerator, IInternalTokenIssuer, IRefreshTokenRepository, IUserRepository } from '../../common/ports.js';
 import type { IGoalkeeperProfileRepository } from '../../../goalkeepers/common/ports.js';
+import { isBlocked, NO_BLOCKED_USERS, type BlockedUsers } from '../../../users/common/blockedUsers.js';
 import { RefreshToken } from '../../../../../domain/users/refreshToken.js';
 import { RefreshAccessTokenCommand, type RefreshAccessTokenResult } from './refreshAccessTokenCommand.js';
 
@@ -21,6 +22,7 @@ export class RefreshAccessTokenCommandHandler
     private readonly goalkeeperProfileRepository: IGoalkeeperProfileRepository,
     private readonly idGenerator: IIdGenerator,
     private readonly refreshTokenLifetimeMs: number = REFRESH_TOKEN_LIFETIME_MS_DEFAULT,
+    private readonly blockedUsers: BlockedUsers = NO_BLOCKED_USERS,
   ) {}
 
   async handle(command: RefreshAccessTokenCommand): Promise<RefreshAccessTokenResult> {
@@ -33,6 +35,11 @@ export class RefreshAccessTokenCommandHandler
     const user = await this.userRepository.getById(existing.userId);
     if (!user) {
       return { outcome: 'invalid_refresh_token' };
+    }
+
+    // Checked before spending the token: the app clears its session anyway (porteros-pro-admin spec 005).
+    if (await isBlocked(this.blockedUsers, user.id)) {
+      return { outcome: 'account_blocked' };
     }
 
     await this.refreshTokenRepository.markUsed(existing.id);

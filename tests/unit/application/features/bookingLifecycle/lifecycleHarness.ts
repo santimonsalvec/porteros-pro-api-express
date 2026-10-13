@@ -16,6 +16,8 @@ import { FakeCountryRepository } from '../../../../fakes/fakeCountryRepository.j
 import { FakeRegionRepository } from '../../../../fakes/fakeRegionRepository.js';
 import { buildGoalkeeperProfile, COLOMBIA_INVOICING, seedWalletWorld } from '../../../../fixtures/walletFixtures.js';
 import { CancelBookingsByClientCommand } from '../../../../../src/application/features/bookingLifecycle/commands/cancelBookingsByClient/cancelBookingsByClientCommand.js';
+import { CancelBookingsByAdminCommand } from '../../../../../src/application/features/bookingLifecycle/commands/cancelBookingsByAdmin/cancelBookingsByAdminCommand.js';
+import { CancelBookingsByAdminCommandHandler } from '../../../../../src/application/features/bookingLifecycle/commands/cancelBookingsByAdmin/cancelBookingsByAdminCommandHandler.js';
 import { CancelBookingsByClientCommandHandler } from '../../../../../src/application/features/bookingLifecycle/commands/cancelBookingsByClient/cancelBookingsByClientCommandHandler.js';
 import { FakeBookingAuditLogger } from '../../../../fakes/fakeBookingAuditLogger.js';
 import { FakeUserRepository } from '../../../../fakes/fakeUserRepository.js';
@@ -130,6 +132,20 @@ export function lifecycleHarness() {
   /** The client (`client-a`, the owner of every `match()`) cancels a booking, or the whole request with `null`. */
   const cancel = (requestId: string, bookingId: string | null, reason?: string, clientId = 'client-a') =>
     clientCancel.handle(new CancelBookingsByClientCommand(clientId, requestId, bookingId, reason));
+  // Administrator cancellation (admin spec 006).
+  const adminCanceller = new CancelBookingsByAdminCommandHandler({
+    bookingRepository: h.bookingRepository,
+    store,
+    walletContext,
+    relay,
+    idGenerator,
+    clock: h.clock,
+    audit,
+    logger: h.silent,
+  });
+  /** `staff-user-1` cancels a booking, or every live booking of the request with `null`. */
+  const adminCancel = (requestId: string, bookingId: string | null, reason = 'La cancha cerró') =>
+    adminCanceller.handle(new CancelBookingsByAdminCommand('staff-user-1', requestId, bookingId, reason));
   // Goalkeeper withdrawal (feature 018).
   const bookingSettingsRepository = new FakeBookingSettingsRepository();
   const warnings: Record<string, unknown>[] = [];
@@ -310,6 +326,7 @@ export function lifecycleHarness() {
     acceptAndPay,
     balanceOf,
     cancel,
+    adminCancel,
     audit,
     walletContext,
     bookingSettingsRepository,

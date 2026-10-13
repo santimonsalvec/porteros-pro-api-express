@@ -1,6 +1,8 @@
 import { Entity } from '../common/entity.js';
+import { readRevision } from '../common/revision.js';
 import type { CheckInWindowConfig } from '../bookings/checkInWindow.js';
-import { PENALTY_CONFIG_FIELDS, type GoalkeeperPenaltyConfig } from '../goalkeepers/penaltyPolicy.js';
+import type { GoalkeeperPenaltyConfig } from '../goalkeepers/penaltyPolicy.js';
+import { bookingSettingsIssues } from './bookingSettingsRules.js';
 import { InvalidConfigurationError } from './invalidConfigurationError.js';
 
 export type BookingSettingsScope = 'country' | 'city';
@@ -50,6 +52,8 @@ export class BookingSettings extends Entity<string> {
   /** Minutes after the end to wait for the client's answer before a no-show (feature 021, country level). */
   readonly noShowGraceMinutes: number | null;
 
+  /** Optimistic-concurrency counter of the admin web (absent = 0). */
+  readonly revision: number;
   constructor(params: {
     id: string;
     scope: string;
@@ -62,6 +66,7 @@ export class BookingSettings extends Entity<string> {
     goalkeeperPenalties?: Partial<GoalkeeperPenaltyConfig> | null;
     checkInWindow?: Partial<CheckInWindowConfig> | null;
     noShowGraceMinutes?: number | null;
+    revision?: number;
   }) {
     super(params.id);
     const where = `bookingSettings document ${params.id}`;
@@ -72,34 +77,24 @@ export class BookingSettings extends Entity<string> {
       throw new InvalidConfigurationError(`${where}: refId is required`);
     }
     const bookingWindowDays = params.bookingWindowDays ?? null;
-    if (bookingWindowDays !== null && (!Number.isInteger(bookingWindowDays) || bookingWindowDays < 1)) {
-      throw new InvalidConfigurationError(`${where}: bookingWindowDays must be an integer of at least 1`);
-    }
     const minNoticeMinutes = params.minNoticeMinutes ?? null;
-    if (minNoticeMinutes !== null && (!Number.isInteger(minNoticeMinutes) || minNoticeMinutes < 0)) {
-      throw new InvalidConfigurationError(`${where}: minNoticeMinutes must be an integer of at least 0`);
-    }
     const freeCancellationMinutes = params.freeCancellationMinutes ?? null;
-    if (
-      freeCancellationMinutes !== null &&
-      (!Number.isInteger(freeCancellationMinutes) || freeCancellationMinutes < 0)
-    ) {
-      throw new InvalidConfigurationError(`${where}: freeCancellationMinutes must be an integer of at least 0`);
-    }
     const travelBufferMinutes = params.travelBufferMinutes ?? null;
-    if (travelBufferMinutes !== null && (!Number.isInteger(travelBufferMinutes) || travelBufferMinutes < 0)) {
-      throw new InvalidConfigurationError(`${where}: travelBufferMinutes must be an integer of at least 0`);
-    }
     const leadTimeSurcharge = params.leadTimeSurcharge ?? null;
-    if (leadTimeSurcharge !== null) validateSurcharge(leadTimeSurcharge, where);
     const goalkeeperPenalties = params.goalkeeperPenalties ?? null;
-    if (goalkeeperPenalties !== null) validatePenalties(goalkeeperPenalties, where);
     const checkInWindow = params.checkInWindow ?? null;
-    if (checkInWindow !== null) validateCheckInWindow(checkInWindow, where);
     const noShowGraceMinutes = params.noShowGraceMinutes ?? null;
-    if (noShowGraceMinutes !== null && (!Number.isInteger(noShowGraceMinutes) || noShowGraceMinutes < 15 || noShowGraceMinutes > 240)) {
-      throw new InvalidConfigurationError(`${where}: noShowGraceMinutes must be an integer between 15 and 240`);
-    }
+    const [first] = bookingSettingsIssues({
+      bookingWindowDays,
+      minNoticeMinutes,
+      freeCancellationMinutes,
+      travelBufferMinutes,
+      leadTimeSurcharge,
+      goalkeeperPenalties,
+      checkInWindow,
+      noShowGraceMinutes,
+    });
+    if (first) throw new InvalidConfigurationError(`${where}: ${first.message}`);
 
     this.scope = params.scope;
     this.refId = params.refId;
@@ -111,53 +106,6 @@ export class BookingSettings extends Entity<string> {
     this.goalkeeperPenalties = goalkeeperPenalties;
     this.checkInWindow = checkInWindow;
     this.noShowGraceMinutes = noShowGraceMinutes;
+    this.revision = readRevision(params.revision, where);
   }
-}
-
-const CHECK_IN_LIMITS: Record<keyof CheckInWindowConfig, number> = { opensMinutesBefore: 120, closesMinutesAfter: 60 };
-
-function validateCheckInWindow(window: Partial<CheckInWindowConfig>, where: string): void {
-  for (const [field, max] of Object.entries(CHECK_IN_LIMITS) as [keyof CheckInWindowConfig, number][]) {
-    const value = window[field];
-    if (value === undefined || value === null) continue;
-    if (!Number.isInteger(value) || value < 1 || value > max) {
-      throw new InvalidConfigurationError(`${where}: checkInWindow.${field} must be an integer between 1 and ${max}`);
-    }
-  }
-}
-
-function validatePenalties(penalties: Partial<GoalkeeperPenaltyConfig>, where: string): void {
-  for (const field of PENALTY_CONFIG_FIELDS) {
-    const value = penalties[field];
-    if (value === undefined || value === null) continue;
-    if (!Number.isInteger(value) || value < 1) {
-      throw new InvalidConfigurationError(`${where}: goalkeeperPenalties.${field} must be an integer of at least 1`);
-    }
-  }
-}
-
-function validateSurcharge(surcharge: LeadTimeSurcharge, where: string): void {
-  if (!Array.isArray(surcharge.tiers) || surcharge.tiers.length === 0) {
-    throw new InvalidConfigurationError(`${where}: leadTimeSurcharge.tiers must be a non-empty array`);
-  }
-  let previousEnd: number | null = 0;
-  surcharge.tiers.forEach((tier, index) => {
-    if (!Number.isFinite(tier.fromMinutes) || tier.fromMinutes < 0) {
-      throw new InvalidConfigurationError(`${where}: tier ${index} fromMinutes must be at least 0`);
-    }
-    if (tier.toMinutes !== null && (!Number.isFinite(tier.toMinutes) || tier.toMinutes <= tier.fromMinutes)) {
-      throw new InvalidConfigurationError(`${where}: tier ${index} toMinutes must be greater than fromMinutes`);
-    }
-    if (!Number.isInteger(tier.amount) || tier.amount < 0) {
-      throw new InvalidConfigurationError(`${where}: tier ${index} amount must be an integer of at least 0`);
-    }
-    // Sorted and non-overlapping; gaps are allowed (they yield no surcharge).
-    if (previousEnd === null) {
-      throw new InvalidConfigurationError(`${where}: only the last tier may be unbounded`);
-    }
-    if (index > 0 && tier.fromMinutes < previousEnd) {
-      throw new InvalidConfigurationError(`${where}: tiers must be sorted and must not overlap`);
-    }
-    previousEnd = tier.toMinutes;
-  });
 }

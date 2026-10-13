@@ -89,6 +89,16 @@ describe('UserRepository (mocked driver)', () => {
     );
   });
 
+
+  it('ensureIndexes also orders the admin user list (admin spec 005)', async () => {
+    const collection = createFakeCollection();
+    collection.createIndex.mockResolvedValue('ok');
+
+    await repositoryWith(collection).ensureIndexes();
+
+    expect(collection.createIndex).toHaveBeenCalledWith({ createdAt: -1, _id: -1 }, { name: 'createdAt_id' });
+  });
+
   it('reads several users by id with one query, and none for an empty list', async () => {
     const collection = createFakeCollection();
     collection.find.mockReturnValue(toArrayResult([
@@ -100,5 +110,28 @@ describe('UserRepository (mocked driver)', () => {
     expect(collection.find).toHaveBeenCalledWith({ _id: { $in: ['user-1', 'user-x'] } });
     expect(users.map((user) => user.firstName)).toEqual(['Ana']);
     expect(await repositoryWith(createFakeCollection()).getByIds([])).toEqual([]);
+  });
+
+  describe('updateContactIfUnchanged (admin spec 005, research §9)', () => {
+    const expected = { firstName: 'Ana', lastName: 'Portera', countryCallingCode: '+57', normalizedPhoneNumber: '573000000001' };
+    const next = { firstName: 'Ana', lastName: 'Gómez', countryCallingCode: '+57', whatsAppNumber: '3001112222', normalizedPhoneNumber: '573001112222' };
+
+    it('writes only if the user still has the values read', async () => {
+      const collection = createFakeCollection();
+      collection.updateOne.mockResolvedValue({ matchedCount: 1 });
+
+      expect(await repositoryWith(collection).updateContactIfUnchanged('u1', expected, next)).toBe('saved');
+      expect(collection.updateOne).toHaveBeenCalledWith({ _id: 'u1', ...expected }, { $set: next });
+    });
+
+    it('answers stale when nothing matched, and duplicate when the phone index refuses it', async () => {
+      const collection = createFakeCollection();
+      collection.updateOne.mockResolvedValueOnce({ matchedCount: 0 });
+      collection.updateOne.mockRejectedValueOnce(Object.assign(new Error('E11000'), { code: 11000 }));
+      const repository = repositoryWith(collection);
+
+      expect(await repository.updateContactIfUnchanged('u1', expected, next)).toBe('stale');
+      expect(await repository.updateContactIfUnchanged('u1', expected, next)).toBe('duplicate');
+    });
   });
 });

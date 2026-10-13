@@ -9,6 +9,9 @@ export interface WarningData {
   country_code_changes_secrets: { from: string; to: string };
   document_type_not_invoiceable: { code: string };
   time_zone_has_future_bookings: Record<string, never>;
+  // Booking rules (admin spec 004, FR-010, FR-011).
+  travel_buffer_exceeds_free_cancellation: { levels: string[] };
+  required_setting_removed: { field: string; operatingCities: number };
 }
 
 export type WarningCode = keyof WarningData;
@@ -18,6 +21,12 @@ export interface Warning<C extends WarningCode = WarningCode> {
   message: string;
   data: WarningData[C];
 }
+
+const REQUIRED_NAMES: Record<string, string> = {
+  bookingWindowDays: 'la ventana de reserva',
+  minNoticeMinutes: 'la anticipación mínima',
+  leadTimeSurcharge: 'el recargo por anticipación',
+};
 
 const integer = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
 const oneDecimal = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 1 });
@@ -30,6 +39,9 @@ const MESSAGES: { [C in WarningCode]: (data: WarningData[C]) => string } = {
     `Los secretos de la pasarela y de la facturación se buscan por el código del país: pasarán de ${d.from} a ${d.to}`,
   document_type_not_invoiceable: () => 'Las facturas de porteros con este tipo serán rechazadas',
   time_zone_has_future_bookings: () => 'Hay partidos futuros en esta ciudad: conservan su hora real y solo cambia cómo se muestran',
+  travel_buffer_exceeds_free_cancellation: (d) =>
+    `El margen de traslado supera el plazo de cancelación gratuita en ${d.levels.join(', ')}; conviene que no lo supere`,
+  required_setting_removed: (d) => `${d.operatingCities} ciudades en operación dejarán de cotizar sin ${REQUIRED_NAMES[d.field] ?? d.field}`,
 };
 
 export function warning<C extends WarningCode>(code: C, data: WarningData[C]): Warning<C> {

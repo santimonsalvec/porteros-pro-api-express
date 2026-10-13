@@ -1,4 +1,4 @@
-import type { ICaseRepository } from '../../src/application/features/cases/common/ports.js';
+import type { CaseListFilter, ICaseRepository } from '../../src/application/features/cases/common/ports.js';
 import type { CaseResolution, CaseStatus, SupportCase } from '../../src/domain/cases/case.js';
 
 /** Reads and resolves the cases the fake lifecycle store opens. */
@@ -30,5 +30,31 @@ export class FakeCaseRepository implements ICaseRepository {
     if (item.status === 'resolved') return 'already_resolved';
     this.cases.replace(item.resolve(resolution));
     return 'resolved';
+  }
+
+  /** The admin's search, filtering and ordering like the Mongo repository (admin spec 006). */
+  private matching(filter: CaseListFilter): SupportCase[] {
+    const kept = this.cases
+      .all()
+      .filter((item) => !filter.status || item.status === filter.status)
+      .filter((item) => !filter.type || item.type === filter.type)
+      .filter((item) => !filter.from || item.createdAt.getTime() >= filter.from.getTime())
+      .filter((item) => !filter.to || item.createdAt.getTime() < filter.to.getTime())
+      .filter((item) => !filter.requestIds || filter.requestIds.includes(item.requestId));
+    return filter.order === 'oldest'
+      ? kept.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || (a.id < b.id ? -1 : 1))
+      : kept.sort((a, b) => a.status.localeCompare(b.status) || b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? 1 : -1));
+  }
+
+  async search(filter: CaseListFilter, skip: number, limit: number): Promise<SupportCase[]> {
+    return this.matching(filter).slice(skip, skip + limit);
+  }
+
+  async countMatching(filter: CaseListFilter): Promise<number> {
+    return this.matching(filter).length;
+  }
+
+  async requestIdsMatching(filter: CaseListFilter): Promise<string[]> {
+    return [...new Set(this.matching(filter).map((item) => item.requestId))];
   }
 }

@@ -1,8 +1,11 @@
 import type { ITopUpRepository } from '../../src/application/features/payments/common/ports.js';
-import { TopUp } from '../../src/domain/payments/topUp.js';
+import { CHECK_LEASE_SECONDS, CHECK_LOG_MAX, isSameCheck, TopUp, type TopUpCheck } from '../../src/domain/payments/topUp.js';
 
 export class FakeTopUpRepository implements ITopUpRepository {
   private readonly state = new Map<string, TopUp>();
+  /** What the document keeps beside the entity (admin spec 007): its checks and the check lease. */
+  readonly checkLogs = new Map<string, TopUpCheck[]>();
+  readonly leases = new Map<string, Date>();
 
   all(): TopUp[] {
     return [...this.state.values()];
@@ -53,5 +56,29 @@ export class FakeTopUpRepository implements ITopUpRepository {
     const topUp = this.state.get(id);
     if (!topUp || topUp.status !== 'pending') return;
     this.state.set(id, TopUp.rehydrate({ ...topUp.toProps(), nextCheckAt, lastCheckedAt: now, checks: topUp.checks + 1 }));
+  }
+
+  async recordCheck(id: string, entry: TopUpCheck): Promise<void> {
+    if (!this.state.has(id)) return;
+    const log = this.checkLogs.get(id) ?? [];
+    const last = log.at(-1);
+    if (last && isSameCheck(last, entry)) {
+      log[log.length - 1] = { ...last, lastAt: entry.lastAt, repeats: last.repeats + 1 };
+    } else {
+      log.push({ ...entry });
+    }
+    this.checkLogs.set(id, log.slice(-CHECK_LOG_MAX));
+  }
+
+  async acquireCheckLease(id: string, now: Date): Promise<boolean> {
+    if (!this.state.has(id)) return false;
+    const until = this.leases.get(id);
+    if (until && until > now) return false;
+    this.leases.set(id, new Date(now.getTime() + CHECK_LEASE_SECONDS * 1000));
+    return true;
+  }
+
+  async releaseCheckLease(id: string): Promise<void> {
+    this.leases.delete(id);
   }
 }

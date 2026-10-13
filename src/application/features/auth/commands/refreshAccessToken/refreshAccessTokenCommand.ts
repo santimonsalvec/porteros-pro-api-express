@@ -1,7 +1,8 @@
 import { ICommand } from '../../../../common/mediator/types.js';
 import type { TokenPairResponse } from '../../common/dtos.js';
 
-export type RefreshAccessTokenOutcome = 'success' | 'invalid_refresh_token';
+/** `account_blocked`: the administration blocked this user (porteros-pro-admin spec 005). */
+export type RefreshAccessTokenOutcome = 'success' | 'invalid_refresh_token' | 'account_blocked';
 
 export interface RefreshAccessTokenResult {
   outcome: RefreshAccessTokenOutcome;

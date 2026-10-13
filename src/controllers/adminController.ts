@@ -3,7 +3,16 @@ import { createAdminRouting, settingsBefore } from './admin/adminRoute.js';
 import { registerTeamRoutes } from './admin/teamRoutes.js';
 import { registerGeographyRoutes } from './admin/geographyRoutes.js';
 import { registerCatalogRoutes } from './admin/catalogRoutes.js';
+import { registerPricingRoutes } from './admin/pricingRoutes.js';
+import { registerUsersRoutes } from './admin/usersRoutes.js';
+import { registerGoalkeeperAdminRoutes } from './admin/goalkeepersRoutes.js';
 import { registerReadinessRoutes } from './admin/readinessRoutes.js';
+import { registerRequestsRoutes } from './admin/requestsRoutes.js';
+import { registerCasesRoutes } from './admin/casesRoutes.js';
+import { registerNotificationsRoutes } from './admin/notificationsRoutes.js';
+import { registerRatingsRoutes } from './admin/ratingsRoutes.js';
+import { registerFinanceRoutes } from './admin/financeRoutes.js';
+import { registerSettingsRoutes } from './admin/settingsRoutes.js';
 import type { ISender } from '../application/common/mediator/types.js';
 import { RecordWalletAdjustmentCommand } from '../application/features/wallet/commands/recordWalletAdjustment/recordWalletAdjustmentCommand.js';
 import type { AdminWebDependencies } from '../appDependencies.js';
@@ -19,20 +28,9 @@ import { goalkeeperNotFound, sendMovements, sendWallet, walletNotConfigured } fr
 import { ReverseWithdrawalPenaltyCommand } from '../application/features/bookingLifecycle/commands/reverseWithdrawalPenalty/reverseWithdrawalPenaltyCommand.js';
 import { reverseWithdrawalRequestSchema } from './requests/withdrawals/reverseWithdrawalRequest.js';
 import { sendWithdrawals } from './withdrawals/withdrawalsHttp.js';
-import { ListCasesQuery } from '../application/features/cases/queries/listCases/listCasesQuery.js';
-import { GetCaseQuery } from '../application/features/cases/queries/getCase/getCaseQuery.js';
-import { ResolveCaseCommand } from '../application/features/cases/commands/resolveCase/resolveCaseCommand.js';
-import { listCasesQuerySchema, resolveCaseRequestSchema } from './requests/cases/caseRequests.js';
-import { SetGatewaySettingsCommand } from '../application/features/payments/commands/setGatewaySettings/setGatewaySettingsCommand.js';
-import { GetGatewaySettingsQuery } from '../application/features/payments/queries/getGatewaySettings/getGatewaySettingsQuery.js';
-import { gatewaySettingsRequestSchema } from './requests/payments/gatewaySettingsRequest.js';
 import { SetTaxSettingsCommand } from '../application/features/invoicing/commands/setTaxSettings/setTaxSettingsCommand.js';
 import { GetTaxSettingsQuery } from '../application/features/invoicing/queries/getTaxSettings/getTaxSettingsQuery.js';
-import { SetInvoicingSettingsCommand } from '../application/features/invoicing/commands/setInvoicingSettings/setInvoicingSettingsCommand.js';
-import { GetInvoicingSettingsQuery } from '../application/features/invoicing/queries/getInvoicingSettings/getInvoicingSettingsQuery.js';
-import { ListDocumentsForAdminQuery } from '../application/features/invoicing/queries/listDocumentsForAdmin/listDocumentsForAdminQuery.js';
-import { RetryDocumentCommand } from '../application/features/invoicing/commands/retryDocument/retryDocumentCommand.js';
-import { invoicingSettingsRequestSchema, listDocumentsQuerySchema, taxSettingsRequestSchema } from './requests/invoicing/invoicingRequests.js';
+import { taxSettingsRequestSchema } from './requests/invoicing/invoicingRequests.js';
 
 export interface AdminControllerDependencies {
   mediator: ISender;
@@ -55,6 +53,15 @@ export function createAdminController(deps: AdminControllerDependencies): Router
   registerTeamRoutes(route, deps.mediator);
   registerGeographyRoutes(route, deps.mediator);
   registerCatalogRoutes(route, deps.mediator);
+  registerPricingRoutes(route, deps.mediator);
+  registerUsersRoutes(route, deps.mediator);
+  registerGoalkeeperAdminRoutes(route, deps.mediator);
+  registerRequestsRoutes(route, deps.mediator);
+  registerCasesRoutes(route, deps.mediator);
+  registerNotificationsRoutes(route, deps.mediator);
+  registerRatingsRoutes(route, deps.mediator);
+  registerFinanceRoutes(route, deps.mediator);
+  registerSettingsRoutes(route, deps.mediator);
   registerReadinessRoutes(route, deps.mediator);
 
   // The fixed permission catalog, for the role screen (any active member).
@@ -163,105 +170,6 @@ export function createAdminController(deps: AdminControllerDependencies): Router
     }
   });
 
-  // Cases for manual review (feature 021).
-  route('get', '/cases', 'cases.read', async (req, res) => {
-    const parsed = listCasesQuerySchema.safeParse(req.query);
-    if (!parsed.success) {
-      throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
-    }
-    const result = await deps.mediator.send(new ListCasesQuery(parsed.data.status ?? null, parsed.data.page, parsed.data.pageSize));
-    res.status(200).json({
-      items: result.items,
-      page: result.page,
-      pageSize: result.pageSize,
-      totalItems: result.totalItems,
-      totalPages: result.totalPages,
-    });
-  });
-
-  route('get', '/cases/:caseId', 'cases.read', async (req, res) => {
-    const result = await deps.mediator.send(new GetCaseQuery(req.params.caseId));
-    switch (result.outcome) {
-      case 'ok':
-        res.status(200).json(result.case);
-        return;
-      case 'case_not_found':
-        throw new ApiError(404, 'case_not_found', 'This case does not exist.');
-    }
-  });
-
-  route('post', '/cases/:caseId/resolve', {
-    permission: 'cases.resolve',
-    audit: {
-      action: 'case.resolve',
-      resourceType: 'case',
-      resourceId: (req) => String(req.params.caseId),
-      before: async (req) => {
-        const result = await deps.mediator.send(new GetCaseQuery(String(req.params.caseId)));
-        return result.outcome === 'ok' ? result.case : null;
-      },
-    },
-  }, async (req, res) => {
-    const parsed = resolveCaseRequestSchema.safeParse(req.body ?? {});
-    if (!parsed.success) {
-      throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
-    }
-    const result = await deps.mediator.send(new ResolveCaseCommand(req.adminAccess!.userId, req.params.caseId, parsed.data.note));
-
-    // Exhaustive on purpose: adding an outcome without mapping it here fails compilation.
-    switch (result.outcome) {
-      case 'resolved':
-        res.status(200).json(result.case);
-        return;
-      case 'case_not_found':
-        throw new ApiError(404, 'case_not_found', 'This case does not exist.');
-      case 'case_already_resolved':
-        throw new ApiError(409, 'case_already_resolved', 'This case is already resolved.');
-      case 'invalid_note':
-        throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', { note: result.message });
-    }
-  });
-
-  // Each country's top-up gateway (feature 022). Secrets are never here: they live in Secret Manager.
-  route('get', '/payment-gateways/:countryId', 'payments.settings.manage', async (req, res) => {
-    const result = await deps.mediator.send(new GetGatewaySettingsQuery(req.params.countryId));
-    switch (result.outcome) {
-      case 'success':
-        res.status(200).json(result.settings);
-        return;
-      case 'not_found':
-        throw new ApiError(404, 'settings_not_found', 'No payment gateway is configured for this country.');
-    }
-  });
-
-  route('put', '/payment-gateways/:countryId', {
-    permission: 'payments.settings.manage',
-    audit: {
-      action: 'paymentGatewaySettings.update',
-      resourceType: 'paymentGatewaySettings',
-      resourceId: (req) => String(req.params.countryId),
-      before: (req) => settingsBefore(deps.mediator.send(new GetGatewaySettingsQuery(String(req.params.countryId)))),
-    },
-  }, async (req, res) => {
-    const parsed = gatewaySettingsRequestSchema.safeParse(req.body ?? {});
-    if (!parsed.success) {
-      throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
-    }
-    const { gateway, publicConfig, costs, amounts } = parsed.data;
-    const result = await deps.mediator.send(
-      new SetGatewaySettingsCommand(req.adminAccess!.userId, req.params.countryId, gateway, publicConfig, costs, amounts),
-    );
-    switch (result.outcome) {
-      case 'saved':
-        res.status(200).json(result.settings);
-        return;
-      case 'country_not_found':
-        throw new ApiError(404, 'country_not_found', 'No country exists with this id.');
-      case 'invalid':
-        throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', result.fieldErrors);
-    }
-  });
-
   // VAT per country (feature 023): charged on top of commissions and penalties.
   route('get', '/tax-settings/:countryId', 'pricing.read', async (req, res) => {
     const result = await deps.mediator.send(new GetTaxSettingsQuery(req.params.countryId));
@@ -296,70 +204,6 @@ export function createAdminController(deps: AdminControllerDependencies): Router
         throw new ApiError(404, 'country_not_found', 'No country exists with this id.');
       case 'invalid':
         throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', result.fieldErrors);
-    }
-  });
-
-  // The invoicing provider of each country (feature 023). Credentials live in Secret Manager.
-  route('get', '/invoicing/settings/:countryId', 'invoicing.settings.manage', async (req, res) => {
-    const result = await deps.mediator.send(new GetInvoicingSettingsQuery(req.params.countryId));
-    switch (result.outcome) {
-      case 'success':
-        res.status(200).json(result.settings);
-        return;
-      case 'not_found':
-        throw new ApiError(404, 'settings_not_found', 'No invoicing provider is configured for this country.');
-    }
-  });
-
-  route('put', '/invoicing/settings/:countryId', {
-    permission: 'invoicing.settings.manage',
-    audit: {
-      action: 'invoicingSettings.update',
-      resourceType: 'invoicingSettings',
-      resourceId: (req) => String(req.params.countryId),
-      before: (req) => settingsBefore(deps.mediator.send(new GetInvoicingSettingsQuery(String(req.params.countryId)))),
-    },
-  }, async (req, res) => {
-    const parsed = invoicingSettingsRequestSchema.safeParse(req.body ?? {});
-    if (!parsed.success) {
-      throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
-    }
-    const result = await deps.mediator.send(
-      new SetInvoicingSettingsCommand(req.adminAccess!.userId, req.params.countryId, parsed.data.provider, parsed.data.config),
-    );
-    switch (result.outcome) {
-      case 'saved':
-        res.status(200).json(result.settings);
-        return;
-      case 'country_not_found':
-        throw new ApiError(404, 'country_not_found', 'No country exists with this id.');
-      case 'invalid':
-        throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', result.fieldErrors);
-    }
-  });
-
-  route('get', '/invoicing/documents', 'invoicing.read', async (req, res) => {
-    const parsed = listDocumentsQuerySchema.safeParse(req.query);
-    if (!parsed.success) {
-      throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
-    }
-    const result = await deps.mediator.send(new ListDocumentsForAdminQuery(parsed.data.status ?? null, parsed.data.page, parsed.data.pageSize));
-    res.status(200).json(result);
-  });
-
-  route('post', '/invoicing/documents/:documentId/retry', {
-    permission: 'invoicing.retry',
-    audit: { action: 'invoicingDocument.retry', resourceType: 'invoicingDocument', resourceId: (req) => String(req.params.documentId) },
-  }, async (req, res) => {
-    const result = await deps.mediator.send(new RetryDocumentCommand(req.adminAccess!.userId, req.params.documentId));
-    switch (result.outcome) {
-      case 'retried':
-        res.status(202).json(result.document);
-        return;
-      case 'not_found':
-        throw new ApiError(404, 'invoicing_document_not_found', 'No invoicing document exists with this id.');
-      case 'not_retryable':
-        throw new ApiError(409, 'document_not_retryable', 'Only a rejected document can be retried.', undefined, { status: result.status });
     }
   });
 

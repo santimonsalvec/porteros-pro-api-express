@@ -214,3 +214,28 @@ describe('BookingRepository (mocked driver)', () => {
     expect(collection.updateMany).toHaveBeenCalledWith({ requestId: 'request-1' }, { $addToSet: { dismissedGoalkeeperIds: 'gk-1' } });
   });
 });
+
+describe('the administrator who cancelled a booking (admin spec 006)', () => {
+  it('is stored only when there is one, so every other write keeps its document shape', () => {
+    expect(bookingToDocument(booking!)).not.toHaveProperty('cancelledByStaffId');
+  });
+
+  it('is stored and read back for a booking an administrator cancelled', () => {
+    const cancelled = bookingFromDocument({
+      ...bookingToDocument(booking!),
+      status: 'cancelled',
+      endedAt: new Date('2026-09-28T12:00:00.000Z'),
+      endReason: 'admin_cancelled',
+      cancelledBy: 'admin',
+      cancellationNote: 'La cancha cerró',
+      cancelledByStaffId: 'staff-user-1',
+    });
+
+    expect(cancelled.cancelledByStaffId).toBe('staff-user-1');
+    expect(bookingToDocument(cancelled)).toMatchObject({ cancelledBy: 'admin', cancelledByStaffId: 'staff-user-1' });
+  });
+
+  it('is null on documents that never had it', () => {
+    expect(bookingFromDocument(bookingToDocument(booking!)).cancelledByStaffId).toBeNull();
+  });
+});

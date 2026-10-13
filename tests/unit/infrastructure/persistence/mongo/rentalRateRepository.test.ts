@@ -120,3 +120,111 @@ describe('RentalRateRepository.pricedDurations (admin readiness)', () => {
     expect(collection.find).not.toHaveBeenCalled();
   });
 });
+
+describe('RentalRateRepository — admin web (spec 004 of the admin)', () => {
+  const stored = { _id: 'r1', scope: 'city', refId: 'city-1', durationMinutes: 90, amount: 55000, revision: 2 };
+
+  it('finds the rates of the given refs, duration and modality', async () => {
+    const collection = createFakeCollection();
+    collection.find.mockReturnValue(toArrayResult([stored]));
+    const repository = repositoryWith(collection);
+
+    const found = await repository.find({
+      refs: [
+        { scope: 'city', refIds: ['city-1'] },
+        { scope: 'zone', refIds: ['zone-1', 'zone-2'] },
+      ],
+      durationMinutes: 90,
+      modality: 'futbol_11',
+    });
+
+    expect(collection.find).toHaveBeenCalledWith({
+      $or: [
+        { scope: 'city', refId: { $in: ['city-1'] } },
+        { scope: 'zone', refId: { $in: ['zone-1', 'zone-2'] } },
+      ],
+      durationMinutes: 90,
+      modality: 'futbol_11',
+    });
+    expect(found).toEqual([
+      { id: 'r1', scope: 'city', refId: 'city-1', durationMinutes: 90, modality: null, level: null, amount: 55000, revision: 2, invalid: false },
+    ]);
+  });
+
+  it('reads every rate without refs, and the general ones as modality null', async () => {
+    const collection = createFakeCollection();
+    collection.find.mockReturnValue(toArrayResult([]));
+    await repositoryWith(collection).find({ refs: null, modality: 'general' });
+    expect(collection.find).toHaveBeenCalledWith({ modality: null });
+  });
+
+  it('returns nothing for an empty list of refs, without reading', async () => {
+    const collection = createFakeCollection();
+    expect(await repositoryWith(collection).find({ refs: [{ scope: 'zone', refIds: [] }] })).toEqual([]);
+    expect(collection.find).not.toHaveBeenCalled();
+  });
+
+  it('marks a seeded document the domain refuses instead of throwing', async () => {
+    const collection = createFakeCollection();
+    collection.find.mockReturnValue(toArrayResult([{ ...stored, amount: 55000.5, level: 'competitive' }]));
+    const [record] = await repositoryWith(collection).find({ refs: null });
+    expect(record).toMatchObject({ id: 'r1', amount: 55000.5, level: 'competitive', invalid: true });
+  });
+
+  it('reads one rate by id', async () => {
+    const collection = createFakeCollection();
+    collection.findOne.mockResolvedValue(stored);
+    expect(await repositoryWith(collection).getById('r1')).toMatchObject({ id: 'r1', amount: 55000 });
+    expect(collection.findOne).toHaveBeenCalledWith({ _id: 'r1' });
+  });
+
+  it('creates a rate with explicit nulls and revision 0', async () => {
+    const collection = createFakeCollection();
+    collection.insertOne.mockResolvedValue({ acknowledged: true });
+    const result = await repositoryWith(collection).create({
+      id: 'r2', scope: 'zone', refId: 'zone-1', durationMinutes: 90, modality: null, level: null, amount: 60000,
+    });
+    expect(result).toEqual({ outcome: 'created' });
+    expect(collection.insertOne).toHaveBeenCalledWith({
+      _id: 'r2', scope: 'zone', refId: 'zone-1', durationMinutes: 90, modality: null, level: null, amount: 60000, revision: 0,
+    });
+  });
+
+  it('answers duplicate with the existing id when the unique index refuses the rate', async () => {
+    const collection = createFakeCollection();
+    collection.insertOne.mockRejectedValue(Object.assign(new Error('E11000'), { code: 11000 }));
+    collection.findOne.mockResolvedValue({ _id: 'r1' });
+    const result = await repositoryWith(collection).create({
+      id: 'r2', scope: 'city', refId: 'city-1', durationMinutes: 90, modality: null, level: null, amount: 1,
+    });
+    expect(result).toEqual({ outcome: 'duplicate', existingId: 'r1' });
+    expect(collection.findOne).toHaveBeenCalledWith({ scope: 'city', refId: 'city-1', durationMinutes: 90, modality: null, level: null }, { projection: { _id: 1 } });
+  });
+
+  it('rethrows any other write error', async () => {
+    const collection = createFakeCollection();
+    collection.insertOne.mockRejectedValue(new Error('down'));
+    await expect(
+      repositoryWith(collection).create({ id: 'r2', scope: 'city', refId: 'c', durationMinutes: 60, modality: null, level: null, amount: 1 }),
+    ).rejects.toThrow('down');
+  });
+
+  it('changes only the amount, at the revision read', async () => {
+    const collection = createFakeCollection();
+    collection.updateOne.mockResolvedValue({ matchedCount: 1 });
+    expect(await repositoryWith(collection).updateAmount('r1', 2, 60000)).toBe('saved');
+    expect(collection.updateOne).toHaveBeenCalledWith({ _id: 'r1', revision: 2 }, { $set: { amount: 60000 }, $inc: { revision: 1 } });
+  });
+
+  it('answers stale when the revision moved', async () => {
+    const collection = createFakeCollection();
+    collection.updateOne.mockResolvedValue({ matchedCount: 0 });
+    expect(await repositoryWith(collection).updateAmount('r1', 2, 60000)).toBe('stale');
+  });
+
+  it('deletes a rate', async () => {
+    const collection = createFakeCollection();
+    collection.deleteOne.mockResolvedValue({ deletedCount: 1 });
+    expect(await repositoryWith(collection).delete('r1')).toBe(true);
+  });
+});

@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 import { signInAdmin, signInClient } from '../walletTestHelpers.js';
 
+// Admin spec 007 (FR-025): every save names the revision it read; `null` creates the country's first.
 const VALID = {
+  revision: null,
   gateway: 'wompi',
   publicConfig: { publicKey: 'pub_test_abc', environment: 'sandbox' },
   costs: { percentBps: 265, fixed: 700, vatBps: 1900 },
@@ -54,5 +56,61 @@ describe('/admin/payment-gateways/{countryId} — US5: an administrator chooses 
     expect(unknown.status).toBe(404);
     expect(unknown.body.error).toBe('country_not_found');
     expect(forbidden.status).toBe(401);
+  });
+});
+
+describe('/admin/payment-gateways/{countryId} — admin spec 007: revision and credentials (FR-012, FR-025)', () => {
+  async function saved() {
+    const context = await buildTestApp();
+    const { token } = await signInAdmin(context);
+    const put = (body: object) => request(context.app).put('/admin/payment-gateways/country-co').set('Authorization', `Bearer ${token}`).send(body);
+    const get = () => request(context.app).get('/admin/payment-gateways/country-co').set('Authorization', `Bearer ${token}`);
+    expect((await put(VALID)).status).toBe(200);
+    return { context, put, get };
+  }
+
+  it('reads the revision and whether the credentials are loaded, and moves the revision on each save', async () => {
+    const { put, get } = await saved();
+
+    expect((await get()).body).toMatchObject({ revision: 0, credentialsPresent: true });
+    const next = await put({ ...VALID, revision: 0, amounts: [20000] });
+    expect(next.status).toBe(200);
+    expect(next.body).toMatchObject({ revision: 1, amounts: [20000] });
+  });
+
+  it('refuses a save without revision, with an old one, and a create over existing settings', async () => {
+    const { put, get } = await saved();
+    const withoutRevision: Partial<typeof VALID> = { ...VALID };
+    delete withoutRevision.revision;
+
+    const missing = await put(withoutRevision);
+    expect(missing.status).toBe(400);
+    expect(missing.body.fieldErrors).toHaveProperty('revision');
+    await put({ ...VALID, revision: 0 });
+    for (const revision of [0, null]) {
+      const response = await put({ ...VALID, revision, amounts: [30000] });
+      expect(response.status).toBe(409);
+      expect(response.body.error).toBe('stale_revision');
+    }
+    expect((await get()).body).toMatchObject({ revision: 1, amounts: VALID.amounts });
+  });
+
+  it('says when the credentials are missing, never their value', async () => {
+    const { context, get } = await saved();
+    context.paymentSecrets.secrets.clear();
+    const read = await get();
+    expect(read.body.credentialsPresent).toBe(false);
+    expect(JSON.stringify(read.body)).not.toMatch(/prv_|_events_|_integrity_/);
+  });
+
+  it('audits the change with the before and the after, without secrets', async () => {
+    const { context, put } = await saved();
+    context.adminAuditLog.entries.length = 0;
+
+    await put({ ...VALID, revision: 0, amounts: [20000] });
+
+    const [entry] = context.adminAuditLog.entries;
+    expect(entry).toMatchObject({ action: 'paymentGatewaySettings.update', before: { revision: 0 }, after: { revision: 1, amounts: [20000], credentialsPresent: true } });
+    expect(JSON.stringify(entry)).not.toMatch(/publicKey|prv_|secret/i);
   });
 });

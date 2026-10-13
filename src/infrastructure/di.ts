@@ -1,4 +1,5 @@
 import { Mediator, registerHandlers, registerSubscribers } from '../application/common/mediator/mediator.js';
+import { WithdrawalAdminDetails } from '../application/features/bookingLifecycle/common/withdrawalAdminDetails.js';
 import { GetSsoOptionsQuery } from '../application/features/auth/queries/getSsoOptions/getSsoOptionsQuery.js';
 import { GetSsoOptionsQueryHandler } from '../application/features/auth/queries/getSsoOptions/getSsoOptionsQueryHandler.js';
 import { ExchangeSsoCredentialCommand } from '../application/features/auth/commands/exchangeSsoCredential/exchangeSsoCredentialCommand.js';
@@ -79,6 +80,8 @@ import { RecordWalletAdjustmentCommandHandler } from '../application/features/wa
 import { ApplyGatewayEventCommand } from '../application/features/payments/commands/applyGatewayEvent/applyGatewayEventCommand.js';
 import { ApplyGatewayEventCommandHandler } from '../application/features/payments/commands/applyGatewayEvent/applyGatewayEventCommandHandler.js';
 import { TopUpReconcileJob } from '../application/features/payments/jobs/topUpReconcileJob.js';
+import { ReconcileTopUpCommand } from '../application/features/payments/commands/reconcileTopUp/reconcileTopUpCommand.js';
+import { ReconcileTopUpCommandHandler } from '../application/features/payments/commands/reconcileTopUp/reconcileTopUpCommandHandler.js';
 import { ListTopUpsQuery } from '../application/features/payments/queries/listTopUps/listTopUpsQuery.js';
 import { ListTopUpsQueryHandler } from '../application/features/payments/queries/listTopUps/listTopUpsQueryHandler.js';
 import { GetTopUpQuery } from '../application/features/payments/queries/getTopUp/getTopUpQuery.js';
@@ -114,8 +117,6 @@ import { SetInvoicingSettingsCommand } from '../application/features/invoicing/c
 import { SetInvoicingSettingsCommandHandler } from '../application/features/invoicing/commands/setInvoicingSettings/setInvoicingSettingsCommandHandler.js';
 import { GetInvoicingSettingsQuery } from '../application/features/invoicing/queries/getInvoicingSettings/getInvoicingSettingsQuery.js';
 import { GetInvoicingSettingsQueryHandler } from '../application/features/invoicing/queries/getInvoicingSettings/getInvoicingSettingsQueryHandler.js';
-import { ListDocumentsForAdminQuery } from '../application/features/invoicing/queries/listDocumentsForAdmin/listDocumentsForAdminQuery.js';
-import { ListDocumentsForAdminQueryHandler } from '../application/features/invoicing/queries/listDocumentsForAdmin/listDocumentsForAdminQueryHandler.js';
 import { RetryDocumentCommand } from '../application/features/invoicing/commands/retryDocument/retryDocumentCommand.js';
 import { RetryDocumentCommandHandler } from '../application/features/invoicing/commands/retryDocument/retryDocumentCommandHandler.js';
 import { GetTopUpOptionsQuery } from '../application/features/payments/queries/getTopUpOptions/getTopUpOptionsQuery.js';
@@ -212,6 +213,21 @@ import { RatingRepository } from './persistence/mongo/ratingRepository.js';
 import { CaseRepository } from './persistence/mongo/caseRepository.js';
 import { staffHandlerRegistrations } from './staffHandlers.js';
 import { geographyHandlerRegistrations } from './geographyHandlers.js';
+import { pricingHandlerRegistrations } from './pricingHandlers.js';
+import { usersHandlerRegistrations } from './usersHandlers.js';
+import { UserBlockRepository } from './persistence/mongo/userBlockRepository.js';
+import { UserAdminReader } from './persistence/mongo/userAdminReader.js';
+import { GoalkeeperAdminReader } from './persistence/mongo/goalkeeperAdminReader.js';
+import { MongoGoalkeeperDocumentWriter } from './persistence/mongo/goalkeeperDocumentWriter.js';
+import { goalkeepersAdminHandlerRegistrations } from './goalkeepersAdminHandlers.js';
+import { operationsHandlerRegistrations } from './operationsAdminHandlers.js';
+import { RequestAdminReader } from './persistence/mongo/requestAdminReader.js';
+import { NotificationAdminReader } from './persistence/mongo/notificationAdminReader.js';
+import { TopUpAdminReader } from './persistence/mongo/topUpAdminReader.js';
+import { WalletAdminReader } from './persistence/mongo/walletAdminReader.js';
+import { InvoicingDocumentAdminReader } from './persistence/mongo/invoicingDocumentAdminReader.js';
+import { financeHandlerRegistrations } from './financeAdminHandlers.js';
+import { RatingAdminReader } from './persistence/mongo/ratingAdminReader.js';
 import { PinoAdminSecurityLog } from './observability/pinoAdminSecurityLog.js';
 import { JwtAdminTokenIssuer } from './auth/jwtAdminTokenIssuer.js';
 import { StaffAccessResolver } from './auth/staffAccessResolver.js';
@@ -222,6 +238,8 @@ import { MongoAdminSessionStore } from './persistence/mongo/adminSessionStore.js
 import { CancelAllJob } from '../application/features/bookingLifecycle/jobs/cancelAllJob.js';
 import { GOALKEEPER_CANCELLATION_EVENT_TYPES, GoalkeeperCancellationNoticeHandler } from '../application/features/bookingLifecycle/handlers/goalkeeperCancellationNoticeHandler.js';
 import { CancelBookingsByClientCommand } from '../application/features/bookingLifecycle/commands/cancelBookingsByClient/cancelBookingsByClientCommand.js';
+import { CancelBookingsByAdminCommand } from '../application/features/bookingLifecycle/commands/cancelBookingsByAdmin/cancelBookingsByAdminCommand.js';
+import { CancelBookingsByAdminCommandHandler } from '../application/features/bookingLifecycle/commands/cancelBookingsByAdmin/cancelBookingsByAdminCommandHandler.js';
 import { CancelBookingsByClientCommandHandler } from '../application/features/bookingLifecycle/commands/cancelBookingsByClient/cancelBookingsByClientCommandHandler.js';
 import { ListGoalkeeperWithdrawalsQuery } from '../application/features/bookingLifecycle/queries/listGoalkeeperWithdrawals/listGoalkeeperWithdrawalsQuery.js';
 import { ListGoalkeeperWithdrawalsQueryHandler } from '../application/features/bookingLifecycle/queries/listGoalkeeperWithdrawals/listGoalkeeperWithdrawalsQueryHandler.js';
@@ -272,6 +290,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   const db = connectionProvider.getDb();
 
   const userRepository = new UserRepository(db);
+  const userBlockRepository = new UserBlockRepository(db);
   await userRepository.ensureIndexes();
   const refreshTokenRepository = new RefreshTokenRepository(db);
   const termsAcceptanceRepository = new TermsAcceptanceRepository(db);
@@ -303,6 +322,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   await goalkeeperIncidentRepository.ensureIndexes();
   const ratingRepository = new RatingRepository(db);
   await ratingRepository.ensureIndexes();
+  await termsAcceptanceRepository.ensureIndexes();
   const caseRepository = new CaseRepository(db);
   await caseRepository.ensureIndexes();
   // Admin web access (porteros-pro-admin spec 001): staff members, roles and sessions.
@@ -327,6 +347,8 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   // Electronic invoicing (feature 023): providers per country, credentials from Secret Manager.
   const invoicingDocumentRepository = new InvoicingDocumentRepository(db);
   await invoicingDocumentRepository.ensureIndexes();
+  await invoicingDocumentRepository.ensureAdminIndexes();
+  await walletRepository.ensureAdminIndexes();
   const invoicingSettingsRepository = new InvoicingSettingsRepository(db);
   const billableMovementScanner = new BillableMovementScanner(db);
   const invoicingProviders = new InvoicingProviderRegistry([new SiigoInvoicingProvider(config.invoicing.siigoBaseUrl)]);
@@ -334,6 +356,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   // Wallet top-ups (feature 022). Secrets come from the environment (Secret Manager), never the database.
   const topUpRepository = new TopUpRepository(db);
   await topUpRepository.ensureIndexes();
+  await topUpRepository.ensureAdminIndexes();
   const paymentGatewaySettingsRepository = new PaymentGatewaySettingsRepository(db);
   const paymentGatewayRegistry = new PaymentGatewayRegistry([new WompiGateway()]);
   const paymentSecrets = new EnvPaymentSecrets(process.env);
@@ -602,10 +625,11 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     }),
   );
   const referenceUsage = new MongoReferenceUsage(db);
+  const adminCountryRepository = new MongoAdminCountryRepository(db);
   registerHandlers(
     mediator,
     geographyHandlerRegistrations({
-      countries: new MongoAdminCountryRepository(db),
+      countries: adminCountryRepository,
       regions: regionRepository,
       cities: cityRepository,
       zones: zoneRepository,
@@ -623,6 +647,94 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       clock,
     }),
   );
+  registerHandlers(
+    mediator,
+    pricingHandlerRegistrations({
+      regionRepository,
+      countryLookup: countryRepository,
+      rentalRateRepository,
+      bookingSettingsRepository,
+      commissionResolver,
+      countries: adminCountryRepository,
+      regions: regionRepository,
+      cities: cityRepository,
+      zones: zoneRepository,
+      rentalRates: rentalRateRepository,
+      commissions: commissionSettingRepository,
+      bookingSettings: bookingSettingsRepository,
+      taxSettings: taxSettingsRepository,
+      ids: idGenerator,
+      clock,
+    }),
+  );
+  const userAdminReader = new UserAdminReader(db);
+  const goalkeeperAdminReader = new GoalkeeperAdminReader(db);
+  registerHandlers(
+    mediator,
+    usersHandlerRegistrations({
+      users: userRepository,
+      contacts: userRepository,
+      profiles: goalkeeperProfileRepository,
+      blocks: userBlockRepository,
+      countries: countryRepository,
+      staff: staffMemberRepository,
+      goalkeeperReader: goalkeeperAdminReader,
+      zones: zoneRepository,
+      cities: cityRepository,
+      clock,
+      reader: userAdminReader,
+    }),
+  );
+  registerHandlers(
+    mediator,
+    goalkeepersAdminHandlerRegistrations({
+      reader: goalkeeperAdminReader,
+      userReader: userAdminReader,
+      users: userRepository,
+      blocks: userBlockRepository,
+      profiles: goalkeeperProfileRepository,
+      cities: cityRepository,
+      zones: zoneRepository,
+      documentTypes: documentTypeRepository,
+      monthStats: (goalkeeperId) => mediator.send(new GetGoalkeeperMonthStatsQuery(goalkeeperId)),
+      clock,
+      registrations: goalkeeperRegistrationRepository,
+      images: imageRepository,
+      documentWriter: new MongoGoalkeeperDocumentWriter(() => connectionProvider.startSession(), db),
+    }),
+  );
+  registerHandlers(
+    mediator,
+    operationsHandlerRegistrations({
+      reader: new RequestAdminReader(db),
+      users: userRepository,
+      cities: cityRepository,
+      zones: zoneRepository,
+      staff: staffMemberRepository,
+      clock,
+      cases: caseRepository,
+      ratings: ratingRepository,
+      requests: requestRepository,
+      send: (query) => mediator.send(query),
+      notificationReader: new NotificationAdminReader(db),
+      ratingReader: new RatingAdminReader(db),
+    }),
+  );
+  registerHandlers(
+    mediator,
+    financeHandlerRegistrations({
+      topUpReader: new TopUpAdminReader(db),
+      walletReader: new WalletAdminReader(db),
+      cities: cityRepository,
+      regions: regionRepository,
+      documentReader: new InvoicingDocumentAdminReader(db),
+      documents: invoicingDocumentRepository,
+      clock,
+      issuingEnabled: config.invoicing.enabled,
+      users: userRepository,
+      countries: countryRepository,
+    }),
+  );
   registerHandlers(mediator, [
     { requestType: GetSsoOptionsQuery, handler: new GetSsoOptionsQueryHandler(ssoCatalog) },
     {
@@ -636,6 +748,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         idGenerator,
         auditLogger,
         refreshTokenLifetimeMs,
+        userBlockRepository,
       ),
     },
     {
@@ -647,6 +760,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         goalkeeperProfileRepository,
         idGenerator,
         refreshTokenLifetimeMs,
+        userBlockRepository,
       ),
     },
     {
@@ -778,9 +892,9 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     { requestType: GetTopUpByReferenceQuery, handler: new GetTopUpByReferenceQueryHandler(topUpRepository) },
     {
       requestType: SetGatewaySettingsCommand,
-      handler: new SetGatewaySettingsCommandHandler(countryRepository, paymentGatewaySettingsRepository, clock, logger),
+      handler: new SetGatewaySettingsCommandHandler(countryRepository, paymentGatewaySettingsRepository, paymentSecrets, clock, logger),
     },
-    { requestType: GetGatewaySettingsQuery, handler: new GetGatewaySettingsQueryHandler(paymentGatewaySettingsRepository) },
+    { requestType: GetGatewaySettingsQuery, handler: new GetGatewaySettingsQueryHandler(paymentGatewaySettingsRepository, paymentSecrets, countryRepository) },
     { requestType: ListMyDocumentsQuery, handler: new ListMyDocumentsQueryHandler(goalkeeperProfileRepository, invoicingDocumentRepository) },
     { requestType: GetMyDocumentQuery, handler: new GetMyDocumentQueryHandler(invoicingDocumentRepository) },
     { requestType: GetDocumentFileQuery, handler: new GetDocumentFileQueryHandler(invoicingDeps) },
@@ -794,7 +908,21 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       handler: new SetInvoicingSettingsCommandHandler(countryRepository, invoicingSettingsRepository, invoicingDeps.secrets, clock, invoicingDeps.logger),
     },
     { requestType: GetInvoicingSettingsQuery, handler: new GetInvoicingSettingsQueryHandler(invoicingSettingsRepository, invoicingDeps.secrets, countryRepository) },
-    { requestType: ListDocumentsForAdminQuery, handler: new ListDocumentsForAdminQueryHandler(invoicingDocumentRepository, clock) },
+    {
+      // "Conciliar ahora" (admin spec 007): the sweep's ask for one top-up, by a member.
+      requestType: ReconcileTopUpCommand,
+      handler: new ReconcileTopUpCommandHandler({
+        walletContext,
+        store: topUpStore,
+        notices: { notifications: notificationRepository, pushNotifier, idGenerator: idGenerator, clock },
+        logger: logger,
+        topUpRepository,
+        gateways: paymentGatewayRegistry,
+        secrets: paymentSecrets,
+        countryLookup: countryRepository,
+        clock,
+      }),
+    },
     {
       requestType: RetryDocumentCommand,
       handler: new RetryDocumentCommandHandler({ ...invoicingDeps, profiles: goalkeeperProfileRepository }),
@@ -984,7 +1112,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     },
     {
       requestType: SetOffersAvailabilityCommand,
-      handler: new SetOffersAvailabilityCommandHandler({ goalkeeperProfileRepository, eligibility: offerEligibility, sender: offerSender, clock, logger }),
+      handler: new SetOffersAvailabilityCommandHandler({ goalkeeperProfileRepository, eligibility: offerEligibility, sender: offerSender, clock, logger, blocks: userBlockRepository }),
     },
     {
       requestType: ListNotificationsQuery,
@@ -1011,8 +1139,27 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       }),
     },
     {
+      // The administrator's cancellation (admin spec 006): the client's transaction, the administrator's policy.
+      requestType: CancelBookingsByAdminCommand,
+      handler: new CancelBookingsByAdminCommandHandler({
+        bookingRepository,
+        store: lifecycleStore,
+        walletContext,
+        relay: eventRelay,
+        idGenerator: idGenerator,
+        clock,
+        audit: auditLogger,
+        logger: logger,
+      }),
+    },
+    {
       requestType: ListGoalkeeperWithdrawalsQuery,
-      handler: new ListGoalkeeperWithdrawalsQueryHandler({ goalkeeperProfileRepository, incidents: goalkeeperIncidentRepository, clock }),
+      handler: new ListGoalkeeperWithdrawalsQueryHandler({
+        goalkeeperProfileRepository,
+        incidents: goalkeeperIncidentRepository,
+        clock,
+        adminDetails: new WithdrawalAdminDetails({ bookings: bookingRepository, zones: zoneRepository, cities: cityRepository, movements: walletMovementRepository }),
+      }),
     },
     {
       requestType: ReverseWithdrawalPenaltyCommand,

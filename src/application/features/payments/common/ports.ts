@@ -1,5 +1,5 @@
 import type { GatewayEnvironment, GatewayName, PaymentGatewaySettings } from '../../../../domain/payments/gatewaySettings.js';
-import type { TopUp, TopUpStatus } from '../../../../domain/payments/topUp.js';
+import type { TopUp, TopUpCheck, TopUpStatus } from '../../../../domain/payments/topUp.js';
 import type { LedgerOwner } from '../../wallet/common/walletLedger.js';
 
 /** A gateway's secrets for one country. Read from the environment (Secret Manager), never stored. */
@@ -61,7 +61,10 @@ export interface IPaymentSecrets {
 
 export interface IPaymentGatewaySettingsRepository {
   getByCountry(countryId: string): Promise<PaymentGatewaySettings | null>;
-  save(settings: PaymentGatewaySettings): Promise<void>;
+  /** A country's first settings; `stale` when it already has some (admin spec 007, FR-025). */
+  create(settings: PaymentGatewaySettings): Promise<'saved' | 'stale'>;
+  /** Writes only at `expectedRevision`; `stale` when someone else saved first. */
+  update(settings: PaymentGatewaySettings, expectedRevision: number): Promise<'saved' | 'stale'>;
 }
 
 export interface ITopUpRepository {
@@ -75,6 +78,11 @@ export interface ITopUpRepository {
   findDueForCheck(now: Date, cap: number): Promise<TopUp[]>;
   /** Records an unfinished check; only while the top-up is still pending. */
   scheduleNextCheck(id: string, nextCheckAt: Date, now: Date): Promise<void>;
+  /** Keeps one ask to the gateway on the top-up (admin spec 007, FR-005); never touches the schedule. */
+  recordCheck(id: string, entry: TopUpCheck): Promise<void>;
+  /** Holds the top-up for one ask to the gateway; `false` when another is in flight (research §2). */
+  acquireCheckLease(id: string, now: Date): Promise<boolean>;
+  releaseCheckLease(id: string): Promise<void>;
 }
 
 export interface ApplyOutcomeArgs {

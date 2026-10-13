@@ -53,14 +53,32 @@ export function bookingCancelledMessage(
   requestId: string,
   bookingId: string,
   refund: { amount: number; currency: string } | null,
-  by: 'system' | 'client' = 'system',
+  by: 'system' | 'client' | 'admin' = 'system',
 ): PushMessage {
   // The time already ends in "a. m." / "p. m.", so no extra period after it.
   const refunded = refund ? ` Te devolvimos ${formatAmount(refund.amount, refund.currency)}.` : '';
-  const what = by === 'client' ? 'El cliente canceló tu partido' : 'Se canceló tu partido';
+  const what = by === 'client' ? 'El cliente canceló tu partido' : by === 'admin' ? 'PorterosPRO canceló tu partido' : 'Se canceló tu partido';
   return {
     title: 'Partido cancelado',
     body: `${what} ${where(match)}${refunded}`,
+    data: { type: BOOKING_CANCELLED_TYPE, requestId, bookingId },
+  };
+}
+
+/**
+ * Tells the client an administrator cancelled their match, or one of its goalkeepers when others
+ * remain (admin spec 006). The administrator's reason is internal and never goes in it.
+ */
+export function adminCancelledMessage(
+  match: OutcomeMatch,
+  requestId: string,
+  bookingId: string,
+  { remaining }: { remaining: number },
+): PushMessage {
+  const whole = remaining === 0;
+  return {
+    title: whole ? 'Partido cancelado' : 'Portero cancelado',
+    body: whole ? `PorterosPRO canceló tu partido ${where(match)}` : `PorterosPRO canceló uno de los porteros de tu partido ${where(match)}`,
     data: { type: BOOKING_CANCELLED_TYPE, requestId, bookingId },
   };
 }

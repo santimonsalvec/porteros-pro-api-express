@@ -15,6 +15,12 @@ export class FakeBookingAuditLogger implements IBookingAuditLogger {
     this.cancellations.push(entry);
   }
 
+  readonly adminCancellations: Array<{ outcome: string; staffUserId: string; requestId: string; bookingId?: string }> = [];
+
+  logAdminCancellation(entry: { outcome: string; staffUserId: string; requestId: string; bookingId?: string }): void {
+    this.adminCancellations.push(entry);
+  }
+
   readonly withdrawals: Array<{ outcome: string; goalkeeperId: string; bookingId: string; requestId?: string }> = [];
   readonly reversals: Array<{ outcome: string; adminId: string; goalkeeperId: string; withdrawalId: string }> = [];
 

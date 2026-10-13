@@ -1,4 +1,5 @@
 import type { Collection, Db, Document } from 'mongodb';
+import type { UpdateResult } from '../../../application/features/geography/common/ports.js';
 import type { IPaymentGatewaySettingsRepository } from '../../../application/features/payments/common/ports.js';
 import {
   PaymentGatewaySettings,
@@ -22,6 +23,8 @@ export function gatewaySettingsToDocument(settings: PaymentGatewaySettings): Doc
   };
 }
 
+const DUPLICATE_KEY = 11000;
+
 export function gatewaySettingsFromDocument(doc: Document): PaymentGatewaySettings {
   return PaymentGatewaySettings.rehydrate({
     countryId: String(doc._id),
@@ -32,6 +35,7 @@ export function gatewaySettingsFromDocument(doc: Document): PaymentGatewaySettin
     amounts: doc.amounts as number[],
     updatedAt: new Date(doc.updatedAt as Date),
     updatedBy: doc.updatedBy as string,
+    revision: (doc.revision as number | undefined) ?? 0,
   });
 }
 
@@ -48,7 +52,22 @@ export class PaymentGatewaySettingsRepository implements IPaymentGatewaySettings
     return doc ? gatewaySettingsFromDocument(doc) : null;
   }
 
-  async save(settings: PaymentGatewaySettings): Promise<void> {
-    await this.collection.replaceOne({ _id: settings.countryId } as Document, gatewaySettingsToDocument(settings), { upsert: true });
+  /** A country's first settings, at revision 0; `stale` when it already has some (admin spec 007, FR-025). */
+  async create(settings: PaymentGatewaySettings): Promise<UpdateResult> {
+    try {
+      await this.collection.insertOne({ ...gatewaySettingsToDocument(settings), revision: 0 });
+      return 'saved';
+    } catch (error) {
+      if ((error as { code?: unknown }).code === DUPLICATE_KEY) return 'stale';
+      throw error;
+    }
+  }
+
+  /** Writes only if the settings are still at `expectedRevision`, and moves it up one. */
+  async update(settings: PaymentGatewaySettings, expectedRevision: number): Promise<UpdateResult> {
+    const { _id, ...fields } = gatewaySettingsToDocument(settings);
+    const atRevision = expectedRevision === 0 ? { $or: [{ revision: 0 }, { revision: { $exists: false } }] } : { revision: expectedRevision };
+    const result = await this.collection.updateOne({ _id, ...atRevision } as Document, { $set: fields, $inc: { revision: 1 } });
+    return result.matchedCount > 0 ? 'saved' : 'stale';
   }
 }

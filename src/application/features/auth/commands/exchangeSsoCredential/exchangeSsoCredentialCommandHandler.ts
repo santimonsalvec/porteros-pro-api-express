@@ -10,6 +10,7 @@ import type {
 import type { IGoalkeeperProfileRepository } from '../../../goalkeepers/common/ports.js';
 import { RefreshToken } from '../../../../../domain/users/refreshToken.js';
 import { User } from '../../../../../domain/users/user.js';
+import { isBlocked, NO_BLOCKED_USERS, type BlockedUsers } from '../../../users/common/blockedUsers.js';
 import { ExchangeSsoCredentialCommand, type ExchangeSsoCredentialResult } from './exchangeSsoCredentialCommand.js';
 
 const REFRESH_TOKEN_LIFETIME_MS_DEFAULT = 1000 * 60 * 60 * 24 * 30;
@@ -26,6 +27,7 @@ export class ExchangeSsoCredentialCommandHandler
     private readonly idGenerator: IIdGenerator,
     private readonly auditLogger: IAuditLogger,
     private readonly refreshTokenLifetimeMs: number = REFRESH_TOKEN_LIFETIME_MS_DEFAULT,
+    private readonly blockedUsers: BlockedUsers = NO_BLOCKED_USERS,
   ) {}
 
   async handle(command: ExchangeSsoCredentialCommand): Promise<ExchangeSsoCredentialResult> {
@@ -58,6 +60,12 @@ export class ExchangeSsoCredentialCommandHandler
         subject: identity.subject,
       });
       await this.userRepository.add(user);
+    }
+
+    // A new account can't be blocked yet; an existing one may be (porteros-pro-admin spec 005).
+    if (await isBlocked(this.blockedUsers, user.id)) {
+      this.auditLogger.logSsoAttempt({ provider: command.provider, platform: command.platform, success: false, reason: 'account_blocked' });
+      return { outcome: 'account_blocked' };
     }
 
     const isGoalkeeper = (await this.goalkeeperProfileRepository.getByUserId(user.id)) !== null;

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { revisionField } from '../geography/geographyRequests.js';
 
 /** A country's VAT rate in basis points (contracts §3b). */
 export const taxSettingsRequestSchema = z
@@ -15,8 +16,10 @@ export const taxSettingsRequestSchema = z
  * A country's invoicing provider (contracts §3). Only the shape is checked here; the domain checks
  * each provider's configuration and refuses any unknown key, so no secret can be stored.
  */
+/** `revision` is required (admin spec 007, FR-025): the one read, or `null` to create the country's first. */
 export const invoicingSettingsRequestSchema = z
   .object({
+    revision: revisionField.nullable(),
     provider: z.string({ required_error: 'provider is required', invalid_type_error: 'provider must be a string' }),
     config: z.record(z.unknown(), { required_error: 'config is required', invalid_type_error: 'config must be an object' }),
   })

@@ -1,4 +1,5 @@
 import { Router, type NextFunction, type Request, type Response } from 'express';
+import { accountBlocked } from './authController.js';
 import multer, { MulterError } from 'multer';
 import { fileTypeFromBuffer } from 'file-type';
 import type { ISender } from '../application/common/mediator/types.js';
@@ -189,6 +190,8 @@ export function createGoalkeeperController(deps: GoalkeeperControllerDependencie
         return;
       case 'not_a_goalkeeper':
         throw goalkeeperNotFound();
+      case 'account_blocked':
+        throw accountBlocked();
     }
   });
 

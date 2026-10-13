@@ -1,5 +1,6 @@
 import { commissionRefunded } from '../../src/domain/events/billingEvents.js';
 import type {
+  AdminCancelResult,
   CancelAllResult,
   ClientCancelResult,
   ExpireResult,
@@ -13,7 +14,7 @@ import type {
 } from '../../src/application/features/bookingLifecycle/common/ports.js';
 import type { CancellationDetails, MovementActor } from '../../src/domain/wallet/walletMovement.js';
 import { commissionVatRefundDraft, commissionRefundDraft, type LedgerOwner } from '../../src/application/features/wallet/common/walletLedger.js';
-import { Booking, type CheckIn } from '../../src/domain/bookings/booking.js';
+import { Booking, leftTheRequest, type BookingProps, type CheckIn } from '../../src/domain/bookings/booking.js';
 import { GoalkeeperRequest } from '../../src/domain/bookings/goalkeeperRequest.js';
 import type { DomainEvent } from '../../src/domain/events/domainEvent.js';
 import { GoalkeeperIncident, suspensionEndOf, type IncidentKind } from '../../src/domain/goalkeepers/goalkeeperIncident.js';
@@ -92,7 +93,7 @@ export class FakeBookingLifecycleStore implements IBookingLifecycleStore {
     // Nor do the ones a goalkeeper withdrew from: their replacement stands in their place (018).
     const all = this.bookings
       .all()
-      .filter((booking) => booking.requestId === requestId && booking.cancelledBy !== 'client' && booking.status !== 'goalkeeper_withdrew');
+      .filter((booking) => booking.requestId === requestId && !leftTheRequest(booking) && booking.status !== 'goalkeeper_withdrew');
     const toCancel = all.filter((booking) => booking.status === 'pending_assignment' || booking.status === 'assigned');
     const allAssigned = all.every((booking) => booking.status === 'assigned');
     const movements = this.wallet.movements();
@@ -133,8 +134,66 @@ export class FakeBookingLifecycleStore implements IBookingLifecycleStore {
     newId: () => string;
     buildEvent: (booking: Booking, refund: { amount: number; currency: string } | null) => DomainEvent;
   }): Promise<ClientCancelResult> {
+    return this.cancelBookings(args, {
+      owns: (request) => request.clientId === args.clientId,
+      by: 'client',
+      enforceFreeCancellation: true,
+      ended: { status: 'cancelled', endedAt: args.now, endReason: 'client_cancelled', cancelledBy: 'client', cancellationNote: args.note },
+      cancellation: { by: 'client', at: args.now, reason: args.note ?? 'client_cancelled' },
+      actor: undefined,
+    });
+  }
+
+  async cancelByAdmin(args: {
+    requestId: string;
+    bookingId: string | null;
+    now: Date;
+    staffUserId: string;
+    reason: string;
+    owners: ReadonlyMap<string, LedgerOwner>;
+    newId: () => string;
+    buildEvent: (booking: Booking, refund: { amount: number; currency: string } | null) => DomainEvent;
+  }): Promise<AdminCancelResult> {
+    const result = await this.cancelBookings(args, {
+      owns: () => true,
+      by: 'admin',
+      enforceFreeCancellation: false,
+      ended: {
+        status: 'cancelled',
+        endedAt: args.now,
+        endReason: 'admin_cancelled',
+        cancelledBy: 'admin',
+        cancellationNote: args.reason,
+        cancelledByStaffId: args.staffUserId,
+      },
+      cancellation: { by: 'admin', at: args.now, reason: 'admin_cancelled' },
+      actor: { kind: 'admin', userId: args.staffUserId },
+    });
+    if (result.kind === 'window_closed') throw new Error('An administrator cancellation has no deadline');
+    return result;
+  }
+
+  /** The cancellation shared by the client (017) and an administrator (admin 006), like the Mongo store. */
+  private async cancelBookings(
+    args: {
+      requestId: string;
+      bookingId: string | null;
+      now: Date;
+      owners: ReadonlyMap<string, LedgerOwner>;
+      newId: () => string;
+      buildEvent: (booking: Booking, refund: { amount: number; currency: string } | null) => DomainEvent;
+    },
+    policy: {
+      owns: (request: GoalkeeperRequest) => boolean;
+      by: 'client' | 'admin';
+      enforceFreeCancellation: boolean;
+      ended: Partial<BookingProps>;
+      cancellation: CancellationDetails;
+      actor: MovementActor | undefined;
+    },
+  ): Promise<ClientCancelResult> {
     const { requestId, now } = args;
-    const request = this.requests.all().find((item) => item.id === requestId && item.clientId === args.clientId);
+    const request = this.requests.all().find((item) => item.id === requestId && policy.owns(item));
     if (!request) return { kind: 'not_found', what: 'request' };
     const all = this.bookings.all().filter((booking) => booking.requestId === requestId);
     const live = (booking: Booking) => booking.status === 'pending_assignment' || booking.status === 'assigned';
@@ -143,17 +202,19 @@ export class FakeBookingLifecycleStore implements IBookingLifecycleStore {
     if (args.bookingId !== null) {
       const booking = all.find((item) => item.id === args.bookingId);
       if (!booking) return { kind: 'not_found', what: 'booking' };
-      if (booking.cancelledBy === 'client') return { kind: 'replayed' };
+      if (booking.cancelledBy === policy.by) return { kind: 'replayed' };
       if (!live(booking)) return { kind: 'already_final', status: booking.status };
       targets = [booking];
     } else {
       targets = all.filter(live);
       if (targets.length === 0) {
-        return all.some((booking) => booking.cancelledBy === 'client') ? { kind: 'replayed' } : { kind: 'already_final', status: all[0]?.status ?? 'closed' };
+        return all.some((booking) => booking.cancelledBy === policy.by) ? { kind: 'replayed' } : { kind: 'already_final', status: all[0]?.status ?? 'closed' };
       }
     }
-    const late = targets.find((booking) => booking.status === 'assigned' && !request.canCancelFreeAt(now));
-    if (late) return { kind: 'window_closed', bookingId: late.id, freeCancellationUntil: request.freeCancellationUntil() };
+    if (policy.enforceFreeCancellation) {
+      const late = targets.find((booking) => booking.status === 'assigned' && !request.canCancelFreeAt(now));
+      if (late) return { kind: 'window_closed', bookingId: late.id, freeCancellationUntil: request.freeCancellationUntil() };
+    }
     const unowned = targets.find((booking) => booking.status === 'assigned' && !args.owners.has(booking.goalkeeperId!));
     if (unowned) return { kind: 'owner_required', goalkeeperId: unowned.goalkeeperId! };
     const movements = this.wallet.movements();
@@ -164,16 +225,13 @@ export class FakeBookingLifecycleStore implements IBookingLifecycleStore {
 
     const events: DomainEvent[] = [];
     let refunds = 0;
-    const cancellation: CancellationDetails = { by: 'client', at: now, reason: args.note ?? 'client_cancelled' };
     for (const booking of targets) {
       let refund: { amount: number; currency: string } | null = null;
       if (booking.status === 'assigned') {
-        refund = this.refund(booking.id, requestId, args.owners.get(booking.goalkeeperId!)!, cancellation, args.newId, now);
+        refund = this.refund(booking.id, requestId, args.owners.get(booking.goalkeeperId!)!, policy.cancellation, args.newId, now, policy.actor);
         refunds += 1;
       }
-      this.bookings.seed(
-        Booking.rehydrate({ ...booking, status: 'cancelled', endedAt: now, endReason: 'client_cancelled', cancelledBy: 'client', cancellationNote: args.note }),
-      );
+      this.bookings.seed(Booking.rehydrate({ ...booking, ...policy.ended }));
       events.push(args.buildEvent(booking, refund));
     }
     this.outbox.append(events, now);

@@ -1,15 +1,19 @@
 import type { Collection, Db, Document } from 'mongodb';
 import type { IRatePresence } from '../../../application/features/geography/common/ports.js';
 import type { IRentalRateRepository } from '../../../application/features/goalkeeperRequests/common/ports.js';
+import type { UpdateResult } from '../../../application/features/geography/common/ports.js';
+import type { CreateResult, IRentalRateAdmin, PriceFilter, RentalRateRecord } from '../../../application/features/pricing/common/ports.js';
 import { RentalRate } from '../../../domain/pricing/rentalRate.js';
 import { dropIndexIfExists } from './dropIndexIfExists.js';
+import { createPrice, findPriceById, priceFilter, priceRecordOf } from './priceDocuments.js';
+import { deleteById, updateAtRevision } from './revisionWrite.js';
 
 /**
- * Externally seeded collection — this system only reads it, so the port declares no
- * write methods at all. A malformed document throws (via the `RentalRate` constructor)
- * rather than being skipped, so a bad price is never silently ignored.
+ * Read by the quote through `IRentalRateRepository`, which declares no writes: there a malformed
+ * document throws (via the `RentalRate` constructor) rather than being skipped, so a bad price is
+ * never silently ignored. The admin web writes it through `IRentalRateAdmin` (spec 004 of the admin).
  */
-export class RentalRateRepository implements IRentalRateRepository, IRatePresence {
+export class RentalRateRepository implements IRentalRateRepository, IRatePresence, IRentalRateAdmin {
   private readonly collection: Collection<Document>;
 
   constructor(db: Db) {
@@ -34,6 +38,7 @@ export class RentalRateRepository implements IRentalRateRepository, IRatePresenc
       amount: doc.amount as number,
       modality: (doc.modality as string | undefined) ?? null,
       level: (doc.level as string | undefined) ?? null,
+      revision: doc.revision as number | undefined,
     });
   }
 
@@ -67,5 +72,34 @@ export class RentalRateRepository implements IRentalRateRepository, IRatePresenc
     if (or.length === 0) return [];
     const docs = await this.collection.find({ $or: or }, { projection: { scope: 1, refId: 1, durationMinutes: 1 } }).toArray();
     return docs.map((doc) => ({ scope: doc.scope as 'city' | 'zone', refId: String(doc.refId), durationMinutes: doc.durationMinutes as number }));
+  }
+
+  private recordOf(doc: Document): RentalRateRecord {
+    return { ...priceRecordOf<'zone' | 'city'>(doc, (stored) => this.fromDocument(stored)), durationMinutes: doc.durationMinutes as number };
+  }
+
+  async find(filter: PriceFilter & { durationMinutes?: number }): Promise<RentalRateRecord[]> {
+    const query = priceFilter(filter, filter.durationMinutes === undefined ? {} : { durationMinutes: filter.durationMinutes });
+    if (query === null) return [];
+    const docs = await this.collection.find(query).toArray();
+    return docs.map((doc) => this.recordOf(doc));
+  }
+
+  async getById(id: string): Promise<RentalRateRecord | null> {
+    const doc = await findPriceById(this.collection, id);
+    return doc ? this.recordOf(doc) : null;
+  }
+
+  create(rate: Omit<RentalRateRecord, 'revision' | 'invalid'>): Promise<CreateResult> {
+    const { id, scope, refId, durationMinutes, modality, level, amount } = rate;
+    return createPrice(this.collection, id, { scope, refId, durationMinutes, modality, level }, amount);
+  }
+
+  updateAmount(id: string, expectedRevision: number, amount: number): Promise<UpdateResult> {
+    return updateAtRevision(this.collection, id, expectedRevision, { amount });
+  }
+
+  delete(id: string): Promise<boolean> {
+    return deleteById(this.collection, id);
   }
 }

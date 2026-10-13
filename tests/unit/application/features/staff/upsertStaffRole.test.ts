@@ -28,6 +28,6 @@ describe('UpsertStaffRoleCommandHandler', () => {
   });
 
   it('reports invalid fields', async () => {
-    expect(await upsert('soporte', ['users.block'])).toEqual({ outcome: 'invalid', fieldErrors: { permissions: expect.any(String) } });
+    expect(await upsert('soporte', ['requests.delete'])).toEqual({ outcome: 'invalid', fieldErrors: { permissions: expect.any(String) } });
   });
 });

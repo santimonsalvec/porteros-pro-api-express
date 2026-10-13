@@ -1,4 +1,5 @@
 import type { Server } from 'node:http';
+import { WithdrawalAdminDetails } from '../../src/application/features/bookingLifecycle/common/withdrawalAdminDetails.js';
 import { v7 as uuidv7 } from 'uuid';
 import { createApp } from '../../src/app.js';
 import { listenOnLoopback } from './testServers.js';
@@ -26,6 +27,25 @@ import { CompleteProfileCommandHandler } from '../../src/application/features/pr
 import { Country } from '../../src/domain/countries/country.js';
 import { staffHandlerRegistrations } from '../../src/infrastructure/staffHandlers.js';
 import { geographyHandlerRegistrations } from '../../src/infrastructure/geographyHandlers.js';
+import { pricingHandlerRegistrations } from '../../src/infrastructure/pricingHandlers.js';
+import { usersHandlerRegistrations } from '../../src/infrastructure/usersHandlers.js';
+import { FakeUserBlockRepository } from '../fakes/fakeUserBlockRepository.js';
+import { FakeUserAdminReader } from '../fakes/fakeUserAdminReader.js';
+import { FakeGoalkeeperAdminReader } from '../fakes/fakeGoalkeeperAdminReader.js';
+import { FakeGoalkeeperDocumentWriter } from '../fakes/fakeGoalkeeperDocumentWriter.js';
+import { GetGoalkeeperMonthStatsQuery as AdminMonthStatsQuery } from '../../src/application/features/goalkeepers/queries/getGoalkeeperMonthStats/getGoalkeeperMonthStatsQuery.js';
+import { goalkeepersAdminHandlerRegistrations } from '../../src/infrastructure/goalkeepersAdminHandlers.js';
+import { operationsHandlerRegistrations } from '../../src/infrastructure/operationsAdminHandlers.js';
+import { financeHandlerRegistrations } from '../../src/infrastructure/financeAdminHandlers.js';
+import { ReconcileTopUpCommand } from '../../src/application/features/payments/commands/reconcileTopUp/reconcileTopUpCommand.js';
+import { ReconcileTopUpCommandHandler } from '../../src/application/features/payments/commands/reconcileTopUp/reconcileTopUpCommandHandler.js';
+import { FakeTopUpAdminReader } from '../fakes/fakeTopUpAdminReader.js';
+import { FakeWalletAdminReader } from '../fakes/fakeWalletAdminReader.js';
+import { FakeInvoicingDocumentAdminReader } from '../fakes/fakeInvoicingDocumentAdminReader.js';
+import { FakeRequestAdminReader } from '../fakes/fakeRequestAdminReader.js';
+import { FakeNotificationAdminReader } from '../fakes/fakeNotificationAdminReader.js';
+import { FakeRatingAdminReader } from '../fakes/fakeRatingAdminReader.js';
+import { FakeBookingSettingsAdmin, FakeCommissionAdmin, FakeRentalRateAdmin } from '../fakes/fakePricingAdmin.js';
 import {
   FakeAdminCityRepository,
   FakeAdminCountryRepository,
@@ -117,8 +137,6 @@ import { SetInvoicingSettingsCommand } from '../../src/application/features/invo
 import { SetInvoicingSettingsCommandHandler } from '../../src/application/features/invoicing/commands/setInvoicingSettings/setInvoicingSettingsCommandHandler.js';
 import { GetInvoicingSettingsQuery } from '../../src/application/features/invoicing/queries/getInvoicingSettings/getInvoicingSettingsQuery.js';
 import { GetInvoicingSettingsQueryHandler } from '../../src/application/features/invoicing/queries/getInvoicingSettings/getInvoicingSettingsQueryHandler.js';
-import { ListDocumentsForAdminQuery } from '../../src/application/features/invoicing/queries/listDocumentsForAdmin/listDocumentsForAdminQuery.js';
-import { ListDocumentsForAdminQueryHandler } from '../../src/application/features/invoicing/queries/listDocumentsForAdmin/listDocumentsForAdminQueryHandler.js';
 import { RetryDocumentCommand } from '../../src/application/features/invoicing/commands/retryDocument/retryDocumentCommand.js';
 import { RetryDocumentCommandHandler } from '../../src/application/features/invoicing/commands/retryDocument/retryDocumentCommandHandler.js';
 import { GetTopUpOptionsQuery } from '../../src/application/features/payments/queries/getTopUpOptions/getTopUpOptionsQuery.js';
@@ -259,6 +277,8 @@ import { ContactsRevealJob } from '../../src/application/features/bookingLifecyc
 import { CLIENT_ASSIGNMENT_EVENT_TYPES, ClientAssignmentNoticeHandler } from '../../src/application/features/bookingLifecycle/handlers/clientAssignmentNoticeHandler.js';
 import { WITHDRAWAL_NOTICE_EVENT_TYPES, WithdrawalNoticeHandler } from '../../src/application/features/bookingLifecycle/handlers/withdrawalNoticeHandler.js';
 import { FakeGoalkeeperIncidentRepository } from '../fakes/fakeGoalkeeperIncidentRepository.js';
+import { CancelBookingsByAdminCommand } from '../../src/application/features/bookingLifecycle/commands/cancelBookingsByAdmin/cancelBookingsByAdminCommand.js';
+import { CancelBookingsByAdminCommandHandler } from '../../src/application/features/bookingLifecycle/commands/cancelBookingsByAdmin/cancelBookingsByAdminCommandHandler.js';
 import { CancelBookingsByClientCommandHandler } from '../../src/application/features/bookingLifecycle/commands/cancelBookingsByClient/cancelBookingsByClientCommandHandler.js';
 import { NotifyBookingOffersHandler, OFFER_EVENT_TYPES } from '../../src/application/features/notifications/handlers/notifyBookingOffersHandler.js';
 import { OFFER_WITHDRAWAL_EVENT_TYPES, OfferWithdrawalHandler } from '../../src/application/features/notifications/handlers/offerWithdrawalHandler.js';
@@ -346,6 +366,8 @@ export interface TestAppContext {
   adminTokenIssuer: FakeAdminTokenIssuer;
   adminAuditLog: FakeAdminAuditLog;
   staffAccessResolver: StaffAccessResolver;
+  /** Users blocked from the admin web (admin spec 005). */
+  userBlockRepository: FakeUserBlockRepository;
 }
 
 /** The only browser origin the admin routes allow in HTTP tests. */
@@ -375,6 +397,7 @@ export const TEST_INTERNAL_TOKEN = 'test-internal-token';
 export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<TestAppContext> {
   const mediator = new Mediator();
   const userRepository = new FakeUserRepository();
+  const userBlockRepository = new FakeUserBlockRepository();
   const refreshTokenRepository = new FakeRefreshTokenRepository();
   const googleValidator = new FakeGoogleIdTokenValidator();
   const tokenIssuer = new FakeInternalTokenIssuer();
@@ -681,6 +704,125 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       clock,
     }),
   );
+  registerHandlers(
+    mediator,
+    pricingHandlerRegistrations({
+      regionRepository,
+      countryLookup: quoteCountryRepository,
+      rentalRateRepository,
+      bookingSettingsRepository,
+      commissionResolver,
+      // The quote reads its own country store; prices must see the same currencies it does.
+      countries: new FakeAdminCountryRepository(quoteCountryRepository),
+      regions: adminRegions,
+      cities: adminCities,
+      zones: adminZones,
+      rentalRates: new FakeRentalRateAdmin(rentalRateRepository),
+      commissions: new FakeCommissionAdmin(commissionSettingRepository),
+      bookingSettings: new FakeBookingSettingsAdmin(bookingSettingsRepository),
+      taxSettings: taxSettingsRepository,
+      ids: { newId: () => uuidv7() },
+      clock,
+    }),
+  );
+  const goalkeeperAdminReader = new FakeGoalkeeperAdminReader({ profiles: goalkeeperProfileRepository, wallets: walletStore, lifecycle: lifecycleStore, bookings: bookingRepository });
+  const userAdminReader = new FakeUserAdminReader({
+    users: userRepository,
+    profiles: goalkeeperProfileRepository,
+    blocks: userBlockRepository,
+    terms: termsAcceptanceRepository,
+    devices: deviceRepository,
+    requests: requestRepository,
+    bookings: bookingRepository,
+  });
+  registerHandlers(
+    mediator,
+    usersHandlerRegistrations({
+      users: userRepository,
+      contacts: userRepository,
+      profiles: goalkeeperProfileRepository,
+      blocks: userBlockRepository,
+      countries: countryRepository,
+      staff: staffMemberRepository,
+      goalkeeperReader: goalkeeperAdminReader,
+      zones: zoneRepository,
+      cities: cityRepository,
+      clock,
+      reader: userAdminReader,
+    }),
+  );
+  registerHandlers(
+    mediator,
+    goalkeepersAdminHandlerRegistrations({
+      reader: goalkeeperAdminReader,
+      userReader: userAdminReader,
+      users: userRepository,
+      blocks: userBlockRepository,
+      profiles: goalkeeperProfileRepository,
+      cities: cityRepository,
+      zones: zoneRepository,
+      documentTypes: documentTypeRepository,
+      monthStats: (goalkeeperId) => mediator.send(new AdminMonthStatsQuery(goalkeeperId)),
+      clock,
+      registrations: goalkeeperRegistrationRepository,
+      images: imageRepository,
+      documentWriter: new FakeGoalkeeperDocumentWriter(goalkeeperProfileRepository, goalkeeperRegistrationRepository),
+    }),
+  );
+  registerHandlers(
+    mediator,
+    operationsHandlerRegistrations({
+      reader: new FakeRequestAdminReader({
+        regions: regionRepository,
+        cities: cityRepository,
+        requests: requestRepository,
+        bookings: bookingRepository,
+        wallet: walletStore,
+        lifecycle: lifecycleStore,
+        notifications: notificationRepository,
+      }),
+      users: userRepository,
+      cities: cityRepository,
+      zones: zoneRepository,
+      staff: staffMemberRepository,
+      clock,
+      cases: caseRepository,
+      ratings: ratingRepository,
+      requests: requestRepository,
+      send: (query) => mediator.send(query),
+      notificationReader: new FakeNotificationAdminReader(notificationRepository, deviceRepository),
+      ratingReader: new FakeRatingAdminReader(lifecycleStore),
+    }),
+  );
+  // Finance (admin spec 007): the admin's reads of money and "Conciliar ahora".
+  registerHandlers(mediator, [
+    ...financeHandlerRegistrations({
+      topUpReader: new FakeTopUpAdminReader(topUpRepository),
+      walletReader: new FakeWalletAdminReader({ wallets: walletStore, profiles: goalkeeperProfileRepository, cities: cityRepository, regions: regionRepository }),
+      cities: cityRepository,
+      regions: regionRepository,
+      documentReader: new FakeInvoicingDocumentAdminReader(invoicingDocumentRepository),
+      documents: invoicingDocumentRepository,
+      clock,
+      issuingEnabled: true,
+      users: userRepository,
+      countries: quoteCountryRepository,
+    }),
+    {
+      requestType: ReconcileTopUpCommand,
+      handler: new ReconcileTopUpCommandHandler({
+        walletContext,
+        store: topUpStore,
+        notices: { notifications: notificationRepository, pushNotifier, idGenerator: lifecycleIds, clock },
+        logger: offersLogger,
+        topUpRepository,
+        gateways: paymentGatewayRegistry,
+        secrets: paymentSecrets,
+        countryLookup: quoteCountryRepository,
+        clock,
+      }),
+    },
+  ]);
   registerHandlers(mediator, [
     {
       requestType: RunSweepCommand,
@@ -760,6 +902,8 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
         goalkeeperProfileRepository,
         idGenerator,
         auditLogger,
+        undefined,
+        userBlockRepository,
       ),
     },
     {
@@ -770,6 +914,8 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
         tokenIssuer,
         goalkeeperProfileRepository,
         idGenerator,
+        undefined,
+        userBlockRepository,
       ),
     },
     {
@@ -901,9 +1047,9 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     { requestType: GetTopUpByReferenceQuery, handler: new GetTopUpByReferenceQueryHandler(topUpRepository) },
     {
       requestType: SetGatewaySettingsCommand,
-      handler: new SetGatewaySettingsCommandHandler(quoteCountryRepository, paymentGatewaySettingsRepository, clock, offersLogger),
+      handler: new SetGatewaySettingsCommandHandler(quoteCountryRepository, paymentGatewaySettingsRepository, paymentSecrets, clock, offersLogger),
     },
-    { requestType: GetGatewaySettingsQuery, handler: new GetGatewaySettingsQueryHandler(paymentGatewaySettingsRepository) },
+    { requestType: GetGatewaySettingsQuery, handler: new GetGatewaySettingsQueryHandler(paymentGatewaySettingsRepository, paymentSecrets, quoteCountryRepository) },
     { requestType: ListMyDocumentsQuery, handler: new ListMyDocumentsQueryHandler(goalkeeperProfileRepository, invoicingDocumentRepository) },
     { requestType: GetMyDocumentQuery, handler: new GetMyDocumentQueryHandler(invoicingDocumentRepository) },
     { requestType: GetDocumentFileQuery, handler: new GetDocumentFileQueryHandler(invoicingDeps) },
@@ -917,7 +1063,6 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       handler: new SetInvoicingSettingsCommandHandler(quoteCountryRepository, invoicingSettingsRepository, invoicingDeps.secrets, clock, invoicingDeps.logger),
     },
     { requestType: GetInvoicingSettingsQuery, handler: new GetInvoicingSettingsQueryHandler(invoicingSettingsRepository, invoicingDeps.secrets, quoteCountryRepository) },
-    { requestType: ListDocumentsForAdminQuery, handler: new ListDocumentsForAdminQueryHandler(invoicingDocumentRepository, clock) },
     {
       requestType: RetryDocumentCommand,
       handler: new RetryDocumentCommandHandler({ ...invoicingDeps, profiles: goalkeeperProfileRepository }),
@@ -1045,7 +1190,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     },
     {
       requestType: SetOffersAvailabilityCommand,
-      handler: new SetOffersAvailabilityCommandHandler({ goalkeeperProfileRepository, eligibility: offerEligibility, sender: offerSender, clock, logger: offersLogger }),
+      handler: new SetOffersAvailabilityCommandHandler({ goalkeeperProfileRepository, eligibility: offerEligibility, sender: offerSender, clock, logger: offersLogger, blocks: userBlockRepository }),
     },
     {
       requestType: ListNotificationsQuery,
@@ -1072,8 +1217,27 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       }),
     },
     {
+      // The administrator's cancellation (admin spec 006): the client's transaction, the administrator's policy.
+      requestType: CancelBookingsByAdminCommand,
+      handler: new CancelBookingsByAdminCommandHandler({
+        bookingRepository,
+        store: lifecycleStore,
+        walletContext,
+        relay: eventRelay,
+        idGenerator: lifecycleIds,
+        clock,
+        audit: bookingAuditLogger,
+        logger: offersLogger,
+      }),
+    },
+    {
       requestType: ListGoalkeeperWithdrawalsQuery,
-      handler: new ListGoalkeeperWithdrawalsQueryHandler({ goalkeeperProfileRepository, incidents: goalkeeperIncidentRepository, clock }),
+      handler: new ListGoalkeeperWithdrawalsQueryHandler({
+        goalkeeperProfileRepository,
+        incidents: goalkeeperIncidentRepository,
+        clock,
+        adminDetails: new WithdrawalAdminDetails({ bookings: bookingRepository, zones: zoneRepository, cities: cityRepository, movements: walletStore }),
+      }),
     },
     {
       requestType: ReverseWithdrawalPenaltyCommand,
@@ -1236,5 +1400,6 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     adminTokenIssuer,
     adminAuditLog,
     staffAccessResolver,
+    userBlockRepository,
   };
 }

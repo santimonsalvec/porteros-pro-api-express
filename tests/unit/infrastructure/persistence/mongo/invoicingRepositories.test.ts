@@ -106,19 +106,64 @@ describe('InvoicingDocumentRepository (mocked driver)', () => {
 });
 
 describe('InvoicingSettingsRepository (mocked driver)', () => {
-  it('saves and reads a country\'s provider', async () => {
+  // Admin spec 007 (FR-025): a country's first provider is created at revision 0; later saves name the revision read.
+  it('creates and reads a country\'s provider', async () => {
     const collection = createFakeCollection();
-    collection.replaceOne.mockResolvedValue({});
+    collection.insertOne.mockResolvedValue({});
     const config = { partnerId: 'P', invoiceDocumentId: 1, creditNoteDocumentId: 2, sellerId: 3, commissionProductCode: 'C', penaltyProductCode: 'PN', vatTaxId: 4, paymentMethodId: 5 };
     const created = InvoicingSettings.create({ countryId: 'country-co', provider: 'siigo', config, updatedAt: NOW, updatedBy: 'admin-1' });
     if (!created.ok) throw new Error('invalid');
     const repository = new InvoicingSettingsRepository(dbWith(collection));
 
-    await repository.save(created.settings);
-    collection.findOne.mockResolvedValue(collection.replaceOne.mock.calls[0]![1]);
+    expect(await repository.create(created.settings)).toBe('saved');
+    collection.findOne.mockResolvedValue(collection.insertOne.mock.calls[0]![0]);
 
-    expect(collection.replaceOne.mock.calls[0]![0]).toEqual({ _id: 'country-co' });
-    expect(await repository.getByCountry('country-co')).toMatchObject({ provider: 'siigo', config });
+    expect(collection.insertOne.mock.calls[0]![0]).toMatchObject({ _id: 'country-co', revision: 0 });
+    expect(await repository.getByCountry('country-co')).toMatchObject({ provider: 'siigo', config, revision: 0 });
+  });
+
+  it('updates only at the revision read, and answers stale otherwise or on a second create', async () => {
+    const collection = createFakeCollection();
+    collection.updateOne.mockResolvedValueOnce({ matchedCount: 1 }).mockResolvedValueOnce({ matchedCount: 0 });
+    collection.insertOne.mockRejectedValue(Object.assign(new Error('E11000'), { code: 11000 }));
+    const config = { partnerId: 'P', invoiceDocumentId: 1, creditNoteDocumentId: 2, sellerId: 3, commissionProductCode: 'C', penaltyProductCode: 'PN', vatTaxId: 4, paymentMethodId: 5 };
+    const created = InvoicingSettings.create({ countryId: 'country-co', provider: 'siigo', config, updatedAt: NOW, updatedBy: 'admin-1' });
+    if (!created.ok) throw new Error('invalid');
+    const repository = new InvoicingSettingsRepository(dbWith(collection));
+
+    expect(await repository.update(created.settings, 0)).toBe('saved');
+    expect(collection.updateOne).toHaveBeenCalledWith(
+      { _id: 'country-co', $or: [{ revision: 0 }, { revision: { $exists: false } }] },
+      { $set: { provider: 'siigo', config, updatedAt: NOW, updatedBy: 'admin-1' }, $inc: { revision: 1 } },
+    );
+    expect(await repository.update(created.settings, 0)).toBe('stale');
+    expect(await repository.create(created.settings)).toBe('stale');
+  });
+});
+
+describe('InvoicingSettingsRepository revision edges (admin spec 007)', () => {
+  const config = { partnerId: 'P', invoiceDocumentId: 1, creditNoteDocumentId: 2, sellerId: 3, commissionProductCode: 'C', penaltyProductCode: 'PN', vatTaxId: 4, paymentMethodId: 5 };
+
+  it('updates at a later revision by its number, and lets other insert errors through', async () => {
+    const collection = createFakeCollection();
+    collection.updateOne.mockResolvedValue({ matchedCount: 1 });
+    collection.insertOne.mockRejectedValue(new Error('network'));
+    const created = InvoicingSettings.create({ countryId: 'country-co', provider: 'siigo', config, updatedAt: NOW, updatedBy: 'admin-1' });
+    if (!created.ok) throw new Error('invalid');
+    const repository = new InvoicingSettingsRepository(dbWith(collection));
+
+    expect(await repository.update(created.settings, 4)).toBe('saved');
+    expect(collection.updateOne.mock.calls[0]![0]).toEqual({ _id: 'country-co', revision: 4 });
+    await expect(repository.create(created.settings)).rejects.toThrow('network');
+  });
+
+  it('reads an old document without revision as revision 0, and none as null', async () => {
+    const collection = createFakeCollection();
+    collection.findOne.mockResolvedValueOnce({ _id: 'country-co', provider: 'siigo', config, updatedAt: NOW, updatedBy: 'admin-1' }).mockResolvedValueOnce(null);
+    const repository = new InvoicingSettingsRepository(dbWith(collection));
+
+    expect((await repository.getByCountry('country-co'))?.revision).toBe(0);
+    expect(await repository.getByCountry('country-pe')).toBeNull();
   });
 });
 

@@ -118,5 +118,90 @@ describe('redactForAudit', () => {
       id: 'arena', name: 'Arena', active: true, order: 4, inUse: false, revision: 0, reason: 'nueva',
     });
   });
+
+  it('keeps every field of a rate, a commission and booking rules (spec 004 of the admin)', () => {
+    const rate = {
+      id: 'r1', scope: 'zone', refId: 'bello', durationMinutes: 90, modality: 'futbol_11', level: 'competitive', amount: 60000,
+      revision: 2, invalid: false, currency: 'COP', countryId: 'co', countryName: 'Colombia', cityId: 'med', cityName: 'Medellín',
+      zoneName: 'Bello', zoneActive: true, targetValid: true, reason: 'Precio viejo',
+    };
+    expect(redactForAudit('rentalRate', rate)).toEqual(rate);
+    const commission = { ...rate, scope: 'country', vatRateBps: 1900, vatAmount: 1330, totalWithVat: 8330 };
+    delete (commission as Record<string, unknown>).durationMinutes;
+    expect(redactForAudit('commissionSetting', commission)).toEqual(commission);
+    const settings = {
+      cityId: 'med', cityName: 'Medellín', countryId: 'co', countryName: 'Colombia', currency: 'COP', revision: 1,
+      own: {
+        bookingWindowDays: 7, minNoticeMinutes: 60, freeCancellationMinutes: 60, travelBufferMinutes: 45,
+        leadTimeSurcharge: { tiers: [{ fromMinutes: 0, toMinutes: null, amount: 0 }] },
+        goalkeeperPenalties: { lateNoticeMinutes: 120, lateSuspensionDays: 3, weeklyLimit: 3, windowDays: 7, limitSuspensionDays: 7 },
+        checkInWindow: { opensMinutesBefore: 30, closesMinutesAfter: 15 }, noShowGraceMinutes: 60,
+      },
+      effective: { travelBufferMinutes: { value: 45, origin: 'city' } },
+      defaults: { freeCancellationMinutes: 60 },
+    };
+    expect(redactForAudit('bookingSettings', { ...settings, country: settings.own })).toEqual({ ...settings, country: settings.own });
+  });
+
+  it('keeps a user correction without the phone number nor the email (spec 005 of the admin)', () => {
+    const user = {
+      id: 'u1', firstName: 'Laura', lastName: 'Gómez', countryCallingCode: '+57', numberEnding: '4567',
+      changedFields: ['whatsAppNumber'], version: 'abc', isProfileComplete: true,
+    };
+    expect(redactForAudit('user', { ...user, whatsAppNumber: '3001234567', normalizedPhoneNumber: '573001234567', email: 'laura@x.co' })).toEqual(user);
+  });
+
+  it('keeps a document correction without the document number nor its photos', () => {
+    const goalkeeper = { userId: 'g1', documentType: { code: 'CC', name: 'Cédula' }, idNumberChanged: true, changedFields: ['documentNumber'], version: 'v1' };
+    expect(redactForAudit('goalkeeper', { ...goalkeeper, documentNumber: '1020304050', photos: { front: 'https://x' } })).toEqual(goalkeeper);
+  });
+
+  it('keeps a block or unblock, with its reason', () => {
+    const block = { userId: 'u1', blocked: true, reason: 'Acoso a clientes', blockedAt: '2026-10-12T14:00:00.000Z', unblockedAt: null, availableForOffers: false };
+    expect(redactForAudit('userBlock', { ...block, email: 'laura@x.co' })).toEqual(block);
+  });
 });
 
+describe('operations writes (spec 006 of the admin)', () => {
+  it('keeps an administrator cancellation, with its internal reason, and nothing from the bookings beyond their status', () => {
+    const before = { requestId: 'r-1', status: 'partially_assigned', bookings: [{ bookingId: 'b-1', status: 'assigned' }] };
+    expect(redactForAudit('request', { ...before, bookings: [{ ...before.bookings[0], checkIn: { photoUrl: 'https://x' }, cancellationNote: 'n' }] })).toEqual(before);
+
+    const after = { requestId: 'r-1', bookingId: 'b-1', status: 'cancelled', cancelledBy: 'admin', cancelled: ['b-1'], refunds: 1, reason: 'La cancha cerró' };
+    expect(redactForAudit('request', { ...after, comment: 'x', photoUrl: 'https://x', note: 'nota' })).toEqual(after);
+  });
+
+  it('keeps nothing of a booking read: a sensitive read stores no body', () => {
+    expect(redactForAudit('booking', { photoUrl: 'https://x', at: '2026-10-18T20:00:00.000Z' })).toEqual({});
+  });
+
+  it('keeps the result of a test push, without its text', () => {
+    const result = { userId: 'u-1', reached: 2, removed: 1, failed: 0, noDevice: false };
+    expect(redactForAudit('user', { ...result, title: 'PorterosPRO', body: 'Notificación de prueba' })).toEqual(result);
+  });
+
+  // Finance (spec 007 of the admin).
+  it('keeps the outcome of a forced reconciliation, without the payment references', () => {
+    const kept = { topUpId: 't-1', status: 'approved', answer: 'APPROVED', result: 'applied', statusAfter: 'approved' };
+    expect(redactForAudit('topUp', { ...kept, reference: 'PPR-1', gatewayTransactionId: 'w-9' })).toEqual(kept);
+  });
+
+  it("keeps an export's filters and row count, never personal data", () => {
+    const filters = { status: 'rejected', kind: 'invoice', countryId: 'country-co', goalkeeperId: 'u-1', from: '2026-10-01', to: '2026-10-14', stale: true, rows: 12 };
+    const topUpFilters = { status: 'pending', countryId: 'country-co', goalkeeperId: 'u-1', from: '2026-10-01', to: '2026-10-14', rows: 2 };
+    expect(redactForAudit('topUps', { ...topUpFilters, email: 'ana@example.com' })).toEqual(topUpFilters);
+    expect(redactForAudit('invoicingDocuments', { ...filters, buyer: { documentNumber: '123', email: 'a@b.co' } })).toEqual(filters);
+  });
+
+  it('keeps the revision and whether the credentials exist, never the credentials', () => {
+    expect(
+      redactForAudit('paymentGatewaySettings', { countryId: 'country-co', revision: 3, credentialsPresent: true, privateKey: 'prv', eventsSecret: 's', integritySecret: 'i' }),
+    ).toEqual({ countryId: 'country-co', revision: 3, credentialsPresent: true });
+    expect(redactForAudit('invoicingSettings', { countryId: 'country-co', provider: 'siigo', revision: 1, credentialsPresent: false, username: 'u', accessKey: 'k' })).toEqual({
+      countryId: 'country-co',
+      provider: 'siigo',
+      revision: 1,
+      credentialsPresent: false,
+    });
+  });
+});

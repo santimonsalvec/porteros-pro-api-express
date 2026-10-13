@@ -30,3 +30,14 @@ describe('CommissionSetting', () => {
     expect(() => new CommissionSetting({ ...base, level: 'competitive' })).toThrow(InvalidConfigurationError);
   });
 });
+
+describe('CommissionSetting revision', () => {
+  it('is 0 when the document has none, and keeps a stored one', () => {
+    expect(new CommissionSetting(base).revision).toBe(0);
+    expect(new CommissionSetting({ ...base, revision: 7 }).revision).toBe(7);
+  });
+
+  it.each([-1, 1.5])('rejects a broken revision (%s)', (revision) => {
+    expect(() => new CommissionSetting({ ...base, revision })).toThrow(/commissionSettings document c-1: revision/);
+  });
+});

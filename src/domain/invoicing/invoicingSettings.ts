@@ -26,6 +26,8 @@ export interface InvoicingSettingsProps {
   config: Record<string, unknown>;
   updatedAt: Date;
   updatedBy: string;
+  /** Moves up one with each save (admin spec 007, FR-025); a document without one is revision 0. */
+  revision?: number;
 }
 
 function isProvider(value: string): value is InvoicingProviderName {
@@ -58,6 +60,7 @@ export class InvoicingSettings extends Entity<string> {
   readonly config: Readonly<Record<string, unknown>>;
   readonly updatedAt: Date;
   readonly updatedBy: string;
+  readonly revision: number;
 
   private constructor(props: InvoicingSettingsProps) {
     super(props.countryId);
@@ -65,6 +68,7 @@ export class InvoicingSettings extends Entity<string> {
     this.config = { ...props.config };
     this.updatedAt = new Date(props.updatedAt);
     this.updatedBy = props.updatedBy;
+    this.revision = props.revision ?? 0;
   }
 
   get countryId(): string {

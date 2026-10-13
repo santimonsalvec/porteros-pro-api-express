@@ -30,7 +30,29 @@ export class FakePaymentGatewaySettingsRepository implements IPaymentGatewaySett
     return this.state.get(countryId) ?? null;
   }
 
-  async save(settings: PaymentGatewaySettings): Promise<void> {
-    this.state.set(settings.countryId, settings);
+  async create(settings: PaymentGatewaySettings): Promise<'saved' | 'stale'> {
+    if (this.state.has(settings.countryId)) return 'stale';
+    this.state.set(settings.countryId, PaymentGatewaySettings.rehydrate({ ...this.propsOf(settings), revision: 0 }));
+    return 'saved';
+  }
+
+  async update(settings: PaymentGatewaySettings, expectedRevision: number): Promise<'saved' | 'stale'> {
+    const current = this.state.get(settings.countryId);
+    if (!current || current.revision !== expectedRevision) return 'stale';
+    this.state.set(settings.countryId, PaymentGatewaySettings.rehydrate({ ...this.propsOf(settings), revision: expectedRevision + 1 }));
+    return 'saved';
+  }
+
+  private propsOf(settings: PaymentGatewaySettings): PaymentGatewaySettingsProps {
+    return {
+      countryId: settings.countryId,
+      gateway: settings.gateway,
+      publicConfig: settings.publicConfig,
+      currency: settings.currency,
+      costs: settings.costs,
+      amounts: settings.amounts,
+      updatedAt: settings.updatedAt,
+      updatedBy: settings.updatedBy,
+    };
   }
 }

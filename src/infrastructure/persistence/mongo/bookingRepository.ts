@@ -55,6 +55,8 @@ export function bookingToDocument(booking: Booking): Document {
     completedAt: booking.completedAt,
     attendance: booking.attendance,
     noShowAt: booking.noShowAt,
+    // Written only when an administrator cancelled it (admin 006): every other document keeps its shape.
+    ...(booking.cancelledByStaffId !== null ? { cancelledByStaffId: booking.cancelledByStaffId } : {}),
   };
 }
 
@@ -84,6 +86,7 @@ export function bookingFromDocument(doc: Document): Booking {
     endReason: (doc.endReason as BookingEndReason | null | undefined) ?? null,
     cancelledBy: (doc.cancelledBy as BookingEndedBy | null | undefined) ?? null,
     cancellationNote: (doc.cancellationNote as string | null | undefined) ?? null,
+    cancelledByStaffId: (doc.cancelledByStaffId as string | null | undefined) ?? null,
     replacesBookingId: (doc.replacesBookingId as string | null | undefined) ?? null,
     excludedGoalkeeperIds: (doc.excludedGoalkeeperIds as string[] | undefined) ?? [],
     dismissedGoalkeeperIds: (doc.dismissedGoalkeeperIds as string[] | undefined) ?? [],

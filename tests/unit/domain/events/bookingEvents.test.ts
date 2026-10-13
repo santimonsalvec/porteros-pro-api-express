@@ -150,3 +150,19 @@ describe('booking events', () => {
     expect(() => goalkeeperCheckedIn('ev-10', held, AT)).toThrow(/no check-in/);
   });
 });
+
+describe('bookingCancelled by an administrator (admin spec 006)', () => {
+  it('names the administrator as the author', async () => {
+    const { bookingCancelled } = await import('../../../../src/domain/events/bookingEvents.js');
+    const { buildBooking } = await import('../../../fixtures/offerFixtures.js');
+    const at = new Date('2026-10-18T21:00:00.000Z');
+    const held = buildBooking({ id: 'booking-2', status: 'assigned', goalkeeperId: 'gk-1', assignedAt: at });
+
+    expect(bookingCancelled('ev-1', held, at, { amount: 7000, currency: 'COP' }, { reason: 'admin_cancelled', by: 'admin' }).payload).toMatchObject({
+      goalkeeperId: 'gk-1',
+      refundedAmount: 7000,
+      reason: 'admin_cancelled',
+      by: 'admin',
+    });
+  });
+});

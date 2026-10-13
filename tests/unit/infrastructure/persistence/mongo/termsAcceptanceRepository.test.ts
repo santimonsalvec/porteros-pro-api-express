@@ -10,6 +10,16 @@ function repositoryWith(collection: ReturnType<typeof createFakeCollection>) {
 }
 
 describe('TermsAcceptanceRepository (mocked driver)', () => {
+
+  it("ensureIndexes finds a user's acceptances, newest first (admin spec 005)", async () => {
+    const collection = createFakeCollection();
+    collection.createIndex.mockResolvedValue('ok');
+
+    await repositoryWith(collection).ensureIndexes();
+
+    expect(collection.createIndex).toHaveBeenCalledWith({ userId: 1, acceptedAt: -1 }, { name: 'userId_acceptedAt' });
+  });
+
   it('omits ip/user-agent from the document entirely when null', async () => {
     const collection = createFakeCollection();
     collection.insertOne.mockResolvedValue({ acknowledged: true, insertedId: 'ta-1' });

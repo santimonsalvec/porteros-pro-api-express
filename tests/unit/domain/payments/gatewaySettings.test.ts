@@ -81,3 +81,25 @@ describe('PaymentGatewaySettings', () => {
     expect(() => PaymentGatewaySettings.rehydrate(props({ amounts: [] }))).toThrow(InvalidConfigurationError);
   });
 });
+
+describe('PaymentGatewaySettings revision (admin spec 007, FR-025)', () => {
+  const props: PaymentGatewaySettingsProps = {
+    countryId: 'country-co',
+    gateway: 'wompi',
+    publicConfig: { publicKey: 'pub_test_x', environment: 'sandbox' },
+    currency: 'COP',
+    costs: { percentBps: 265, fixed: 700, vatBps: 1900 },
+    amounts: [20000],
+    updatedAt: new Date('2026-10-13T00:00:00.000Z'),
+    updatedBy: 'admin-1',
+  };
+
+  it('counts a document without a revision as revision 0, and keeps one it has', () => {
+    expect(PaymentGatewaySettings.rehydrate(props).revision).toBe(0);
+    expect(PaymentGatewaySettings.rehydrate({ ...props, revision: 4 }).revision).toBe(4);
+  });
+
+  it('validates the same as before', () => {
+    expect(PaymentGatewaySettings.create({ ...props, amounts: [500] }).ok).toBe(false);
+  });
+});

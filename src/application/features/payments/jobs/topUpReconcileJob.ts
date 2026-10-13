@@ -1,19 +1,9 @@
-import { nextCheckAfter, type TopUp } from '../../../../domain/payments/topUp.js';
+import type { TopUp } from '../../../../domain/payments/topUp.js';
 import type { IScheduledJob } from '../../events/common/ports.js';
-import type { ICountryLookup } from '../../goalkeeperRequests/common/ports.js';
-import { applyTopUpOutcome, finalStatusOf, type ApplyTopUpOutcomeDependencies } from '../common/applyTopUpOutcome.js';
-import {
-  GatewayUnavailableError,
-  type IPaymentGatewayRegistry,
-  type IPaymentSecrets,
-  type ITopUpRepository,
-} from '../common/ports.js';
+import { checkTopUpWithGateway, type CheckTopUpDependencies } from '../common/checkTopUp.js';
+import { GatewayUnavailableError } from '../common/ports.js';
 
-export interface TopUpReconcileDependencies extends ApplyTopUpOutcomeDependencies {
-  topUpRepository: ITopUpRepository;
-  gateways: IPaymentGatewayRegistry;
-  secrets: IPaymentSecrets;
-  countryLookup: ICountryLookup;
+export interface TopUpReconcileDependencies extends CheckTopUpDependencies {
   cap?: number;
 }
 
@@ -24,7 +14,7 @@ type CheckResult = 'applied' | 'expired' | 'rescheduled' | 'failed';
  * arrived: at 15 min, 1 h, 6 h and 24 h after creation, then expires them at 48 h. Each top-up is
  * asked through its own gateway, environment and country, whatever the country uses now. A final
  * answer is applied exactly like a confirmation; an unreachable gateway leaves the top-up for the
- * next run. One top-up failing never stops the others.
+ * next run. One top-up failing never stops the others. Every ask is kept on the top-up (admin spec 007).
  */
 export class TopUpReconcileJob implements IScheduledJob {
   readonly name = 'top-up-reconcile';
@@ -64,27 +54,9 @@ export class TopUpReconcileJob implements IScheduledJob {
     return `${counts.checked} checked, ${counts.applied} applied, ${counts.expired} expired, ${counts.failed} failed`;
   }
 
+  /** One top-up through the shared ask (admin spec 007); one a member is asking about is left for the next run. */
   private async check(topUp: TopUp, now: Date): Promise<CheckResult> {
-    const gateway = this.deps.gateways.get(topUp.gateway);
-    const country = await this.deps.countryLookup.getById(topUp.countryId);
-    const secrets = country ? this.deps.secrets.forGateway(topUp.gateway, country.countryCode) : null;
-    if (!gateway || !secrets) throw new Error(`the ${topUp.gateway} gateway or its secrets are not available for the top-up's country`);
-
-    const answer = await gateway.findByReference(topUp.reference, topUp.environment, secrets);
-    const status = answer ? finalStatusOf(answer.status) : null;
-    if (answer && status) {
-      const applied = await applyTopUpOutcome(this.deps, topUp, status, answer, now);
-      if (applied.kind === 'applied') return 'applied';
-      // A mismatch stays pending (it was warned about) and follows the schedule to its expiry.
-      if (applied.kind !== 'mismatch') return 'rescheduled';
-    }
-
-    const next = nextCheckAfter(topUp, now);
-    if (next === 'expire') {
-      const expired = await applyTopUpOutcome(this.deps, topUp, 'expired', null, now);
-      return expired.kind === 'applied' ? 'expired' : 'rescheduled';
-    }
-    await this.deps.topUpRepository.scheduleNextCheck(topUp.id, next, now);
-    return 'rescheduled';
+    const checked = await checkTopUpWithGateway(this.deps, topUp, now, { by: 'sweep', staffUserId: null });
+    return checked.kind === 'busy' ? 'rescheduled' : checked.job;
   }
 }

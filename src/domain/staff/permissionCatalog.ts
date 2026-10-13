@@ -4,7 +4,7 @@
  * keeps a typed copy (`core/rbac/permission.ts`) and both are tested against
  * `porteros-pro-admin/specs/001-admin-access-foundations/contracts/permissions.md`.
  *
- * `users.block` and `requests.cancel` are deliberately absent until those rules are confirmed.
+ * `requests.cancel` is deliberately absent until that rule is confirmed (`users.block` arrived with admin spec 005).
  */
 export const PERMISSION_AREAS = [
   {
@@ -25,6 +25,7 @@ export const PERMISSION_AREAS = [
     permissions: [
       { id: 'users.read', description: 'Ver usuarios, sus dispositivos y términos aceptados' },
       { id: 'users.update', description: 'Corregir nombre y WhatsApp de un usuario' },
+      { id: 'users.block', description: 'Bloquear y desbloquear usuarios' },
     ],
   },
   {
@@ -40,7 +41,10 @@ export const PERMISSION_AREAS = [
   {
     id: 'requests',
     name: 'Solicitudes',
-    permissions: [{ id: 'requests.read', description: 'Ver solicitudes, reservas y su línea de tiempo' }],
+    permissions: [
+      { id: 'requests.read', description: 'Ver solicitudes, reservas y su línea de tiempo' },
+      { id: 'requests.cancel', description: 'Cancelar solicitudes y reservas' },
+    ],
   },
   { id: 'ratings', name: 'Calificaciones', permissions: [{ id: 'ratings.read', description: 'Ver calificaciones' }] },
   {

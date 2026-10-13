@@ -23,6 +23,11 @@ export class WalletRepository implements IWalletRepository {
     this.collection = db.collection(WALLETS_COLLECTION);
   }
 
+  /** The admin's wallets by balance (admin spec 007, research §4). */
+  async ensureAdminIndexes(): Promise<void> {
+    await this.collection.createIndex({ balance: 1, _id: 1 }, { name: 'balance_id' });
+  }
+
   async findByGoalkeeperId(goalkeeperId: string): Promise<Wallet | null> {
     const doc = await this.collection.findOne({ _id: goalkeeperId } as Document);
     return doc ? walletFromDocument(doc) : null;

@@ -1,3 +1,4 @@
+import type { RegistrationListFilter } from '../../src/application/features/goalkeepers/common/adminPorts.js';
 import type { IGoalkeeperRegistrationRepository } from '../../src/application/features/goalkeepers/common/ports.js';
 import { GoalkeeperRegistration } from '../../src/domain/goalkeepers/goalkeeperRegistration.js';
 
@@ -46,5 +47,14 @@ export class FakeGoalkeeperRegistrationRepository implements IGoalkeeperRegistra
       }
     }
     return false;
+  }
+
+  /** Like the Mongo reader: not activated, longest idle first (admin spec 005). */
+  async inProgress(filter: RegistrationListFilter): Promise<GoalkeeperRegistration[]> {
+    return [...this.registrations.values()]
+      .filter((registration) => registration.status === 'in_progress')
+      .filter((registration) => filter.cityId === undefined || registration.availability.cityId === filter.cityId)
+      .filter((registration) => !filter.updatedBefore || registration.updatedAt <= filter.updatedBefore)
+      .sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime());
   }
 }

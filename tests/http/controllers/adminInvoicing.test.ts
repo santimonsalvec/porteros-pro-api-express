@@ -53,7 +53,7 @@ describe('/admin/invoicing/settings/{countryId} — US4: the provider of each co
     const context = await buildTestApp();
     const { token } = await signInAdmin(context);
 
-    const saved = await admin(context, token).putInvoicing('country-co', { provider: 'siigo', config: COLOMBIA_SIIGO_CONFIG });
+    const saved = await admin(context, token).putInvoicing('country-co', { revision: null, provider: 'siigo', config: COLOMBIA_SIIGO_CONFIG });
     context.invoicingSecrets.credentials.clear();
     const read = await admin(context, token).getInvoicing('country-co');
 
@@ -64,9 +64,10 @@ describe('/admin/invoicing/settings/{countryId} — US4: the provider of each co
   });
 
   it.each<[string, object]>([
-    ['an unsupported provider', { provider: 'alegra', config: COLOMBIA_SIIGO_CONFIG }],
-    ['a missing field', { provider: 'siigo', config: { ...COLOMBIA_SIIGO_CONFIG, sellerId: undefined } }],
-    ['a secret-like key', { provider: 'siigo', config: { ...COLOMBIA_SIIGO_CONFIG, accessKey: 'x' } }],
+    // Admin spec 007 (FR-025): `revision` is required, so these name it to reach the provider's checks.
+    ['an unsupported provider', { revision: null, provider: 'alegra', config: COLOMBIA_SIIGO_CONFIG }],
+    ['a missing field', { revision: null, provider: 'siigo', config: { ...COLOMBIA_SIIGO_CONFIG, sellerId: undefined } }],
+    ['a secret-like key', { revision: null, provider: 'siigo', config: { ...COLOMBIA_SIIGO_CONFIG, accessKey: 'x' } }],
   ])('400 for %s', async (_label, body) => {
     const context = await buildTestApp();
     const { token } = await signInAdmin(context);
@@ -75,6 +76,28 @@ describe('/admin/invoicing/settings/{countryId} — US4: the provider of each co
 
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('validation_failed');
+  });
+});
+
+describe('/admin/invoicing/settings/{countryId} — admin spec 007: revision (FR-025)', () => {
+  it('reads the revision, moves it on each save and refuses a save without it or with an old one', async () => {
+    const context = await buildTestApp();
+    const { token } = await signInAdmin(context);
+    const api = admin(context, token);
+
+    expect((await api.putInvoicing('country-co', { revision: null, provider: 'siigo', config: COLOMBIA_SIIGO_CONFIG })).body.revision).toBe(0);
+    expect((await api.getInvoicing('country-co')).body).toMatchObject({ revision: 0, credentialsPresent: true });
+    expect((await api.putInvoicing('country-co', { revision: 0, provider: 'siigo', config: { ...COLOMBIA_SIIGO_CONFIG, sellerId: 700 } })).body.revision).toBe(1);
+
+    const missing = await api.putInvoicing('country-co', { provider: 'siigo', config: COLOMBIA_SIIGO_CONFIG });
+    expect(missing.status).toBe(400);
+    expect(missing.body.fieldErrors).toHaveProperty('revision');
+    for (const revision of [0, null]) {
+      const response = await api.putInvoicing('country-co', { revision, provider: 'siigo', config: COLOMBIA_SIIGO_CONFIG });
+      expect(response.status).toBe(409);
+      expect(response.body.error).toBe('stale_revision');
+    }
+    expect((await api.getInvoicing('country-co')).body).toMatchObject({ revision: 1, config: { sellerId: 700 } });
   });
 });
 

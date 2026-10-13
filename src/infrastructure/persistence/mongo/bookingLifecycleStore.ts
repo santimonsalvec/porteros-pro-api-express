@@ -1,5 +1,6 @@
 import type { ClientSession, Db, Document } from 'mongodb';
 import type {
+  AdminCancelResult,
   CancelAllResult,
   ClientCancelResult,
   ExpireResult,
@@ -13,7 +14,7 @@ import type {
 } from '../../../application/features/bookingLifecycle/common/ports.js';
 import { commissionRefundDraft, commissionVatRefundDraft, type LedgerOwner } from '../../../application/features/wallet/common/walletLedger.js';
 import { commissionRefunded } from '../../../domain/events/billingEvents.js';
-import { Booking, type CheckIn } from '../../../domain/bookings/booking.js';
+import { Booking, leftTheRequest, type CheckIn } from '../../../domain/bookings/booking.js';
 import type { DomainEvent } from '../../../domain/events/domainEvent.js';
 import { GoalkeeperIncident, suspensionEndOf, type IncidentKind } from '../../../domain/goalkeepers/goalkeeperIncident.js';
 import { isLate, penaltiesFor, windowStart, type GoalkeeperPenaltyConfig } from '../../../domain/goalkeepers/penaltyPolicy.js';
@@ -171,11 +172,11 @@ export class MongoBookingLifecycleStore implements IBookingLifecycleStore {
         if (!gate) return { kind: 'already_evaluated' };
 
         const bookings = this.db.collection(BOOKINGS_COLLECTION);
-        // Bookings the client cancelled themselves no longer count (017, clarification 3), nor do
+        // Bookings the client (017, clarification 3) or an administrator (admin 006) cancelled no longer count, nor do
         // the ones a goalkeeper withdrew from: their replacement stands in their place (018).
         const wanted = (await bookings.find({ requestId } as Document, { session }).toArray())
           .map(bookingFromDocument)
-          .filter((booking) => booking.cancelledBy !== 'client' && booking.status !== 'goalkeeper_withdrew');
+          .filter((booking) => !leftTheRequest(booking) && booking.status !== 'goalkeeper_withdrew');
         if (wanted.every((booking) => booking.status === 'assigned')) return { kind: 'kept' };
 
         const toCancel = wanted.filter((booking) => booking.status === 'pending_assignment' || booking.status === 'assigned');
@@ -220,7 +221,7 @@ export class MongoBookingLifecycleStore implements IBookingLifecycleStore {
     }
   }
 
-  async cancelByClient(args: {
+  cancelByClient(args: {
     requestId: string;
     clientId: string;
     bookingId: string | null;
@@ -230,15 +231,79 @@ export class MongoBookingLifecycleStore implements IBookingLifecycleStore {
     newId: () => string;
     buildEvent: (booking: Booking, refund: { amount: number; currency: string } | null) => DomainEvent;
   }): Promise<ClientCancelResult> {
+    return this.cancelBookings(args, {
+      requestFilter: { _id: args.requestId, clientId: args.clientId },
+      by: 'client',
+      enforceFreeCancellation: true,
+      ended: { status: 'cancelled', endedAt: args.now, endReason: 'client_cancelled', cancelledBy: 'client', cancellationNote: args.note },
+      cancellation: { by: 'client', at: args.now, reason: args.note ?? 'client_cancelled' },
+      actor: undefined,
+    });
+  }
+
+  async cancelByAdmin(args: {
+    requestId: string;
+    bookingId: string | null;
+    now: Date;
+    staffUserId: string;
+    reason: string;
+    owners: ReadonlyMap<string, LedgerOwner>;
+    newId: () => string;
+    buildEvent: (booking: Booking, refund: { amount: number; currency: string } | null) => DomainEvent;
+  }): Promise<AdminCancelResult> {
+    const result = await this.cancelBookings(args, {
+      requestFilter: { _id: args.requestId },
+      by: 'admin',
+      // No deadline for an administrator: the commission always goes back (admin spec 006, FR-022).
+      enforceFreeCancellation: false,
+      ended: {
+        status: 'cancelled',
+        endedAt: args.now,
+        endReason: 'admin_cancelled',
+        cancelledBy: 'admin',
+        cancellationNote: args.reason,
+        cancelledByStaffId: args.staffUserId,
+      },
+      // The goalkeeper sees a movement's reason in their wallet: the code, never the internal reason.
+      cancellation: { by: 'admin', at: args.now, reason: 'admin_cancelled' },
+      actor: { kind: 'admin', userId: args.staffUserId },
+    });
+    if (result.kind === 'window_closed') throw new Error('An administrator cancellation has no deadline');
+    return result;
+  }
+
+  /**
+   * The cancellation shared by the client (017) and an administrator (admin 006), in one
+   * transaction: the live bookings asked for are cancelled, each assigned goalkeeper gets back
+   * exactly what was charged (once, by cause key), the events go to the outbox and a request left
+   * with nothing live is deactivated. Every refusal is decided before the first write.
+   */
+  private async cancelBookings(
+    args: {
+      requestId: string;
+      bookingId: string | null;
+      now: Date;
+      owners: ReadonlyMap<string, LedgerOwner>;
+      newId: () => string;
+      buildEvent: (booking: Booking, refund: { amount: number; currency: string } | null) => DomainEvent;
+    },
+    policy: {
+      requestFilter: Document;
+      /** Who cancels: a booking they already cancelled is a replay. */
+      by: 'client' | 'admin';
+      enforceFreeCancellation: boolean;
+      ended: Document;
+      cancellation: CancellationDetails;
+      actor: MovementActor | undefined;
+    },
+  ): Promise<ClientCancelResult> {
     const { requestId, now } = args;
     const abort = (result: ClientCancelResult): never => {
       throw new LifecycleAbort(result);
     };
     try {
       return await this.inTransaction(async (session): Promise<ClientCancelResult> => {
-        const requestDoc = await this.db
-          .collection(GOALKEEPER_REQUESTS_COLLECTION)
-          .findOne({ _id: requestId, clientId: args.clientId } as Document, { session });
+        const requestDoc = await this.db.collection(GOALKEEPER_REQUESTS_COLLECTION).findOne(policy.requestFilter, { session });
         if (!requestDoc) return { kind: 'not_found', what: 'request' };
         const request = requestFromDocument(requestDoc);
 
@@ -250,46 +315,48 @@ export class MongoBookingLifecycleStore implements IBookingLifecycleStore {
         if (args.bookingId !== null) {
           const booking = all.find((item) => item.id === args.bookingId);
           if (!booking) return { kind: 'not_found', what: 'booking' };
-          if (booking.cancelledBy === 'client') return { kind: 'replayed' };
+          if (booking.cancelledBy === policy.by) return { kind: 'replayed' };
           if (!live(booking)) return { kind: 'already_final', status: booking.status };
           targets = [booking];
         } else {
           targets = all.filter(live);
           if (targets.length === 0) {
-            return all.some((booking) => booking.cancelledBy === 'client')
+            return all.some((booking) => booking.cancelledBy === policy.by)
               ? { kind: 'replayed' }
               : { kind: 'already_final', status: all[0]?.status ?? 'closed' };
           }
         }
 
         // Decide every refusal before the first write, so a refusal changes nothing (clarification 1).
-        const late = targets.find((booking) => booking.status === 'assigned' && !request.canCancelFreeAt(now));
-        if (late) abort({ kind: 'window_closed', bookingId: late.id, freeCancellationUntil: request.freeCancellationUntil() });
+        if (policy.enforceFreeCancellation) {
+          const late = targets.find((booking) => booking.status === 'assigned' && !request.canCancelFreeAt(now));
+          if (late) abort({ kind: 'window_closed', bookingId: late.id, freeCancellationUntil: request.freeCancellationUntil() });
+        }
         const unowned = targets.find((booking) => booking.status === 'assigned' && !args.owners.has(booking.goalkeeperId!));
         if (unowned) abort({ kind: 'owner_required', goalkeeperId: unowned.goalkeeperId! });
 
         const events: DomainEvent[] = [];
         let refunds = 0;
-        const ended = { status: 'cancelled', endedAt: now, endReason: 'client_cancelled', cancelledBy: 'client', cancellationNote: args.note };
         for (const booking of targets) {
           const refund =
             booking.status === 'assigned'
               ? await refundCommissionInSession(this.db, session, booking, {
                   requestId,
                   owner: args.owners.get(booking.goalkeeperId!)!,
-                  cancellation: { by: 'client', at: now, reason: args.note ?? 'client_cancelled' },
+                  cancellation: policy.cancellation,
                   newId: args.newId,
                   now,
+                  ...(policy.actor ? { actor: policy.actor } : {}),
                 })
               : null;
           if (refund) refunds += 1;
-          await bookings.updateOne({ _id: booking.id, status: booking.status } as Document, { $set: ended }, { session });
+          await bookings.updateOne({ _id: booking.id, status: booking.status } as Document, { $set: policy.ended }, { session });
           events.push(args.buildEvent(booking, refund));
         }
         await appendEventsInSession(this.db, session, events, now);
         await this.deactivateIfEnded(session, requestId);
 
-        const cancelled = targets.map((booking) => bookingFromDocument({ ...bookingToDocument(booking), ...ended }));
+        const cancelled = targets.map((booking) => bookingFromDocument({ ...bookingToDocument(booking), ...policy.ended }));
         return { kind: 'cancelled', cancelled, refunds, events };
       });
     } catch (error) {

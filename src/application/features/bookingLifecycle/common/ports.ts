@@ -35,6 +35,9 @@ export type ClientCancelResult =
   | { kind: 'owner_required'; goalkeeperId: string }
   | { kind: 'missing_charge'; bookingId: string };
 
+/** As the client's, without `window_closed`: an administrator has no deadline (admin spec 006). */
+export type AdminCancelResult = Exclude<ClientCancelResult, { kind: 'window_closed' }>;
+
 export type WithdrawResult =
   | {
       kind: 'withdrawn';
@@ -120,6 +123,22 @@ export interface IBookingLifecycleStore {
     newId: () => string;
     buildEvent: (booking: Booking, refund: { amount: number; currency: string } | null) => DomainEvent;
   }): Promise<ClientCancelResult>;
+  /**
+   * An administrator cancels one booking or every live booking of a request (admin spec 006), in
+   * the same transaction as the client's: no free-cancellation deadline, the assigned goalkeepers
+   * always get their whole commission back, and nobody gets an incident. Refusals change nothing.
+   */
+  cancelByAdmin(args: {
+    requestId: string;
+    bookingId: string | null;
+    now: Date;
+    staffUserId: string;
+    /** Internal: stored on the booking, never in the goalkeeper's movement nor in a notice. */
+    reason: string;
+    owners: ReadonlyMap<string, LedgerOwner>;
+    newId: () => string;
+    buildEvent: (booking: Booking, refund: { amount: number; currency: string } | null) => DomainEvent;
+  }): Promise<AdminCancelResult>;
   /**
    * The goalkeeper withdraws from a booking they hold (feature 018), all or nothing: the booking
    * ends, a replacement is created while the search is open, the penalty policy is applied, the

@@ -1,4 +1,5 @@
 import type { Db, Document } from 'mongodb';
+import type { IRegistrationAdminReader, RegistrationListFilter } from '../../../application/features/goalkeepers/common/adminPorts.js';
 import type { IGoalkeeperRegistrationRepository } from '../../../application/features/goalkeepers/common/ports.js';
 import { GoalkeeperRegistration, type GoalkeeperRegistrationStatus } from '../../../domain/goalkeepers/goalkeeperRegistration.js';
 import { MongoRepository } from './mongoRepository.js';
@@ -10,7 +11,7 @@ function toDateOrNull(value: unknown): Date | null {
 
 export class GoalkeeperRegistrationRepository
   extends MongoRepository<GoalkeeperRegistration, string>
-  implements IGoalkeeperRegistrationRepository
+  implements IGoalkeeperRegistrationRepository, IRegistrationAdminReader
 {
   constructor(db: Db) {
     super(db.collection('goalkeeperRegistrations'));
@@ -28,6 +29,8 @@ export class GoalkeeperRegistrationRepository
       { 'identification.documentType': 1, 'identification.documentNumber': 1 },
       { unique: true, sparse: true, name: 'identification_document_unique_sparse' },
     );
+    // The admin's registrations in progress, longest idle first (admin spec 005).
+    await this.collection.createIndex({ status: 1, updatedAt: 1 }, { name: 'status_updatedAt' });
   }
 
   protected toDocument(entity: GoalkeeperRegistration): Document {
@@ -73,6 +76,15 @@ export class GoalkeeperRegistrationRepository
       updatedAt: new Date(doc.updatedAt as string | Date),
       activatedAt: toDateOrNull(doc.activatedAt),
     });
+  }
+
+  /** The registrations not activated yet (they are few), longest idle first (admin spec 005). */
+  async inProgress(filter: RegistrationListFilter): Promise<GoalkeeperRegistration[]> {
+    const query: Document = { status: 'in_progress' };
+    if (filter.cityId !== undefined) query['availability.cityId'] = filter.cityId;
+    if (filter.updatedBefore !== undefined) query.updatedAt = { $lte: filter.updatedBefore };
+    const docs = await this.collection.find(query).sort({ updatedAt: 1, _id: 1 }).toArray();
+    return docs.map((doc) => this.fromDocument(doc));
   }
 
   async getByUserId(userId: string): Promise<GoalkeeperRegistration | null> {

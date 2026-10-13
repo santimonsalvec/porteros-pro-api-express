@@ -44,6 +44,8 @@ export class MongoNotificationRepository implements INotificationRepository {
       { dedupeKey: 1 },
       { name: 'dedupe_unique', unique: true, partialFilterExpression: { dedupeKey: { $exists: true } } },
     );
+    // How many goalkeepers a request was offered to, for the admin's timeline (admin spec 006).
+    await this.collection.createIndex({ requestId: 1 }, { name: 'offer_request', partialFilterExpression: { type: OFFER_TYPE } });
   }
 
   async createIfAbsent(entry: NewNotification): Promise<boolean> {
@@ -119,7 +121,7 @@ export class MongoNotificationRepository implements INotificationRepository {
 
   async listForUser(userId: string, skip: number, limit: number): Promise<NotificationItem[]> {
     const docs = await this.collection.find({ userId, ...VISIBLE }).sort({ createdAt: -1, _id: -1 }).skip(skip).limit(limit).toArray();
-    return docs.map(toItem);
+    return docs.map(notificationFromDocument);
   }
 
   async countForUser(userId: string): Promise<number> {
@@ -167,7 +169,7 @@ export class MongoNotificationRepository implements INotificationRepository {
     const docs = await this.collection
       .find({ userId: { $in: [...userIds] }, requestId: { $in: [...requestIds] }, type: OFFER_TYPE })
       .toArray();
-    return docs.map(toItem);
+    return docs.map(notificationFromDocument);
   }
 
   async findOfferRecipients(requestId: string): Promise<string[]> {
@@ -188,7 +190,8 @@ export class MongoNotificationRepository implements INotificationRepository {
   }
 }
 
-function toItem(doc: Document): NotificationItem {
+/** Also read by the admin (admin spec 006), which sees the deleted ones too. */
+export function notificationFromDocument(doc: Document): NotificationItem {
   return {
     id: doc._id as string,
     userId: doc.userId as string,

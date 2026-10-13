@@ -219,3 +219,15 @@ describe('MongoOfferPushStateStore (mocked driver)', () => {
     expect(collection.updateOne).toHaveBeenCalledWith({ _id: 'g1' }, { $set: { lastOfferPushAt: now } }, { upsert: true });
   });
 });
+
+describe('the offers-per-request index (admin spec 006, data-model)', () => {
+  it('counts the offers of a request without scanning the inbox', async () => {
+    const { collection, repository } = harness();
+    await repository.ensureIndexes();
+
+    expect(collection.createIndex).toHaveBeenCalledWith(
+      { requestId: 1 },
+      { name: 'offer_request', partialFilterExpression: { type: 'booking.available' } },
+    );
+  });
+});

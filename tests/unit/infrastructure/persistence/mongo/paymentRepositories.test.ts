@@ -56,15 +56,16 @@ describe('PaymentGatewaySettingsRepository (mocked driver)', () => {
     );
   });
 
-  it('replaces the country\'s document, creating it when missing', async () => {
+  // Admin spec 007 (FR-025): saves name the revision they read; see paymentGatewaySettingsRepository.test.ts.
+  it('creates the country\'s document at revision 0', async () => {
     const collection = createFakeCollection();
-    collection.replaceOne.mockResolvedValue({});
+    collection.insertOne.mockResolvedValue({});
     const created = PaymentGatewaySettings.create({ ...settingsDoc, countryId: 'country-co' } as never);
     if (!created.ok) throw new Error('invalid');
 
-    await new PaymentGatewaySettingsRepository(dbWith(collection)).save(created.settings);
+    await new PaymentGatewaySettingsRepository(dbWith(collection)).create(created.settings);
 
-    expect(collection.replaceOne).toHaveBeenCalledWith({ _id: 'country-co' }, settingsDoc, { upsert: true });
+    expect(collection.insertOne).toHaveBeenCalledWith({ ...settingsDoc, revision: 0 });
   });
 });
 

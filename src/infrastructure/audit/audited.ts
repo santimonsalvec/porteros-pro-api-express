@@ -66,11 +66,16 @@ export function auditTrail(deps: AuditTrailDependencies) {
       // Read now: by the time the app-level error handler answers, Express has reset `req.params`.
       const resourceId = spec.resourceId(req);
       const before = kind === 'write' && spec.before ? redactForAudit(spec.resourceType, await spec.before(req).catch(() => null)) : null;
-      const send = res.json.bind(res);
-      res.json = (body: unknown) => {
+      // A handler may name what to keep as the request instead of the body (an export's filters).
+      const requestOf = (): AuditEntry['request'] => {
+        const own = res.locals.auditRequest as unknown;
+        if (own !== undefined) return redactForAudit(spec.resourceType, own);
+        return kind === 'write' ? redactForAudit(spec.resourceType, req.body) : null;
+      };
+      const entryOf = (body: unknown, isJson: boolean): AuditEntry => {
         const status = res.statusCode;
         const succeeded = status >= 200 && status < 300;
-        const entry = entryFor(
+        return entryFor(
           req,
           {
             kind,
@@ -83,15 +88,32 @@ export function auditTrail(deps: AuditTrailDependencies) {
           {
             outcome: succeeded ? ((res.locals.auditOutcome as AuditOutcome | undefined) ?? 'done') : 'rejected',
             httpStatus: status,
-            errorCode: succeeded ? null : errorCodeOf(body),
+            errorCode: succeeded || !isJson ? null : errorCodeOf(body),
             before,
-            after: kind === 'write' && succeeded ? redactForAudit(spec.resourceType, body) : null,
-            request: kind === 'write' ? redactForAudit(spec.resourceType, req.body) : null,
+            // A file or a CSV is never kept: only a JSON body can be an `after`.
+            after: kind === 'write' && succeeded && isJson ? redactForAudit(spec.resourceType, body) : null,
+            request: requestOf(),
           },
         );
-        void write(entry).finally(() => send(body));
+      };
+      // Express's `res.json` ends in `res.send`, so one answer is recorded once (admin spec 007).
+      let recorded = false;
+      const json = res.json.bind(res);
+      res.json = (body: unknown) => {
+        if (recorded) return json(body);
+        recorded = true;
+        void write(entryOf(body, true)).finally(() => json(body));
         return res;
       };
+      if (typeof res.send === 'function') {
+        const send = res.send.bind(res);
+        res.send = (body?: unknown) => {
+          if (recorded) return send(body);
+          recorded = true;
+          void write(entryOf(body, false)).finally(() => send(body));
+          return res;
+        };
+      }
       next();
     };
 

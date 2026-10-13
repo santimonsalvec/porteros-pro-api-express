@@ -77,7 +77,10 @@ export interface IInvoicingSecrets {
 
 export interface IInvoicingSettingsRepository {
   getByCountry(countryId: string): Promise<InvoicingSettings | null>;
-  save(settings: InvoicingSettings): Promise<void>;
+  /** A country's first provider; `stale` when it already has one (admin spec 007, FR-025). */
+  create(settings: InvoicingSettings): Promise<'saved' | 'stale'>;
+  /** Writes only at `expectedRevision`; `stale` when someone else saved first. */
+  update(settings: InvoicingSettings, expectedRevision: number): Promise<'saved' | 'stale'>;
 }
 
 export interface IInvoicingDocumentRepository {

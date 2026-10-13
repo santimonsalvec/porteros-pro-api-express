@@ -42,3 +42,18 @@ describe('InvoicingSettings', () => {
     expect(() => InvoicingSettings.rehydrate(props({}))).toThrow(InvalidConfigurationError);
   });
 });
+
+describe('InvoicingSettings revision (admin spec 007, FR-025)', () => {
+  const props = {
+    countryId: 'country-co',
+    provider: 'siigo' as const,
+    config: { partnerId: 'P', invoiceDocumentId: 1, creditNoteDocumentId: 2, sellerId: 3, commissionProductCode: 'C', penaltyProductCode: 'D', vatTaxId: 4, paymentMethodId: 5 },
+    updatedAt: new Date('2026-10-13T00:00:00.000Z'),
+    updatedBy: 'admin-1',
+  };
+
+  it('counts a document without a revision as revision 0, and keeps one it has', () => {
+    expect(InvoicingSettings.rehydrate(props).revision).toBe(0);
+    expect(InvoicingSettings.rehydrate({ ...props, revision: 2 }).revision).toBe(2);
+  });
+});

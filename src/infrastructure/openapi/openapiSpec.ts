@@ -444,6 +444,7 @@ export const openapiSpec = {
         type: 'object',
         additionalProperties: false,
         properties: {
+          revision: { type: 'integer', minimum: 0, nullable: true, description: 'The revision read; null creates the country\'s first (porteros-pro-admin spec 007, FR-025). Required.' },
           gateway: { type: 'string', enum: ['wompi'] },
           publicConfig: {
             type: 'object',
@@ -458,7 +459,7 @@ export const openapiSpec = {
           },
           amounts: { type: 'array', minItems: 1, maxItems: 10, items: { type: 'integer', minimum: 1 } },
         },
-        required: ['gateway', 'publicConfig', 'costs', 'amounts'],
+        required: ['revision', 'gateway', 'publicConfig', 'costs', 'amounts'],
         description: 'No secrets: they live in Google Secret Manager.',
       },
       GatewaySettingsResponse: {
@@ -473,6 +474,8 @@ export const openapiSpec = {
           options: { type: 'array', items: { $ref: '#/components/schemas/TopUpOption' } },
           updatedAt: { type: 'string', format: 'date-time' },
           updatedBy: { type: 'string' },
+          revision: { type: 'integer', description: 'What the next save must send (porteros-pro-admin spec 007)' },
+          credentialsPresent: { type: 'boolean', description: "Whether the gateway's secrets for the country exist in Secret Manager; never their values" },
         },
       },
       InvoicingDocumentItem: {
@@ -536,6 +539,7 @@ export const openapiSpec = {
           credentialsPresent: { type: 'boolean', description: "Whether the provider's credentials for the country exist in Secret Manager; never their values" },
           updatedAt: { type: 'string', format: 'date-time' },
           updatedBy: { type: 'string' },
+          revision: { type: 'integer', description: 'What the next save must send (porteros-pro-admin spec 007)' },
         },
       },
       ErrorResponse: {
@@ -1121,6 +1125,7 @@ export const openapiSpec = {
           },
         },
         responses: {
+          '403': { description: 'account_blocked: the administration blocked this user (never says why)', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
           '200': {
             description: 'Session issued',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/TokenPairResponse' } } },
@@ -1161,6 +1166,7 @@ export const openapiSpec = {
             description: 'Invalid, expired, or already-used refresh token',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
           },
+          '403': { description: 'account_blocked: the administration blocked this user (never says why)', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
         },
       },
     },
@@ -1723,7 +1729,7 @@ export const openapiSpec = {
     },
     '/goalkeepers/me/wallet/top-up-options': {
       get: {
-        summary: 'The top-up amounts of the goalkeeper\'s country, each with its cost and net (feature 022)',
+        summary: "The top-up amounts of the goalkeeper\'s country, each with its cost and net (feature 022)",
         tags: ['Wallet'],
         security: [{ bearerAuth: [] }],
         responses: {
@@ -1772,7 +1778,7 @@ export const openapiSpec = {
     },
     '/goalkeepers/me/wallet/top-ups/{topUpId}': {
       get: {
-        summary: 'One of the goalkeeper\'s top-ups (feature 022)',
+        summary: "One of the goalkeeper\'s top-ups (feature 022)",
         tags: ['Wallet'],
         security: [{ bearerAuth: [] }],
         parameters: [{ name: 'topUpId', in: 'path', required: true, schema: { type: 'string' } }],
@@ -2164,6 +2170,7 @@ export const openapiSpec = {
           '401': { description: 'Not signed in' },
           '403': { description: 'Not an administrator' },
           '404': { description: 'country_not_found' },
+          '409': { description: 'stale_revision: an old revision, or null over existing settings' },
         },
       },
     },
@@ -2227,7 +2234,7 @@ export const openapiSpec = {
     },
     '/goalkeepers/me/invoices/{documentId}': {
       get: {
-        summary: 'One of the goalkeeper\'s documents (feature 023)',
+        summary: "One of the goalkeeper\'s documents (feature 023)",
         tags: ['Invoicing'],
         security: [{ adminBearerAuth: [] }],
         parameters: [{ name: 'documentId', in: 'path', required: true, schema: { type: 'string' } }],
@@ -2303,23 +2310,29 @@ export const openapiSpec = {
         parameters: [{ name: 'countryId', in: 'path', required: true, schema: { type: 'string' } }],
         requestBody: {
           required: true,
-          content: { 'application/json': { schema: { type: 'object', additionalProperties: false, properties: { provider: { type: 'string', enum: ['siigo'] }, config: { type: 'object' } }, required: ['provider', 'config'] } } },
+          content: { 'application/json': { schema: { type: 'object', additionalProperties: false, properties: { revision: { type: 'integer', minimum: 0, nullable: true, description: 'The revision read; null creates the first (porteros-pro-admin spec 007)' }, provider: { type: 'string', enum: ['siigo'] }, config: { type: 'object' } }, required: ['revision', 'provider', 'config'] } } },
         },
         responses: {
           '200': { description: 'Saved', content: { 'application/json': { schema: { $ref: '#/components/schemas/InvoicingSettingsResponse' } } } },
           '400': { description: 'validation_failed (unsupported provider, missing or unknown config field)' },
           '403': { description: 'Not an administrator' },
           '404': { description: 'country_not_found' },
+          '409': { description: 'stale_revision: an old revision, or null over existing settings' },
         },
       },
     },
     '/admin/invoicing/documents': {
       get: {
-        summary: 'Invoicing documents by status, oldest first, with reasons (administrators only, feature 023)',
+        summary: 'Invoicing documents, oldest first, with reasons (administrators only, feature 023; filters by porteros-pro-admin spec 007)',
         tags: ['Admin'],
         security: [{ adminBearerAuth: [] }],
         parameters: [
           { name: 'status', in: 'query', required: false, schema: { type: 'string', enum: ['pending', 'awaiting_authority', 'issued', 'rejected'] } },
+          { name: 'kind', in: 'query', required: false, schema: { type: 'string', enum: ['invoice', 'credit_note'] } },
+          { name: 'countryId', in: 'query', required: false, schema: { type: 'string' } },
+          { name: 'from', in: 'query', required: false, schema: { type: 'string', format: 'date-time' }, description: 'The charge (occurredAt), included' },
+          { name: 'to', in: 'query', required: false, schema: { type: 'string', format: 'date-time' }, description: 'The charge (occurredAt), excluded' },
+          { name: 'stale', in: 'query', required: false, schema: { type: 'string', enum: ['true'] }, description: 'Pending or awaiting the authority for more than 24 hours' },
           { name: 'page', in: 'query', required: false, schema: { type: 'integer', minimum: 1, default: 1 } },
           { name: 'pageSize', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 50, default: 20 } },
         ],
@@ -2334,7 +2347,7 @@ export const openapiSpec = {
     },
     '/admin/invoicing/documents/{documentId}/retry': {
       post: {
-        summary: 'Retries a rejected document with the buyer\'s current data (administrators only, feature 023)',
+        summary: "Retries a rejected document with the buyer\'s current data (administrators only, feature 023)",
         tags: ['Admin'],
         security: [{ adminBearerAuth: [] }],
         parameters: [{ name: 'documentId', in: 'path', required: true, schema: { type: 'string' } }],
@@ -2344,6 +2357,136 @@ export const openapiSpec = {
           '404': { description: 'invoicing_document_not_found' },
           '409': { description: 'document_not_retryable' },
         },
+      },
+    },
+    '/admin/users': {
+      get: {
+        summary: 'List users without their phone; search by name, email or phone',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs users.read (porteros-pro-admin spec 005).',
+        parameters: [...PAGING, { name: 'q', in: 'query', schema: { type: 'string' } }, { name: 'role', in: 'query', schema: { type: 'string' } }, { name: 'countryCode', in: 'query', schema: { type: 'string' } }, { name: 'createdFrom', in: 'query', schema: { type: 'string' } }, { name: 'createdTo', in: 'query', schema: { type: 'string' } }, { name: 'blocked', in: 'query', schema: { type: 'string' } }],
+        responses: { '200': { description: 'A page of users' }, '400': { description: 'validation_failed' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/users/{userId}': {
+      get: {
+        summary: 'A user, without the phone',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs users.read (porteros-pro-admin spec 005).',
+        parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'The user, with its version, block, terms, devices and request count' }, '404': { description: 'user_not_found' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+      patch: {
+        summary: 'Correct the name or WhatsApp with the app rules',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs users.update (porteros-pro-admin spec 005).',
+        parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['version'], properties: { version: { type: 'string' }, firstName: { type: 'string' }, lastName: { type: 'string' }, countryCode: { type: 'string' }, whatsAppNumber: { type: 'string' } } } } } },
+        responses: { '200': { description: 'The correction as audited (numberEnding only)' }, '400': { description: 'validation_failed' }, '404': { description: 'user_not_found' }, '409': { description: 'stale_revision, duplicate_phone_number, profile_incomplete or invalid_country_code' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/users/{userId}/phone': {
+      get: {
+        summary: "A user's WhatsApp: a sensitive read, audited without the number",
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs users.read (porteros-pro-admin spec 005).',
+        parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Calling code and number' }, '404': { description: 'user_not_found or phone_not_set' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/users/{userId}/block-impact': {
+      get: {
+        summary: 'What the user has open, before blocking them',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs users.block (porteros-pro-admin spec 005).',
+        parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Open requests and upcoming bookings' }, '404': { description: 'user_not_found' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/users/{userId}/block': {
+      post: {
+        summary: 'Block a user: no sign-in, no renewal, no offers',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs users.block (porteros-pro-admin spec 005).',
+        parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['reason'], properties: { reason: { type: 'string' } } } } } },
+        responses: { '200': { description: 'Blocked (or already was)' }, '400': { description: 'validation_failed: reason of 3 to 300 characters' }, '404': { description: 'user_not_found' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/users/{userId}/unblock': {
+      post: {
+        summary: 'Unblock a user; their offers stay off',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs users.block (porteros-pro-admin spec 005).',
+        parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['reason'], properties: { reason: { type: 'string' } } } } } },
+        responses: { '200': { description: 'Unblocked (or was not blocked)' }, '400': { description: 'validation_failed' }, '404': { description: 'user_not_found' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/goalkeepers': {
+      get: {
+        summary: 'List goalkeepers with their balance and rating',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs goalkeepers.read (porteros-pro-admin spec 005).',
+        parameters: [...PAGING, { name: 'q', in: 'query', schema: { type: 'string' } }, { name: 'cityId', in: 'query', schema: { type: 'string' } }, { name: 'zoneId', in: 'query', schema: { type: 'string' } }, { name: 'suspended', in: 'query', schema: { type: 'string' } }, { name: 'availableForOffers', in: 'query', schema: { type: 'string' } }, { name: 'balanceBelow', in: 'query', schema: { type: 'string' } }],
+        responses: { '200': { description: 'A page of goalkeepers' }, '400': { description: 'validation_failed or search_too_broad' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/goalkeepers/{userId}': {
+      get: {
+        summary: "A goalkeeper's detail, without the document number",
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs goalkeepers.read (porteros-pro-admin spec 005).',
+        parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Profile, zones, suspension, rating and stats' }, '404': { description: 'goalkeeper_not_found' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/goalkeepers/{userId}/document': {
+      get: {
+        summary: "A goalkeeper's identity document: a sensitive read, audited without the data",
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs goalkeepers.read (porteros-pro-admin spec 005).',
+        parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Type, number and photo URLs' }, '404': { description: 'goalkeeper_not_found' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+      patch: {
+        summary: 'Correct the document type and number',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs goalkeepers.update (porteros-pro-admin spec 005).',
+        parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['version', 'documentType', 'documentNumber'], properties: { version: { type: 'string' }, documentType: { type: 'string' }, documentNumber: { type: 'string' } } } } } },
+        responses: { '200': { description: 'The detail with idNumberChanged and changedFields, without the number' }, '400': { description: 'validation_failed' }, '404': { description: 'goalkeeper_not_found' }, '409': { description: 'stale_revision, invalid_document_type or document_already_registered' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/goalkeeper-registrations': {
+      get: {
+        summary: 'Goalkeeper registrations in progress, with a summary per step',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs goalkeepers.registrations.review (porteros-pro-admin spec 005).',
+        parameters: [...PAGING, { name: 'step', in: 'query', schema: { type: 'string' } }, { name: 'cityId', in: 'query', schema: { type: 'string' } }, { name: 'idleDaysMin', in: 'query', schema: { type: 'string' } }],
+        responses: { '200': { description: 'A page and the summary' }, '400': { description: 'validation_failed' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/goalkeeper-registrations/{userId}': {
+      get: {
+        summary: 'What a registration in progress is missing, never the document',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs goalkeepers.registrations.review (porteros-pro-admin spec 005).',
+        parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Sections with complete or missing fields' }, '404': { description: 'registration_not_found' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
       },
     },
     '/admin/goalkeepers/{userId}/wallet': {
@@ -2493,6 +2636,7 @@ export const openapiSpec = {
     '/admin/goalkeepers/{userId}/withdrawals': {
       get: {
         summary: "A goalkeeper's withdrawals and penalties, with who reversed what (administrators only)",
+        description: "Each item also brings match (the city and its time zone) and commission (the net amount charged, or null), for the admin's suspension tools (porteros-pro-admin spec 005).",
         tags: ['Admin'],
         security: [{ adminBearerAuth: [] }],
         parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }, ...PAGING],
@@ -2632,7 +2776,16 @@ export const openapiSpec = {
         summary: 'Cases for manual review, open first (administrators only; feature 021)',
         tags: ['Admin'],
         security: [{ adminBearerAuth: [] }],
-        parameters: [{ name: 'status', in: 'query', required: false, schema: { type: 'string', enum: ['open', 'resolved'] } }, ...PAGING],
+        description: 'Needs cases.read. Admin spec 006 adds countryId, type, from/to (opening instants) and order=oldest; without them the list and its order are 021\'s. Each item also gains match, client and goalkeeper.',
+        parameters: [
+          { name: 'status', in: 'query', required: false, schema: { type: 'string', enum: ['open', 'resolved'] } },
+          { name: 'countryId', in: 'query', schema: { type: 'string' } },
+          { name: 'type', in: 'query', schema: { type: 'string', enum: ['goalkeeper_no_show', 'payment_not_received', 'late_attendance_claim'] } },
+          { name: 'from', in: 'query', schema: { type: 'string', format: 'date-time' } },
+          { name: 'to', in: 'query', schema: { type: 'string', format: 'date-time' } },
+          { name: 'order', in: 'query', schema: { type: 'string', enum: ['default', 'oldest'] } },
+          ...PAGING,
+        ],
         responses: {
           '200': {
             description: 'A page of cases',
@@ -2667,12 +2820,13 @@ export const openapiSpec = {
     },
     '/admin/cases/{caseId}': {
       get: {
-        summary: 'One case with the rating that opened it and the check-in evidence (location included)',
+        summary: 'One case with the rating that opened it, its booking and the check-in, without the photo',
         tags: ['Admin'],
         security: [{ adminBearerAuth: [] }],
+        description: 'Needs cases.read. Since admin spec 006 the photo is a sensitive read of its own (/admin/cases/{caseId}/check-in-photo): checkIn has hasPhoto, never photoUrl.',
         parameters: [{ name: 'caseId', in: 'path', required: true, schema: { type: 'string' } }],
         responses: {
-          '200': { description: 'The case, plus rating and checkIn' },
+          '200': { description: 'The case, plus rating, checkIn (hasPhoto), booking, requestStatus and names' },
           '401': { description: 'Not signed in' },
           '403': { description: 'Not an administrator' },
           '404': { description: 'case_not_found', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
@@ -2698,6 +2852,248 @@ export const openapiSpec = {
           '404': { description: 'case_not_found', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
           '409': { description: 'case_already_resolved', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
         },
+      },
+    },
+    '/admin/cases/{caseId}/check-in-photo': {
+      get: {
+        summary: "The case's check-in photo: a sensitive read, audited without the photo",
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs cases.read (porteros-pro-admin spec 006).',
+        parameters: [{ name: 'caseId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'photoUrl and at' }, '404': { description: 'case_not_found or check_in_not_found' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/requests': {
+      get: {
+        summary: 'Requests with their status, filtered by place, match dates, client or goalkeeper',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs requests.read (porteros-pro-admin spec 006). from/to are instants of the match start (to excluded).',
+        parameters: [
+          ...PAGING,
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['searching', 'partially_assigned', 'assigned', 'completed', 'cancelled', 'expired', 'closed'] } },
+          { name: 'countryId', in: 'query', schema: { type: 'string' } },
+          { name: 'cityId', in: 'query', schema: { type: 'string' } },
+          { name: 'zoneId', in: 'query', schema: { type: 'string' } },
+          { name: 'from', in: 'query', schema: { type: 'string', format: 'date-time' } },
+          { name: 'to', in: 'query', schema: { type: 'string', format: 'date-time' } },
+          { name: 'clientId', in: 'query', schema: { type: 'string' } },
+          { name: 'goalkeeperId', in: 'query', schema: { type: 'string' } },
+        ],
+        responses: { '200': { description: 'A page of requests' }, '400': { description: 'validation_failed or search_too_broad' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/requests/{requestId}': {
+      get: {
+        summary: "A request's facts for its timeline: quote, bookings, money, incidents, ratings and cases",
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs requests.read (porteros-pro-admin spec 006). Never a phone nor the check-in photo (hasPhoto).',
+        parameters: [{ name: 'requestId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'The request detail' }, '404': { description: 'request_not_found' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/requests/{requestId}/bookings/{bookingId}/check-in-photo': {
+      get: {
+        summary: "A booking's check-in photo: a sensitive read, audited without the photo",
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs requests.read (porteros-pro-admin spec 006).',
+        parameters: [{ name: 'requestId', in: 'path', required: true, schema: { type: 'string' } }, { name: 'bookingId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'photoUrl and at' }, '404': { description: 'booking_not_found or check_in_not_found' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/requests/{requestId}/cancel': {
+      post: {
+        summary: 'Cancel every live booking of a request as an administrator',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description:
+          'Needs requests.cancel (porteros-pro-admin spec 006). No free-cancellation deadline: each assigned goalkeeper gets the whole commission back once; nobody gets an incident; client and goalkeeper are told without the reason, which is internal. Audited as request.cancel.',
+        parameters: [{ name: 'requestId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['reason'], properties: { reason: { type: 'string', minLength: 3, maxLength: 300 } } } } } },
+        responses: {
+          '200': { description: 'cancelled or replayed: requestId, status, cancelled booking ids, refunds, reason' },
+          '400': { description: 'validation_failed: reason' },
+          '404': { description: 'request_not_found' },
+          '409': { description: 'booking_not_cancellable (details.status)' },
+          '503': { description: 'cancellation_temporarily_unavailable: nothing changed' },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'permission_denied' },
+        },
+      },
+    },
+    '/admin/requests/{requestId}/bookings/{bookingId}/cancel': {
+      post: {
+        summary: 'Cancel one live booking as an administrator',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'As the whole-request cancellation, for one booking; the others stay as they are. Audited as booking.cancel.',
+        parameters: [{ name: 'requestId', in: 'path', required: true, schema: { type: 'string' } }, { name: 'bookingId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['reason'], properties: { reason: { type: 'string', minLength: 3, maxLength: 300 } } } } } },
+        responses: {
+          '200': { description: 'cancelled or replayed' },
+          '400': { description: 'validation_failed: reason' },
+          '404': { description: 'request_not_found or booking_not_found' },
+          '409': { description: 'booking_not_cancellable (details.status)' },
+          '503': { description: 'cancellation_temporarily_unavailable: nothing changed' },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'permission_denied' },
+        },
+      },
+    },
+    '/admin/ratings': {
+      get: {
+        summary: 'Ratings, newest first, with the match and the case each one opened',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs ratings.read (porteros-pro-admin spec 006). Comments are answered, never logged.',
+        parameters: [
+          ...PAGING,
+          { name: 'goalkeeperId', in: 'query', schema: { type: 'string' } },
+          { name: 'clientId', in: 'query', schema: { type: 'string' } },
+          { name: 'side', in: 'query', schema: { type: 'string', enum: ['client', 'goalkeeper'] } },
+          { name: 'starsMin', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 5 } },
+          { name: 'starsMax', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 5 } },
+          { name: 'from', in: 'query', schema: { type: 'string', format: 'date-time' } },
+          { name: 'to', in: 'query', schema: { type: 'string', format: 'date-time' } },
+        ],
+        responses: { '200': { description: 'A page of ratings' }, '400': { description: 'validation_failed' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/wallets': {
+      get: {
+        summary: "The goalkeepers' wallets (one movement or more), by balance",
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs wallets.read (porteros-pro-admin spec 007). Country and city come from the goalkeeper profile.',
+        parameters: [
+          ...PAGING,
+          { name: 'countryId', in: 'query', schema: { type: 'string' } },
+          { name: 'negative', in: 'query', schema: { type: 'string', enum: ['true'] } },
+          { name: 'sort', in: 'query', schema: { type: 'string', enum: ['balance_asc', 'balance_desc'], default: 'balance_asc' } },
+        ],
+        responses: { '200': { description: 'A page of wallets' }, '400': { description: 'validation_failed' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/top-ups': {
+      get: {
+        summary: 'Top-ups, newest first, with the goalkeeper and the country',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs topups.read (porteros-pro-admin spec 007).',
+        parameters: [
+          ...PAGING,
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['pending', 'approved', 'declined', 'voided', 'error', 'expired'] } },
+          { name: 'countryId', in: 'query', schema: { type: 'string' } },
+          { name: 'goalkeeperId', in: 'query', schema: { type: 'string' } },
+          { name: 'from', in: 'query', schema: { type: 'string', format: 'date-time' } },
+          { name: 'to', in: 'query', schema: { type: 'string', format: 'date-time' } },
+        ],
+        responses: { '200': { description: 'A page of top-ups' }, '400': { description: 'validation_failed' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/top-ups/export': {
+      get: {
+        summary: 'The filtered top-ups as a CSV (UTF-8 with BOM, ";"), at most 10 000 rows',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs topups.read; audited with the filters and the row count (porteros-pro-admin spec 007).',
+        responses: {
+          '200': { description: 'The CSV', content: { 'text/csv': { schema: { type: 'string' } } } },
+          '400': { description: 'validation_failed' },
+          '403': { description: 'permission_denied' },
+          '422': { description: 'export_too_large, with count and limit' },
+        },
+      },
+    },
+    '/admin/top-ups/{topUpId}': {
+      get: {
+        summary: 'One top-up with every ask to the gateway (checkLog), the next check and its expiry',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs topups.read (porteros-pro-admin spec 007).',
+        parameters: [{ name: 'topUpId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'The top-up' }, '403': { description: 'permission_denied' }, '404': { description: 'top_up_not_found' } },
+      },
+    },
+    '/admin/top-ups/{topUpId}/reconcile': {
+      post: {
+        summary: '"Conciliar ahora": asks the gateway now, through the sweep\'s own ask; credits an approval once',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs topups.reconcile; audited (porteros-pro-admin spec 007). Answers reconciled, already_final or gateway_unavailable.',
+        parameters: [{ name: 'topUpId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          '200': { description: 'The outcome and the top-up' },
+          '403': { description: 'permission_denied' },
+          '404': { description: 'top_up_not_found' },
+          '409': { description: 'reconcile_in_progress, or gateway_unavailable (no credentials for the country)' },
+        },
+      },
+    },
+    '/admin/invoicing/documents/export': {
+      get: {
+        summary: 'The filtered invoicing documents as a CSV, without the buyer document nor email, at most 10 000 rows',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs invoicing.read; audited with the filters and the row count (porteros-pro-admin spec 007).',
+        responses: {
+          '200': { description: 'The CSV', content: { 'text/csv': { schema: { type: 'string' } } } },
+          '400': { description: 'validation_failed' },
+          '403': { description: 'permission_denied' },
+          '422': { description: 'export_too_large, with count and limit' },
+        },
+      },
+    },
+    '/admin/invoicing/documents/{documentId}': {
+      get: {
+        summary: 'One invoicing document with its request, the invoice it corrects or its credit notes',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs invoicing.read (porteros-pro-admin spec 007).',
+        parameters: [{ name: 'documentId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'The document' }, '403': { description: 'permission_denied' }, '404': { description: 'invoicing_document_not_found' } },
+      },
+    },
+    '/admin/invoicing/documents/{documentId}/{kind}': {
+      get: {
+        summary: "An issued document's PDF or XML, from the provider it was issued with",
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs invoicing.read. A sensitive read: who downloaded it is audited, never the file (porteros-pro-admin spec 007).',
+        parameters: [
+          { name: 'documentId', in: 'path', required: true, schema: { type: 'string' } },
+          { name: 'kind', in: 'path', required: true, schema: { type: 'string', enum: ['pdf', 'xml'] } },
+        ],
+        responses: {
+          '200': { description: 'The file, as an attachment' },
+          '403': { description: 'permission_denied' },
+          '404': { description: 'invoicing_document_not_found or file_not_available' },
+          '409': { description: 'document_not_issued' },
+          '503': { description: 'provider_unavailable' },
+        },
+      },
+    },
+    '/admin/notifications': {
+      get: {
+        summary: "A user's notices, the deleted ones included, and their devices (never tokens)",
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs notifications.read (porteros-pro-admin spec 006).',
+        parameters: [...PAGING, { name: 'userId', in: 'query', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'A page of notices plus devices { count, lastSeenAt }' }, '400': { description: 'validation_failed' }, '404': { description: 'user_not_found' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/users/{userId}/test-push': {
+      post: {
+        summary: "The app's test push, sent to that user's devices",
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs notifications.send (porteros-pro-admin spec 006). Shares the per-user limit of /devices/test-push. Audited as user.test_push, without the text.',
+        parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'reached, removed, failed, noDevice' }, '404': { description: 'user_not_found' }, '429': { description: 'too_many_requests (retryAfterSeconds, Retry-After)' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
       },
     },
     '/goalkeepers/me': {
@@ -3145,6 +3541,7 @@ export const openapiSpec = {
           content: { 'application/json': { schema: { type: 'object', properties: { available: { type: 'boolean' } }, required: ['available'] } } },
         },
         responses: {
+          '403': { description: 'account_blocked: a blocked goalkeeper can turn offers off but not on' },
           '200': {
             description: 'Saved; offersSent counts the new offers sent by turning it on',
             content: {

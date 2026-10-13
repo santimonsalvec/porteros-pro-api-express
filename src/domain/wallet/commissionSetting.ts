@@ -1,4 +1,5 @@
 import { Entity } from '../common/entity.js';
+import { readRevision } from '../common/revision.js';
 import type { MatchLevel, PricedModality } from '../bookings/matchFormat.js';
 import { InvalidConfigurationError } from '../pricing/invalidConfigurationError.js';
 import { parseTier } from '../pricing/tier.js';
@@ -20,6 +21,8 @@ export class CommissionSetting extends Entity<string> {
   /** The level this commission is for; `null` = every level. Only set together with `modality`. */
   readonly level: MatchLevel | null;
 
+  /** Optimistic-concurrency counter of the admin web (absent = 0). */
+  readonly revision: number;
   constructor(params: {
     id: string;
     scope: string;
@@ -27,6 +30,7 @@ export class CommissionSetting extends Entity<string> {
     amount: number;
     modality?: string | null;
     level?: string | null;
+    revision?: number;
   }) {
     super(params.id);
     const where = `commissionSettings document ${params.id}`;
@@ -45,5 +49,6 @@ export class CommissionSetting extends Entity<string> {
     const tier = parseTier(params.modality, params.level, where);
     this.modality = tier.modality;
     this.level = tier.level;
+    this.revision = readRevision(params.revision, where);
   }
 }

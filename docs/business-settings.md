@@ -37,8 +37,8 @@ Las configuraciones técnicas (nube, llaves, variables de despliegue) están en 
 
 | Lugar | Qué se configura ahí | Quién lo cambia | Cuándo aplica |
 |---|---|---|---|
-| **Colecciones de MongoDB sembradas** | La carga en bloque de regiones y ciudades de un país, tarifas (`rentalRates`), reglas de reserva (`bookingSettings`), comisiones (`commissionSettings`) | El responsable de los datos, con `mongosh` o Atlas | De inmediato, en la siguiente operación |
-| **Administrador web** (`porteros-pro-admin`) y sus endpoints `/admin/...` | Países, regiones, ciudades y zonas (Geografía), tipos de documento y superficies (Catálogos), la página Preparación (§17), pasarela de recargas por país, IVA por país, proveedor de facturación por país, ajustes de billetera, reversión de penalidades, casos, facturas | Un miembro del equipo con el permiso de esa acción (§18) | De inmediato, solo a operaciones posteriores |
+| **Colecciones de MongoDB sembradas** | La carga en bloque de regiones y ciudades de un país | El responsable de los datos, con `mongosh` o Atlas | De inmediato, en la siguiente operación |
+| **Administrador web** (`porteros-pro-admin`) y sus endpoints `/admin/...` | Países, regiones, ciudades y zonas (Geografía), tipos de documento y superficies (Catálogos), la página Preparación (§17), tarifas, comisiones, reglas de reserva, IVA y el simulador (Precios y reglas, §4–§10), pasarela de recargas por país, proveedor de facturación por país, ajustes de billetera, reversión de penalidades, casos, facturas | Un miembro del equipo con el permiso de esa acción (§18) | De inmediato, solo a operaciones posteriores |
 | **Variables de entorno** (App Hosting) | Recordatorios de ofertas, versión de términos, activación de la facturación, modos técnicos | Quien despliega | Al reiniciar el backend |
 
 El administrador web (`porteros-pro-admin`) ya existe, pero en esta entrega solo tiene el ingreso y el armazón: sus pantallas llegan por entregas. Mientras tanto, los endpoints se usan con el token de una sesión del administrador (`POST /auth/admin/sign-in`). Cada endpoint exige un permiso (§18), y cada cambio queda en el registro de auditoría `adminAuditLog`.
@@ -151,23 +151,29 @@ Pantalla: **Catálogos → Superficies** (escribir pide `catalogs.manage`). Desa
 
 **Regla:** lo que el cliente paga **a cada portero** por un partido de cierta duración.
 
+**Dónde:** administrador → **Precios y reglas → Tarifas** (permiso `pricing.manage`). Elige la ciudad ancla y ve una tabla por duración. De una tarifa ya creada solo se cambia el monto; para cambiar su duración, nivel o formato se borra y se crea otra. Borrar pide un motivo y avisa qué zonas dejan de cotizar esa duración.
+
 | Campo | Valores | Descripción |
 |---|---|---|
 | `scope` | `zone` o `city` | Nivel de la tarifa |
-| `refId` | Id de zona o de ciudad ancla | A quién aplica |
+| `refId` | Id de zona o de ciudad ancla | A quién aplica (una ciudad que usa las zonas de otra no tiene tarifas: usa las de su ancla) |
 | `durationMinutes` | `60`, `90` o `120` | Duración del partido |
-| `amount` | Entero > 0 | Pesos enteros, en la moneda del país |
+| `modality` | `micro_futsal`, `futbol_medio`, `futbol_11` o vacío | Vacío = tarifa general |
+| `level` | `recreational`, `competitive` o vacío | Solo junto con una modalidad |
+| `amount` | Entero de 1 a 100.000.000 | Pesos enteros, en la moneda del país |
+
+No puede haber dos tarifas con el mismo nivel, destino, duración, modalidad y nivel de juego.
 
 **Resolución:** para la zona del partido y la duración elegida:
-1. se usa la tarifa de la **zona**;
-2. si no hay, la de la **ciudad ancla**;
-3. si no hay ninguna, **no se puede cotizar** esa duración.
+1. se busca en la **zona**: primero modalidad + nivel, luego solo la modalidad, luego la general;
+2. si no hay ninguna en la zona, lo mismo en la **ciudad ancla** (una tarifa general de la zona gana sobre una de Fútbol 11 de la ciudad);
+3. si no hay ninguna, **no se puede cotizar** esa duración (`rate_not_configured`). Con la modalidad "Cualquiera" solo cuenta la tarifa general.
 
 **Precio de la solicitud:** `(tarifa + recargo por anticipación) × número de porteros`. El recargo (§5.3) se cobra **por portero**.
 
 **Combinaciones:**
 - Una tarifa de ciudad para cada duración, más tarifas de zona solo donde el precio cambia.
-- Una duración sin tarifa en ningún nivel no aparece como opción cotizable en esa zona.
+- Una duración sin tarifa en ningún nivel se rechaza al cotizar en esa zona; la app sigue mostrando 60, 90 y 120 como opciones.
 
 ```js
 db.rentalRates.insertMany([
@@ -182,6 +188,11 @@ db.rentalRates.insertMany([
 ## 5. Reglas de reserva (`bookingSettings`)
 
 Un documento por nivel: `{ scope: 'country' | 'city', refId: <countryId o ciudad ancla> }`. El índice es único por `scope + refId`. Cada campo es opcional: lo que falte en la ciudad se toma del país.
+
+**Dónde:** administrador → **Precios y reglas → Reglas de reserva**. En el país se editan todas las reglas (reserva, penalidades, check-in e inasistencia); en una ciudad ancla solo las cinco de esta sección, cada una con "Heredado de …" y "Sobrescribir". El administrador valida:
+- cada valor con los rangos de esta guía, más unos topes de seguridad (ventana ≤ 90 días, minutos ≤ 10.080, hasta 20 tramos, montos ≤ 100.000.000);
+- que la anticipación mínima sea **mayor** que el margen de traslado, ya resueltos con la herencia, en el país **y en cada ciudad ancla con reglas propias**: si un cambio del país deja inválida una ciudad, no se guarda y se dice cuál;
+- y avisa (sin bloquear) si el margen supera el plazo de cancelación gratuita o si se quita del país una regla obligatoria.
 
 ### 5.1 Ventana de reserva — `bookingWindowDays`
 
@@ -258,6 +269,7 @@ db.bookingSettings.insertMany([
   - 10 min antes del cierre, "Te quedan 10 minutos";
   - al cerrar sin check-in, se avisa al cliente con el WhatsApp del portero.
 - **Dónde:** `bookingSettings.checkInWindow` del **país**.
+- **Dónde (administrador):** Precios y reglas → Reglas de reserva → país, pestaña Check-in e inasistencia.
 
 | Campo | Valores | Por defecto |
 |---|---|---|
@@ -273,6 +285,7 @@ db.bookingSettings.insertMany([
   - la comisión no se devuelve;
   - si el cliente responde "no llegó" antes, la inasistencia se registra de inmediato y se abre un caso.
 - **Dónde:** `bookingSettings.noShowGraceMinutes` del **país**.
+- **Dónde (administrador):** Precios y reglas → Reglas de reserva → país, pestaña Check-in e inasistencia.
 - **Valores:** entero 15–240. Por defecto **60**.
 
 ## 8. Penalidades del portero
@@ -285,6 +298,7 @@ db.bookingSettings.insertMany([
   - Un incidente cuya penalidad revierte un administrador deja de contar para el límite.
   - La penalidad en dinero es **no devolver la comisión**: no hay otro cobro.
 - **Dónde:** `bookingSettings.goalkeeperPenalties` del **país**. Cada campo que falte toma el valor de Colombia.
+- **Dónde (administrador):** Precios y reglas → Reglas de reserva → país, pestaña Penalidades.
 
 | Campo | Valores | Por defecto |
 |---|---|---|
@@ -310,7 +324,10 @@ db.bookingSettings.insertMany([
 |---|---|---|
 | `scope` | `country`, `city` o `zone` | Nivel |
 | `refId` | Id del país, de la ciudad ancla o de la zona | A quién aplica |
-| `amount` | Entero > 0 | Pesos enteros, **neto** (el IVA va aparte, §10) |
+| `modality`, `level` | Como en las tarifas (§4) | Vacíos = comisión general |
+| `amount` | Entero de 1 a 100.000.000 | Pesos enteros, **neto** (el IVA va aparte, §10) |
+
+**Dónde:** administrador → **Precios y reglas → Comisiones**, con el total con IVA de cada una. Solo se cambia el monto; borrar pide un motivo y avisa qué zonas quedan sin comisión. Dentro de cada nivel se busca modalidad + nivel, luego la modalidad, luego la general, como en las tarifas.
 
 **Efectos en las reglas de fondos** (siempre con comisión + IVA):
 - El portero **no ve partidos ni recibe ofertas** si su saldo es menor que la comisión (+ IVA) más baja de sus zonas habilitadas.
@@ -327,7 +344,7 @@ db.commissionSettings.insertMany([
 ## 10. IVA sobre la comisión (`taxSettings`)
 
 - **Regla:** el IVA se cobra **encima** de la comisión (y de una penalidad en dinero, si existiera), como un movimiento aparte de la billetera, en la misma operación. La comisión es lo que gana la plataforma. Una devolución reintegra también el IVA, con la tarifa con la que se cobró.
-- **Dónde:** endpoint de administración, **por país**:
+- **Dónde:** administrador → **Precios y reglas → IVA** (se escribe en porcentaje; se guarda en puntos básicos). Por debajo usa el endpoint de administración, **por país**:
 
 ```bash
 curl -X PUT "$API/admin/tax-settings/<countryCoId>" -H "Authorization: Bearer $TA" -H "Content-Type: application/json" -d '{"vatRateBps":1900}'
@@ -365,15 +382,7 @@ curl "$API/admin/tax-settings/<countryCoId>" -H "Authorization: Bearer $TA"
   - El **costo de la pasarela lo paga el portero**: antes de pagar ve el monto, el costo y el neto; al aprobarse se acreditan el monto (`top_up`) y se descuenta el costo (`gateway_fee`).
   - Una recarga cubre primero la deuda.
   - El saldo **no se puede retirar**.
-- **Dónde:** endpoint de administración, **por país**:
-
-```bash
-curl -X PUT "$API/admin/payment-gateways/<countryCoId>" -H "Authorization: Bearer $TA" -H "Content-Type: application/json" -d '{
-  "gateway": "wompi",
-  "publicConfig": { "publicKey": "pub_test_…", "environment": "sandbox" },
-  "costs": { "percentBps": 265, "fixed": 700, "vatBps": 1900 },
-  "amounts": [10000, 20000, 30000, 50000, 100000] }'
-```
+- **Dónde:** administrador → **Configuración → Pasarela de pagos**, **por país**. El formulario muestra el costo y el neto de cada monto, si las credenciales del país están cargadas y avisa que los secretos van en Secret Manager. Cada guardado exige la `revision` leída (`null` crea la del país): si otra persona guardó antes, se rechaza con `409 stale_revision` (admin spec 007). Por debajo usa `GET|PUT /admin/payment-gateways/{countryId}` (`payments.settings.manage`).
 
 | Campo | Valores | Descripción |
 |---|---|---|
@@ -397,14 +406,7 @@ curl -X PUT "$API/admin/payment-gateways/<countryCoId>" -H "Authorization: Beare
   - Cada comisión cobrada genera **una factura electrónica** al portero.
   - Cada comisión devuelta genera **una nota crédito** que referencia su factura.
   - El proveedor envía cada documento al correo del portero, y el portero los descarga en la app.
-- **Dónde:** endpoint de administración, **por país**:
-
-```bash
-curl -X PUT "$API/admin/invoicing/settings/<countryCoId>" -H "Authorization: Bearer $TA" -H "Content-Type: application/json" -d '{
-  "provider": "siigo",
-  "config": { "partnerId": "PorterosPRO", "invoiceDocumentId": 24446, "creditNoteDocumentId": 24447, "sellerId": 629,
-              "commissionProductCode": "COMISION", "penaltyProductCode": "PENALIDAD", "vatTaxId": 13156, "paymentMethodId": 5636 } }'
-```
+- **Dónde:** administrador → **Configuración → Proveedor de facturación**, **por país**: los campos de Siigo con la ayuda de dónde encontrarlos, si las credenciales están cargadas y el aviso de Secret Manager. Cada guardado exige la `revision` leída, como la pasarela. Por debajo usa `GET|PUT /admin/invoicing/settings/{countryId}` (`invoicing.settings.manage`).
 
 | Campo (Siigo) | Valores | Descripción |
 |---|---|---|
@@ -439,10 +441,29 @@ Ver `docs/invoicing.md` para la operación.
 |---|---|---|
 | Ver la billetera de un portero | `GET /admin/goalkeepers/{userId}/wallet` y `…/wallet/movements` (`wallets.read`) | Movimientos con actor, clave de causa y datos de facturación |
 | Ajuste manual (crédito o débito) | `POST /admin/goalkeepers/{userId}/wallet/adjustments` con `{ amount, reason, operationKey }` (`wallets.adjust`) | `amount` ≠ 0 (negativo = débito, no deja saldo negativo); `reason` de 3–500 caracteres; `operationKey` es un UUID que evita duplicados. Los ajustes **no** se facturan |
-| Ver retiros e inasistencias | `GET /admin/goalkeepers/{userId}/withdrawals` (`goalkeepers.read`) | Con sus penalidades |
+| Ver retiros e inasistencias | `GET /admin/goalkeepers/{userId}/withdrawals` (`goalkeepers.read`) | Con sus penalidades; en el admin, cada caso trae la ciudad del partido (`match`) y la comisión cobrada (`commission`) |
 | Revertir una penalidad | `POST /admin/goalkeepers/{userId}/withdrawals/{id}/reversal` con `{ refund, liftSuspension, reason }` (`goalkeepers.penalties.reverse`) | `refund: true` devuelve la comisión (y su IVA, con nota crédito); `liftSuspension: true` levanta la suspensión. El incidente deja de contar para el límite semanal |
-| Casos (PQRS) | `GET /admin/cases?status=open`, `GET /admin/cases/{id}`, `POST /admin/cases/{id}/resolve` con `{ note }` (`cases.read; resolver: cases.resolve`) | Se abren cuando el cliente dice "no llegó" o el portero "no me pagaron" |
-| Facturas con problemas | `GET /admin/invoicing/documents?status=rejected` y `POST …/{id}/retry` (`invoicing.read; reintentar: invoicing.retry`) | Corregir los datos (códigos DANE, documento del portero) y reintentar |
+| Levantar una suspensión completa | Desde el admin (Porteros → aviso de suspensión): una reversión por caso con penalidad vigente, en serie, con `liftSuspension: true` y `refund` solo si se marca la casilla y el caso tiene comisión sin devolver | Sin ruta nueva. Cada caso queda perdonado y en la auditoría con el motivo. Si una falla, se reintentan solo las demás |
+| Buscar usuarios y ver su ficha | `GET /admin/users` (`q` por nombre sin tildes, correo o dígitos del WhatsApp) y `GET /admin/users/{userId}` (`users.read`) | Nunca muestran el teléfono |
+| Ver el WhatsApp de un usuario | `GET /admin/users/{userId}/phone` (`users.read`) | Lectura sensible: queda en la auditoría quién lo miró, sin el número |
+| Corregir nombre o WhatsApp | `PATCH /admin/users/{userId}` con `{ version, … }` (`users.update`) | Mismas reglas que la app; un número de otra cuenta se rechaza sin decir de quién. La auditoría guarda solo los últimos 4 dígitos |
+| Bloquear o desbloquear un usuario | `GET /admin/users/{userId}/block-impact`; `POST /admin/users/{userId}/block` y `…/unblock` con `{ reason }` (`users.block`) | Bloqueado: el ingreso y el refresco responden `403 account_blocked`, así que sale de la app en máximo 15 min (lo que dura el token). A un portero se le apagan las ofertas y no puede encenderlas; desbloquear no las enciende. Sus solicitudes y reservas no se cancelan |
+| Buscar porteros y ver su ficha | `GET /admin/goalkeepers` (ciudad, zona, suspendido, ofertas, saldo menor que) y `GET /admin/goalkeepers/{userId}` (`goalkeepers.read`) | Calificación promedio de los clientes y estadísticas del mes (feature 026) |
+| Ver o corregir el documento | `GET /admin/goalkeepers/{userId}/document` (`goalkeepers.read`, lectura sensible) y `PATCH …/document` (`goalkeepers.update`) | La corrección cambia registro y perfil en una transacción; las facturas ya emitidas no cambian, las siguientes y los reintentos usan el dato nuevo |
+| Registros de portero en curso | `GET /admin/goalkeeper-registrations` y `…/{userId}` (`goalkeepers.registrations.review`) | Paso pendiente y resumen por paso; nunca los datos del documento |
+| Casos (PQRS) | `GET /admin/cases?status=open` (también `countryId`, `type`, `from`, `to`, `order=oldest`), `GET /admin/cases/{id}`, `POST /admin/cases/{id}/resolve` con `{ note }` (`cases.read; resolver: cases.resolve`) | Se abren cuando el cliente dice "no llegó" o el portero "no me pagaron". El detalle trae la reserva y el check-in sin la foto |
+| Ver una solicitud de principio a fin | `GET /admin/requests` (estado, país, ciudad, zona, fechas del partido, cliente, portero) y `GET /admin/requests/{id}` (`requests.read`) | Hechos para la línea de tiempo: cotización, cada reserva con su aceptación, check-in, cierre o cancelación (quién y por qué), dinero, retiros, calificaciones y casos |
+| Ver la foto de un check-in | `GET /admin/requests/{id}/bookings/{bookingId}/check-in-photo` (`requests.read`) o `GET /admin/cases/{id}/check-in-photo` (`cases.read`) | Lectura sensible: queda en la auditoría quién la miró, sin la foto |
+| Cancelar como administrador | `POST /admin/requests/{id}/cancel` o `…/bookings/{bookingId}/cancel` con `{ reason }` (`requests.cancel`) | Sin plazo de cancelación gratis: a cada portero asignado se le devuelve la comisión completa (y su IVA) una sola vez. No cuenta como retiro ni inasistencia de nadie (sin penalidad ni suspensión). El cliente y el portero reciben "PorterosPRO canceló tu partido…" **sin el motivo**, que es interno (queda en la reserva y en la auditoría; el movimiento de billetera dice `admin_cancelled`). Las ofertas pendientes se retiran como siempre. Repetir la misma cancelación no hace nada |
+| Calificaciones | `GET /admin/ratings` (portero, cliente, sentido, estrellas, fechas) (`ratings.read`) | Con el partido y el caso que abrió cada una; los comentarios nunca van a los logs |
+| "¿Le llegó el aviso?" | `GET /admin/notifications?userId=…` (`notifications.read`) | Todos los avisos guardados (90 días), también los que el usuario borró, con su envío: las ofertas registran cuándo se enviaron y sus recordatorios; los demás se envían al crearse. El sistema no sabe si el teléfono lo mostró |
+| Aviso de prueba a un usuario | `POST /admin/users/{userId}/test-push` (`notifications.send`) | El mismo aviso de prueba de la app, a los dispositivos de ese usuario, con el mismo límite (compartido) por minuto |
+| Facturas con problemas | Finanzas → Facturación: `GET /admin/invoicing/documents` (estado, tipo, país, fechas, `stale=true`), `GET …/{id}` y `POST …/{id}/retry` (`invoicing.read; reintentar: invoicing.retry`) | Corregir los datos (códigos DANE, documento del portero) y reintentar. La lista sigue del más antiguo al más reciente y dice si la emisión está encendida (`issuingEnabled`) |
+| Descargar el PDF o el XML de un documento | `GET /admin/invoicing/documents/{id}/pdf` o `…/xml` (`invoicing.read`) | Lectura sensible: queda en la auditoría quién lo descargó, sin el archivo. Un 404 `file_not_available` dice que el proveedor no entrega ese archivo |
+| Ver las billeteras | Finanzas → Billeteras: `GET /admin/wallets` (país, `negative=true`, orden por saldo) (`wallets.read`) | Solo los porteros con al menos un movimiento; cada fila abre la pestaña Billetera del portero |
+| "Recargué y no me llegó el saldo" | Finanzas → Recargas: `GET /admin/top-ups` (estado, país, portero, fechas) y `GET …/{id}` (`topups.read`) | El detalle trae cada consulta a la pasarela (`checkLog`: cuándo, quién —barrido o miembro—, qué respondió y qué cambió), la próxima consulta y el vencimiento |
+| Conciliar una recarga ya | `POST /admin/top-ups/{id}/reconcile` (`topups.reconcile`) | La misma consulta del barrido, sin mover su calendario. Acredita una aprobación una sola vez; dos consultas a la vez por la misma recarga no ocurren (turno de 30 s, `409 reconcile_in_progress`) |
+| Exportar para contabilidad | `GET /admin/top-ups/export` y `GET /admin/invoicing/documents/export`, con los filtros de su lista | CSV en UTF-8 con BOM y `;`, hasta 10 000 filas (si hay más, `422 export_too_large`); sin documento ni correo del comprador. Cada exportación queda en la auditoría con los filtros y las filas |
 
 ## 16. Reglas fijas del sistema (no configurables)
 
@@ -466,18 +487,20 @@ Cambiar cualquiera de estas reglas requiere un cambio de código.
 
 La página **Geografía → Preparación** muestra esta lista por país: el estado del país, sus ciudades en operación con lo que les falta y cuántas ciudades están disponibles. El detalle de cada ciudad en operación tiene su propia lista. Usa los mismos datos y funciones que la cotización: una ciudad "Lista para cotizar" cotiza sin errores de configuración. Lo que todavía no tiene pantalla en el administrador dice en qué sección de esta guía se configura.
 
+Para comprobar un precio sin reservar, **Precios y reglas → Simulador** muestra, para una zona, duración, formato y hora (y opcionalmente "Cotizar desde" otro momento), la tarifa, el recargo, la comisión, el IVA y las reglas, con el nivel de donde sale cada valor, y si se podría cotizar. Usa la misma evaluación que la cotización.
+
 **Nueva ciudad en un país que ya opera:**
 1. La ciudad en `cities` con `regionId`, `timeZone` y (en Colombia) los códigos DANE; su región con `countryId`.
 2. Si es ciudad ancla: sus zonas en `zones` (activas, con polígono). Si no: `zoneCityId` de la ciudad ancla.
-3. Las tarifas en `rentalRates` (ciudad y/o zonas) para cada duración que se quiera ofrecer.
-4. Opcional: un `bookingSettings` de la ciudad si alguna regla cambia frente al país.
-5. Opcional: comisiones de ciudad o zona si difieren de la del país.
+3. Las tarifas (Precios y reglas → Tarifas), de ciudad y/o zonas, para cada duración que se quiera ofrecer.
+4. Opcional: reglas propias de la ciudad (Precios y reglas → Reglas de reserva) si alguna cambia frente al país.
+5. Opcional: comisiones de ciudad o zona (Precios y reglas → Comisiones) si difieren de la del país.
 
 **Nuevo país**, además de lo anterior:
 1. El país con `currency` y `countryCode`, y sus regiones.
-2. Un `bookingSettings` del país con al menos `bookingWindowDays`, `minNoticeMinutes` y `leadTimeSurcharge`.
-3. La comisión del país en `commissionSettings`.
-4. El IVA: `PUT /admin/tax-settings/{countryId}`.
+2. Las reglas de reserva del país (Precios y reglas → Reglas de reserva) con al menos la ventana, la anticipación mínima y el recargo.
+3. La comisión del país (Precios y reglas → Comisiones).
+4. El IVA (Precios y reglas → IVA).
 5. La pasarela: sus secretos en Secret Manager (`{PASARELA}_{PAÍS}_…`) y `PUT /admin/payment-gateways/{countryId}`. Si la pasarela del país no es Wompi, antes hay que desarrollar su adaptador.
 6. La facturación: sus credenciales en Secret Manager (`{PROVEEDOR}_{PAÍS}_…`) y `PUT /admin/invoicing/settings/{countryId}`. Si el proveedor no es Siigo, antes hay que desarrollar su adaptador (`docs/invoicing.md` §3).
 7. Tipos de documento válidos para ese país en `documentTypes`.

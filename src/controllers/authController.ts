@@ -46,6 +46,9 @@ export function createAuthController(deps: AuthControllerDependencies): Router {
       res.status(200).json(result.tokens);
       return;
     }
+    if (result.outcome === 'account_blocked') {
+      throw accountBlocked();
+    }
     if (result.outcome === 'admin_sign_in_moved') {
       throw new ApiError(410, 'admin_sign_in_moved', 'The admin web signs in through POST /auth/admin/sign-in.');
     }
@@ -59,6 +62,9 @@ export function createAuthController(deps: AuthControllerDependencies): Router {
     if (result.outcome === 'success') {
       res.status(200).json(result.tokens);
       return;
+    }
+    if (result.outcome === 'account_blocked') {
+      throw accountBlocked();
     }
     throw new ApiError(401, 'invalid_refresh_token', 'The refresh token is invalid, expired, or has already been used.');
   });
@@ -76,4 +82,9 @@ export function createAuthController(deps: AuthControllerDependencies): Router {
   });
 
   return router;
+}
+
+/** The administration blocked this user (porteros-pro-admin spec 005, FR-030): never says why. */
+export function accountBlocked(): ApiError {
+  return new ApiError(403, 'account_blocked', 'This account is blocked.');
 }

@@ -73,6 +73,14 @@ export class InvoicingDocumentRepository implements IInvoicingDocumentRepository
     await this.collection.createIndex({ status: 1, nextAttemptAt: 1 }, { name: 'status_next' });
   }
 
+  /** The admin's lists (admin spec 007, research §5): oldest first by status or country, the charge date, credit notes. */
+  async ensureAdminIndexes(): Promise<void> {
+    await this.collection.createIndex({ status: 1, createdAt: 1, _id: 1 }, { name: 'status_created' });
+    await this.collection.createIndex({ countryId: 1, createdAt: 1, _id: 1 }, { name: 'country_created' });
+    await this.collection.createIndex({ occurredAt: 1 }, { name: 'occurred' });
+    await this.collection.createIndex({ originalDocumentId: 1 }, { name: 'original', partialFilterExpression: { originalDocumentId: { $type: 'string' } } });
+  }
+
   async createIfAbsent(document: InvoicingDocument): Promise<{ created: boolean; document: InvoicingDocument }> {
     try {
       await this.collection.insertOne(invoicingDocumentToDocument(document));

@@ -45,6 +45,10 @@ export class RatingRepository implements IRatingRepository {
   async ensureIndexes(): Promise<void> {
     await this.collection.createIndex({ bookingId: 1, side: 1 }, { name: 'booking_side_unique', unique: true });
     await this.collection.createIndex({ authorId: 1, createdAt: -1 }, { name: 'author_created' });
+    // A goalkeeper's average for the admin (admin spec 005).
+    await this.collection.createIndex({ subjectId: 1, side: 1 }, { name: 'subject_side' });
+    // The admin's ratings list, newest first (admin spec 006).
+    await this.collection.createIndex({ createdAt: -1, _id: -1 }, { name: 'createdAt_id' });
   }
 
   async findByBookingsAndSide(bookingIds: readonly string[], side: RatingSide): Promise<Rating[]> {

@@ -11,11 +11,13 @@ const EXPECTED: [area: string, areaName: string, permission: string, description
   ['dashboard', 'Panel', 'dashboard.read', 'Ver las métricas del panel'],
   ['users', 'Usuarios', 'users.read', 'Ver usuarios, sus dispositivos y términos aceptados'],
   ['users', 'Usuarios', 'users.update', 'Corregir nombre y WhatsApp de un usuario'],
+  ['users', 'Usuarios', 'users.block', 'Bloquear y desbloquear usuarios'],
   ['goalkeepers', 'Porteros', 'goalkeepers.read', 'Ver porteros, registros, retiros e inasistencias'],
   ['goalkeepers', 'Porteros', 'goalkeepers.update', 'Corregir los datos de identificación de un portero'],
   ['goalkeepers', 'Porteros', 'goalkeepers.registrations.review', 'Revisar registros de portero en curso'],
   ['goalkeepers', 'Porteros', 'goalkeepers.penalties.reverse', 'Revertir penalidades y levantar suspensiones'],
   ['requests', 'Solicitudes', 'requests.read', 'Ver solicitudes, reservas y su línea de tiempo'],
+  ['requests', 'Solicitudes', 'requests.cancel', 'Cancelar solicitudes y reservas'],
   ['ratings', 'Calificaciones', 'ratings.read', 'Ver calificaciones'],
   ['cases', 'Casos', 'cases.read', 'Ver casos'],
   ['cases', 'Casos', 'cases.resolve', 'Resolver casos'],
@@ -38,7 +40,7 @@ const EXPECTED: [area: string, areaName: string, permission: string, description
 ];
 
 describe('permission catalog', () => {
-  it('lists the 32 permissions of 16 areas, in the contract order', () => {
+  it('lists the 34 permissions of 16 areas, in the contract order', () => {
     const flattened = PERMISSION_AREAS.flatMap((area) =>
       area.permissions.map((permission) => [area.id, area.name, permission.id, permission.description]),
     );
@@ -48,9 +50,8 @@ describe('permission catalog', () => {
     expect(PERMISSION_CATALOG).toEqual(EXPECTED.map(([, , permission]) => permission));
   });
 
-  it('leaves out the rules not yet confirmed by the owner', () => {
-    expect(PERMISSION_CATALOG).not.toContain('users.block');
-    expect(PERMISSION_CATALOG).not.toContain('requests.cancel');
+  it('includes the admin cancellation confirmed in spec 006 of porteros-pro-admin', () => {
+    expect(PERMISSION_CATALOG).toContain('requests.cancel');
   });
 
   it('recognises only catalog permissions', () => {

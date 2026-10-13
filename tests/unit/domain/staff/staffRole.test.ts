@@ -60,7 +60,7 @@ describe('StaffRole', () => {
       permissions: expect.any(String),
     });
     expect(validateStaffRoleInput({ id: 'owner', name: 'Otro', description: '', permissions: [] })).toEqual({ id: expect.any(String) });
-    expect(validateStaffRoleInput({ id: 'ok', name: 'Ok', description: '', permissions: ['users.block'] })).toEqual({
+    expect(validateStaffRoleInput({ id: 'ok', name: 'Ok', description: '', permissions: ['requests.delete'] })).toEqual({
       permissions: expect.any(String),
     });
     expect(validateStaffRoleInput({ id: 'ok', name: 'x'.repeat(61), description: '', permissions: [] })).toEqual({ name: expect.any(String) });

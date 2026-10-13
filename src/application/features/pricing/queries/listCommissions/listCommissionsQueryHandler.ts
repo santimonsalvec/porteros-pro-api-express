@@ -1,0 +1,45 @@
+import type { IQueryHandler } from '../../../../common/mediator/types.js';
+import { pageOf, type Page } from '../../../geography/common/views.js';
+import { compareNames, compareTiers } from '../../common/ordering.js';
+import type { ICommissionAdmin, RefFilter } from '../../common/ports.js';
+import type { CommissionView } from '../../common/views.js';
+import { commissionViews, type CommissionViewDependencies } from './commissionViews.js';
+import { ListCommissionsQuery, type CommissionFilters } from './listCommissionsQuery.js';
+
+const SCOPE_ORDER = { country: 0, city: 1, zone: 2 } as const;
+
+export class ListCommissionsQueryHandler implements IQueryHandler<ListCommissionsQuery, Page<CommissionView>> {
+  constructor(private readonly deps: CommissionViewDependencies & { commissions: ICommissionAdmin }) {}
+
+  async handle({ filters, page, pageSize }: ListCommissionsQuery): Promise<Page<CommissionView>> {
+    const records = (await this.deps.commissions.find({ refs: await this.refsFor(filters), modality: filters.modality })).filter(
+      (record) => filters.scope === undefined || record.scope === filters.scope,
+    );
+    const { views, geography } = await commissionViews(this.deps, records);
+    const order = (view: CommissionView) => (view.scope === 'zone' ? (geography.zone(view.refId)?.displayOrder ?? 0) : -1);
+    const rows = views
+      .filter((view) => filters.countryId === undefined || view.countryId === filters.countryId)
+      .sort(
+        (a, b) =>
+          compareNames(a.countryName, b.countryName) ||
+          SCOPE_ORDER[a.scope] - SCOPE_ORDER[b.scope] ||
+          compareNames(a.cityName, b.cityName) ||
+          order(a) - order(b) ||
+          compareTiers(a, b) ||
+          a.id.localeCompare(b.id),
+      );
+    const start = (page - 1) * pageSize;
+    return pageOf(rows.slice(start, start + pageSize), page, pageSize, rows.length);
+  }
+
+  /** A city filter reads its own commissions and its zones'; a zone filter, only that zone's. */
+  private async refsFor({ cityId, zoneId }: CommissionFilters): Promise<RefFilter> {
+    if (zoneId !== undefined) return [{ scope: 'zone', refIds: [zoneId] }];
+    if (cityId === undefined) return null;
+    const zones = await this.deps.zones.summariesByCities([cityId]);
+    return [
+      { scope: 'city', refIds: [cityId] },
+      { scope: 'zone', refIds: zones.map((zone) => zone.id) },
+    ];
+  }
+}
