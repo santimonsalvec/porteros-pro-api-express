@@ -6,7 +6,7 @@ describe('GetPermissionCatalogQueryHandler', () => {
   it('lists the areas with their permissions and descriptions, in catalog order', async () => {
     const result = await new GetPermissionCatalogQueryHandler().handle(new GetPermissionCatalogQuery());
 
-    expect(result.areas).toHaveLength(16);
+    expect(result.areas).toHaveLength(17);
     expect(result.areas[0]).toEqual({
       id: 'team',
       name: 'Equipo',
@@ -19,5 +19,17 @@ describe('GetPermissionCatalogQueryHandler', () => {
       ],
     });
     expect(result.areas.at(-1)).toEqual({ id: 'system', name: 'Sistema', permissions: [{ id: 'system.read', description: 'Ver eventos, salud y parámetros del sistema' }] });
+  });
+});
+
+describe('GetPermissionCatalogQueryHandler: access (admin spec 009)', () => {
+  it('has an Acceso area with its own permission for the sign-in code settings', async () => {
+    const result = await new GetPermissionCatalogQueryHandler().handle(new GetPermissionCatalogQuery());
+
+    expect(result.areas.find((area) => area.id === 'access')).toEqual({
+      id: 'access',
+      name: 'Acceso',
+      permissions: [{ id: 'access.settings.manage', description: 'Configurar el ingreso con código' }],
+    });
   });
 });

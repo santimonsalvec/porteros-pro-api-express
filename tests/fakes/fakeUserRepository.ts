@@ -1,5 +1,5 @@
 import type { ContactFields, ContactWriteResult, IUserContactWriter } from '../../src/application/features/users/common/ports.js';
-import type { IUserRepository } from '../../src/application/features/auth/common/ports.js';
+import { EmailKeyTakenError, type IUserRepository } from '../../src/application/features/auth/common/ports.js';
 import { User } from '../../src/domain/users/user.js';
 
 export class FakeUserRepository implements IUserRepository, IUserContactWriter {
@@ -18,8 +18,19 @@ export class FakeUserRepository implements IUserRepository, IUserContactWriter {
     return this.users.get(id) ?? null;
   }
 
+  /** Like the unique `emailKey_unique` index (admin spec 009). */
   async add(entity: User): Promise<void> {
+    if (entity.emailKey && [...this.users.values()].some((user) => user.id !== entity.id && user.emailKey === entity.emailKey)) {
+      throw new EmailKeyTakenError(entity.emailKey);
+    }
     this.users.set(entity.id, entity);
+  }
+
+  async findByEmailKey(emailKey: string): Promise<User | null> {
+    for (const user of this.users.values()) {
+      if (user.emailKey === emailKey) return user;
+    }
+    return null;
   }
 
   async update(entity: User): Promise<void> {

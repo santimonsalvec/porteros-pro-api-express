@@ -1,16 +1,20 @@
 import type { ICommandHandler } from '../../../../common/mediator/types.js';
-import type {
-  IAuditLogger,
-  IGoogleIdTokenValidator,
-  IIdGenerator,
-  IInternalTokenIssuer,
-  IRefreshTokenRepository,
-  IUserRepository,
+import {
+  EmailKeyTakenError,
+  type AppGoogleIdentity,
+  type IAuditLogger,
+  type IGoogleIdTokenValidator,
+  type IIdGenerator,
+  type IInternalTokenIssuer,
+  type IRefreshTokenRepository,
+  type IUserRepository,
 } from '../../common/ports.js';
 import type { IGoalkeeperProfileRepository } from '../../../goalkeepers/common/ports.js';
-import { RefreshToken } from '../../../../../domain/users/refreshToken.js';
+import { normalizeEmail } from '../../../../../domain/common/email.js';
+import { ExternalIdentity } from '../../../../../domain/users/externalIdentity.js';
 import { User } from '../../../../../domain/users/user.js';
-import { isBlocked, NO_BLOCKED_USERS, type BlockedUsers } from '../../../users/common/blockedUsers.js';
+import { NO_BLOCKED_USERS, type BlockedUsers } from '../../../users/common/blockedUsers.js';
+import { issueAppSession } from '../../common/issueAppSession.js';
 import { ExchangeSsoCredentialCommand, type ExchangeSsoCredentialResult } from './exchangeSsoCredentialCommand.js';
 
 const REFRESH_TOKEN_LIFETIME_MS_DEFAULT = 1000 * 60 * 60 * 24 * 30;
@@ -49,36 +53,60 @@ export class ExchangeSsoCredentialCommandHandler
       return { outcome: 'invalid_credential' };
     }
 
-    let user = await this.userRepository.findByExternalIdentity(identity.provider, identity.subject);
+    const user = (await this.userRepository.findByExternalIdentity(identity.provider, identity.subject)) ?? (await this.accountFor(identity));
 
-    if (!user) {
-      user = User.createFromExternalIdentity({
-        id: this.idGenerator.newId(),
-        email: identity.email,
-        displayName: null,
-        provider: identity.provider,
-        subject: identity.subject,
-      });
-      await this.userRepository.add(user);
-    }
-
-    // A new account can't be blocked yet; an existing one may be (porteros-pro-admin spec 005).
-    if (await isBlocked(this.blockedUsers, user.id)) {
+    const session = await issueAppSession(
+      {
+        refreshTokenRepository: this.refreshTokenRepository,
+        tokenIssuer: this.tokenIssuer,
+        goalkeeperProfileRepository: this.goalkeeperProfileRepository,
+        idGenerator: this.idGenerator,
+        refreshTokenLifetimeMs: this.refreshTokenLifetimeMs,
+        blockedUsers: this.blockedUsers,
+      },
+      user,
+    );
+    if (session.outcome === 'account_blocked') {
       this.auditLogger.logSsoAttempt({ provider: command.provider, platform: command.platform, success: false, reason: 'account_blocked' });
       return { outcome: 'account_blocked' };
     }
 
-    const isGoalkeeper = (await this.goalkeeperProfileRepository.getByUserId(user.id)) !== null;
-    const tokens = await this.tokenIssuer.issue(user, { isGoalkeeper });
-    const refreshToken = RefreshToken.create(
-      this.idGenerator.newId(),
-      user.id,
-      this.tokenIssuer.hashRefreshToken(tokens.refreshToken),
-      this.refreshTokenLifetimeMs,
-    );
-    await this.refreshTokenRepository.add(refreshToken);
-
     this.auditLogger.logSsoAttempt({ provider: command.provider, platform: command.platform, success: true });
-    return { outcome: 'success', tokens };
+    return { outcome: 'success', tokens: session.tokens };
+  }
+
+  /**
+   * A first Google sign-in: the account a sign-in code made for this verified address, now linked
+   * to the identity (admin spec 009, Q1), or a new one. An unverified address never finds an account.
+   */
+  private async accountFor(identity: AppGoogleIdentity): Promise<User> {
+    const linked = new ExternalIdentity(identity.provider, identity.subject, identity.email);
+    const emailKey = identity.emailVerified ? normalizeEmail(identity.email) : null;
+    const existing = emailKey ? await this.userRepository.findByEmailKey(emailKey) : null;
+    if (existing) return this.link(existing, linked);
+
+    const user = User.createFromExternalIdentity({
+      id: this.idGenerator.newId(),
+      email: identity.email,
+      displayName: null,
+      provider: identity.provider,
+      subject: identity.subject,
+      emailVerified: identity.emailVerified === true,
+    });
+    try {
+      await this.userRepository.add(user);
+      return user;
+    } catch (error) {
+      // A sign-in code made the account for this address meanwhile: use it.
+      const winner = error instanceof EmailKeyTakenError ? await this.userRepository.findByEmailKey(error.emailKey) : null;
+      if (!winner) throw error;
+      return this.link(winner, linked);
+    }
+  }
+
+  private async link(user: User, identity: ExternalIdentity): Promise<User> {
+    user.linkExternalIdentity(identity);
+    await this.userRepository.update(user);
+    return user;
   }
 }

@@ -104,6 +104,7 @@ describe('the admin system routes (spec 008 of the admin, US3)', () => {
       { name: 'MONGODB_CONNECTION_STRING', present: true },
       { name: 'JWT_SIGNING_KEY', present: true },
       { name: 'CLOUDINARY_URL', present: false },
+      { name: 'RESEND_API_KEY', present: false },
     ]);
     expect(response.body.countryCredentials).toEqual([
       { countryId: 'country-co', countryCode: 'CO', countryName: 'Colombia', gateway: { name: 'wompi', present: true }, invoicingProvider: null },

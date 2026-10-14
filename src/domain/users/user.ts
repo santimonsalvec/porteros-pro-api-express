@@ -1,4 +1,5 @@
 import { Entity } from '../common/entity.js';
+import { normalizeEmail } from '../common/email.js';
 import { ExternalIdentity } from './externalIdentity.js';
 
 /**
@@ -6,7 +7,9 @@ import { ExternalIdentity } from './externalIdentity.js';
  * and the admin web, distinguished only by `isAdmin`. Profile fields (`firstName`,
  * `lastName`, `countryCallingCode`, `whatsAppNumber`) are `null` until profile
  * completion (see `completeProfile`); `normalizedPhoneNumber` is the actual
- * uniqueness key derived from them (see `normalizePhoneNumber`).
+ * uniqueness key derived from them (see `normalizePhoneNumber`). `emailKey` is the
+ * normalized address once it is proven (a sign-in code, or Google's `email_verified`): one
+ * account per proven address (admin spec 009, Q1), unique in the database.
  */
 export class User extends Entity<string> {
   email: string;
@@ -20,6 +23,7 @@ export class User extends Entity<string> {
   whatsAppNumber: string | null;
   isProfileComplete: boolean;
   normalizedPhoneNumber: string | null;
+  emailKey: string | null;
 
   constructor(params: {
     id: string;
@@ -34,6 +38,7 @@ export class User extends Entity<string> {
     whatsAppNumber: string | null;
     isProfileComplete: boolean;
     normalizedPhoneNumber: string | null;
+    emailKey?: string | null;
   }) {
     super(params.id);
     this.email = params.email;
@@ -47,6 +52,7 @@ export class User extends Entity<string> {
     this.whatsAppNumber = params.whatsAppNumber;
     this.isProfileComplete = params.isProfileComplete;
     this.normalizedPhoneNumber = params.normalizedPhoneNumber;
+    this.emailKey = params.emailKey ?? null;
   }
 
   /** Factory for mobile auto-provisioning (FR-014) and out-of-band admin provisioning. */
@@ -57,6 +63,8 @@ export class User extends Entity<string> {
     provider: string;
     subject: string;
     isAdmin?: boolean;
+    /** Google verified the address: the account gets its email key (admin spec 009). */
+    emailVerified?: boolean;
   }): User {
     return new User({
       id: params.id,
@@ -71,7 +79,35 @@ export class User extends Entity<string> {
       whatsAppNumber: null,
       isProfileComplete: false,
       normalizedPhoneNumber: null,
+      emailKey: params.emailVerified ? normalizeEmail(params.email) : null,
     });
+  }
+
+  /** An account a sign-in code created: no external identity yet (admin spec 009, FR-013). */
+  static createFromVerifiedEmail(params: { id: string; email: string }): User {
+    const email = normalizeEmail(params.email);
+    if (!email) throw new Error('Invalid email');
+    return new User({
+      id: params.id,
+      email,
+      displayName: null,
+      isAdmin: false,
+      externalIdentities: [],
+      createdAt: new Date(),
+      firstName: null,
+      lastName: null,
+      countryCallingCode: null,
+      whatsAppNumber: null,
+      isProfileComplete: false,
+      normalizedPhoneNumber: null,
+      emailKey: email,
+    });
+  }
+
+  /** A Google identity reaching an account found by its proven email; `email` stays as it was. */
+  linkExternalIdentity(identity: ExternalIdentity): void {
+    if (this.findExternalIdentity(identity.provider, identity.subject)) return;
+    this.externalIdentities = [...this.externalIdentities, identity];
   }
 
   findExternalIdentity(provider: string, subject: string): ExternalIdentity | undefined {

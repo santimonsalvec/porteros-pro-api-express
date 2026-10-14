@@ -1,11 +1,11 @@
 import type { IClock } from '../../../../common/clock.js';
 import type { ICommandHandler } from '../../../../common/mediator/types.js';
 import type { AdminGoogleIdentity, IGoogleIdTokenValidator, IIdGenerator, IUserRepository } from '../../../auth/common/ports.js';
+import { ExternalIdentity } from '../../../../../domain/users/externalIdentity.js';
 import { User } from '../../../../../domain/users/user.js';
-import { AdminSession } from '../../../../../domain/staff/adminSession.js';
 import { normalizeStaffEmail, type StaffMember } from '../../../../../domain/staff/staffMember.js';
 import type { IAdminSecurityLog, IAdminSessionStore, IAdminTokenIssuer, IStaffMemberRepository } from '../../common/ports.js';
-import { toSessionSummary } from '../../common/sessionResponse.js';
+import { startAdminSession } from '../../common/startAdminSession.js';
 import { SignInAdminCommand, type SignInAdminResult } from './signInAdminCommand.js';
 
 export interface SignInAdminDependencies {
@@ -40,25 +40,8 @@ export class SignInAdminCommandHandler implements ICommandHandler<SignInAdminCom
       return { outcome: 'unauthorized_admin_account' };
     }
 
-    const now = this.deps.clock.now();
-    await this.deps.members.update(member.recordSignIn(now));
-    const refreshToken = this.deps.tokens.newRefreshToken();
-    const session = AdminSession.start(
-      {
-        id: this.deps.ids.newId(),
-        staffId: member.id,
-        userId: member.userId!,
-        refreshTokenHash: this.deps.tokens.hashRefreshToken(refreshToken),
-        userAgent: command.userAgent,
-        ip: command.ip,
-      },
-      now,
-    );
-    await this.deps.sessions.add(session);
-    const access = await this.deps.tokens.issueAccessToken({ userId: session.userId, sessionId: session.id, staffId: member.id });
-
-    this.deps.securityLog.log({ event: 'admin_sign_in', outcome: 'signed_in', staffId: member.id, sessionId: session.id });
-    return { outcome: 'signed_in', ...access, refreshToken, session: toSessionSummary(session) };
+    const issued = await startAdminSession(this.deps, member, { userAgent: command.userAgent, ip: command.ip, method: 'google' });
+    return { outcome: 'signed_in', ...issued };
   }
 
   /**
@@ -70,7 +53,7 @@ export class SignInAdminCommandHandler implements ICommandHandler<SignInAdminCom
     const email = normalizeStaffEmail(google.identity.email);
     const member = email ? await this.deps.members.findByEmail(email) : null;
     if (!member) return null;
-    const user = await this.deps.users.findByExternalIdentity(google.identity.provider, google.identity.subject);
+    const user = (await this.deps.users.findByExternalIdentity(google.identity.provider, google.identity.subject)) ?? (await this.linkedByEmail(google, email!));
 
     if (member.hasAccess()) return member.userId !== null && user?.id === member.userId ? member : null;
 
@@ -84,6 +67,19 @@ export class SignInAdminCommandHandler implements ICommandHandler<SignInAdminCom
     return active;
   }
 
+  /**
+   * The account a sign-in code made for this verified address, now linked to the Google identity
+   * (admin spec 009, Q1): one address is one account, whichever way the person signs in.
+   */
+  private async linkedByEmail(google: AdminGoogleIdentity, email: string): Promise<User | null> {
+    if (!google.emailVerified) return null;
+    const user = await this.deps.users.findByEmailKey(email);
+    if (!user) return null;
+    user.linkExternalIdentity(new ExternalIdentity(google.identity.provider, google.identity.subject, google.identity.email));
+    await this.deps.users.update(user);
+    return user;
+  }
+
   private async createAccount(google: AdminGoogleIdentity, email: string): Promise<User> {
     const user = User.createFromExternalIdentity({
       id: this.deps.ids.newId(),
@@ -91,6 +87,7 @@ export class SignInAdminCommandHandler implements ICommandHandler<SignInAdminCom
       displayName: null,
       provider: google.identity.provider,
       subject: google.identity.subject,
+      emailVerified: google.emailVerified,
     });
     await this.deps.users.add(user);
     return user;

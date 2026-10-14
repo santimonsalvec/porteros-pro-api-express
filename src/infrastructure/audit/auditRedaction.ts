@@ -25,6 +25,8 @@ const ALLOWED_FIELDS: Readonly<Record<string, readonly string[]>> = {
   ],
   taxSettings: ['countryId', 'vatRateBps', 'updatedAt', 'updatedBy'],
   invoicingSettings: ['countryId', 'provider', 'updatedAt', 'updatedBy', 'revision', 'credentialsPresent'],
+  // The sign-in code's expiry (admin spec 009).
+  accessSettings: ['loginCodeExpiryMinutes', 'isDefault', 'revision', 'updatedAt', 'updatedBy'],
   invoicingDocument: ['documentId', 'id', 'kind', 'status', 'attempts', 'sourceMovementId', 'errorCode', 'retriedAt'],
   // The team (spec 002): the member's email may go to the audit log, never to the logs.
   staffMember: [

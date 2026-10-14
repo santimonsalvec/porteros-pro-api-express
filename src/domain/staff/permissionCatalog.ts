@@ -114,6 +114,8 @@ export const PERMISSION_AREAS = [
       { id: 'notifications.send', description: 'Enviar un aviso de prueba a un usuario' },
     ],
   },
+  // The sign-in code's expiry (porteros-pro-admin spec 009, Q4): its own permission, not a setting of another area.
+  { id: 'access', name: 'Acceso', permissions: [{ id: 'access.settings.manage', description: 'Configurar el ingreso con código' }] },
   { id: 'system', name: 'Sistema', permissions: [{ id: 'system.read', description: 'Ver eventos, salud y parámetros del sistema' }] },
 ] as const;
 

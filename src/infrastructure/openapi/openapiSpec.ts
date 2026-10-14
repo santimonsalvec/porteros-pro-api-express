@@ -786,6 +786,27 @@ export const openapiSpec = {
         },
         required: ['items', 'page', 'pageSize', 'totalItems', 'totalPages'],
       },
+      EmailCodeSent: {
+        type: 'object',
+        properties: {
+          email: { type: 'string', description: 'The normalized address' },
+          expiresAt: { type: 'string', format: 'date-time' },
+          expiryMinutes: { type: 'integer', minimum: 1, maximum: 10 },
+          resendAfterSeconds: { type: 'integer' },
+        },
+        required: ['email', 'expiresAt', 'expiryMinutes', 'resendAfterSeconds'],
+      },
+      AccessSettingsResponse: {
+        type: 'object',
+        properties: {
+          loginCodeExpiryMinutes: { type: 'integer', minimum: 1, maximum: 10 },
+          isDefault: { type: 'boolean' },
+          revision: { type: 'integer' },
+          updatedAt: { type: 'string', format: 'date-time', nullable: true },
+          updatedBy: { type: 'string', nullable: true, description: "The staff member's user id" },
+          limits: { type: 'object', properties: { min: { type: 'integer' }, max: { type: 'integer' }, recommended: { type: 'integer' } } },
+        },
+      },
       TokenPairResponse: {
         type: 'object',
         properties: {
@@ -1101,6 +1122,33 @@ export const openapiSpec = {
             description: 'Missing or unrecognized platform',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
           },
+        },
+      },
+    },
+    '/auth/email-code': {
+      post: {
+        summary: 'App: email a six-digit sign-in code to an address (admin spec 009)',
+        tags: ['Auth'],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { email: { type: 'string', maxLength: 254 } }, required: ['email'] } } } },
+        responses: {
+          '202': { description: 'Sent (or, on the admin web, recorded without a code for an address without access: the same answer)', content: { 'application/json': { schema: { $ref: '#/components/schemas/EmailCodeSent' } } } },
+          '400': { description: '`validation_failed` (`fieldErrors.email`)', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '429': { description: '`resend_too_soon`, `too_many_codes` (with `retryAt`) or `too_many_requests`; `retryAfterSeconds` and `Retry-After`', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '503': { description: '`email_delivery_failed`: nothing was sent and the send does not count', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/auth/email-code/verify': {
+      post: {
+        summary: 'App: exchange the sign-in code for a session; the account is made if the address has none',
+        tags: ['Auth'],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { email: { type: 'string', maxLength: 254 }, code: { type: 'string', description: 'Six digits; spaces and dashes are ignored' } }, required: ['email', 'code'] } } } },
+        responses: {
+          '200': { description: 'Signed in', content: { 'application/json': { schema: { $ref: '#/components/schemas/TokenPairResponse' } } } },
+          '400': { description: '`validation_failed`', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '401': { description: '`invalid_code`, `code_expired` or `too_many_attempts`', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '429': { description: '`too_many_requests` (`retryAfterSeconds`, `Retry-After`)', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '403': { description: '`account_blocked`, told only after the right code', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
         },
       },
     },
@@ -1813,6 +1861,35 @@ export const openapiSpec = {
         },
       },
     },
+    '/auth/admin/email-code': {
+      post: {
+        summary: 'Admin web: email a sign-in code to a member; the same answer, no sooner than 800 ms, for any address (admin spec 009)',
+        tags: ['Admin web session'],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { email: { type: 'string', maxLength: 254 } }, required: ['email'] } } } },
+        responses: {
+          '202': { description: 'Sent (or, on the admin web, recorded without a code for an address without access: the same answer)', content: { 'application/json': { schema: { $ref: '#/components/schemas/EmailCodeSent' } } } },
+          '400': { description: '`validation_failed` (`fieldErrors.email`)', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '429': { description: '`resend_too_soon`, `too_many_codes` (with `retryAt`) or `too_many_requests`; `retryAfterSeconds` and `Retry-After`', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '503': { description: '`email_delivery_failed`: nothing was sent and the send does not count', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/auth/admin/email-code/verify': {
+      post: {
+        summary: 'Admin web: exchange the sign-in code for a session, as with Google',
+        tags: ['Admin web session'],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { email: { type: 'string', maxLength: 254 }, code: { type: 'string', description: 'Six digits; spaces and dashes are ignored' } }, required: ['email', 'code'] } } } },
+        responses: {
+          '200': {
+            description: 'Session opened; the refresh value is set in the pp_admin_rt cookie',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/AdminSessionResponse' } } },
+          },
+          '400': { description: '`validation_failed`', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '401': { description: '`invalid_code`, `code_expired` or `too_many_attempts`', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '429': { description: '`too_many_requests` (`retryAfterSeconds`, `Retry-After`)', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
     '/auth/admin/sign-in': {
       post: {
         summary: 'Admin web: exchange a Google ID token for a session',
@@ -2287,6 +2364,34 @@ export const openapiSpec = {
           '400': { description: 'validation_failed' },
           '403': { description: 'Not an administrator' },
           '404': { description: 'country_not_found' },
+        },
+      },
+    },
+    '/admin/access-settings': {
+      get: {
+        summary: "The sign-in code's expiry (access.settings.manage, admin spec 009)",
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        responses: {
+          '200': { description: 'The expiry, 2 minutes by default', content: { 'application/json': { schema: { $ref: '#/components/schemas/AccessSettingsResponse' } } } },
+          '401': { description: 'Not signed in to the admin web' },
+          '403': { description: 'permission_denied' },
+        },
+      },
+      put: {
+        summary: "Change the sign-in code's expiry at the revision read (audited as accessSettings.update)",
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { type: 'object', properties: { revision: { type: 'integer', minimum: 0 }, loginCodeExpiryMinutes: { type: 'integer', minimum: 1, maximum: 10 } }, required: ['revision', 'loginCodeExpiryMinutes'] } } },
+        },
+        responses: {
+          '200': { description: 'Saved', content: { 'application/json': { schema: { $ref: '#/components/schemas/AccessSettingsResponse' } } } },
+          '400': { description: '`validation_failed` (`fieldErrors.loginCodeExpiryMinutes`)', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '401': { description: 'Not signed in to the admin web' },
+          '403': { description: 'permission_denied' },
+          '409': { description: '`stale_revision`', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
         },
       },
     },

@@ -1,19 +1,13 @@
 import { Entity } from '../common/entity.js';
+import { normalizeEmail } from '../common/email.js';
 
 export type StaffStatus = 'invited' | 'active' | 'disabled';
 
 /** An invitation nobody used within 7 days stops granting access (spec 001, FR-007). */
 export const INVITATION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 
-const EMAIL_MAX = 254;
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 /** Trimmed and lower-cased, or `null` when it is not an email address. */
-export function normalizeStaffEmail(raw: string): string | null {
-  const email = raw.trim().toLowerCase();
-  if (email.length < 3 || email.length > EMAIL_MAX || !EMAIL_PATTERN.test(email)) return null;
-  return email;
-}
+export const normalizeStaffEmail = normalizeEmail;
 
 export class StaffMemberTransitionError extends Error {}
 

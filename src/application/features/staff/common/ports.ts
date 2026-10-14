@@ -122,10 +122,14 @@ export interface IStaffAccessResolver {
 
 /** Security log of the admin web's sessions: never the email, the Google token nor any refresh value. */
 export interface AdminSecurityEvent {
-  event: 'admin_sign_in' | 'admin_refresh' | 'admin_sign_out';
+  event: 'admin_sign_in' | 'admin_refresh' | 'admin_sign_out' | 'admin_email_code';
   outcome: string;
   staffId?: string;
   sessionId?: string;
+  /** How a sign-in happened (admin spec 009). */
+  method?: 'google' | 'email_code';
+  /** `j***@gmail.com`, for the sign-in code's requests and checks (admin spec 009, FR-020). */
+  emailMasked?: string;
 }
 
 export interface IAdminSecurityLog {

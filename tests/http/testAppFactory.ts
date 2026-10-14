@@ -41,6 +41,12 @@ import { financeHandlerRegistrations } from '../../src/infrastructure/financeAdm
 import { dashboardSystemHandlerRegistrations } from '../../src/infrastructure/dashboardSystemAdminHandlers.js';
 import { FakeDashboardReader } from '../fakes/fakeDashboardReader.js';
 import { readSystemParameters } from '../../src/infrastructure/systemParameterSource.js';
+import { loginCodeHandlerRegistrations } from '../../src/infrastructure/loginCodeHandlers.js';
+import { HmacLoginCodeHasher } from '../../src/infrastructure/auth/hmacLoginCodeHasher.js';
+import { FakeLoginCodeMailer } from '../fakes/fakeLoginCodeMailer.js';
+import { FakeLoginCodeStore } from '../fakes/fakeLoginCodeStore.js';
+import { FakeDurableRateLimiter } from '../fakes/fakeDurableRateLimiter.js';
+import { FakeAccessSettingsRepository } from '../fakes/fakeAccessSettingsRepository.js';
 
 /** The server environment Sistema reads in the HTTP tests (admin spec 008): secrets that must never show. */
 export const TEST_SYSTEM_ENV = {
@@ -383,6 +389,15 @@ export interface TestAppContext {
   staffAccessResolver: StaffAccessResolver;
   /** Users blocked from the admin web (admin spec 005). */
   userBlockRepository: FakeUserBlockRepository;
+  /** Admin spec 009: the codes that went out (`lastCode()`), set `next` to fail a send. */
+  loginCodeMailer: FakeLoginCodeMailer;
+  loginCodeStore: FakeLoginCodeStore;
+  /** Admin spec 009: the limits per network address. */
+  loginCodeLimiter: FakeDurableRateLimiter;
+  /** Admin spec 009: the code's expiry; empty = the default 2 minutes. */
+  accessSettingsRepository: FakeAccessSettingsRepository;
+  /** Admin spec 009: what the app's sign-in code logged. */
+  loginCodeLogs: unknown[];
 }
 
 /** The only browser origin the admin routes allow in HTTP tests. */
@@ -681,6 +696,50 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
   const auditLogger = { logSsoAttempt: (): void => undefined };
   // Quote and booking ids must be real UUIDs: the confirmation answers 404 to anything else.
   const uuidGenerator = { newId: (): string => uuidv7() };
+  // Sign-in codes (admin spec 009): six digits counting up from 100001, so each test knows them.
+  const loginCodeMailer = new FakeLoginCodeMailer();
+  const loginCodeStore = new FakeLoginCodeStore();
+  const loginCodeLimiter = new FakeDurableRateLimiter();
+  const accessSettingsRepository = new FakeAccessSettingsRepository();
+  const loginCodeLogs: unknown[] = [];
+  let nextLoginCode = 100_000;
+  registerHandlers(
+    mediator,
+    loginCodeHandlerRegistrations({
+      loginCodes: {
+        codes: loginCodeStore,
+        mailer: loginCodeMailer,
+        hasher: new HmacLoginCodeHasher(() => TEST_SYSTEM_ENV.JWT_SIGNING_KEY),
+        generator: { next: () => String(++nextLoginCode) },
+        limiter: loginCodeLimiter,
+        settings: accessSettingsRepository,
+        ids: { newId: () => uuidv7() },
+        clock,
+      },
+      appLog: { logEmailCodeEvent: (entry) => loginCodeLogs.push(entry) },
+      accessSettings: accessSettingsRepository,
+      users: userRepository,
+      admin: {
+        members: staffMemberRepository,
+        sessions: adminSessionStore,
+        tokens: adminTokenIssuer,
+        ids: { newId: () => uuidv7() },
+        clock,
+        securityLog: new FakeAdminSecurityLog(),
+        // The floor (research §7) is unit-tested; HTTP tests never wait for it.
+        timer: { stopwatch: () => () => 0, sleep: async () => undefined },
+        minResponseMs: 800,
+      },
+      appSession: {
+        refreshTokenRepository,
+        tokenIssuer,
+        goalkeeperProfileRepository,
+        idGenerator,
+        refreshTokenLifetimeMs: 30 * 24 * 60 * 60 * 1000,
+        blockedUsers: userBlockRepository,
+      },
+    }),
+  );
 
   registerHandlers(
     mediator,
@@ -1446,5 +1505,10 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     jobLockStore,
     staffAccessResolver,
     userBlockRepository,
+    loginCodeMailer,
+    loginCodeStore,
+    loginCodeLimiter,
+    accessSettingsRepository,
+    loginCodeLogs,
   };
 }

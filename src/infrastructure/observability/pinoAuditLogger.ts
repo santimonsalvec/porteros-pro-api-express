@@ -1,4 +1,4 @@
-import type { IAuditLogger } from '../../application/features/auth/common/ports.js';
+import type { IAuditLogger, ILoginCodeAuditLogger } from '../../application/features/auth/common/ports.js';
 import type {
   IAcceptanceAuditLogger,
   IBookingAuditLogger,
@@ -8,9 +8,15 @@ import { logger } from './logger.js';
 type BookingConfirmationEntry = Parameters<IBookingAuditLogger['logBookingConfirmation']>[0];
 type AcceptanceEntry = Parameters<IAcceptanceAuditLogger['logAcceptance']>[0];
 
-export class PinoAuditLogger implements IAuditLogger, IBookingAuditLogger, IAcceptanceAuditLogger {
+export class PinoAuditLogger implements IAuditLogger, ILoginCodeAuditLogger, IBookingAuditLogger, IAcceptanceAuditLogger {
   logSsoAttempt(entry: { provider: string; platform: string; success: boolean; reason?: string }): void {
     logger.info({ audit: 'sso_attempt', ...entry }, 'SSO authentication attempt');
+  }
+
+  logEmailCodeEvent(entry: { event: 'request' | 'verify'; audience: 'app' | 'admin'; outcome: string; emailMasked: string }): void {
+    const record = { audit: `email_code_${entry.event}`, ...entry };
+    if (entry.outcome === 'sent' || entry.outcome === 'signed_in') logger.info(record, 'Sign-in code');
+    else logger.warn(record, 'Sign-in code refused');
   }
 
   logClientCancellation(entry: { outcome: string; clientId: string; requestId: string; bookingId?: string }): void {

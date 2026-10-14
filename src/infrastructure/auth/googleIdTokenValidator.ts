@@ -1,5 +1,5 @@
 import { OAuth2Client } from 'google-auth-library';
-import type { AdminGoogleIdentity, IGoogleIdTokenValidator } from '../../application/features/auth/common/ports.js';
+import type { AdminGoogleIdentity, AppGoogleIdentity, IGoogleIdTokenValidator } from '../../application/features/auth/common/ports.js';
 import { ExternalIdentity } from '../../domain/users/externalIdentity.js';
 import { logger } from '../observability/logger.js';
 
@@ -20,7 +20,7 @@ export class GoogleIdTokenValidator implements IGoogleIdTokenValidator {
 
   constructor(private readonly clientIdsByPlatform: GoogleClientIdsByPlatform) {}
 
-  async validate(credential: string, platform: string): Promise<ExternalIdentity | null> {
+  async validate(credential: string, platform: string): Promise<AppGoogleIdentity | null> {
     const audience = (this.clientIdsByPlatform[platform as keyof GoogleClientIdsByPlatform] ?? []).filter(
       (id): id is string => !!id,
     );
@@ -30,7 +30,7 @@ export class GoogleIdTokenValidator implements IGoogleIdTokenValidator {
       const ticket = await this.client.verifyIdToken({ idToken: credential, audience });
       const payload = ticket.getPayload();
       if (!payload?.sub || !payload.email) return null;
-      return new ExternalIdentity('google', payload.sub, payload.email);
+      return Object.assign(new ExternalIdentity('google', payload.sub, payload.email), { emailVerified: payload.email_verified === true });
     } catch (err) {
       logger.warn({ err }, 'Google ID token validation failed');
       return null;

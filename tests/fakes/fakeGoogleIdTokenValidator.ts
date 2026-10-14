@@ -1,13 +1,15 @@
-import type { AdminGoogleIdentity, IGoogleIdTokenValidator } from '../../src/application/features/auth/common/ports.js';
+import type { AdminGoogleIdentity, AppGoogleIdentity, IGoogleIdTokenValidator } from '../../src/application/features/auth/common/ports.js';
 import { ExternalIdentity } from '../../src/domain/users/externalIdentity.js';
 
 /** Maps a fixed set of "credential" strings to identities; anything else is invalid. */
 export class FakeGoogleIdTokenValidator implements IGoogleIdTokenValidator {
-  private readonly credentials = new Map<string, ExternalIdentity>();
+  private readonly credentials = new Map<string, AppGoogleIdentity>();
   private readonly adminCredentials = new Map<string, AdminGoogleIdentity>();
 
-  registerValidCredential(credential: string, identity: ExternalIdentity): void {
-    this.credentials.set(credential, identity);
+  /** `emailVerified`, when given, is what Google says of the address (admin spec 009). */
+  registerValidCredential(credential: string, identity: ExternalIdentity, emailVerified?: boolean): void {
+    const registered = new ExternalIdentity(identity.provider, identity.subject, identity.email);
+    this.credentials.set(credential, emailVerified === undefined ? registered : Object.assign(registered, { emailVerified }));
   }
 
   /** A credential the admin web's sign-in accepts (`validateForAdmin`). */
@@ -15,7 +17,7 @@ export class FakeGoogleIdTokenValidator implements IGoogleIdTokenValidator {
     this.adminCredentials.set(credential, { identity, emailVerified, displayName });
   }
 
-  async validate(credential: string, _platform: string): Promise<ExternalIdentity | null> {
+  async validate(credential: string, _platform: string): Promise<AppGoogleIdentity | null> {
     return this.credentials.get(credential) ?? null;
   }
 
