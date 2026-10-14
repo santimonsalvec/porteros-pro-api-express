@@ -36,17 +36,18 @@ const EXPECTED: [area: string, areaName: string, permission: string, description
   ['payments', 'Pagos', 'payments.settings.manage', 'Configurar la pasarela de recargas por país'],
   ['notifications', 'Notificaciones', 'notifications.read', 'Ver los avisos enviados a un usuario'],
   ['notifications', 'Notificaciones', 'notifications.send', 'Enviar un aviso de prueba a un usuario'],
+  ['access', 'Acceso', 'access.settings.manage', 'Configurar el ingreso con código'],
   ['system', 'Sistema', 'system.read', 'Ver eventos, salud y parámetros del sistema'],
 ];
 
 describe('permission catalog', () => {
-  it('lists the 34 permissions of 16 areas, in the contract order', () => {
+  it('lists the 35 permissions of 17 areas, in the contract order', () => {
     const flattened = PERMISSION_AREAS.flatMap((area) =>
       area.permissions.map((permission) => [area.id, area.name, permission.id, permission.description]),
     );
 
     expect(flattened).toEqual(EXPECTED);
-    expect(PERMISSION_AREAS).toHaveLength(16);
+    expect(PERMISSION_AREAS).toHaveLength(17);
     expect(PERMISSION_CATALOG).toEqual(EXPECTED.map(([, , permission]) => permission));
   });
 

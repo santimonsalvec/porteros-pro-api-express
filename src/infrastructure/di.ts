@@ -55,7 +55,7 @@ import { UpdateGoalkeeperAvailabilityCommandHandler } from '../application/featu
 import { CancelGoalkeeperRegistrationCommand } from '../application/features/goalkeepers/commands/cancelGoalkeeperRegistration/cancelGoalkeeperRegistrationCommand.js';
 import { CancelGoalkeeperRegistrationCommandHandler } from '../application/features/goalkeepers/commands/cancelGoalkeeperRegistration/cancelGoalkeeperRegistrationCommandHandler.js';
 import type { AppDependencies } from '../appDependencies.js';
-import { assertEventsConfig, assertOffersConfig, assertPushConfig, config } from './config.js';
+import { assertEmailConfig, assertEventsConfig, assertOffersConfig, assertPushConfig, config } from './config.js';
 import { MongoConnectionProvider } from './persistence/mongo/mongoConnectionProvider.js';
 import { UserRepository } from './persistence/mongo/userRepository.js';
 import { RefreshTokenRepository } from './persistence/mongo/refreshTokenRepository.js';
@@ -233,6 +233,16 @@ import { readSystemParameters } from './systemParameterSource.js';
 import { MongoDashboardReader } from './persistence/mongo/dashboardReader.js';
 import { RatingAdminReader } from './persistence/mongo/ratingAdminReader.js';
 import { PinoAdminSecurityLog } from './observability/pinoAdminSecurityLog.js';
+import { loginCodeHandlerRegistrations } from './loginCodeHandlers.js';
+import { realResponseTimer } from '../application/features/staff/common/responseFloor.js';
+import { ResendEmailSender } from './email/resendEmailSender.js';
+import { LogEmailSender } from './email/logEmailSender.js';
+import { TemplateLoginCodeMailer } from './email/templateLoginCodeMailer.js';
+import { HmacLoginCodeHasher } from './auth/hmacLoginCodeHasher.js';
+import { CryptoOneTimeCodeGenerator } from './auth/cryptoOneTimeCodeGenerator.js';
+import { MongoLoginCodeStore } from './persistence/mongo/loginCodeStore.js';
+import { MongoRateLimiter } from './persistence/mongo/mongoRateLimiter.js';
+import { MongoAccessSettingsRepository } from './persistence/mongo/accessSettingsRepository.js';
 import { JwtAdminTokenIssuer } from './auth/jwtAdminTokenIssuer.js';
 import { StaffAccessResolver } from './auth/staffAccessResolver.js';
 import { MongoAdminAuditLog } from './persistence/mongo/adminAuditLogRepository.js';
@@ -452,6 +462,56 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   if (process.env.NODE_ENV === 'production' && config.events.mode === 'local') {
     logger.warn({ events_mode: 'local' }, 'Domain events run in-process in production: nothing reaches Pub/Sub');
   }
+
+  // Sign-in codes by email (porteros-pro-admin spec 009): the provider sits behind IEmailSender.
+  // The admin web's code requests answer no sooner than this, member or not (research §7).
+  const ADMIN_EMAIL_CODE_MIN_RESPONSE_MS = 800;
+  assertEmailConfig();
+  const emailSender =
+    config.email.mode === 'resend' ? new ResendEmailSender({ apiKey: config.email.apiKey, from: config.email.from }) : new LogEmailSender();
+  logger.info({ email_mode: config.email.mode }, 'Email configured');
+  const loginCodeStore = new MongoLoginCodeStore(db);
+  await loginCodeStore.ensureIndexes();
+  const loginCodeLimiter = new MongoRateLimiter(db);
+  await loginCodeLimiter.ensureIndexes();
+  const accessSettingsRepository = new MongoAccessSettingsRepository(db);
+  const loginCodes = {
+    codes: loginCodeStore,
+    mailer: new TemplateLoginCodeMailer(emailSender, config.email.loginCodeTemplateId),
+    hasher: new HmacLoginCodeHasher(config.jwt.signingKey),
+    generator: new CryptoOneTimeCodeGenerator(),
+    limiter: loginCodeLimiter,
+    settings: accessSettingsRepository,
+    ids: idGenerator,
+    clock,
+  };
+  registerHandlers(
+    mediator,
+    loginCodeHandlerRegistrations({
+      loginCodes,
+      appLog: auditLogger,
+      accessSettings: accessSettingsRepository,
+      users: userRepository,
+      admin: {
+        members: staffMemberRepository,
+        sessions: adminSessionStore,
+        tokens: adminTokenIssuer,
+        ids: idGenerator,
+        clock,
+        securityLog: new PinoAdminSecurityLog(),
+        timer: realResponseTimer,
+        minResponseMs: ADMIN_EMAIL_CODE_MIN_RESPONSE_MS,
+      },
+      appSession: {
+        refreshTokenRepository,
+        tokenIssuer,
+        goalkeeperProfileRepository,
+        idGenerator,
+        refreshTokenLifetimeMs,
+        blockedUsers: userBlockRepository,
+      },
+    }),
+  );
 
   // Push notifications (feature 014). `pushNotifier` is what 015 and 019 inject.
   assertPushConfig();

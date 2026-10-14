@@ -114,6 +114,8 @@ cp .env.example .env
 | `INTERNAL_OIDC_AUDIENCE` | Con `pubsub` | URL pública del servicio: la audiencia del token OIDC que envían Pub/Sub y Cloud Scheduler a `/internal/*` |
 | `INTERNAL_ALLOWED_INVOKERS` | Con `pubsub` | Emails de las cuentas de servicio autorizadas a llamar `/internal/*`, separados por coma |
 | `PUSH_MODE` | No (default `log`) | `log`: los pushes solo se escriben en el log. `fcm`: se envían por Firebase Cloud Messaging. Ver [docs/push-notifications.md](docs/push-notifications.md) |
+| `EMAIL_MODE` | No (default `resend`) | `resend`: envía el código de ingreso por Resend (exige `RESEND_API_KEY`). `log`: lo escribe en el log, solo fuera de producción. Ver [docs/email.md](docs/email.md) |
+| `RESEND_API_KEY` | Con `EMAIL_MODE=resend` | Llave de Resend. Secreto; ver [docs/email.md](docs/email.md) |
 | `FIREBASE_PROJECT_ID` | Con `fcm` | Proyecto de Firebase de la app, al que se envían los pushes |
 | `PUSH_DEVICE_INACTIVITY_DAYS` | No (default `60`) | Días sin registrarse tras los cuales un dispositivo se borra solo |
 | `PUSH_MAX_DEVICES_PER_USER` | No (default `10`) | Máximo de dispositivos por usuario; el más antiguo se borra al pasarse |
@@ -194,6 +196,8 @@ El backend se despliega en **Firebase App Hosting**, con build y deploy automát
 Como la instancia puede escalar a cero (`minInstances: 0`), el servicio no debe depender de estado ni temporizadores en memoria: todo estado vive en MongoDB.
 
 Los eventos de dominio y el barrido de cada minuto (feature 013) necesitan recursos de Google Cloud: topics y suscripción de Pub/Sub, cuentas de servicio y un job de Cloud Scheduler. La guía completa está en [docs/events-infrastructure.md](docs/events-infrastructure.md).
+
+El ingreso con código por correo (spec 009 del admin) usa Resend detrás de `IEmailSender`, con la plantilla `otp-login`. Antes de desplegarlo en un ambiente con usuarios hay que correr `scripts/backfill-user-email-key.ts`. Ver [docs/email.md](docs/email.md).
 
 Las notificaciones push (feature 014) necesitan la Firebase Cloud Messaging API habilitada, el rol `roles/firebasecloudmessaging.admin` en la cuenta de servicio del backend y la clave de APNs subida en Firebase. La guía, que también cubre la integración en la app Flutter, está en [docs/push-notifications.md](docs/push-notifications.md).
 

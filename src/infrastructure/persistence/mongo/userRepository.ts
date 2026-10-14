@@ -1,8 +1,9 @@
 import type { Db, Document } from 'mongodb';
 import type { ContactFields, ContactWriteResult, IUserContactWriter } from '../../../application/features/users/common/ports.js';
-import type { IUserRepository } from '../../../application/features/auth/common/ports.js';
+import { EmailKeyTakenError, type IUserRepository } from '../../../application/features/auth/common/ports.js';
 import { ExternalIdentity } from '../../../domain/users/externalIdentity.js';
 import { User } from '../../../domain/users/user.js';
+import { dropIndexIfExists } from './dropIndexIfExists.js';
 import { MongoRepository } from './mongoRepository.js';
 import { stripNulls } from './stripNulls.js';
 
@@ -23,11 +24,26 @@ export class UserRepository extends MongoRepository<User, string> implements IUs
     super(db.collection('users'));
   }
 
-  /** Compound unique on external identity; sparse unique on normalizedPhoneNumber (FR-013, FR-025). */
+  /**
+   * Compound unique on external identity; sparse unique on normalizedPhoneNumber (FR-013, FR-025);
+   * unique on the proven email (admin spec 009). The identity index is partial: an account a
+   * sign-in code created has no identity, and a non-partial unique index counts every such account
+   * as the same `null` key. The partial one is built before the old one is dropped, so uniqueness
+   * never lapses.
+   */
   async ensureIndexes(): Promise<void> {
     await this.collection.createIndex(
       { 'externalIdentities.provider': 1, 'externalIdentities.subject': 1 },
-      { unique: true, name: 'externalIdentities_provider_subject_unique' },
+      {
+        unique: true,
+        name: 'externalIdentities_provider_subject_unique_partial',
+        partialFilterExpression: { 'externalIdentities.subject': { $type: 'string' } },
+      },
+    );
+    await dropIndexIfExists(this.collection, 'externalIdentities_provider_subject_unique');
+    await this.collection.createIndex(
+      { emailKey: 1 },
+      { unique: true, name: 'emailKey_unique', partialFilterExpression: { emailKey: { $type: 'string' } } },
     );
     await this.collection.createIndex(
       { normalizedPhoneNumber: 1 },
@@ -55,6 +71,7 @@ export class UserRepository extends MongoRepository<User, string> implements IUs
       whatsAppNumber: entity.whatsAppNumber,
       isProfileComplete: entity.isProfileComplete,
       normalizedPhoneNumber: entity.normalizedPhoneNumber,
+      emailKey: entity.emailKey,
     });
   }
 
@@ -73,7 +90,22 @@ export class UserRepository extends MongoRepository<User, string> implements IUs
       whatsAppNumber: (doc.whatsAppNumber as string | undefined) ?? null,
       isProfileComplete: Boolean(doc.isProfileComplete),
       normalizedPhoneNumber: (doc.normalizedPhoneNumber as string | undefined) ?? null,
+      emailKey: (doc.emailKey as string | undefined) ?? null,
     });
+  }
+
+  override async add(entity: User): Promise<void> {
+    try {
+      await super.add(entity);
+    } catch (error) {
+      if (isEmailKeyDuplicate(error) && entity.emailKey) throw new EmailKeyTakenError(entity.emailKey);
+      throw error;
+    }
+  }
+
+  async findByEmailKey(emailKey: string): Promise<User | null> {
+    const doc = await this.collection.findOne({ emailKey });
+    return doc ? this.fromDocument(doc) : null;
   }
 
   async getByIds(ids: string[]): Promise<User[]> {
@@ -118,4 +150,10 @@ export class UserRepository extends MongoRepository<User, string> implements IUs
     const doc = await this.collection.findOne(filter);
     return doc !== null;
   }
+}
+
+function isEmailKeyDuplicate(error: unknown): boolean {
+  const candidate = error as { code?: unknown; keyPattern?: Record<string, unknown>; message?: unknown };
+  if (candidate?.code !== 11000) return false;
+  return (candidate.keyPattern !== undefined && 'emailKey' in candidate.keyPattern) || String(candidate.message).includes('emailKey_unique');
 }

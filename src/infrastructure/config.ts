@@ -29,6 +29,7 @@ export const PARAMETER_DEFAULTS = {
   LEGAL_TERMS_VERSION: '1.0',
   LEGAL_PRIVACY_POLICY_VERSION: '1.0',
   INVOICING_ENABLED: 'false',
+  EMAIL_MODE: 'resend',
 } as const;
 
 export const config = {
@@ -135,6 +136,15 @@ export const config = {
     maxDevicesPerUser: Number(optionalEnv('PUSH_MAX_DEVICES_PER_USER', '10')),
     testLimitPerMinute: Number(optionalEnv('PUSH_TEST_LIMIT_PER_MINUTE', '5')),
   },
+  // Email (admin spec 009). `resend` sends through Resend with its key from Secret Manager; `log`
+  // writes the email to the development log instead, and is refused in production.
+  email: {
+    mode: optionalEnv('EMAIL_MODE', PARAMETER_DEFAULTS.EMAIL_MODE) as EmailMode,
+    apiKey: process.env.RESEND_API_KEY,
+    /** Overrides the template's own sender; the template's when absent. */
+    from: process.env.EMAIL_FROM?.trim() || undefined,
+    loginCodeTemplateId: optionalEnv('LOGIN_CODE_TEMPLATE_ID', 'otp-login'),
+  } satisfies EmailConfig as EmailConfig,
   // Offers to eligible goalkeepers (feature 015). Global while Colombia is the only country;
   // they move to per-country booking settings when a second country launches.
   offers: {
@@ -147,6 +157,14 @@ export const config = {
 
 export type EventsMode = 'local' | 'pubsub';
 export type PushMode = 'log' | 'fcm';
+export type EmailMode = 'resend' | 'log';
+
+export interface EmailConfig {
+  mode: EmailMode;
+  apiKey: string | undefined;
+  from: string | undefined;
+  loginCodeTemplateId: string;
+}
 
 /**
  * Fails fast at startup when the events configuration cannot work: an unknown mode, or
@@ -201,4 +219,28 @@ export function assertOffersConfig(): void {
       throw new Error(`${name} must be a positive integer, got "${String(value)}"`);
     }
   }
+}
+
+/**
+ * Why the email configuration cannot work (admin spec 009, research §1): an unknown mode, Resend
+ * without its key, the log mode in production (it writes sign-in codes down), or no template.
+ */
+export function checkEmailConfig(email: EmailConfig, nodeEnv: string | undefined): void {
+  if (email.mode !== 'resend' && email.mode !== 'log') {
+    throw new Error(`EMAIL_MODE must be "resend" or "log", got "${String(email.mode)}"`);
+  }
+  if (email.mode === 'log' && nodeEnv === 'production') {
+    throw new Error('EMAIL_MODE=log only works outside production: it writes sign-in codes to the log');
+  }
+  if (email.mode === 'resend' && !email.apiKey?.trim()) {
+    throw new Error('Missing required environment variable: RESEND_API_KEY');
+  }
+  if (!email.loginCodeTemplateId.trim()) {
+    throw new Error('LOGIN_CODE_TEMPLATE_ID must not be empty');
+  }
+}
+
+/** Fails fast at startup when the email configuration cannot work. */
+export function assertEmailConfig(): void {
+  checkEmailConfig(config.email, process.env.NODE_ENV);
 }

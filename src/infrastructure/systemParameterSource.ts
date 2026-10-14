@@ -2,7 +2,7 @@ import type { SystemParameterValues } from '../application/features/system/queri
 import { PARAMETER_DEFAULTS } from './config.js';
 
 /** The server's secrets the admin may know are there (admin spec 008, research §10); never their value. */
-const SECRET_NAMES = ['MONGODB_CONNECTION_STRING', 'JWT_SIGNING_KEY', 'CLOUDINARY_URL'] as const;
+const SECRET_NAMES = ['MONGODB_CONNECTION_STRING', 'JWT_SIGNING_KEY', 'CLOUDINARY_URL', 'RESEND_API_KEY'] as const;
 
 const isSet = (value: string | undefined) => value !== undefined && value.trim() !== '';
 
@@ -20,6 +20,8 @@ export function readSystemParameters(env: NodeJS.ProcessEnv): SystemParameterVal
       entry('LEGAL_TERMS_VERSION', String),
       entry('LEGAL_PRIVACY_POLICY_VERSION', String),
       entry('INVOICING_ENABLED', (text) => text === 'true'),
+      // How sign-in codes go out (admin spec 009): `resend`, or `log` outside production.
+      entry('EMAIL_MODE', String),
     ],
     secrets: SECRET_NAMES.map((name) => ({ name, present: isSet(env[name]) })),
   };

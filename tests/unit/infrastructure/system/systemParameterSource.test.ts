@@ -5,6 +5,7 @@ const SECRETS = {
   MONGODB_CONNECTION_STRING: 'mongodb+srv://porteros:Sup3rS3cretPass@cluster0.example.net/app',
   JWT_SIGNING_KEY: 'jwt-signing-key-0123456789-abcdefghijklmnop',
   CLOUDINARY_URL: 'cloudinary://123456789012345:AbCdEfGhIjKlMnOp@porteros',
+  RESEND_API_KEY: 're_TestOnly_9fKx2LmQ7pVw',
 };
 
 describe('readSystemParameters (admin spec 008, research §10)', () => {
@@ -16,6 +17,7 @@ describe('readSystemParameters (admin spec 008, research §10)', () => {
       { name: 'LEGAL_TERMS_VERSION', value: '1.2', isDefault: false },
       { name: 'LEGAL_PRIVACY_POLICY_VERSION', value: '1.0', isDefault: true },
       { name: 'INVOICING_ENABLED', value: true, isDefault: false },
+      { name: 'EMAIL_MODE', value: 'resend', isDefault: true },
     ]);
   });
 
@@ -25,6 +27,7 @@ describe('readSystemParameters (admin spec 008, research §10)', () => {
       { name: 'MONGODB_CONNECTION_STRING', present: true },
       { name: 'JWT_SIGNING_KEY', present: true },
       { name: 'CLOUDINARY_URL', present: false },
+      { name: 'RESEND_API_KEY', present: true },
     ]);
   });
 

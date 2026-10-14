@@ -10,6 +10,10 @@ import { exchangeSsoCredentialRequestSchema } from './requests/auth/exchangeSsoC
 import { refreshAccessTokenRequestSchema } from './requests/auth/refreshAccessTokenRequest.js';
 import type { MeResponse } from './responses/auth/meResponse.js';
 import { ApiError } from './apiError.js';
+import { RequestEmailCodeCommand } from '../application/features/auth/commands/requestEmailCode/requestEmailCodeCommand.js';
+import { VerifyEmailCodeCommand } from '../application/features/auth/commands/verifyEmailCode/verifyEmailCodeCommand.js';
+import { emailCodeRequestSchema, emailCodeVerifyRequestSchema } from './requests/auth/emailCodeRequests.js';
+import { answerCodeRequest, codeRefusal, parseEmailCodeBody } from './emailCodeResponses.js';
 
 export interface AuthControllerDependencies {
   mediator: ISender;
@@ -67,6 +71,30 @@ export function createAuthController(deps: AuthControllerDependencies): Router {
       throw accountBlocked();
     }
     throw new ApiError(401, 'invalid_refresh_token', 'The refresh token is invalid, expired, or has already been used.');
+  });
+
+  // Sign-in with a code sent by email (porteros-pro-admin spec 009, contracts/email-code-api.md).
+  router.post('/email-code', async (req, res) => {
+    const body = parseEmailCodeBody(emailCodeRequestSchema, req);
+    answerCodeRequest(res, await deps.mediator.send(new RequestEmailCodeCommand(body.email, req.ip ?? '')));
+  });
+
+  router.post('/email-code/verify', async (req, res) => {
+    const body = parseEmailCodeBody(emailCodeVerifyRequestSchema, req);
+    const result = await deps.mediator.send(new VerifyEmailCodeCommand(body.email, body.code, req.ip ?? ''));
+    // Exhaustive on purpose: adding an outcome without mapping it here fails compilation.
+    switch (result.outcome) {
+      case 'success':
+        res.status(200).json(result.tokens);
+        return;
+      case 'account_blocked':
+        throw accountBlocked();
+      case 'invalid_code':
+      case 'code_expired':
+      case 'too_many_attempts':
+      case 'too_many_requests':
+        throw codeRefusal(res, result);
+    }
   });
 
   router.get('/me', requireAuth(deps.verifyAccessToken), (req, res) => {

@@ -61,7 +61,7 @@ describe('admin route permissions (spec 001, US2)', () => {
     const response = await call(context, 'get', '/admin/permissions', member.token);
 
     expect(response.status).toBe(200);
-    expect(response.body.areas).toHaveLength(16);
+    expect(response.body.areas).toHaveLength(17);
   });
 
   it('a disabled member is out within 30 seconds and cannot refresh', async () => {

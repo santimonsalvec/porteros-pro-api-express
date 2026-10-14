@@ -65,4 +65,12 @@ describe('layering (Domain -> Application -> Infrastructure dependency rule)', (
       }
     }
   });
+
+  it('the email provider stays behind IEmailSender: only infrastructure/email imports resend (admin spec 009)', () => {
+    const allowed = join(ROOT, 'src', 'infrastructure', 'email');
+    for (const file of listTsFiles('src')) {
+      if (file.startsWith(allowed)) continue;
+      expect(importSpecifiersOf(file).filter((specifier) => specifier === 'resend' || specifier.startsWith('resend/')), file).toEqual([]);
+    }
+  });
 });

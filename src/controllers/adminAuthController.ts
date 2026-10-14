@@ -10,6 +10,10 @@ import { clearRefreshCookie, readRefreshCookie, setRefreshCookie } from '../infr
 import { ApiError } from './apiError.js';
 import { zodFieldErrors } from './requests/goalkeeperRequests/getServiceQuoteRequest.js';
 import { adminSignInRequestSchema } from './requests/staff/adminAuthRequests.js';
+import { RequestAdminEmailCodeCommand } from '../application/features/staff/commands/requestAdminEmailCode/requestAdminEmailCodeCommand.js';
+import { VerifyAdminEmailCodeCommand } from '../application/features/staff/commands/verifyAdminEmailCode/verifyAdminEmailCodeCommand.js';
+import { emailCodeRequestSchema, emailCodeVerifyRequestSchema } from './requests/auth/emailCodeRequests.js';
+import { answerCodeRequest, codeRefusal, parseEmailCodeBody } from './emailCodeResponses.js';
 
 export interface AdminAuthControllerDependencies {
   mediator: ISender;
@@ -20,7 +24,8 @@ export interface AdminAuthControllerDependencies {
 const CSRF_HEADER_VALUE = 'porteros-admin';
 
 /**
- * The admin web's sessions (contracts/admin-auth.md): Google sign-in, refresh and sign-out. The
+ * The admin web's sessions (contracts/admin-auth.md): Google sign-in, sign-in code (spec 009),
+ * refresh and sign-out. The
  * refresh value only travels in the `pp_admin_rt` cookie; the body carries the access token.
  */
 export function createAdminAuthController(deps: AdminAuthControllerDependencies): Router {
@@ -62,6 +67,29 @@ export function createAdminAuthController(deps: AdminAuthControllerDependencies)
         throw new ApiError(401, 'invalid_credential', 'The provided credential could not be verified.');
       case 'unauthorized_admin_account':
         throw new ApiError(403, 'unauthorized_admin_account', 'No administrator account is associated with this identity.');
+    }
+  });
+
+  // Sign-in with a code sent by email (porteros-pro-admin spec 009): the same answer for every
+  // address, and the same session and cookie as Google's.
+  router.post('/email-code', async (req, res) => {
+    const body = parseEmailCodeBody(emailCodeRequestSchema, req);
+    answerCodeRequest(res, await deps.mediator.send(new RequestAdminEmailCodeCommand(body.email, req.ip ?? '')));
+  });
+
+  router.post('/email-code/verify', async (req, res) => {
+    const body = parseEmailCodeBody(emailCodeVerifyRequestSchema, req);
+    const result = await deps.mediator.send(new VerifyAdminEmailCodeCommand(body.email, body.code, req.header('user-agent') ?? '', req.ip ?? ''));
+    // Exhaustive on purpose: adding an outcome without mapping it here fails compilation.
+    switch (result.outcome) {
+      case 'signed_in':
+        sendSession(res, result);
+        return;
+      case 'invalid_code':
+      case 'code_expired':
+      case 'too_many_attempts':
+      case 'too_many_requests':
+        throw codeRefusal(res, result);
     }
   });
 
