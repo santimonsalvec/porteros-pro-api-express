@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp, TEST_INTERNAL_TOKEN } from '../testAppFactory.js';
-import { signInClient, type TestApp } from '../walletTestHelpers.js';
+import { signInClient, type TestApp } from '../operatingBalanceTestHelpers.js';
 import { closedMatchSetUp } from '../closeHelpers.js';
 
 const get = (context: TestApp, token: string, path: string) => request(context.app).get(path).set('Authorization', `Bearer ${token}`);

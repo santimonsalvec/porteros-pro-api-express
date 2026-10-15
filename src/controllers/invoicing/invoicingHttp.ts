@@ -6,7 +6,7 @@ import { ListMyDocumentsQuery } from '../../application/features/invoicing/queri
 import { ApiError } from '../apiError.js';
 import { zodFieldErrors } from '../requests/goalkeeperRequests/getServiceQuoteRequest.js';
 import { listClientBookingsRequestSchema } from '../requests/goalkeeperRequests/listClientBookingsRequest.js';
-import { goalkeeperNotFound } from '../wallet/walletHttp.js';
+import { goalkeeperNotFound } from '../operatingBalance/operatingBalanceHttp.js';
 
 /** The goalkeeper's invoices and credit notes (feature 023, contracts/invoicing.md §1). */
 

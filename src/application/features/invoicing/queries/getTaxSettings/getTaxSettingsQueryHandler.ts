@@ -1,5 +1,5 @@
 import type { IQueryHandler } from '../../../../common/mediator/types.js';
-import type { ITaxSettingsRepository } from '../../../wallet/common/ports.js';
+import type { ITaxSettingsRepository } from '../../../operatingBalance/common/ports.js';
 import { toTaxSettingsResponse } from '../../commands/setTaxSettings/setTaxSettingsCommandHandler.js';
 import { GetTaxSettingsQuery, type GetTaxSettingsResult } from './getTaxSettingsQuery.js';
 

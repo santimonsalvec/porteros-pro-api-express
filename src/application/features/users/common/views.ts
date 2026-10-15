@@ -44,6 +44,10 @@ export interface UserDetail extends UserRow {
   terms: { version: string; acceptedAt: string }[];
   devices: { platform: string; lastSeenAt: string }[];
   requestCount: number;
+  /** `closing`: asked to leave and inactive; `closed`: logically deleted (feature 029). */
+  accountState: 'active' | 'closing' | 'closed';
+  /** The open request, to link to it; `null` unless `closing`. */
+  openClosureId: string | null;
 }
 
 /** A request or booking listed before blocking someone, on its city's clock. */

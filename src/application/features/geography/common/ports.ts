@@ -143,7 +143,7 @@ export interface IReferenceUsage {
   zonesInUse(zoneIds: string[]): Promise<Set<string>>;
   documentTypesInUse(codes: string[]): Promise<Set<string>>;
   surfacesInUse(surfaceIds: string[]): Promise<Set<string>>;
-  /** Top-ups, goalkeepers or requests in the country: its currency is then locked. */
+  /** Deposits, goalkeepers or requests in the country: its currency is then locked. */
   countryOperates(countryId: string): Promise<boolean>;
 }
 

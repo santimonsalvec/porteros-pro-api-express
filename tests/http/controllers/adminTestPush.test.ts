@@ -2,7 +2,7 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 import { CSRF, seedRole, signInStaff } from '../adminTestHelpers.js';
-import { signInClient, type TestApp } from '../walletTestHelpers.js';
+import { signInClient, type TestApp } from '../operatingBalanceTestHelpers.js';
 
 const testPushAs = (context: TestApp, token: string, userId: string) =>
   request(context.app).post(`/admin/users/${userId}/test-push`).set('Authorization', `Bearer ${token}`).set(CSRF).send();

@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
-import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../walletTestHelpers.js';
+import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../operatingBalanceTestHelpers.js';
 import { RunSweepCommand } from '../../../src/application/features/events/commands/runSweep/runSweepCommand.js';
 
 const setSwitch = (context: TestApp, token: string, body: unknown) =>
@@ -12,7 +12,7 @@ async function setUp() {
   context.clock.set(MATCH_NOW);
   const client = await signInClient(context, 'sub-0601');
   const goalkeeper = await signInGoalkeeper(context, 'sub-0602');
-  await context.walletLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: 'k-0602' });
+  await context.operatingBalanceLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: 'k-0602' });
   await request(context.app).post('/devices').set('Authorization', `Bearer ${goalkeeper.token}`).send({ token: 'phone-0602', platform: 'ios' });
   return { context, client, goalkeeper };
 }

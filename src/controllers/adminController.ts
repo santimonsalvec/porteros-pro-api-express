@@ -4,6 +4,7 @@ import { registerTeamRoutes } from './admin/teamRoutes.js';
 import { registerGeographyRoutes } from './admin/geographyRoutes.js';
 import { registerCatalogRoutes } from './admin/catalogRoutes.js';
 import { registerPricingRoutes } from './admin/pricingRoutes.js';
+import { registerAccountClosureRoutes } from './admin/accountClosuresRoutes.js';
 import { registerUsersRoutes } from './admin/usersRoutes.js';
 import { registerGoalkeeperAdminRoutes } from './admin/goalkeepersRoutes.js';
 import { registerReadinessRoutes } from './admin/readinessRoutes.js';
@@ -16,17 +17,17 @@ import { registerSettingsRoutes } from './admin/settingsRoutes.js';
 import { registerDashboardRoutes } from './admin/dashboardRoutes.js';
 import { registerSystemRoutes } from './admin/systemRoutes.js';
 import type { ISender } from '../application/common/mediator/types.js';
-import { RecordWalletAdjustmentCommand } from '../application/features/wallet/commands/recordWalletAdjustment/recordWalletAdjustmentCommand.js';
+import { RecordOperatingBalanceAdjustmentCommand } from '../application/features/operatingBalance/commands/recordOperatingBalanceAdjustment/recordOperatingBalanceAdjustmentCommand.js';
 import type { AdminWebDependencies } from '../appDependencies.js';
 import { requireAdminAuth } from '../infrastructure/auth/middleware/requireAdminAuth.js';
 import { adminCors } from '../infrastructure/http/adminCors.js';
 import { GetAdminMeQuery } from '../application/features/staff/queries/getAdminMe/getAdminMeQuery.js';
 import { GetPermissionCatalogQuery } from '../application/features/staff/queries/getPermissionCatalog/getPermissionCatalogQuery.js';
-import { GetGoalkeeperWalletQuery } from '../application/features/wallet/queries/getGoalkeeperWallet/getGoalkeeperWalletQuery.js';
+import { GetGoalkeeperOperatingBalanceQuery } from '../application/features/operatingBalance/queries/getGoalkeeperOperatingBalance/getGoalkeeperOperatingBalanceQuery.js';
 import { ApiError } from './apiError.js';
 import { zodFieldErrors } from './requests/goalkeeperRequests/getServiceQuoteRequest.js';
-import { recordWalletAdjustmentRequestSchema } from './requests/wallet/recordWalletAdjustmentRequest.js';
-import { goalkeeperNotFound, sendMovements, sendWallet, walletNotConfigured } from './wallet/walletHttp.js';
+import { recordOperatingBalanceAdjustmentRequestSchema } from './requests/operatingBalance/recordOperatingBalanceAdjustmentRequest.js';
+import { goalkeeperNotFound, sendMovements, sendOperatingBalance, operatingBalanceNotConfigured } from './operatingBalance/operatingBalanceHttp.js';
 import { ReverseWithdrawalPenaltyCommand } from '../application/features/bookingLifecycle/commands/reverseWithdrawalPenalty/reverseWithdrawalPenaltyCommand.js';
 import { reverseWithdrawalRequestSchema } from './requests/withdrawals/reverseWithdrawalRequest.js';
 import { sendWithdrawals } from './withdrawals/withdrawalsHttp.js';
@@ -57,6 +58,7 @@ export function createAdminController(deps: AdminControllerDependencies): Router
   registerCatalogRoutes(route, deps.mediator);
   registerPricingRoutes(route, deps.mediator);
   registerUsersRoutes(route, deps.mediator);
+  registerAccountClosureRoutes(route, deps.mediator);
   registerGoalkeeperAdminRoutes(route, deps.mediator);
   registerRequestsRoutes(route, deps.mediator);
   registerCasesRoutes(route, deps.mediator);
@@ -87,33 +89,33 @@ export function createAdminController(deps: AdminControllerDependencies): Router
     }
   });
 
-  route('get', '/goalkeepers/:userId/wallet', 'wallets.read', async (req, res) => {
-    await sendWallet(deps.mediator, req.params.userId, res, { goalkeeperId: req.params.userId });
+  route('get', '/goalkeepers/:userId/operating-balance', 'operating_balances.read', async (req, res) => {
+    await sendOperatingBalance(deps.mediator, req.params.userId, res, { goalkeeperId: req.params.userId });
   });
 
-  route('get', '/goalkeepers/:userId/wallet/movements', 'wallets.read', async (req, res) => {
+  route('get', '/goalkeepers/:userId/operating-balance/movements', 'operating_balances.read', async (req, res) => {
     await sendMovements(deps.mediator, req.params.userId, 'admin', req, res);
   });
 
-  route('post', '/goalkeepers/:userId/wallet/adjustments', {
-    permission: 'wallets.adjust',
+  route('post', '/goalkeepers/:userId/operating-balance/adjustments', {
+    permission: 'operating_balances.adjust',
     audit: {
-      action: 'wallet.adjust',
-      resourceType: 'wallet',
+      action: 'operating_balance.adjust',
+      resourceType: 'operatingBalance',
       resourceId: (req) => String(req.params.userId),
       before: async (req) => {
-        const result = await deps.mediator.send(new GetGoalkeeperWalletQuery(String(req.params.userId)));
-        return result.outcome === 'success' ? result.wallet : null;
+        const result = await deps.mediator.send(new GetGoalkeeperOperatingBalanceQuery(String(req.params.userId)));
+        return result.outcome === 'success' ? result.operatingBalance : null;
       },
     },
   }, async (req, res) => {
-    const parsed = recordWalletAdjustmentRequestSchema.safeParse(req.body ?? {});
+    const parsed = recordOperatingBalanceAdjustmentRequestSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
     }
     const { amount, reason, operationKey } = parsed.data;
     const result = await deps.mediator.send(
-      new RecordWalletAdjustmentCommand(req.adminAccess!.userId, req.params.userId, amount, reason, operationKey),
+      new RecordOperatingBalanceAdjustmentCommand(req.adminAccess!.userId, req.params.userId, amount, reason, operationKey),
     );
 
     // Exhaustive on purpose: adding an outcome without mapping it here fails compilation.
@@ -131,8 +133,8 @@ export function createAdminController(deps: AdminControllerDependencies): Router
         });
       case 'not_a_goalkeeper':
         throw goalkeeperNotFound();
-      case 'wallet_not_configured':
-        throw walletNotConfigured(result.cityId);
+      case 'operating_balance_not_configured':
+        throw operatingBalanceNotConfigured(result.cityId);
     }
   });
 
@@ -167,8 +169,8 @@ export function createAdminController(deps: AdminControllerDependencies): Router
         throw goalkeeperNotFound();
       case 'withdrawal_not_found':
         throw new ApiError(404, 'withdrawal_not_found', 'This withdrawal does not exist for this goalkeeper.');
-      case 'wallet_not_configured':
-        throw walletNotConfigured(result.cityId);
+      case 'operating_balance_not_configured':
+        throw operatingBalanceNotConfigured(result.cityId);
       case 'missing_charge':
         throw new ApiError(409, 'missing_charge', 'This booking has no commission charge to refund.', undefined, { bookingId: result.bookingId });
     }

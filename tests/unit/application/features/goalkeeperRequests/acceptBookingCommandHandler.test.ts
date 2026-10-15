@@ -29,13 +29,13 @@ beforeEach(async () => {
   vatRates = fixedVatRates(0);
   outbox = new FakeOutboxStore();
   relay = new FakeEventRelay();
-  store = new FakeBookingAcceptanceStore(h.bookings, h.wallet, outbox);
+  store = new FakeBookingAcceptanceStore(h.bookings, h.operatingBalance, outbox);
   audit = new FakeAcceptanceAuditLogger();
   ids = 0;
   handler = new AcceptBookingCommandHandler({
     windowResolver: () => async () => CHECK_IN_DEFAULTS,
-    walletContext: { goalkeeperProfileRepository: h.profiles, cityRepository: h.cities, regionRepository: h.regions, countryLookup: h.countries },
-    walletRepository: h.wallet,
+    operatingBalanceContext: { goalkeeperProfileRepository: h.profiles, cityRepository: h.cities, regionRepository: h.regions, countryLookup: h.countries },
+    operatingBalanceRepository: h.operatingBalance,
     bookingRepository: h.bookings,
     requestRepository: h.requests,
     zoneRepository: h.zones,
@@ -60,8 +60,8 @@ function match(n: number, hours: number, overrides: Parameters<GoalkeeperBooking
 }
 
 const accept = (bookingId: string, goalkeeperId = 'gk-1') => handler.handle(new AcceptBookingCommand(goalkeeperId, bookingId));
-const balance = async () => (await h.wallet.findByGoalkeeperId('gk-1'))?.balance ?? 0;
-const charges = () => h.wallet.movements().filter((movement) => movement.type === 'commission_charge');
+const balance = async () => (await h.operatingBalance.findByGoalkeeperId('gk-1'))?.balance ?? 0;
+const charges = () => h.operatingBalance.movements().filter((movement) => movement.type === 'commission_charge');
 
 describe('AcceptBookingCommandHandler — US2: accepting assigns and charges, all or nothing', () => {
   it("assigns the booking and charges exactly its commission, referencing booking and request", async () => {
@@ -94,7 +94,7 @@ describe('AcceptBookingCommandHandler — US2: accepting assigns and charges, al
 
     expect((await accept(bookingId!)).outcome).toBe('accepted');
     expect(await accept(bookingId!, 'gk-2')).toEqual({ outcome: 'already_taken' });
-    expect(h.wallet.movements().filter((movement) => movement.walletId === 'gk-2' && movement.type === 'commission_charge')).toHaveLength(0);
+    expect(h.operatingBalance.movements().filter((movement) => movement.operatingBalanceId === 'gk-2' && movement.type === 'commission_charge')).toHaveLength(0);
   });
 
   it('leaves nothing behind when the operation is interrupted', async () => {
@@ -318,7 +318,7 @@ describe('AcceptBookingCommandHandler — 023: VAT on top of the commission', ()
 
     expect(await accept(bookingId!)).toMatchObject({ outcome: 'accepted' });
 
-    const movements = h.wallet.movements().filter((movement) => movement.references.bookingId === bookingId);
+    const movements = h.operatingBalance.movements().filter((movement) => movement.references.bookingId === bookingId);
     expect(movements.map((movement) => [movement.type, movement.amount, movement.taxRateBps])).toEqual([
       ['commission_charge', -7000, null],
       ['commission_vat', -1330, 1900],
@@ -336,6 +336,6 @@ describe('AcceptBookingCommandHandler — 023: VAT on top of the commission', ()
     const [bookingId] = match(1, 5);
 
     expect(await accept(bookingId!, 'gk-3')).toMatchObject({ outcome: 'insufficient_funds', missingAmount: 830 });
-    expect(h.wallet.movements().filter((movement) => movement.walletId === 'gk-3' && movement.type !== 'admin_adjustment')).toEqual([]);
+    expect(h.operatingBalance.movements().filter((movement) => movement.operatingBalanceId === 'gk-3' && movement.type !== 'admin_adjustment')).toEqual([]);
   });
 });

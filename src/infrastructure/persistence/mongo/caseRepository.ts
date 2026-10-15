@@ -83,6 +83,14 @@ export class CaseRepository implements ICaseRepository {
     return this.collection.countDocuments(caseMatch(filter));
   }
 
+  async findOpenForParticipant(userId: string): Promise<SupportCase[]> {
+    const docs = await this.collection
+      .find({ status: 'open', $or: [{ goalkeeperId: userId }, { clientId: userId }] })
+      .sort({ createdAt: -1, _id: -1 })
+      .toArray();
+    return docs.map(caseFromDocument);
+  }
+
   async requestIdsMatching(filter: CaseListFilter): Promise<string[]> {
     return (await this.collection.distinct('requestId', caseMatch(filter))).map(String);
   }

@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { OfferEligibilityService } from '../../../../../src/application/features/notifications/common/offerEligibilityService.js';
-import type { IWalletRepository } from '../../../../../src/application/features/wallet/common/ports.js';
+import type { IOperatingBalanceRepository } from '../../../../../src/application/features/operatingBalance/common/ports.js';
 import type { Booking } from '../../../../../src/domain/bookings/booking.js';
-import { Wallet } from '../../../../../src/domain/wallet/wallet.js';
+import { OperatingBalance } from '../../../../../src/domain/operatingBalance/operatingBalance.js';
 import { FakeBookingRepository } from '../../../../fakes/fakeBookingRepository.js';
 import { FakeGoalkeeperProfileRepository } from '../../../../fakes/fakeGoalkeeperProfileRepository.js';
 import { buildBooking, OFFER_NOW } from '../../../../fixtures/offerFixtures.js';
-import { buildGoalkeeperProfile } from '../../../../fixtures/walletFixtures.js';
+import { buildGoalkeeperProfile } from '../../../../fixtures/operatingBalanceFixtures.js';
 import { fixedVatRates } from '../../../../fakes/fakeVatRates.js';
 
 const at = (iso: string) => new Date(iso);
@@ -15,9 +15,9 @@ function world() {
   const profiles = new FakeGoalkeeperProfileRepository();
   const bookings = new FakeBookingRepository();
   const balances = new Map<string, number>();
-  const walletRepository: IWalletRepository = {
-    findByGoalkeeperId: async (id) => (balances.has(id) ? wallet(id, balances.get(id)!) : null),
-    findByGoalkeeperIds: async (ids) => ids.filter((id) => balances.has(id)).map((id) => wallet(id, balances.get(id)!)),
+  const operatingBalanceRepository: IOperatingBalanceRepository = {
+    findByGoalkeeperId: async (id) => (balances.has(id) ? operatingBalance(id, balances.get(id)!) : null),
+    findByGoalkeeperIds: async (ids) => ids.filter((id) => balances.has(id)).map((id) => operatingBalance(id, balances.get(id)!)),
   };
   // Bello and Copacabana cost 7.000; an unconfigured zone is never offered.
   const commissionResolver = {
@@ -25,7 +25,7 @@ function world() {
       new Map(zoneIds.map((zoneId) => [zoneId, zoneId === 'zone-unconfigured' ? null : 7000] as const)),
     resolveForMatch: async (zoneId: string) => (zoneId === 'zone-unconfigured' ? null : 7000),
   };
-  const service = new OfferEligibilityService({ goalkeeperProfileRepository: profiles, walletRepository, commissionResolver, bookingRepository: bookings, vatRates: fixedVatRates(0) });
+  const service = new OfferEligibilityService({ goalkeeperProfileRepository: profiles, operatingBalanceRepository, commissionResolver, bookingRepository: bookings, vatRates: fixedVatRates(0) });
   const goalkeeper = (id: string, balance: number, overrides: Parameters<typeof buildGoalkeeperProfile>[1] = {}) => {
     profiles.seed(buildGoalkeeperProfile(id, { zoneIds: ['zone-bello'], ...overrides }));
     balances.set(id, balance);
@@ -33,8 +33,8 @@ function world() {
   return { profiles, bookings, service, goalkeeper };
 }
 
-function wallet(goalkeeperId: string, balance: number): Wallet {
-  return Wallet.rehydrate({ goalkeeperId, currency: 'COP', balance, lastSequence: 1, createdAt: OFFER_NOW, updatedAt: OFFER_NOW });
+function operatingBalance(goalkeeperId: string, balance: number): OperatingBalance {
+  return OperatingBalance.rehydrate({ goalkeeperId, currency: 'COP', balance, lastSequence: 1, createdAt: OFFER_NOW, updatedAt: OFFER_NOW });
 }
 
 /** The same six situations used across the feature's tests, plus the client who is also a goalkeeper. */

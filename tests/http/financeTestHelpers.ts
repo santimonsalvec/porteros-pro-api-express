@@ -2,7 +2,7 @@ import request from 'supertest';
 import { expect } from 'vitest';
 import { buildTestApp } from './testAppFactory.js';
 import { seedRole, signInStaff } from './adminTestHelpers.js';
-import { signInGoalkeeper, type TestApp } from './walletTestHelpers.js';
+import { signInGoalkeeper, type TestApp } from './operatingBalanceTestHelpers.js';
 import { buildDocument } from '../fixtures/invoicingAdminFixtures.js';
 
 /** A GET as a member (or anonymous without a token). */
@@ -24,17 +24,17 @@ export async function memberWith(context: TestApp, key: string, permissions: str
 }
 
 /**
- * Admin spec 007: Colombia's Wompi settings, a goalkeeper of Cali with one pending top-up of 20 000
+ * Admin spec 007: Colombia's Wompi settings, a goalkeeper of Cali with one pending deposit of 20 000
  * (cost 1 464, net 18 536) started through the app, and the owner signed in to the admin.
  */
-export async function topUpWorld() {
+export async function depositWorld() {
   const context = await buildTestApp();
   context.paymentGatewaySettingsRepository.seed();
   const goalkeeper = await signInGoalkeeper(context, 'sub-7001');
-  const started = await request(context.app).post('/goalkeepers/me/wallet/top-ups').set('Authorization', `Bearer ${goalkeeper.token}`).send({ amount: 20000 });
+  const started = await request(context.app).post('/goalkeepers/me/operating-balance/deposits').set('Authorization', `Bearer ${goalkeeper.token}`).send({ amount: 20000 });
   expect(started.status).toBe(201);
   const owner = await signInStaff(context, { key: 'owner', userId: 'owner-user' });
-  return { context, goalkeeper, owner, topUpId: started.body.topUpId as string, reference: started.body.reference as string };
+  return { context, goalkeeper, owner, depositId: started.body.depositId as string, reference: started.body.reference as string };
 }
 
 /**

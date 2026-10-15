@@ -3,7 +3,7 @@ import { CancelBookingsByAdminCommand } from '../../../../../src/application/fea
 import { CancelBookingsByAdminCommandHandler } from '../../../../../src/application/features/bookingLifecycle/commands/cancelBookingsByAdmin/cancelBookingsByAdminCommandHandler.js';
 import type { AdminCancelResult, IBookingLifecycleStore } from '../../../../../src/application/features/bookingLifecycle/common/ports.js';
 import { FakeBookingAuditLogger } from '../../../../fakes/fakeBookingAuditLogger.js';
-import { buildGoalkeeperProfile } from '../../../../fixtures/walletFixtures.js';
+import { buildGoalkeeperProfile } from '../../../../fixtures/operatingBalanceFixtures.js';
 import { lifecycleHarness } from './lifecycleHarness.js';
 
 /** The store's rarer answers, through a stub (admin spec 006, research §1). */
@@ -14,7 +14,7 @@ function handlerWith(answers: AdminCancelResult[]) {
   const handler = new CancelBookingsByAdminCommandHandler({
     bookingRepository: h.bookingRepository,
     store,
-    walletContext: h.walletContext,
+    operatingBalanceContext: h.operatingBalanceContext,
     relay: h.relay,
     idGenerator: h.idGenerator,
     clock: h.clock,
@@ -35,7 +35,7 @@ describe('CancelBookingsByAdminCommand, rarer outcomes', () => {
     expect(store.cancelByAdmin).toHaveBeenCalledTimes(2);
   });
 
-  it("answers temporarily unavailable when the late goalkeeper's wallet can't be resolved, or the store asks again", async () => {
+  it("answers temporarily unavailable when the late goalkeeper's operatingBalance can't be resolved, or the store asks again", async () => {
     expect(await cancel(handlerWith([{ kind: 'owner_required', goalkeeperId: 'gk-unknown' }]).handler)).toEqual({ outcome: 'temporarily_unavailable' });
   });
 

@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp, TEST_INTERNAL_TOKEN } from '../testAppFactory.js';
-import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../walletTestHelpers.js';
+import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../operatingBalanceTestHelpers.js';
 
 const accept = (context: TestApp, token: string, bookingId: string) =>
   request(context.app).post(`/goalkeepers/me/bookings/${bookingId}/accept`).set('Authorization', `Bearer ${token}`);
@@ -13,7 +13,7 @@ async function setUp() {
   const g = await signInGoalkeeper(context, 'sub-1912');
   const h = await signInGoalkeeper(context, 'sub-1913');
   for (const [goalkeeper, key] of [[g, 'k-g'], [h, 'k-h']] as const) {
-    await context.walletLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo', operationKey: key });
+    await context.operatingBalanceLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo', operationKey: key });
   }
   await request(context.app).post('/devices').set('Authorization', `Bearer ${client.token}`).send({ token: 'phone-client', platform: 'android' });
   const inbox = (userId: string) => context.notificationRepository.all().filter((item) => item.userId === userId);

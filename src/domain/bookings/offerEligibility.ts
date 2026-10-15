@@ -1,4 +1,4 @@
-import { canAfford } from '../wallet/fundsPolicy.js';
+import { canAfford } from '../operatingBalance/fundsPolicy.js';
 import type { Booking } from './booking.js';
 import { firstConflict, holdsSameRequest, type Commitment } from './schedulePolicy.js';
 

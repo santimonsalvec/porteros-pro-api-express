@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 import { as, geographyStaff } from '../geographyTestHelpers.js';
 import { seedRole, signInStaff } from '../adminTestHelpers.js';
-import { signInClient } from '../walletTestHelpers.js';
+import { signInClient } from '../operatingBalanceTestHelpers.js';
 import { POINTS, QUOTE_FORMAT_FIELDS } from '../../fixtures/quoteFixtures.js';
 
 async function catalogEditor(context: Awaited<ReturnType<typeof buildTestApp>>) {

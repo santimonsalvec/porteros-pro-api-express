@@ -12,6 +12,8 @@ const EXPECTED: [area: string, areaName: string, permission: string, description
   ['users', 'Usuarios', 'users.read', 'Ver usuarios, sus dispositivos y términos aceptados'],
   ['users', 'Usuarios', 'users.update', 'Corregir nombre y WhatsApp de un usuario'],
   ['users', 'Usuarios', 'users.block', 'Bloquear y desbloquear usuarios'],
+  ['account_closures', 'Cierres de cuenta', 'account_closures.read', 'Ver las solicitudes de cierre de cuenta'],
+  ['account_closures', 'Cierres de cuenta', 'account_closures.manage', 'Resolver deudas, registrar devoluciones y cerrar cuentas'],
   ['goalkeepers', 'Porteros', 'goalkeepers.read', 'Ver porteros, registros, retiros e inasistencias'],
   ['goalkeepers', 'Porteros', 'goalkeepers.update', 'Corregir los datos de identificación de un portero'],
   ['goalkeepers', 'Porteros', 'goalkeepers.registrations.review', 'Revisar registros de portero en curso'],
@@ -21,10 +23,10 @@ const EXPECTED: [area: string, areaName: string, permission: string, description
   ['ratings', 'Calificaciones', 'ratings.read', 'Ver calificaciones'],
   ['cases', 'Casos', 'cases.read', 'Ver casos'],
   ['cases', 'Casos', 'cases.resolve', 'Resolver casos'],
-  ['wallets', 'Billeteras', 'wallets.read', 'Ver billeteras y movimientos'],
-  ['wallets', 'Billeteras', 'wallets.adjust', 'Hacer ajustes manuales de saldo'],
-  ['topups', 'Recargas', 'topups.read', 'Ver recargas y su conciliación'],
-  ['topups', 'Recargas', 'topups.reconcile', 'Forzar la conciliación de una recarga'],
+  ['operating_balances', 'Saldos operativos', 'operating_balances.read', 'Ver saldos operativos y movimientos'],
+  ['operating_balances', 'Saldos operativos', 'operating_balances.adjust', 'Hacer ajustes manuales de saldo operativo'],
+  ['deposits', 'Depósitos', 'deposits.read', 'Ver depósitos y su conciliación'],
+  ['deposits', 'Depósitos', 'deposits.reconcile', 'Forzar la conciliación de un depósito'],
   ['invoicing', 'Facturación', 'invoicing.read', 'Ver facturas y notas crédito'],
   ['invoicing', 'Facturación', 'invoicing.retry', 'Reintentar una factura rechazada'],
   ['invoicing', 'Facturación', 'invoicing.settings.manage', 'Configurar el proveedor de facturación por país'],
@@ -33,7 +35,7 @@ const EXPECTED: [area: string, areaName: string, permission: string, description
   ['catalogs', 'Catálogos', 'catalogs.manage', 'Editar tipos de documento y superficies'],
   ['pricing', 'Precios y reglas', 'pricing.read', 'Ver tarifas, comisiones, reglas de reserva e IVA'],
   ['pricing', 'Precios y reglas', 'pricing.manage', 'Cambiar tarifas, comisiones, reglas de reserva e IVA'],
-  ['payments', 'Pagos', 'payments.settings.manage', 'Configurar la pasarela de recargas por país'],
+  ['payments', 'Pagos', 'payments.settings.manage', 'Configurar la pasarela de depósitos por país'],
   ['notifications', 'Notificaciones', 'notifications.read', 'Ver los avisos enviados a un usuario'],
   ['notifications', 'Notificaciones', 'notifications.send', 'Enviar un aviso de prueba a un usuario'],
   ['access', 'Acceso', 'access.settings.manage', 'Configurar el ingreso con código'],
@@ -41,13 +43,13 @@ const EXPECTED: [area: string, areaName: string, permission: string, description
 ];
 
 describe('permission catalog', () => {
-  it('lists the 35 permissions of 17 areas, in the contract order', () => {
+  it('lists the 37 permissions of 18 areas, in the contract order', () => {
     const flattened = PERMISSION_AREAS.flatMap((area) =>
       area.permissions.map((permission) => [area.id, area.name, permission.id, permission.description]),
     );
 
     expect(flattened).toEqual(EXPECTED);
-    expect(PERMISSION_AREAS).toHaveLength(17);
+    expect(PERMISSION_AREAS).toHaveLength(18);
     expect(PERMISSION_CATALOG).toEqual(EXPECTED.map(([, , permission]) => permission));
   });
 

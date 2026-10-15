@@ -9,7 +9,7 @@ const PRICE_FIELDS = [
 ];
 
 const ALLOWED_FIELDS: Readonly<Record<string, readonly string[]>> = {
-  wallet: [
+  operatingBalance: [
     'goalkeeperId', 'balance', 'currency', 'id', 'movementId', 'type', 'amount', 'reason', 'operationKey',
     'sequence', 'createdAt', 'actor', 'kind', 'adminId',
   ],
@@ -62,8 +62,8 @@ const ALLOWED_FIELDS: Readonly<Record<string, readonly string[]>> = {
   booking: [],
   // Finance (spec 007 of the admin): a forced reconciliation keeps its outcome, never the payment's
   // references; an export keeps its filters and how many rows left, never a row.
-  topUp: ['topUpId', 'status', 'answer', 'result', 'statusAfter'],
-  topUps: ['status', 'countryId', 'goalkeeperId', 'from', 'to', 'rows'],
+  deposit: ['depositId', 'status', 'answer', 'result', 'statusAfter'],
+  deposits: ['status', 'countryId', 'goalkeeperId', 'from', 'to', 'rows'],
   invoicingDocuments: ['status', 'kind', 'countryId', 'goalkeeperId', 'from', 'to', 'stale', 'rows'],
   // Prices and booking rules (spec 004 of the admin): configuration values, nothing personal or secret.
   rentalRate: [...PRICE_FIELDS, 'durationMinutes'],

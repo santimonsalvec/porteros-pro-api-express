@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
-import { createRequestAsClient, MATCH_NOW, ownerOf, signInAdmin, signInClient, signInGoalkeeper } from '../walletTestHelpers.js';
+import { createRequestAsClient, MATCH_NOW, ownerOf, signInAdmin, signInClient, signInGoalkeeper } from '../operatingBalanceTestHelpers.js';
 
 describe("a goalkeeper's withdrawals in the admin view (spec 005 of the admin, research §13)", () => {
   it("adds the match's city clock and the commission charged; the goalkeeper's own view does not", async () => {
@@ -10,7 +10,7 @@ describe("a goalkeeper's withdrawals in the admin view (spec 005 of the admin, r
     const admin = await signInAdmin(context);
     const client = await signInClient(context, 'sub-1001');
     const g = await signInGoalkeeper(context, 'sub-1002');
-    await context.walletLedger.adjust(ownerOf(g.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: 'k-g' });
+    await context.operatingBalanceLedger.adjust(ownerOf(g.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: 'k-g' });
     const created = await createRequestAsClient(context, client.token, { goalkeeperCount: 1 });
     const bookingId = created.bookings[0]!.bookingId;
     await request(context.app).post(`/goalkeepers/me/bookings/${bookingId}/accept`).set('Authorization', `Bearer ${g.token}`);

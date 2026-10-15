@@ -109,28 +109,28 @@ describe('MongoDashboardReader, operations areas (admin spec 008, US1)', () => {
     expect(collection('invoicingDocuments').countDocuments.mock.lastCall![0]).not.toHaveProperty('countryId');
   });
 
-  it('counts the pending top-ups: all, by country, or by the goalkeepers of a city', async () => {
-    collection('topUps').countDocuments.mockResolvedValue(3);
-    expect(await reader.topUps(contextFor(PLATFORM))).toEqual({ pending: 3 });
-    expect(collection('topUps').countDocuments).toHaveBeenLastCalledWith({ status: 'pending' });
-    await reader.topUps(contextFor({ ...MEDELLIN, cityId: null }));
-    expect(collection('topUps').countDocuments).toHaveBeenLastCalledWith({ status: 'pending', countryId: 'co' });
-    await reader.topUps(contextFor(MEDELLIN, ['gk-1']));
-    expect(collection('topUps').countDocuments).toHaveBeenLastCalledWith({ status: 'pending', goalkeeperId: { $in: ['gk-1'] } });
+  it('counts the pending deposits: all, by country, or by the goalkeepers of a city', async () => {
+    collection('deposits').countDocuments.mockResolvedValue(3);
+    expect(await reader.deposits(contextFor(PLATFORM))).toEqual({ pending: 3 });
+    expect(collection('deposits').countDocuments).toHaveBeenLastCalledWith({ status: 'pending' });
+    await reader.deposits(contextFor({ ...MEDELLIN, cityId: null }));
+    expect(collection('deposits').countDocuments).toHaveBeenLastCalledWith({ status: 'pending', countryId: 'co' });
+    await reader.deposits(contextFor(MEDELLIN, ['gk-1']));
+    expect(collection('deposits').countDocuments).toHaveBeenLastCalledWith({ status: 'pending', goalkeeperId: { $in: ['gk-1'] } });
   });
 
-  it("adds the wallets of the scope's goalkeepers per currency, and every wallet for the platform", async () => {
-    collection('wallets').aggregate.mockReturnValue(toArrayResult([{ _id: 'COP', balanceTotal: 10, debtTotal: -5, negativeCount: 1 }]));
-    expect(await reader.wallets(contextFor(MEDELLIN, ['gk-1']))).toEqual({ byCurrency: [{ currency: 'COP', balanceTotal: 10, debtTotal: -5, negativeCount: 1 }] });
-    expect((collection('wallets').aggregate.mock.calls[0]![0] as Document[])[0]).toEqual({ $match: { _id: { $in: ['gk-1'] } } });
-    await reader.wallets(contextFor(PLATFORM, null));
-    expect((collection('wallets').aggregate.mock.calls[1]![0] as Document[])[0]).toHaveProperty('$group');
+  it("adds the operatingBalances of the scope's goalkeepers per currency, and every operatingBalance for the platform", async () => {
+    collection('operatingBalances').aggregate.mockReturnValue(toArrayResult([{ _id: 'COP', balanceTotal: 10, debtTotal: -5, negativeCount: 1 }]));
+    expect(await reader.operatingBalances(contextFor(MEDELLIN, ['gk-1']))).toEqual({ byCurrency: [{ currency: 'COP', balanceTotal: 10, debtTotal: -5, negativeCount: 1 }] });
+    expect((collection('operatingBalances').aggregate.mock.calls[0]![0] as Document[])[0]).toEqual({ $match: { _id: { $in: ['gk-1'] } } });
+    await reader.operatingBalances(contextFor(PLATFORM, null));
+    expect((collection('operatingBalances').aggregate.mock.calls[1]![0] as Document[])[0]).toHaveProperty('$group');
   });
 
   it('counts no money for a city without goalkeepers, without reading', async () => {
     expect(await reader.invoicing(contextFor(MEDELLIN, []))).toEqual({ rejected: 0, stale: 0 });
-    expect(await reader.topUps(contextFor(MEDELLIN, []))).toEqual({ pending: 0 });
-    expect(await reader.wallets(contextFor(MEDELLIN, []))).toEqual({ byCurrency: [] });
-    expect(collection('wallets').aggregate).not.toHaveBeenCalled();
+    expect(await reader.deposits(contextFor(MEDELLIN, []))).toEqual({ pending: 0 });
+    expect(await reader.operatingBalances(contextFor(MEDELLIN, []))).toEqual({ byCurrency: [] });
+    expect(collection('operatingBalances').aggregate).not.toHaveBeenCalled();
   });
 });

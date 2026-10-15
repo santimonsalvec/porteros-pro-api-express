@@ -54,6 +54,10 @@ export class FakeCaseRepository implements ICaseRepository {
     return this.matching(filter).length;
   }
 
+  async findOpenForParticipant(userId: string): Promise<SupportCase[]> {
+    return this.cases.all().filter((item) => item.status === 'open' && (item.goalkeeperId === userId || item.clientId === userId));
+  }
+
   async requestIdsMatching(filter: CaseListFilter): Promise<string[]> {
     return [...new Set(this.matching(filter).map((item) => item.requestId))];
   }

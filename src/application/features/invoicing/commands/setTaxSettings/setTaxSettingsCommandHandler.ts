@@ -1,8 +1,8 @@
 import type { IClock } from '../../../../common/clock.js';
 import type { ICommandHandler } from '../../../../common/mediator/types.js';
-import { TaxSetting } from '../../../../../domain/wallet/taxSetting.js';
+import { TaxSetting } from '../../../../../domain/operatingBalance/taxSetting.js';
 import type { ICountryLookup } from '../../../goalkeeperRequests/common/ports.js';
-import type { ITaxSettingsRepository } from '../../../wallet/common/ports.js';
+import type { ITaxSettingsRepository } from '../../../operatingBalance/common/ports.js';
 import type { IInvoicingLogger } from '../../common/ports.js';
 import { SetTaxSettingsCommand, type SetTaxSettingsResult, type TaxSettingsResponse } from './setTaxSettingsCommand.js';
 

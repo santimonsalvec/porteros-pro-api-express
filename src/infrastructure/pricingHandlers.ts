@@ -3,7 +3,7 @@ import type { IClock } from '../application/common/clock.js';
 import type { IIdGenerator } from '../application/features/auth/common/ports.js';
 import type { PricingGeographyDependencies } from '../application/features/pricing/common/pricingGeography.js';
 import type { IBookingSettingsAdmin, ICommissionAdmin, IRentalRateAdmin } from '../application/features/pricing/common/ports.js';
-import type { ITaxSettingsRepository } from '../application/features/wallet/common/ports.js';
+import type { ITaxSettingsRepository } from '../application/features/operatingBalance/common/ports.js';
 import { ListPricingAreasQuery } from '../application/features/pricing/queries/listPricingAreas/listPricingAreasQuery.js';
 import { ListPricingAreasQueryHandler } from '../application/features/pricing/queries/listPricingAreas/listPricingAreasQueryHandler.js';
 import { GetPricingPreviewQuery } from '../application/features/pricing/queries/getPricingPreview/getPricingPreviewQuery.js';

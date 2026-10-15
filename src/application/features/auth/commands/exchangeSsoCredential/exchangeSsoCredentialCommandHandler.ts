@@ -14,6 +14,7 @@ import { normalizeEmail } from '../../../../../domain/common/email.js';
 import { ExternalIdentity } from '../../../../../domain/users/externalIdentity.js';
 import { User } from '../../../../../domain/users/user.js';
 import { NO_BLOCKED_USERS, type BlockedUsers } from '../../../users/common/blockedUsers.js';
+import type { ClosedAccounts } from '../../../accountClosures/common/closedAccounts.js';
 import { issueAppSession } from '../../common/issueAppSession.js';
 import { ExchangeSsoCredentialCommand, type ExchangeSsoCredentialResult } from './exchangeSsoCredentialCommand.js';
 
@@ -32,6 +33,7 @@ export class ExchangeSsoCredentialCommandHandler
     private readonly auditLogger: IAuditLogger,
     private readonly refreshTokenLifetimeMs: number = REFRESH_TOKEN_LIFETIME_MS_DEFAULT,
     private readonly blockedUsers: BlockedUsers = NO_BLOCKED_USERS,
+    private readonly closedAccounts?: ClosedAccounts,
   ) {}
 
   async handle(command: ExchangeSsoCredentialCommand): Promise<ExchangeSsoCredentialResult> {
@@ -63,6 +65,7 @@ export class ExchangeSsoCredentialCommandHandler
         idGenerator: this.idGenerator,
         refreshTokenLifetimeMs: this.refreshTokenLifetimeMs,
         blockedUsers: this.blockedUsers,
+        closedAccounts: this.closedAccounts,
       },
       user,
     );

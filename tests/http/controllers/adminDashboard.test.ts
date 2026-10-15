@@ -5,7 +5,7 @@ import { Region } from '../../../src/domain/locations/region.js';
 import { adminGet, memberWith } from '../financeTestHelpers.js';
 import { buildTestApp } from '../testAppFactory.js';
 import { signInStaff } from '../adminTestHelpers.js';
-import { signInClient } from '../walletTestHelpers.js';
+import { signInClient } from '../operatingBalanceTestHelpers.js';
 
 // Admin spec 008 (contracts/dashboard-system-api.md §1).
 
@@ -120,8 +120,8 @@ describe('the admin dashboard summary (spec 008 of the admin)', () => {
 
   it('gives the money areas with their permissions, one row per currency', async () => {
     const { context } = await world();
-    const member = await memberWith(context, 'finanzas', ['dashboard.read', 'invoicing.read', 'topups.read', 'wallets.read']);
-    context.dashboardReader.areas.wallets = {
+    const member = await memberWith(context, 'finanzas', ['dashboard.read', 'invoicing.read', 'deposits.read', 'operating_balances.read']);
+    context.dashboardReader.areas.operatingBalances = {
       byCurrency: [
         { currency: 'COP', balanceTotal: 4_820_000, debtTotal: -126_400, negativeCount: 7 },
         { currency: 'USD', balanceTotal: 1_200, debtTotal: 0, negativeCount: 0 },
@@ -131,10 +131,10 @@ describe('the admin dashboard summary (spec 008 of the admin)', () => {
     const response = await adminGet(context, '/admin/dashboard/summary?countryId=country-co', member.token);
 
     expect(response.status).toBe(200);
-    expect(Object.keys(response.body.areas).sort()).toEqual(['invoicing', 'topUps', 'wallets']);
+    expect(Object.keys(response.body.areas).sort()).toEqual(['deposits', 'invoicing', 'operatingBalances']);
     expect(response.body.areas.invoicing).toEqual({ status: 'ok', rejected: 0, stale: 0 });
-    expect(response.body.areas.topUps).toEqual({ status: 'ok', pending: 0 });
-    expect(response.body.areas.wallets.byCurrency).toHaveLength(2);
+    expect(response.body.areas.deposits).toEqual({ status: 'ok', pending: 0 });
+    expect(response.body.areas.operatingBalances.byCurrency).toHaveLength(2);
     expect(response.body.scope).toMatchObject({ countryId: 'country-co', timeZoneSource: 'country', timeZone: 'America/Bogota' });
   });
 });

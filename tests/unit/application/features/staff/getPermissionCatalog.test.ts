@@ -6,7 +6,7 @@ describe('GetPermissionCatalogQueryHandler', () => {
   it('lists the areas with their permissions and descriptions, in catalog order', async () => {
     const result = await new GetPermissionCatalogQueryHandler().handle(new GetPermissionCatalogQuery());
 
-    expect(result.areas).toHaveLength(17);
+    expect(result.areas).toHaveLength(18);
     expect(result.areas[0]).toEqual({
       id: 'team',
       name: 'Equipo',

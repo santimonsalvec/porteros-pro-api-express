@@ -1,11 +1,11 @@
 import { ICommand } from '../../../../common/mediator/types.js';
 
 export type ApplyGatewayEventOutcome =
-  /** The top-up took the event's final status (an approval was credited). */
+  /** The deposit took the event's final status (an approval was credited). */
   | 'applied'
-  /** A repeat, or the top-up already has a final status. */
+  /** A repeat, or the deposit already has a final status. */
   | 'unchanged'
-  /** Not about a known top-up, not a transaction event, or still pending. */
+  /** Not about a known deposit, not a transaction event, or still pending. */
   | 'ignored'
   /** The signature does not match: nothing changed. */
   | 'rejected'

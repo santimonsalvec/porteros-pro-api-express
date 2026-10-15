@@ -1,4 +1,4 @@
-import type { PaymentGatewaySettings, TopUpOption } from '../../../../domain/payments/gatewaySettings.js';
+import type { PaymentGatewaySettings, DepositOption } from '../../../../domain/payments/gatewaySettings.js';
 import type { ICountryLookup } from '../../goalkeeperRequests/common/ports.js';
 import type { IPaymentSecrets } from './ports.js';
 
@@ -10,7 +10,7 @@ export interface GatewaySettingsResponse {
   currency: string;
   costs: { percentBps: number; fixed: number; vatBps: number };
   amounts: number[];
-  options: TopUpOption[];
+  options: DepositOption[];
   updatedAt: string;
   updatedBy: string;
   /** What the next save must send (admin spec 007, FR-025). */

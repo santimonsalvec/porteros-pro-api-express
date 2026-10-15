@@ -1,15 +1,15 @@
 import type { Collection, Db, Document } from 'mongodb';
-import type { ICommissionSettingRepository } from '../../../application/features/wallet/common/ports.js';
+import type { ICommissionSettingRepository } from '../../../application/features/operatingBalance/common/ports.js';
 import type { UpdateResult } from '../../../application/features/geography/common/ports.js';
 import type { CommissionRecord, CreateResult, ICommissionAdmin, PriceFilter } from '../../../application/features/pricing/common/ports.js';
-import { CommissionSetting } from '../../../domain/wallet/commissionSetting.js';
+import { CommissionSetting } from '../../../domain/operatingBalance/commissionSetting.js';
 import { dropIndexIfExists } from './dropIndexIfExists.js';
 import { createPrice, findPriceById, priceFilter, priceRecordOf } from './priceDocuments.js';
 import { deleteById, updateAtRevision } from './revisionWrite.js';
 
 /**
  * Platform commissions (country, anchor city or zone), one per scope, reference and tier. The
- * wallet reads them through `ICommissionSettingRepository`; the admin web writes them through
+ * operating balance reads them through `ICommissionSettingRepository`; the admin web writes them through
  * `ICommissionAdmin` (spec 004 of the admin).
  */
 export class CommissionSettingRepository implements ICommissionSettingRepository, ICommissionAdmin {

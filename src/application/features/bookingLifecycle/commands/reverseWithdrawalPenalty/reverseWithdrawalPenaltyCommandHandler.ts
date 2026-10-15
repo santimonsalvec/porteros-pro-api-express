@@ -3,10 +3,10 @@ import type { ICommandHandler } from '../../../../common/mediator/types.js';
 import type { IIdGenerator } from '../../../auth/common/ports.js';
 import type { IBookingAuditLogger } from '../../../goalkeeperRequests/common/ports.js';
 import {
-  resolveGoalkeeperWalletContext,
-  type GoalkeeperWalletContextDependencies,
-} from '../../../wallet/common/goalkeeperWalletContext.js';
-import type { LedgerOwner } from '../../../wallet/common/walletLedger.js';
+  resolveGoalkeeperOperatingBalanceContext,
+  type GoalkeeperOperatingBalanceContextDependencies,
+} from '../../../operatingBalance/common/goalkeeperOperatingBalanceContext.js';
+import type { LedgerOwner } from '../../../operatingBalance/common/operatingBalanceLedger.js';
 import type { IBookingLifecycleStore, ILifecycleLogger } from '../../common/ports.js';
 import { toWithdrawalItem } from '../../common/withdrawalResponses.js';
 import { ReverseWithdrawalPenaltyCommand, type ReverseWithdrawalPenaltyResult } from './reverseWithdrawalPenaltyCommand.js';
@@ -15,7 +15,7 @@ export const REVERSAL_REASON_MIN = 3;
 export const REVERSAL_REASON_MAX = 500;
 
 export interface ReverseWithdrawalPenaltyDependencies {
-  walletContext: GoalkeeperWalletContextDependencies;
+  operatingBalanceContext: GoalkeeperOperatingBalanceContextDependencies;
   store: IBookingLifecycleStore;
   idGenerator: IIdGenerator;
   clock: IClock;
@@ -51,11 +51,11 @@ export class ReverseWithdrawalPenaltyCommandHandler implements ICommandHandler<R
     if (!command.refund && !command.liftSuspension) errors.body = 'Ask for refund, liftSuspension or both';
     if (Object.keys(errors).length > 0) return { outcome: 'invalid_request', errors };
 
-    const context = await resolveGoalkeeperWalletContext(this.deps.walletContext, command.goalkeeperId);
+    const context = await resolveGoalkeeperOperatingBalanceContext(this.deps.operatingBalanceContext, command.goalkeeperId);
     if (context.kind === 'not_a_goalkeeper') return { outcome: 'not_a_goalkeeper' };
     let owner: LedgerOwner | null = null;
     if (context.kind === 'ok') owner = { goalkeeperId: command.goalkeeperId, currency: context.currency, invoicing: context.invoicing };
-    else if (command.refund) return { outcome: 'wallet_not_configured', cityId: context.cityId };
+    else if (command.refund) return { outcome: 'operating_balance_not_configured', cityId: context.cityId };
 
     const result = await this.deps.store.reverseWithdrawal({
       goalkeeperId: command.goalkeeperId,

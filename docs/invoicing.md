@@ -8,7 +8,7 @@ del portero**. El primero es **Siigo**, para Colombia.
 ## 1. IVA aparte
 
 La comisión (y la penalidad) es lo que gana la plataforma. El IVA se cobra **encima**, como un
-movimiento propio de la billetera, en la misma transacción:
+movimiento propio de el saldo operativo, en la misma transacción:
 
 | Movimiento | Signo | Cuándo |
 |---|---|---|
@@ -18,7 +18,7 @@ movimiento propio de la billetera, en la misma transacción:
 
 - **La tarifa** es por país: `PUT /admin/tax-settings/{countryId}` con `{"vatRateBps":1900}` (19 %). Sin configurar = 0 %, con un aviso `vat_not_configured` en el log.
 - **Ejemplo** con 7.000 al 19 %: se descuentan 7.000 + 1.330 = 8.330.
-- **Todas las reglas de fondos** usan comisión + IVA: ver partidos, recibir ofertas y aceptar. En la billetera, `offers.lowestCharge` y `missingAmount` ya incluyen el IVA.
+- **Todas las reglas de fondos** usan comisión + IVA: ver partidos, recibir ofertas y aceptar. En el saldo operativo, `offers.lowestCharge` y `missingAmount` ya incluyen el IVA.
 
 ## 2. Cómo se emite (por eventos, sin perder ninguno)
 

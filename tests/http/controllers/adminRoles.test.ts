@@ -2,7 +2,7 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 import { seedRole, signInStaff } from '../adminTestHelpers.js';
-import { signInClient, type TestApp } from '../walletTestHelpers.js';
+import { signInClient, type TestApp } from '../operatingBalanceTestHelpers.js';
 
 const as = (context: TestApp, token: string) => ({
   get: (path: string) => request(context.app).get(path).set('Authorization', `Bearer ${token}`),

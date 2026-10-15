@@ -6,18 +6,18 @@ import { ExportDocumentsQuery } from '../../application/features/invoicing/queri
 import { GetDocumentAdminQuery } from '../../application/features/invoicing/queries/getDocumentAdmin/getDocumentAdminQuery.js';
 import { GetDocumentFileQuery } from '../../application/features/invoicing/queries/getDocumentFile/getDocumentFileQuery.js';
 import { ListDocumentsForAdminQuery } from '../../application/features/invoicing/queries/listDocumentsForAdmin/listDocumentsForAdminQuery.js';
-import { ListWalletsAdminQuery } from '../../application/features/wallet/queries/listWalletsAdmin/listWalletsAdminQuery.js';
-import { ReconcileTopUpCommand } from '../../application/features/payments/commands/reconcileTopUp/reconcileTopUpCommand.js';
-import { ExportTopUpsQuery } from '../../application/features/payments/queries/exportTopUps/exportTopUpsQuery.js';
-import { GetTopUpAdminQuery } from '../../application/features/payments/queries/getTopUpAdmin/getTopUpAdminQuery.js';
-import { ListTopUpsAdminQuery } from '../../application/features/payments/queries/listTopUpsAdmin/listTopUpsAdminQuery.js';
+import { ListOperatingBalancesAdminQuery } from '../../application/features/operatingBalance/queries/listOperatingBalancesAdmin/listOperatingBalancesAdminQuery.js';
+import { ReconcileDepositCommand } from '../../application/features/deposits/commands/reconcileDeposit/reconcileDepositCommand.js';
+import { ExportDepositsQuery } from '../../application/features/deposits/queries/exportDeposits/exportDepositsQuery.js';
+import { GetDepositAdminQuery } from '../../application/features/deposits/queries/getDepositAdmin/getDepositAdminQuery.js';
+import { ListDepositsAdminQuery } from '../../application/features/deposits/queries/listDepositsAdmin/listDepositsAdminQuery.js';
 import { ApiError } from '../apiError.js';
 import { exportDocumentsQuerySchema, listDocumentsAdminQuerySchema } from '../requests/finance/invoicingDocumentRequests.js';
-import { exportTopUpsQuerySchema, listTopUpsQuerySchema } from '../requests/finance/topUpRequests.js';
-import { listWalletsQuerySchema } from '../requests/finance/walletRequests.js';
+import { exportDepositsQuerySchema, listDepositsQuerySchema } from '../requests/finance/depositRequests.js';
+import { listOperatingBalancesQuerySchema } from '../requests/finance/operatingBalanceRequests.js';
 import { parse, type Route } from './geographyRoutes.js';
 
-const topUpNotFound = () => new ApiError(404, 'top_up_not_found', 'No top-up exists with this id.');
+const depositNotFound = () => new ApiError(404, 'deposit_not_found', 'No deposit exists with this id.');
 
 /** The filters an export was asked with, as they came (strings), for its audit entry. */
 function filtersOf(req: Request, keys: readonly string[]): Record<string, unknown> {
@@ -38,77 +38,77 @@ const exportTooLarge = (count: number, limit: number) =>
   new ApiError(422, 'export_too_large', 'Too many rows to export; narrow the filters.', undefined, { count, limit });
 
 /**
- * Money in the admin web (spec 007 of the admin, contracts/finance-api.md): wallets, top-ups and
+ * Money in the admin web (spec 007 of the admin, contracts/finance-api.md): operating balances, deposits and
  * invoicing documents. A literal segment (`export`) is declared before the `:id` beside it.
  */
 export function registerFinanceRoutes(route: Route, mediator: ISender): void {
-  route('get', '/wallets', 'wallets.read', async (req, res) => {
-    const result = await mediator.send(new ListWalletsAdminQuery(parse(listWalletsQuerySchema, req.query)));
+  route('get', '/operating-balances', 'operating_balances.read', async (req, res) => {
+    const result = await mediator.send(new ListOperatingBalancesAdminQuery(parse(listOperatingBalancesQuerySchema, req.query)));
     res.status(200).json(result.page);
   });
-  registerTopUpRoutes(route, mediator);
+  registerDepositRoutes(route, mediator);
   registerDocumentRoutes(route, mediator);
 }
 
-function registerTopUpRoutes(route: Route, mediator: ISender): void {
-  const TOP_UP_FILTERS = ['status', 'countryId', 'goalkeeperId', 'from', 'to'] as const;
+function registerDepositRoutes(route: Route, mediator: ISender): void {
+  const DEPOSIT_FILTERS = ['status', 'countryId', 'goalkeeperId', 'from', 'to'] as const;
 
-  route('get', '/top-ups', 'topups.read', async (req, res) => {
-    const result = await mediator.send(new ListTopUpsAdminQuery(parse(listTopUpsQuerySchema, req.query)));
+  route('get', '/deposits', 'deposits.read', async (req, res) => {
+    const result = await mediator.send(new ListDepositsAdminQuery(parse(listDepositsQuerySchema, req.query)));
     res.status(200).json(result.page);
   });
 
   route(
     'get',
-    '/top-ups/export',
-    { permission: 'topups.read', read: { action: 'topUps.export', resourceType: 'topUps', resourceId: () => 'export' } },
+    '/deposits/export',
+    { permission: 'deposits.read', read: { action: 'deposits.export', resourceType: 'deposits', resourceId: () => 'export' } },
     async (req, res) => {
-      const filter = parse(exportTopUpsQuerySchema, req.query);
-      const result = await mediator.send(new ExportTopUpsQuery(filter));
+      const filter = parse(exportDepositsQuerySchema, req.query);
+      const result = await mediator.send(new ExportDepositsQuery(filter));
       if (result.outcome === 'too_large') {
-        res.locals.auditRequest = filtersOf(req, TOP_UP_FILTERS);
+        res.locals.auditRequest = filtersOf(req, DEPOSIT_FILTERS);
         throw exportTooLarge(result.count, result.limit);
       }
-      res.locals.auditRequest = { ...filtersOf(req, TOP_UP_FILTERS), rows: result.rows };
-      sendCsv(res, 'recargas', result.csv);
+      res.locals.auditRequest = { ...filtersOf(req, DEPOSIT_FILTERS), rows: result.rows };
+      sendCsv(res, 'depositos', result.csv);
     },
   );
 
-  route('get', '/top-ups/:topUpId', 'topups.read', async (req, res) => {
-    const result = await mediator.send(new GetTopUpAdminQuery(req.params.topUpId));
-    if (result.outcome === 'not_found') throw topUpNotFound();
-    res.status(200).json(result.topUp);
+  route('get', '/deposits/:depositId', 'deposits.read', async (req, res) => {
+    const result = await mediator.send(new GetDepositAdminQuery(req.params.depositId));
+    if (result.outcome === 'not_found') throw depositNotFound();
+    res.status(200).json(result.deposit);
   });
 
   route(
     'post',
-    '/top-ups/:topUpId/reconcile',
-    { permission: 'topups.reconcile', audit: { action: 'topUp.reconcile', resourceType: 'topUp', resourceId: (req) => String(req.params.topUpId) } },
+    '/deposits/:depositId/reconcile',
+    { permission: 'deposits.reconcile', audit: { action: 'deposit.reconcile', resourceType: 'deposit', resourceId: (req) => String(req.params.depositId) } },
     async (req, res) => {
-      const result = await mediator.send(new ReconcileTopUpCommand(req.adminAccess!.userId, req.params.topUpId));
+      const result = await mediator.send(new ReconcileDepositCommand(req.adminAccess!.userId, req.params.depositId));
       const detail = async () => {
-        const read = await mediator.send(new GetTopUpAdminQuery(req.params.topUpId));
-        if (read.outcome === 'not_found') throw topUpNotFound();
-        return read.topUp;
+        const read = await mediator.send(new GetDepositAdminQuery(req.params.depositId));
+        if (read.outcome === 'not_found') throw depositNotFound();
+        return read.deposit;
       };
       // Exhaustive on purpose: adding an outcome without mapping it here fails compilation.
       switch (result.outcome) {
         case 'reconciled':
-          res.status(200).json({ outcome: 'reconciled', answer: result.answer, status: result.status, topUp: await detail() });
+          res.status(200).json({ outcome: 'reconciled', answer: result.answer, status: result.status, deposit: await detail() });
           return;
         case 'already_final':
           res.locals.auditOutcome = 'replayed';
-          res.status(200).json({ outcome: 'already_final', status: result.topUp.status, topUp: await detail() });
+          res.status(200).json({ outcome: 'already_final', status: result.deposit.status, deposit: await detail() });
           return;
         case 'gateway_unavailable':
-          res.status(200).json({ outcome: 'gateway_unavailable', status: result.topUp.status, topUp: await detail() });
+          res.status(200).json({ outcome: 'gateway_unavailable', status: result.deposit.status, deposit: await detail() });
           return;
         case 'in_progress':
-          throw new ApiError(409, 'reconcile_in_progress', 'Another check of this top-up is in progress.');
+          throw new ApiError(409, 'reconcile_in_progress', 'Another check of this deposit is in progress.');
         case 'credentials_missing':
-          throw new ApiError(409, 'gateway_unavailable', "The gateway or its credentials are missing for the top-up's country.");
+          throw new ApiError(409, 'gateway_unavailable', "The gateway or its credentials are missing for the deposit's country.");
         case 'not_found':
-          throw topUpNotFound();
+          throw depositNotFound();
       }
     },
   );

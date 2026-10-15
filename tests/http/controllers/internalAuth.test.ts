@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
-import { signInAdmin } from '../walletTestHelpers.js';
+import { signInAdmin } from '../operatingBalanceTestHelpers.js';
 
 const pushBody = {
   message: {

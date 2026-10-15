@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 import { as } from '../geographyTestHelpers.js';
 import { pricingStaff } from '../pricingTestHelpers.js';
-import { signInClient } from '../walletTestHelpers.js';
+import { signInClient } from '../operatingBalanceTestHelpers.js';
 
 const query = (params: Record<string, string>) =>
   `/admin/pricing/preview?${new URLSearchParams({ zoneId: 'zone-cali-norte', durationMinutes: '60', modality: 'any', level: 'recreational', startsAtLocal: '2026-09-21T14:00', ...params })}`;

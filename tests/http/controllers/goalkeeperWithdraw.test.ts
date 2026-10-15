@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
-import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../walletTestHelpers.js';
+import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../operatingBalanceTestHelpers.js';
 
 const withdraw = (context: TestApp, token: string, bookingId: string, body: object = {}) =>
   request(context.app).post(`/goalkeepers/me/bookings/${bookingId}/withdraw`).set('Authorization', `Bearer ${token}`).send(body);
@@ -21,7 +21,7 @@ async function setUp(startsAtLocal = '2026-09-21T15:00:00') {
   const g = await signInGoalkeeper(context, 'sub-1002');
   const h = await signInGoalkeeper(context, 'sub-1003');
   for (const [goalkeeper, key] of [[g, 'k-g'], [h, 'k-h']] as const) {
-    await context.walletLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: key });
+    await context.operatingBalanceLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: key });
     await request(context.app).post('/devices').set('Authorization', `Bearer ${goalkeeper.token}`).send({ token: `phone-${key}`, platform: 'android' });
   }
   await request(context.app).post('/devices').set('Authorization', `Bearer ${client.token}`).send({ token: 'phone-client', platform: 'android' });
@@ -45,7 +45,7 @@ describe('goalkeeper withdrawal — US1: withdraw, and a replacement is searched
       status: 'goalkeeper_withdrew',
       withdrawal: { noticeMinutes: 210, late: false, replacementCreated: true, penalties: [], suspendedUntil: null },
     });
-    expect((await get(context, g.token, '/goalkeepers/me/wallet')).body.balance).toBe(13000);
+    expect((await get(context, g.token, '/goalkeepers/me/operating-balance')).body.balance).toBe(13000);
 
     const requests = await get(context, client.token, '/goalkeeper-requests/bookings');
     const mine = requests.body.items.find((item: { requestId: string }) => item.requestId === requestId);

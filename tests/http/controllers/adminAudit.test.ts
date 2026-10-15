@@ -2,7 +2,7 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 import { seedRole, signInStaff } from '../adminTestHelpers.js';
-import { signInAdmin, signInGoalkeeper, type TestApp } from '../walletTestHelpers.js';
+import { signInAdmin, signInGoalkeeper, type TestApp } from '../operatingBalanceTestHelpers.js';
 
 const KEY = '01925b10-0000-7000-8000-000000000001';
 const GATEWAY = {
@@ -48,16 +48,16 @@ describe('admin audit log (spec 001, US3)', () => {
     const context = await buildTestApp();
     const admin = await signInAdmin(context);
     const goalkeeper = await signInGoalkeeper(context, 'sub-0201');
-    const path = `/admin/goalkeepers/${goalkeeper.userId}/wallet/adjustments`;
+    const path = `/admin/goalkeepers/${goalkeeper.userId}/operating-balance/adjustments`;
 
     await as(context, admin.token).post(path, { amount: 50000, reason: 'Saldo inicial', operationKey: KEY });
     await as(context, admin.token).post(path, { amount: 50000, reason: 'Saldo inicial', operationKey: KEY });
     await as(context, admin.token).post(path, { amount: -999999, reason: 'Demasiado', operationKey: '01925b10-0000-7000-8000-000000000002' });
 
     expect(context.adminAuditLog.entries.map((entry) => [entry.action, entry.resourceId, entry.outcome, entry.httpStatus])).toEqual([
-      ['wallet.adjust', goalkeeper.userId, 'done', 201],
-      ['wallet.adjust', goalkeeper.userId, 'replayed', 200],
-      ['wallet.adjust', goalkeeper.userId, 'rejected', 409],
+      ['operating_balance.adjust', goalkeeper.userId, 'done', 201],
+      ['operating_balance.adjust', goalkeeper.userId, 'replayed', 200],
+      ['operating_balance.adjust', goalkeeper.userId, 'rejected', 409],
     ]);
     expect(context.adminAuditLog.entries[0]).toMatchObject({ before: { balance: 0 }, after: { amount: 50000, balance: 50000, reason: 'Saldo inicial' } });
     expect(context.adminAuditLog.entries[2]!.errorCode).toBe('insufficient_funds');

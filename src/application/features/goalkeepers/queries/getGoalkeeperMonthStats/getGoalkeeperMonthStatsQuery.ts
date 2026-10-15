@@ -25,8 +25,8 @@ export interface GoalkeeperMonthStats {
 export type GetGoalkeeperMonthStatsResult =
   | { outcome: 'success'; stats: GoalkeeperMonthStats }
   | { outcome: 'not_a_goalkeeper' }
-  /** The currency of the goalkeeper's country can't be resolved (as for the wallet). */
-  | { outcome: 'wallet_not_configured'; cityId: string }
+  /** The currency of the goalkeeper's country can't be resolved (as for the operating balance). */
+  | { outcome: 'operating_balance_not_configured'; cityId: string }
   /** The goalkeeper's city has no valid time zone, so its months can't be cut. */
   | { outcome: 'time_zone_not_configured'; cityId: string };
 

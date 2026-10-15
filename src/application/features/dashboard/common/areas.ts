@@ -1,5 +1,5 @@
 import type { Permission } from '../../../../domain/staff/permissionCatalog.js';
-import type { CasesArea, GoalkeepersArea, InvoicingArea, RegistrationsArea, RequestsArea, StatusCounts, TopUpsArea, WalletsArea } from './ports.js';
+import type { CasesArea, GoalkeepersArea, InvoicingArea, RegistrationsArea, RequestsArea, StatusCounts, DepositsArea, OperatingBalancesArea } from './ports.js';
 
 export interface DashboardAreas {
   requests: RequestsArea;
@@ -7,8 +7,8 @@ export interface DashboardAreas {
   registrations: RegistrationsArea;
   cases: CasesArea;
   invoicing: InvoicingArea;
-  topUps: TopUpsArea;
-  wallets: WalletsArea;
+  deposits: DepositsArea;
+  operatingBalances: OperatingBalancesArea;
 }
 
 export type DashboardArea = keyof DashboardAreas;
@@ -20,8 +20,8 @@ export const AREA_PERMISSIONS: { readonly [A in DashboardArea]: Permission } = {
   registrations: 'goalkeepers.registrations.review',
   cases: 'cases.read',
   invoicing: 'invoicing.read',
-  topUps: 'topups.read',
-  wallets: 'wallets.read',
+  deposits: 'deposits.read',
+  operatingBalances: 'operating_balances.read',
 };
 
 export const DASHBOARD_AREAS = Object.keys(AREA_PERMISSIONS) as DashboardArea[];

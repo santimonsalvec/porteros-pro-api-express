@@ -14,7 +14,7 @@ export interface GoalkeeperListFilter {
   zoneId?: string;
   suspended?: boolean;
   availableForOffers?: boolean;
-  /** Balance strictly below this amount; without a wallet the balance is 0. */
+  /** Balance strictly below this amount; without a operating balance the balance is 0. */
   balanceBelow?: number;
   now: Date;
   page: number;

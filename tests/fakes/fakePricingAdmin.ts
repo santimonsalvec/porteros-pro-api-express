@@ -11,7 +11,7 @@ import type {
 } from '../../src/application/features/pricing/common/ports.js';
 import { BookingSettings } from '../../src/domain/pricing/bookingSettings.js';
 import { RentalRate } from '../../src/domain/pricing/rentalRate.js';
-import { CommissionSetting } from '../../src/domain/wallet/commissionSetting.js';
+import { CommissionSetting } from '../../src/domain/operatingBalance/commissionSetting.js';
 import { FakeBookingSettingsRepository } from './fakeBookingSettingsRepository.js';
 import { FakeCommissionSettingRepository } from './fakeCommissionSettingRepository.js';
 import { createIn, deleteIn, matchesPriceFilter, priceRecord, updateIn } from './fakePriceStore.js';

@@ -81,9 +81,9 @@ describe('MongoReferenceUsage', () => {
       expect(await databaseWith().usage.regionUsage('ant')).toBeNull();
     });
 
-    it('a country operates with top-ups, or goalkeepers or requests in its cities', async () => {
+    it('a country operates with deposits, or goalkeepers or requests in its cities', async () => {
       const cities = { regions: ['ant'], cities: ['med'] };
-      expect(await databaseWith({ topUps: [{ countryId: 'co' }] }).usage.countryOperates('co')).toBe(true);
+      expect(await databaseWith({ deposits: [{ countryId: 'co' }] }).usage.countryOperates('co')).toBe(true);
       expect(await databaseWith({ goalkeeperProfiles: [{ cityId: { $in: ['med'] } }] }, { regions: ['ant'], cities: ['med'] }).usage.countryOperates('co')).toBe(
         true,
       );

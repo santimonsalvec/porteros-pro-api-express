@@ -6,6 +6,7 @@ import { logger } from './infrastructure/observability/logger.js';
 import type { AppDependencies } from './appDependencies.js';
 import { createAuthController } from './controllers/authController.js';
 import { createProfileController } from './controllers/profileController.js';
+import { createAccountClosureController } from './controllers/accountClosureController.js';
 import { createClientsController } from './controllers/clientsController.js';
 import { createLocationsController } from './controllers/locationsController.js';
 import { createHealthController } from './controllers/healthController.js';
@@ -40,6 +41,8 @@ export function createApp(deps: AppDependencies): Express {
   // Before `/auth`: the admin web's sessions, with CORS for its origins only (porteros-pro-admin spec 001).
   app.use('/auth/admin', adminCors({ allowedOrigins: deps.admin.allowedOrigins, credentials: true }), createAdminAuthController(deps));
   app.use('/auth', createAuthController(deps));
+  // Before `/profile`: its own sub-path, for any signed-in user (feature 029).
+  app.use('/profile/account-closure', createAccountClosureController(deps));
   app.use('/profile', createProfileController(deps));
   app.use('/clients', createClientsController(deps));
   app.use('/locations', createLocationsController(deps));

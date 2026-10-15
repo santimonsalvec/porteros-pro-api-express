@@ -1,14 +1,14 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
-import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../walletTestHelpers.js';
+import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../operatingBalanceTestHelpers.js';
 
 async function setUp() {
   const context = await buildTestApp();
   context.clock.set(MATCH_NOW);
   const client = await signInClient(context, 'sub-0401');
   const goalkeeper = await signInGoalkeeper(context, 'sub-0402');
-  await context.walletLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: 'k-gk-1' });
+  await context.operatingBalanceLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: 'k-gk-1' });
   return { context, client, goalkeeper };
 }
 
@@ -37,7 +37,7 @@ describe('POST /goalkeepers/me/bookings/:bookingId/accept — US2: assign and ch
     context.clock.set('2026-09-21T19:00:00.000Z');
     const agenda = await request(context.app).get('/goalkeepers/me/bookings').set('Authorization', `Bearer ${goalkeeper.token}`);
     expect(agenda.body.items[0].client).toEqual({ firstName: 'Ana', lastName: 'Portera', whatsApp: expect.stringMatching(/^\+57 /) });
-    const movements = await request(context.app).get('/goalkeepers/me/wallet/movements').set('Authorization', `Bearer ${goalkeeper.token}`);
+    const movements = await request(context.app).get('/goalkeepers/me/operating-balance/movements').set('Authorization', `Bearer ${goalkeeper.token}`);
     expect(movements.body.items[0]).toMatchObject({ type: 'commission_charge', amount: -7000, balanceAfter: 13000, references: { bookingId } });
   });
 
@@ -50,7 +50,7 @@ describe('POST /goalkeepers/me/bookings/:bookingId/accept — US2: assign and ch
 
     expect(response.status).toBe(409);
     expect(response.body.error).toBe('goalkeeper_not_available');
-    expect(context.walletStore.movements().filter((movement) => movement.type === 'commission_charge')).toHaveLength(0);
+    expect(context.operatingBalanceStore.movements().filter((movement) => movement.type === 'commission_charge')).toHaveLength(0);
     expect((await context.bookingRepository.findById(bookingId))?.status).toBe('pending_assignment');
   });
 
@@ -62,13 +62,13 @@ describe('POST /goalkeepers/me/bookings/:bookingId/accept — US2: assign and ch
     const again = await accept(context, goalkeeper.token, bookingId);
 
     expect(again.status).toBe(200);
-    expect(context.walletStore.movements().filter((movement) => movement.type === 'commission_charge')).toHaveLength(1);
+    expect(context.operatingBalanceStore.movements().filter((movement) => movement.type === 'commission_charge')).toHaveLength(1);
   });
 
   it('409 booking_already_taken for a second goalkeeper, and the request shows partially_assigned', async () => {
     const { context, client, goalkeeper } = await setUp();
     const other = await signInGoalkeeper(context, 'sub-0403');
-    await context.walletLedger.adjust(ownerOf(other.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: 'k-gk-2' });
+    await context.operatingBalanceLedger.adjust(ownerOf(other.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: 'k-gk-2' });
     const created = await createRequestAsClient(context, client.token);
     const bookingId = created.bookings[0]!.bookingId;
     await accept(context, goalkeeper.token, bookingId);
@@ -85,7 +85,7 @@ describe('POST /goalkeepers/me/bookings/:bookingId/accept — US2: assign and ch
 describe('POST …/accept — US3/US4: clashes and refusals over HTTP', () => {
   it('409 schedule_conflict with the conflicting booking, and 409 same_request for the other booking of a held match', async () => {
     const { context, client, goalkeeper } = await setUp();
-    await context.walletLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Más saldo', operationKey: 'k-gk-more' });
+    await context.operatingBalanceLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Más saldo', operationKey: 'k-gk-more' });
     const pair = await createRequestAsClient(context, client.token); // 15:00 local, 90 min
     const overlapping = await createRequestAsClient(context, client.token, { goalkeeperCount: 1, startsAt: '2026-09-21T16:00:00' });
     await accept(context, goalkeeper.token, pair.bookings[0]!.bookingId);
@@ -107,9 +107,9 @@ describe('POST …/accept — US3/US4: clashes and refusals over HTTP', () => {
     const created = await createRequestAsClient(context, client.token, { goalkeeperCount: 1 });
     const bookingId = created.bookings[0]!.bookingId;
     context.goalkeeperProfileRepository.seed(
-      (await import('../../fixtures/walletFixtures.js')).buildGoalkeeperProfile(client.userId, { zoneIds: ['zone-cali-norte'] }),
+      (await import('../../fixtures/operatingBalanceFixtures.js')).buildGoalkeeperProfile(client.userId, { zoneIds: ['zone-cali-norte'] }),
     );
-    await context.walletLedger.adjust(ownerOf(client.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo', operationKey: 'k-client' });
+    await context.operatingBalanceLedger.adjust(ownerOf(client.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo', operationKey: 'k-client' });
 
     const funds = await accept(context, poor.token, bookingId);
     const own = await accept(context, client.token, bookingId);

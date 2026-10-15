@@ -2,7 +2,7 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 import { seedRole, signInStaff } from '../adminTestHelpers.js';
-import { signInClient, type TestApp } from '../walletTestHelpers.js';
+import { signInClient, type TestApp } from '../operatingBalanceTestHelpers.js';
 
 /** A client with a complete profile (`Ana Portera`, WhatsApp `300 000 0001`) and an owner. */
 async function world() {

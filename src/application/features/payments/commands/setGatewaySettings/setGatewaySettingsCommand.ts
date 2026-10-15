@@ -11,8 +11,8 @@ export type SetGatewaySettingsResult =
   | { outcome: 'invalid'; fieldErrors: Record<string, string> };
 
 /**
- * An administrator sets a country's top-up gateway, public configuration, costs and amounts
- * (contracts §7). In-flight top-ups keep the gateway they started with. `revision` is the one read
+ * An administrator sets a country's deposit gateway, public configuration, costs and amounts
+ * (contracts §7). In-flight deposits keep the gateway they started with. `revision` is the one read
  * (`null` creates the country's first settings), so two people never overwrite each other (admin spec 007, FR-025).
  */
 export class SetGatewaySettingsCommand extends ICommand<SetGatewaySettingsResult> {

@@ -24,4 +24,6 @@ export interface ICaseRepository {
   countMatching(filter: CaseListFilter): Promise<number>;
   /** The requests of the matching cases, to narrow them to a country. */
   requestIdsMatching(filter: CaseListFilter): Promise<string[]>;
+  /** The cases still open in which the user is the client or the goalkeeper (feature 029). */
+  findOpenForParticipant(userId: string): Promise<SupportCase[]>;
 }

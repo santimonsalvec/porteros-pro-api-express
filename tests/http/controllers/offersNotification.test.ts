@@ -1,8 +1,8 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
-import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../walletTestHelpers.js';
-import { buildGoalkeeperProfile } from '../../fixtures/walletFixtures.js';
+import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../operatingBalanceTestHelpers.js';
+import { buildGoalkeeperProfile } from '../../fixtures/operatingBalanceFixtures.js';
 import type { DomainEvent } from '../../../src/domain/events/domainEvent.js';
 import { RunSweepCommand } from '../../../src/application/features/events/commands/runSweep/runSweepCommand.js';
 
@@ -14,7 +14,7 @@ async function goalkeeperWithPhone(context: TestApp, sub: string, funded = true)
     .set('Authorization', `Bearer ${goalkeeper.token}`)
     .send({ token: `phone-${sub}`, platform: 'android' });
   if (funded) {
-    await context.walletLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: `k-${sub}` });
+    await context.operatingBalanceLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: `k-${sub}` });
   }
   return goalkeeper;
 }

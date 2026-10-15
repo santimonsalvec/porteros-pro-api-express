@@ -2,7 +2,7 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 import { CSRF, signInStaff } from '../adminTestHelpers.js';
-import { signInClient } from '../walletTestHelpers.js';
+import { signInClient } from '../operatingBalanceTestHelpers.js';
 import { PERMISSION_CATALOG } from '../../../src/domain/staff/permissionCatalog.js';
 
 describe('GET /admin/me (spec 001, US1)', () => {

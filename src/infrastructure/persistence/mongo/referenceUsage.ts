@@ -3,7 +3,7 @@ import type { IFutureBookingsProbe, IReferenceUsage, UsageReason } from '../../.
 import { BOOKINGS_COLLECTION } from './bookingRepository.js';
 import { GOALKEEPER_REQUESTS_COLLECTION } from './goalkeeperRequestRepository.js';
 import { QUOTES_COLLECTION } from './quoteRepository.js';
-import { TOP_UPS_COLLECTION } from './topUpRepository.js';
+import { DEPOSITS_COLLECTION } from './depositRepository.js';
 
 /** One place to look: a collection and the filter that means "points at it". */
 type Check = readonly [collection: string, filter: Document];
@@ -86,11 +86,11 @@ export class MongoReferenceUsage implements IReferenceUsage, IFutureBookingsProb
   }
 
   async countryOperates(countryId: string): Promise<boolean> {
-    const [topUps, regionIds] = await Promise.all([
-      this.any([[TOP_UPS_COLLECTION, { countryId }]]),
+    const [deposits, regionIds] = await Promise.all([
+      this.any([[DEPOSITS_COLLECTION, { countryId }]]),
       this.db.collection('regions').distinct('_id', { countryId }).then((ids) => ids.map(String)),
     ]);
-    if (topUps) return true;
+    if (deposits) return true;
     if (regionIds.length === 0) return false;
     const cityIds = (await this.db.collection('cities').distinct('_id', { regionId: { $in: regionIds } })).map(String);
     if (cityIds.length === 0) return false;

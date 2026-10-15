@@ -9,7 +9,7 @@ import { areaSettingsFrom } from '../../goalkeeperRequests/common/serviceArea.js
 import { isValidTimeZone } from '../../goalkeeperRequests/common/zonedTime.js';
 import type { IInvoicingSettingsRepository } from '../../invoicing/common/ports.js';
 import type { IPaymentGatewaySettingsRepository } from '../../payments/common/ports.js';
-import type { ICommissionSettingRepository, ITaxSettingsRepository } from '../../wallet/common/ports.js';
+import type { ICommissionSettingRepository, ITaxSettingsRepository } from '../../operatingBalance/common/ports.js';
 import type {
   IAdminCityRepository,
   IAdminCountryRepository,

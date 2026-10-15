@@ -110,7 +110,7 @@ export const openapiSpec = {
         properties: { year: { type: 'integer', example: 2026 }, month: { type: 'integer', minimum: 1, maximum: 12, example: 10 } },
         required: ['year', 'month'],
       },
-      WalletViewResponse: {
+      OperatingBalanceViewResponse: {
         type: 'object',
         properties: {
           balance: { type: 'integer', example: 13000, description: 'Whole currency units; may be negative after penalties' },
@@ -130,12 +130,12 @@ export const openapiSpec = {
         },
         required: ['balance', 'currency', 'offers', 'movementCount'],
       },
-      WalletMovementItem: {
+      BalanceMovementItem: {
         type: 'object',
         properties: {
           movementId: { type: 'string' },
           sequence: { type: 'integer', example: 1 },
-          type: { type: 'string', enum: ['top_up', 'commission_charge', 'commission_refund', 'penalty', 'penalty_reversal', 'admin_adjustment', 'gateway_fee', 'commission_vat', 'commission_vat_refund', 'penalty_vat', 'penalty_vat_reversal'] },
+          type: { type: 'string', enum: ['deposit', 'commission_charge', 'commission_refund', 'penalty', 'penalty_reversal', 'admin_adjustment', 'gateway_fee', 'commission_vat', 'commission_vat_refund', 'penalty_vat', 'penalty_vat_reversal'] },
           amount: { type: 'integer', example: -7000, description: 'Signed: credits > 0, debits < 0' },
           currency: { type: 'string', example: 'COP' },
           balanceAfter: { type: 'integer', example: 13000 },
@@ -145,7 +145,7 @@ export const openapiSpec = {
             properties: {
               bookingId: { type: 'string' },
               requestId: { type: 'string' },
-              topUpId: { type: 'string' },
+              depositId: { type: 'string' },
               caseId: { type: 'string' },
               penaltyMovementId: { type: 'string' },
             },
@@ -159,9 +159,9 @@ export const openapiSpec = {
         },
         required: ['movementId', 'sequence', 'type', 'amount', 'currency', 'balanceAfter', 'occurredAt', 'references', 'cancellation', 'reason'],
       },
-      AdminWalletMovementItem: {
+      AdminBalanceMovementItem: {
         allOf: [
-          { $ref: '#/components/schemas/WalletMovementItem' },
+          { $ref: '#/components/schemas/BalanceMovementItem' },
           {
             type: 'object',
             properties: {
@@ -173,10 +173,10 @@ export const openapiSpec = {
           },
         ],
       },
-      WalletMovementsPage: {
+      BalanceMovementsPage: {
         type: 'object',
         properties: {
-          items: { type: 'array', items: { $ref: '#/components/schemas/WalletMovementItem' } },
+          items: { type: 'array', items: { $ref: '#/components/schemas/BalanceMovementItem' } },
           page: { type: 'integer' },
           pageSize: { type: 'integer' },
           totalItems: { type: 'integer' },
@@ -378,7 +378,7 @@ export const openapiSpec = {
         },
         required: ['items', 'page', 'pageSize', 'totalItems', 'totalPages'],
       },
-      RecordWalletAdjustmentRequest: {
+      RecordOperatingBalanceAdjustmentRequest: {
         type: 'object',
         properties: {
           amount: { type: 'integer', example: 50000, description: 'Non-zero; positive = credit, negative = debit' },
@@ -387,12 +387,12 @@ export const openapiSpec = {
         },
         required: ['amount', 'reason', 'operationKey'],
       },
-      TopUpOption: {
+      DepositOption: {
         type: 'object',
-        properties: { amount: { type: 'integer' }, cost: { type: 'integer', description: 'Gateway fee, VAT included, rounded up' }, net: { type: 'integer', description: 'What reaches the wallet' } },
+        properties: { amount: { type: 'integer' }, cost: { type: 'integer', description: 'Gateway fee, VAT included, rounded up' }, net: { type: 'integer', description: 'What reaches the operatingBalance' } },
         required: ['amount', 'cost', 'net'],
       },
-      TopUpOptionsResponse: {
+      DepositOptionsResponse: {
         type: 'object',
         properties: {
           available: { type: 'boolean', description: 'false when the country has no gateway configured' },
@@ -400,14 +400,14 @@ export const openapiSpec = {
           currency: { type: 'string', example: 'COP' },
           termsAccepted: { type: 'boolean', description: 'Whether the current terms version is accepted' },
           termsVersion: { type: 'string' },
-          options: { type: 'array', items: { $ref: '#/components/schemas/TopUpOption' } },
+          options: { type: 'array', items: { $ref: '#/components/schemas/DepositOption' } },
         },
         required: ['available', 'gateway', 'currency', 'termsAccepted', 'termsVersion', 'options'],
       },
-      TopUpResponse: {
+      DepositResponse: {
         type: 'object',
         properties: {
-          topUpId: { type: 'string' },
+          depositId: { type: 'string' },
           reference: { type: 'string', example: 'PPR-0192f0000000700080000000000000001' },
           status: { type: 'string', enum: ['pending', 'approved', 'declined', 'voided', 'error', 'expired'] },
           amount: { type: 'integer' },
@@ -417,11 +417,11 @@ export const openapiSpec = {
           createdAt: { type: 'string', format: 'date-time' },
           finalizedAt: { type: 'string', format: 'date-time', nullable: true },
         },
-        required: ['topUpId', 'reference', 'status', 'amount', 'cost', 'net', 'currency', 'createdAt', 'finalizedAt'],
+        required: ['depositId', 'reference', 'status', 'amount', 'cost', 'net', 'currency', 'createdAt', 'finalizedAt'],
       },
-      StartedTopUpResponse: {
+      StartedDepositResponse: {
         allOf: [
-          { $ref: '#/components/schemas/TopUpResponse' },
+          { $ref: '#/components/schemas/DepositResponse' },
           {
             type: 'object',
             properties: { checkoutUrl: { type: 'string', format: 'uri', description: "The gateway's hosted checkout, signed by the server; open it in the system browser" } },
@@ -429,10 +429,10 @@ export const openapiSpec = {
           },
         ],
       },
-      TopUpsPage: {
+      DepositsPage: {
         type: 'object',
         properties: {
-          items: { type: 'array', items: { $ref: '#/components/schemas/TopUpResponse' } },
+          items: { type: 'array', items: { $ref: '#/components/schemas/DepositResponse' } },
           page: { type: 'integer' },
           pageSize: { type: 'integer' },
           totalItems: { type: 'integer' },
@@ -471,7 +471,7 @@ export const openapiSpec = {
           currency: { type: 'string' },
           costs: { type: 'object', properties: { percentBps: { type: 'integer' }, fixed: { type: 'integer' }, vatBps: { type: 'integer' } } },
           amounts: { type: 'array', items: { type: 'integer' } },
-          options: { type: 'array', items: { $ref: '#/components/schemas/TopUpOption' } },
+          options: { type: 'array', items: { $ref: '#/components/schemas/DepositOption' } },
           updatedAt: { type: 'string', format: 'date-time' },
           updatedBy: { type: 'string' },
           revision: { type: 'integer', description: 'What the next save must send (porteros-pro-admin spec 007)' },
@@ -1741,99 +1741,99 @@ export const openapiSpec = {
           '200': { description: 'Computed from the goalkeeper\u2019s bookings on every read; months cut in the time zone of their city', content: { 'application/json': { schema: { $ref: '#/components/schemas/GoalkeeperMonthStats' } } } },
           '401': { description: 'Not signed in' },
           '404': { description: 'goalkeeper_not_found: not an active goalkeeper', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
-          '422': { description: 'wallet_not_configured: the currency of the goalkeeper country cannot be resolved; time_zone_not_configured: their city has no valid time zone', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '422': { description: 'operating_balance_not_configured: the currency of the goalkeeper country cannot be resolved; time_zone_not_configured: their city has no valid time zone', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
         },
       },
     },
-    '/goalkeepers/me/wallet': {
+    '/goalkeepers/me/operating-balance': {
       get: {
-        summary: "The goalkeeper's wallet: balance, currency and whether they can see offers",
-        tags: ['Wallet'],
+        summary: "The goalkeeper's operating balance: balance, currency and whether they can see offers",
+        tags: ['OperatingBalance'],
         security: [{ bearerAuth: [] }],
         responses: {
-          '200': { description: 'The wallet (balance 0 before any movement)', content: { 'application/json': { schema: { $ref: '#/components/schemas/WalletViewResponse' } } } },
+          '200': { description: 'The operating balance (balance 0 before any movement)', content: { 'application/json': { schema: { $ref: '#/components/schemas/OperatingBalanceViewResponse' } } } },
           '401': { description: 'Not signed in' },
           '404': { description: 'goalkeeper_not_found: not an active goalkeeper', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
-          '422': { description: 'wallet_not_configured: the currency of the goalkeeper country cannot be resolved', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '422': { description: 'operating_balance_not_configured: the currency of the goalkeeper country cannot be resolved', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
         },
       },
     },
-    '/goalkeepers/me/wallet/movements': {
+    '/goalkeepers/me/operating-balance/movements': {
       get: {
-        summary: "The goalkeeper's wallet movements, newest first, one page at a time",
-        tags: ['Wallet'],
+        summary: "The goalkeeper's operating balance movements, newest first, one page at a time",
+        tags: ['OperatingBalance'],
         security: [{ bearerAuth: [] }],
         parameters: [
           { name: 'page', in: 'query', required: false, schema: { type: 'integer', minimum: 1, default: 1 } },
           { name: 'pageSize', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 50, default: 20 } },
         ],
         responses: {
-          '200': { description: 'One page of movements (no invoicing or administrator data)', content: { 'application/json': { schema: { $ref: '#/components/schemas/WalletMovementsPage' } } } },
+          '200': { description: 'One page of movements (no invoicing or administrator data)', content: { 'application/json': { schema: { $ref: '#/components/schemas/BalanceMovementsPage' } } } },
           '400': { description: 'validation_failed: invalid page or pageSize', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } } },
           '401': { description: 'Not signed in' },
           '404': { description: 'goalkeeper_not_found: not an active goalkeeper' },
         },
       },
     },
-    '/goalkeepers/me/wallet/top-up-options': {
+    '/goalkeepers/me/operating-balance/deposit-options': {
       get: {
-        summary: "The top-up amounts of the goalkeeper\'s country, each with its cost and net (feature 022)",
-        tags: ['Wallet'],
+        summary: "The deposit amounts of the goalkeeper\'s country, each with its cost and net (feature 022)",
+        tags: ['OperatingBalance'],
         security: [{ bearerAuth: [] }],
         responses: {
-          '200': { description: 'The options, and whether the current terms are accepted', content: { 'application/json': { schema: { $ref: '#/components/schemas/TopUpOptionsResponse' } } } },
+          '200': { description: 'The options, and whether the current terms are accepted', content: { 'application/json': { schema: { $ref: '#/components/schemas/DepositOptionsResponse' } } } },
           '401': { description: 'Not signed in' },
           '404': { description: 'goalkeeper_not_found' },
-          '422': { description: 'wallet_not_configured' },
+          '422': { description: 'operating_balance_not_configured' },
         },
       },
     },
-    '/goalkeepers/me/wallet/top-ups': {
+    '/goalkeepers/me/operating-balance/deposits': {
       post: {
-        summary: 'Starts a top-up and answers the gateway checkout address (feature 022)',
+        summary: 'Starts a deposit and answers the gateway checkout address (feature 022)',
         description: 'Nothing is credited here: only the gateway confirmation or the reconciliation credits.',
-        tags: ['Wallet'],
+        tags: ['OperatingBalance'],
         security: [{ bearerAuth: [] }],
         requestBody: {
           required: true,
           content: { 'application/json': { schema: { type: 'object', properties: { amount: { type: 'integer', minimum: 1 } }, required: ['amount'] } } },
         },
         responses: {
-          '201': { description: 'A pending top-up', content: { 'application/json': { schema: { $ref: '#/components/schemas/StartedTopUpResponse' } } } },
+          '201': { description: 'A pending deposit', content: { 'application/json': { schema: { $ref: '#/components/schemas/StartedDepositResponse' } } } },
           '400': { description: 'validation_failed, or invalid_amount (with the valid `amounts`)', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } } },
           '401': { description: 'Not signed in' },
           '404': { description: 'goalkeeper_not_found' },
-          '409': { description: 'terms_not_accepted (with `termsVersion`) or top_ups_unavailable', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
-          '422': { description: 'wallet_not_configured' },
+          '409': { description: 'terms_not_accepted (with `termsVersion`) or deposits_unavailable', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '422': { description: 'operating_balance_not_configured' },
           '503': { description: 'gateway_unavailable' },
         },
       },
       get: {
-        summary: "The goalkeeper's top-ups, newest first (feature 022)",
-        tags: ['Wallet'],
+        summary: "The goalkeeper's deposits, newest first (feature 022)",
+        tags: ['OperatingBalance'],
         security: [{ bearerAuth: [] }],
         parameters: [
           { name: 'page', in: 'query', required: false, schema: { type: 'integer', minimum: 1, default: 1 } },
           { name: 'pageSize', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 50, default: 20 } },
         ],
         responses: {
-          '200': { description: 'One page of top-ups', content: { 'application/json': { schema: { $ref: '#/components/schemas/TopUpsPage' } } } },
+          '200': { description: 'One page of deposits', content: { 'application/json': { schema: { $ref: '#/components/schemas/DepositsPage' } } } },
           '400': { description: 'validation_failed' },
           '401': { description: 'Not signed in' },
           '404': { description: 'goalkeeper_not_found' },
         },
       },
     },
-    '/goalkeepers/me/wallet/top-ups/{topUpId}': {
+    '/goalkeepers/me/operating-balance/deposits/{depositId}': {
       get: {
-        summary: "One of the goalkeeper\'s top-ups (feature 022)",
-        tags: ['Wallet'],
+        summary: "One of the goalkeeper\'s deposits (feature 022)",
+        tags: ['OperatingBalance'],
         security: [{ bearerAuth: [] }],
-        parameters: [{ name: 'topUpId', in: 'path', required: true, schema: { type: 'string' } }],
+        parameters: [{ name: 'depositId', in: 'path', required: true, schema: { type: 'string' } }],
         responses: {
-          '200': { description: 'The top-up', content: { 'application/json': { schema: { $ref: '#/components/schemas/TopUpResponse' } } } },
+          '200': { description: 'The deposit', content: { 'application/json': { schema: { $ref: '#/components/schemas/DepositResponse' } } } },
           '401': { description: 'Not signed in' },
-          '404': { description: "top_up_not_found (also another goalkeeper's)" },
+          '404': { description: "deposit_not_found (also another goalkeeper's)" },
         },
       },
     },
@@ -2223,7 +2223,7 @@ export const openapiSpec = {
     },
     '/admin/payment-gateways/{countryId}': {
       get: {
-        summary: "A country's top-up gateway settings (administrators only, feature 022)",
+        summary: "A country's deposit gateway settings (administrators only, feature 022)",
         tags: ['Admin'],
         security: [{ adminBearerAuth: [] }],
         parameters: [{ name: 'countryId', in: 'path', required: true, schema: { type: 'string' } }],
@@ -2235,8 +2235,8 @@ export const openapiSpec = {
         },
       },
       put: {
-        summary: "Sets a country's top-up gateway, public key, costs and amounts (administrators only, feature 022)",
-        description: 'Pending top-ups keep the gateway and environment they started with.',
+        summary: "Sets a country's deposit gateway, public key, costs and amounts (administrators only, feature 022)",
+        description: 'Pending deposits keep the gateway and environment they started with.',
         tags: ['Admin'],
         security: [{ adminBearerAuth: [] }],
         parameters: [{ name: 'countryId', in: 'path', required: true, schema: { type: 'string' } }],
@@ -2248,6 +2248,53 @@ export const openapiSpec = {
           '403': { description: 'Not an administrator' },
           '404': { description: 'country_not_found' },
           '409': { description: 'stale_revision: an old revision, or null over existing settings' },
+        },
+      },
+    },
+    '/profile/account-closure': {
+      get: {
+        summary: "The user's open closure request, or what a new one would look like (feature 029)",
+        tags: ['Profile'],
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': {
+            description: '`current` is the open request (or null); `preview` is what a request would show when there is none',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    current: { type: 'object', nullable: true },
+                    preview: { type: 'object', nullable: true },
+                  },
+                },
+              },
+            },
+          },
+          '401': { description: 'Not signed in' },
+        },
+      },
+      post: {
+        summary: 'Asks to close the account: it becomes inactive until an administrator resolves it (feature 029)',
+        tags: ['Profile'],
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '201': { description: 'The request, with the balance at that moment' },
+          '401': { description: 'Not signed in' },
+          '409': { description: 'closure_blocked (matches accepted and not played, listed in blockers) or closure_already_open', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/profile/account-closure/cancel': {
+      post: {
+        summary: 'Withdraws the closure request while the refund is not recorded (feature 029)',
+        tags: ['Profile'],
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': { description: 'The request, now cancelled' },
+          '401': { description: 'Not signed in' },
+          '404': { description: 'closure_not_found: nothing open', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '409': { description: 'closure_not_cancellable: the refund was already recorded', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
         },
       },
     },
@@ -2594,24 +2641,24 @@ export const openapiSpec = {
         responses: { '200': { description: 'Sections with complete or missing fields' }, '404': { description: 'registration_not_found' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
       },
     },
-    '/admin/goalkeepers/{userId}/wallet': {
+    '/admin/goalkeepers/{userId}/operating-balance': {
       get: {
-        summary: "Any goalkeeper's wallet (administrators only)",
+        summary: "Any goalkeeper's operating balance (administrators only)",
         tags: ['Admin'],
         security: [{ adminBearerAuth: [] }],
         parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }],
         responses: {
-          '200': { description: 'The wallet, plus goalkeeperId', content: { 'application/json': { schema: { $ref: '#/components/schemas/WalletViewResponse' } } } },
+          '200': { description: 'The operating balance, plus goalkeeperId', content: { 'application/json': { schema: { $ref: '#/components/schemas/OperatingBalanceViewResponse' } } } },
           '401': { description: 'Not signed in' },
           '403': { description: 'Not an administrator' },
           '404': { description: 'goalkeeper_not_found' },
-          '422': { description: 'wallet_not_configured' },
+          '422': { description: 'operating_balance_not_configured' },
         },
       },
     },
-    '/admin/goalkeepers/{userId}/wallet/movements': {
+    '/admin/goalkeepers/{userId}/operating-balance/movements': {
       get: {
-        summary: "Any goalkeeper's wallet movements, with actor, cause key and invoicing data (administrators only)",
+        summary: "Any goalkeeper's operating balance movements, with actor, cause key and invoicing data (administrators only)",
         tags: ['Admin'],
         security: [{ adminBearerAuth: [] }],
         parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }, ...[
@@ -2619,7 +2666,7 @@ export const openapiSpec = {
           { name: 'pageSize', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 50, default: 20 } },
         ]],
         responses: {
-          '200': { description: 'One page of movements (items are AdminWalletMovementItem)', content: { 'application/json': { schema: { $ref: '#/components/schemas/WalletMovementsPage' } } } },
+          '200': { description: 'One page of movements (items are AdminBalanceMovementItem)', content: { 'application/json': { schema: { $ref: '#/components/schemas/BalanceMovementsPage' } } } },
           '400': { description: 'validation_failed' },
           '401': { description: 'Not signed in' },
           '403': { description: 'Not an administrator' },
@@ -2627,24 +2674,24 @@ export const openapiSpec = {
         },
       },
     },
-    '/admin/goalkeepers/{userId}/wallet/adjustments': {
+    '/admin/goalkeepers/{userId}/operating-balance/adjustments': {
       post: {
         summary: 'Record a manual credit or debit with a mandatory reason (administrators only; idempotent per operationKey)',
         description:
-          'A debit may not leave the balance below zero (only penalties can). Until payment-gateway top-ups exist, this is how money enters a wallet in development.',
+          'A debit may not leave the balance below zero (only penalties can). Until payment-gateway deposits exist, this is how money enters an operating balance in development.',
         tags: ['Admin'],
         security: [{ adminBearerAuth: [] }],
         parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }],
-        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/RecordWalletAdjustmentRequest' } } } },
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/RecordOperatingBalanceAdjustmentRequest' } } } },
         responses: {
-          '201': { description: 'Recorded: the movement (AdminWalletMovementItem) plus balance', content: { 'application/json': { schema: { $ref: '#/components/schemas/AdminWalletMovementItem' } } } },
+          '201': { description: 'Recorded: the movement (AdminBalanceMovementItem) plus balance', content: { 'application/json': { schema: { $ref: '#/components/schemas/AdminBalanceMovementItem' } } } },
           '200': { description: 'The operationKey was already recorded: the original movement, nothing new' },
           '400': { description: 'validation_failed: amount, reason or operationKey', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } } },
           '401': { description: 'Not signed in' },
           '403': { description: 'Not an administrator' },
           '404': { description: 'goalkeeper_not_found' },
           '409': { description: 'insufficient_funds: the debit would leave the balance below zero (includes balance)', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
-          '422': { description: 'wallet_not_configured' },
+          '422': { description: 'operating_balance_not_configured' },
         },
       },
     },
@@ -2802,7 +2849,7 @@ export const openapiSpec = {
           '403': { description: 'Not an administrator' },
           '404': { description: 'goalkeeper_not_found or withdrawal_not_found' },
           '409': { description: 'missing_charge (bookingId): the booking has no commission charge to refund; nothing changed' },
-          '422': { description: 'wallet_not_configured: a refund is asked but the goalkeeper wallet context cannot be resolved' },
+          '422': { description: 'operating_balance_not_configured: a refund is asked but the goalkeeper operating balance context cannot be resolved' },
         },
       },
     },
@@ -3133,27 +3180,27 @@ export const openapiSpec = {
         responses: { '200': { description: '{ values, secrets, countryCredentials }' }, '400': { description: 'validation_failed' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
       },
     },
-    '/admin/wallets': {
+    '/admin/operating-balances': {
       get: {
-        summary: "The goalkeepers' wallets (one movement or more), by balance",
+        summary: "The goalkeepers' operating balances (one movement or more), by balance",
         tags: ['Admin'],
         security: [{ adminBearerAuth: [] }],
-        description: 'Needs wallets.read (porteros-pro-admin spec 007). Country and city come from the goalkeeper profile.',
+        description: 'Needs operating_balances.read (porteros-pro-admin spec 007). Country and city come from the goalkeeper profile.',
         parameters: [
           ...PAGING,
           { name: 'countryId', in: 'query', schema: { type: 'string' } },
           { name: 'negative', in: 'query', schema: { type: 'string', enum: ['true'] } },
           { name: 'sort', in: 'query', schema: { type: 'string', enum: ['balance_asc', 'balance_desc'], default: 'balance_asc' } },
         ],
-        responses: { '200': { description: 'A page of wallets' }, '400': { description: 'validation_failed' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+        responses: { '200': { description: 'A page of operatingBalances' }, '400': { description: 'validation_failed' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
       },
     },
-    '/admin/top-ups': {
+    '/admin/deposits': {
       get: {
-        summary: 'Top-ups, newest first, with the goalkeeper and the country',
+        summary: 'Deposits, newest first, with the goalkeeper and the country',
         tags: ['Admin'],
         security: [{ adminBearerAuth: [] }],
-        description: 'Needs topups.read (porteros-pro-admin spec 007).',
+        description: 'Needs deposits.read (porteros-pro-admin spec 007).',
         parameters: [
           ...PAGING,
           { name: 'status', in: 'query', schema: { type: 'string', enum: ['pending', 'approved', 'declined', 'voided', 'error', 'expired'] } },
@@ -3162,15 +3209,106 @@ export const openapiSpec = {
           { name: 'from', in: 'query', schema: { type: 'string', format: 'date-time' } },
           { name: 'to', in: 'query', schema: { type: 'string', format: 'date-time' } },
         ],
-        responses: { '200': { description: 'A page of top-ups' }, '400': { description: 'validation_failed' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+        responses: { '200': { description: 'A page of deposits' }, '400': { description: 'validation_failed' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
       },
     },
-    '/admin/top-ups/export': {
+    '/admin/account-closures': {
       get: {
-        summary: 'The filtered top-ups as a CSV (UTF-8 with BOM, ";"), at most 10 000 rows',
+        summary: 'The account closure requests, newest first (feature 029)',
         tags: ['Admin'],
         security: [{ adminBearerAuth: [] }],
-        description: 'Needs topups.read; audited with the filters and the row count (porteros-pro-admin spec 007).',
+        parameters: [
+          { name: 'status', in: 'query', schema: { type: 'string' }, description: 'Comma list; requested,refund_recorded by default' },
+          { name: 'q', in: 'query', schema: { type: 'string' } },
+          { name: 'hasDebt', in: 'query', schema: { type: 'boolean' } },
+          { name: 'page', in: 'query', schema: { type: 'integer' } },
+          { name: 'pageSize', in: 'query', schema: { type: 'integer' } },
+        ],
+        responses: { '200': { description: 'A page of requests' }, '401': { description: 'Not signed in' }, '403': { description: 'Missing account_closures.read' } },
+      },
+    },
+    '/admin/account-closures/{closureId}': {
+      get: {
+        summary: 'One closure request: balance now, blockers, refund, timeline and the actions allowed (feature 029)',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        parameters: [{ name: 'closureId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'The detail' }, '401': { description: 'Not signed in' }, '403': { description: 'Missing account_closures.read' }, '404': { description: 'closure_not_found' } },
+      },
+    },
+    '/admin/account-closures/{closureId}/debt-resolution': {
+      post: {
+        summary: 'Decides how a debt is settled: a deposit that covers it, or a waiver with a reason (feature 029)',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        parameters: [{ name: 'closureId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { resolution: { type: 'string', enum: ['deposit_required', 'waived'] }, reason: { type: 'string' } } } } } },
+        responses: {
+          '200': { description: 'The request, as the detail shows it' },
+          '400': { description: 'validation_failed' },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'Missing account_closures.manage' },
+          '404': { description: 'closure_not_found' },
+          '409': { description: 'invalid_transition, debt_not_applicable' },
+        },
+      },
+    },
+    '/admin/account-closures/{closureId}/refund': {
+      post: {
+        summary: 'Records the refund of the balance with its proof (feature 029)',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        parameters: [{ name: 'closureId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { amount: { type: 'integer' }, reference: { type: 'string' }, paidOn: { type: 'string', format: 'date' }, note: { type: 'string' } } } } } },
+        responses: {
+          '200': { description: 'The request, as the detail shows it' },
+          '400': { description: 'validation_failed' },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'Missing account_closures.manage' },
+          '404': { description: 'closure_not_found' },
+          '409': { description: 'invalid_transition, refund_amount_mismatch, debt_pending, closure_blockers_pending' },
+        },
+      },
+    },
+    '/admin/account-closures/{closureId}/close': {
+      post: {
+        summary: 'Closes the account (logical deletion) after the refund (feature 029)',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        parameters: [{ name: 'closureId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          '200': { description: 'The request, as the detail shows it' },
+          '400': { description: 'validation_failed' },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'Missing account_closures.manage' },
+          '404': { description: 'closure_not_found' },
+          '409': { description: 'invalid_transition' },
+        },
+      },
+    },
+    '/admin/account-closures/{closureId}/reject': {
+      post: {
+        summary: 'Turns the request down, with a reason: the account is active again (feature 029)',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        parameters: [{ name: 'closureId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { reason: { type: 'string' } } } } } },
+        responses: {
+          '200': { description: 'The request, as the detail shows it' },
+          '400': { description: 'validation_failed' },
+          '401': { description: 'Not signed in' },
+          '403': { description: 'Missing account_closures.manage' },
+          '404': { description: 'closure_not_found' },
+          '409': { description: 'invalid_transition' },
+        },
+      },
+    },
+    '/admin/deposits/export': {
+      get: {
+        summary: 'The filtered deposits as a CSV (UTF-8 with BOM, ";"), at most 10 000 rows',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs deposits.read; audited with the filters and the row count (porteros-pro-admin spec 007).',
         responses: {
           '200': { description: 'The CSV', content: { 'text/csv': { schema: { type: 'string' } } } },
           '400': { description: 'validation_failed' },
@@ -3179,27 +3317,27 @@ export const openapiSpec = {
         },
       },
     },
-    '/admin/top-ups/{topUpId}': {
+    '/admin/deposits/{depositId}': {
       get: {
-        summary: 'One top-up with every ask to the gateway (checkLog), the next check and its expiry',
+        summary: 'One deposit with every ask to the gateway (checkLog), the next check and its expiry',
         tags: ['Admin'],
         security: [{ adminBearerAuth: [] }],
-        description: 'Needs topups.read (porteros-pro-admin spec 007).',
-        parameters: [{ name: 'topUpId', in: 'path', required: true, schema: { type: 'string' } }],
-        responses: { '200': { description: 'The top-up' }, '403': { description: 'permission_denied' }, '404': { description: 'top_up_not_found' } },
+        description: 'Needs deposits.read (porteros-pro-admin spec 007).',
+        parameters: [{ name: 'depositId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'The deposit' }, '403': { description: 'permission_denied' }, '404': { description: 'deposit_not_found' } },
       },
     },
-    '/admin/top-ups/{topUpId}/reconcile': {
+    '/admin/deposits/{depositId}/reconcile': {
       post: {
         summary: '"Conciliar ahora": asks the gateway now, through the sweep\'s own ask; credits an approval once',
         tags: ['Admin'],
         security: [{ adminBearerAuth: [] }],
-        description: 'Needs topups.reconcile; audited (porteros-pro-admin spec 007). Answers reconciled, already_final or gateway_unavailable.',
-        parameters: [{ name: 'topUpId', in: 'path', required: true, schema: { type: 'string' } }],
+        description: 'Needs deposits.reconcile; audited (porteros-pro-admin spec 007). Answers reconciled, already_final or gateway_unavailable.',
+        parameters: [{ name: 'depositId', in: 'path', required: true, schema: { type: 'string' } }],
         responses: {
-          '200': { description: 'The outcome and the top-up' },
+          '200': { description: 'The outcome and the deposit' },
           '403': { description: 'permission_denied' },
-          '404': { description: 'top_up_not_found' },
+          '404': { description: 'deposit_not_found' },
           '409': { description: 'reconcile_in_progress, or gateway_unavailable (no credentials for the country)' },
         },
       },

@@ -47,7 +47,7 @@ describe('admin invoicing files (spec 007 of the admin, FR-009)', () => {
 
   it('refuses without invoicing.read and leaves a denial, not a read', async () => {
     const { context } = await documentWorld();
-    const member = await memberWith(context, 'recargas', ['topups.read']);
+    const member = await memberWith(context, 'recargas', ['deposits.read']);
     context.adminAuditLog.entries.length = 0;
 
     expect((await adminGet(context, '/admin/invoicing/documents/inv-1/pdf', member.token)).status).toBe(403);

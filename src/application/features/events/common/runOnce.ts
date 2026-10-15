@@ -6,7 +6,7 @@ import type { IProcessedEventStore } from './ports.js';
  * repeated delivery of an event this consumer already processed is skipped.
  *
  * Two deliveries arriving at the same moment can both pass the check, so the effect itself must
- * be safe to repeat — keyed by the event id (like a wallet `causeKey`) or naturally idempotent.
+ * be safe to repeat — keyed by the event id (like a operating balance `causeKey`) or naturally idempotent.
  * The marker saves work; the effect's own key is the real guarantee.
  */
 export async function runOnce(

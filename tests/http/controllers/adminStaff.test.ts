@@ -2,7 +2,7 @@ import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 import { seedRole, signInStaff } from '../adminTestHelpers.js';
-import { signInClient, type TestApp } from '../walletTestHelpers.js';
+import { signInClient, type TestApp } from '../operatingBalanceTestHelpers.js';
 import { StaffMember } from '../../../src/domain/staff/staffMember.js';
 import { logger } from '../../../src/infrastructure/observability/logger.js';
 
@@ -81,7 +81,7 @@ describe('administering members (spec 002, US2)', () => {
   it('invites, renews, changes the role, disables and enables, each with its audit entry', async () => {
     const context = await buildTestApp();
     const owner = await team(context);
-    await seedRole(context, 'finanzas', ['wallets.read']);
+    await seedRole(context, 'finanzas', ['operating_balances.read']);
     const api = as(context, owner.token);
 
     const invited = await api.post('/admin/staff', { email: ' Luis@Example.com ', roleId: 'soporte' });

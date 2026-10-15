@@ -1,4 +1,4 @@
-import { CommissionResolver } from '../../../../../../src/application/features/wallet/common/commissionResolver.js';
+import { CommissionResolver } from '../../../../../../src/application/features/operatingBalance/common/commissionResolver.js';
 import { FakeAdminCityRepository, FakeAdminCountryRepository, FakeAdminRegionRepository, FakeAdminZoneRepository } from '../../../../../fakes/fakeAdminGeography.js';
 import { FakeBookingSettingsRepository } from '../../../../../fakes/fakeBookingSettingsRepository.js';
 import { FixedClock } from '../../../../../fakes/fakeClock.js';

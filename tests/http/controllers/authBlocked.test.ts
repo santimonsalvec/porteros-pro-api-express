@@ -2,7 +2,7 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 import { signInStaff } from '../adminTestHelpers.js';
-import { signInClient, signInGoalkeeper } from '../walletTestHelpers.js';
+import { signInClient, signInGoalkeeper } from '../operatingBalanceTestHelpers.js';
 import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js';
 
 /** A goalkeeper signed in on the app with a refresh token, and an owner of the admin web. */

@@ -1,15 +1,15 @@
 import type { Booking } from '../../../../domain/bookings/booking.js';
 import { isEligible, type OfferSnapshot } from '../../../../domain/bookings/offerEligibility.js';
 import type { GoalkeeperProfile } from '../../../../domain/goalkeepers/goalkeeperProfile.js';
-import { offersStatus } from '../../../../domain/wallet/fundsPolicy.js';
+import { offersStatus } from '../../../../domain/operatingBalance/fundsPolicy.js';
 import { AVAILABLE_CANDIDATES_CAP } from '../../goalkeeperRequests/common/bookingLimits.js';
 import type { IBookingRepository } from '../../goalkeeperRequests/common/ports.js';
 import type { IGoalkeeperProfileRepository } from '../../goalkeepers/common/ports.js';
-import type { ICommissionResolver, IVatRateResolver, IWalletRepository } from '../../wallet/common/ports.js';
+import type { ICommissionResolver, IVatRateResolver, IOperatingBalanceRepository } from '../../operatingBalance/common/ports.js';
 
 export interface OfferEligibilityDependencies {
   goalkeeperProfileRepository: IGoalkeeperProfileRepository;
-  walletRepository: IWalletRepository;
+  operatingBalanceRepository: IOperatingBalanceRepository;
   commissionResolver: ICommissionResolver;
   bookingRepository: IBookingRepository;
   /** Matches must be affordable with their VAT (feature 023). */
@@ -87,14 +87,14 @@ export class OfferEligibilityService {
     if (profiles.length === 0) return [];
     const ids = profiles.map((profile) => profile.userId);
     const cityIds = [...new Set(profiles.map((profile) => profile.cityId))];
-    const [wallets, commissions, held, cityRates] = await Promise.all([
-      this.deps.walletRepository.findByGoalkeeperIds(ids),
+    const [operatingBalances, commissions, held, cityRates] = await Promise.all([
+      this.deps.operatingBalanceRepository.findByGoalkeeperIds(ids),
       this.deps.commissionResolver.resolveForZones([...new Set(profiles.flatMap((profile) => profile.zoneIds))]),
       this.deps.bookingRepository.findAssignedToGoalkeepers(ids),
       Promise.all(cityIds.map(async (cityId) => [cityId, await this.deps.vatRates.forCity(cityId)] as const)),
     ]);
     const rates = new Map(cityRates);
-    const balances = new Map(wallets.map((wallet) => [wallet.goalkeeperId, wallet.balance]));
+    const balances = new Map(operatingBalances.map((operatingBalance) => [operatingBalance.goalkeeperId, operatingBalance.balance]));
     return profiles.map((profile) => {
       const balance = balances.get(profile.userId) ?? 0;
       const vatRateBps = rates.get(profile.cityId) ?? 0;

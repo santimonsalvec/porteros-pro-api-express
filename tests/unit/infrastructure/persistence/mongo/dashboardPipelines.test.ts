@@ -5,8 +5,8 @@ import {
   matchesPipeline,
   toGoalkeepersArea,
   toRequestsArea,
-  toWalletsArea,
-  walletsByCurrencyPipeline,
+  toOperatingBalancesArea,
+  operatingBalancesByCurrencyPipeline,
 } from '../../../../../src/infrastructure/persistence/mongo/dashboardPipelines.js';
 import { requestStatusExpression } from '../../../../../src/infrastructure/persistence/mongo/requestAdminPipelines.js';
 
@@ -113,9 +113,9 @@ describe('goalkeepersSummaryPipeline (research §4, Clarifications)', () => {
   });
 });
 
-describe('walletsByCurrencyPipeline (research §5, FR-006)', () => {
+describe('operatingBalancesByCurrencyPipeline (research §5, FR-006)', () => {
   it("adds positive balances and debts apart, per currency, of the scope's goalkeepers", () => {
-    expect(walletsByCurrencyPipeline(['gk-1', 'gk-2'])).toEqual([
+    expect(operatingBalancesByCurrencyPipeline(['gk-1', 'gk-2'])).toEqual([
       { $match: { _id: { $in: ['gk-1', 'gk-2'] } } },
       {
         $group: {
@@ -127,12 +127,12 @@ describe('walletsByCurrencyPipeline (research §5, FR-006)', () => {
       },
       { $sort: { _id: 1 } },
     ]);
-    expect(walletsByCurrencyPipeline(null)[0]).toHaveProperty('$group');
+    expect(operatingBalancesByCurrencyPipeline(null)[0]).toHaveProperty('$group');
   });
 
   it('never adds two currencies', () => {
     expect(
-      toWalletsArea([
+      toOperatingBalancesArea([
         { _id: 'COP', balanceTotal: 4_820_000, debtTotal: -126_400, negativeCount: 7 },
         { _id: 'USD', balanceTotal: 1_200, debtTotal: 0, negativeCount: 0 },
       ]),

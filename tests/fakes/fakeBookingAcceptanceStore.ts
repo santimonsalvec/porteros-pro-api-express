@@ -1,4 +1,4 @@
-import type { WalletMovement } from '../../src/domain/wallet/walletMovement.js';
+import type { BalanceMovement } from '../../src/domain/operatingBalance/balanceMovement.js';
 import type {
   AcceptanceResult,
   IBookingAcceptanceStore,
@@ -6,7 +6,7 @@ import type {
 import { firstConflict, holdsSameRequest } from '../../src/domain/bookings/schedulePolicy.js';
 import type { FakeBookingRepository } from './fakeBookingRepository.js';
 import type { FakeOutboxStore } from './fakeOutboxStore.js';
-import type { FakeWalletStore } from './fakeWalletStore.js';
+import type { FakeOperatingBalanceStore } from './fakeOperatingBalanceStore.js';
 
 type AcceptArgs = Parameters<IBookingAcceptanceStore['accept']>[0];
 
@@ -14,7 +14,7 @@ type AcceptArgs = Parameters<IBookingAcceptanceStore['accept']>[0];
  * In-memory acceptance applying the store's rules (research.md §3) atomically: claim only a
  * pending booking whose search is open and that is not the goalkeeper's own, check what they hold,
  * charge the commission — and restore the booking if any step refuses. Calls run one at a time,
- * standing in for the transaction's serialization on the goalkeeper's wallet document.
+ * standing in for the transaction's serialization on the goalkeeper's operating balance document.
  */
 export class FakeBookingAcceptanceStore implements IBookingAcceptanceStore {
   calls = 0;
@@ -23,7 +23,7 @@ export class FakeBookingAcceptanceStore implements IBookingAcceptanceStore {
 
   constructor(
     private readonly bookings: FakeBookingRepository,
-    private readonly wallet: FakeWalletStore,
+    private readonly operatingBalance: FakeOperatingBalanceStore,
     private readonly outbox?: FakeOutboxStore,
   ) {}
 
@@ -64,12 +64,12 @@ export class FakeBookingAcceptanceStore implements IBookingAcceptanceStore {
 
     // All drafts or none: check the whole debit before writing anything.
     const drafts = args.chargeDrafts(booking);
-    const balance = (await this.wallet.findByGoalkeeperId(args.goalkeeperId))?.balance ?? 0;
+    const balance = (await this.operatingBalance.findByGoalkeeperId(args.goalkeeperId))?.balance ?? 0;
     const debit = drafts.reduce((sum, draft) => sum - draft.amount, 0);
     if (balance < debit) return { kind: 'insufficient_funds', balance };
-    const charged: WalletMovement[] = [];
+    const charged: BalanceMovement[] = [];
     for (const draft of drafts) {
-      const charge = await this.wallet.append(draft);
+      const charge = await this.operatingBalance.append(draft);
       if (charge.kind !== 'recorded') throw new Error(`fake acceptance: ${draft.type} was ${charge.kind}`);
       charged.push(charge.movement);
     }

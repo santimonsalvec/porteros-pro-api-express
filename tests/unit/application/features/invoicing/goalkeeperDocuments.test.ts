@@ -23,7 +23,7 @@ async function world() {
 describe('the goalkeeper\'s documents (US3)', () => {
   it('lists only their own, newest first, by page', async () => {
     const harness = await world();
-    const handler = new ListMyDocumentsQueryHandler(harness.wallet.profiles, harness.documents);
+    const handler = new ListMyDocumentsQueryHandler(harness.operatingBalance.profiles, harness.documents);
 
     const first = await handler.handle(new ListMyDocumentsQuery('gk-1', 1, 2));
     const second = await handler.handle(new ListMyDocumentsQuery('gk-1', 2, 2));

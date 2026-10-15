@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { CommissionSetting } from '../../../../../../src/domain/wallet/commissionSetting.js';
+import { CommissionSetting } from '../../../../../../src/domain/operatingBalance/commissionSetting.js';
 import { RentalRate } from '../../../../../../src/domain/pricing/rentalRate.js';
 import { Zone } from '../../../../../../src/domain/zones/zone.js';
 import { GetPricingPreviewQuery, type PricingPreviewInput } from '../../../../../../src/application/features/pricing/queries/getPricingPreview/getPricingPreviewQuery.js';

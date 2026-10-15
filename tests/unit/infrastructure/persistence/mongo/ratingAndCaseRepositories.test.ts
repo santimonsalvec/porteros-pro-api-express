@@ -122,3 +122,14 @@ describe("the admin's case filters, one side of the dates at a time", () => {
     expect(cases.countDocuments).toHaveBeenNthCalledWith(2, { createdAt: { $lt: day } });
   });
 });
+
+describe('CaseRepository.findOpenForParticipant (feature 029)', () => {
+  it('reads the open cases of a user as client or as goalkeeper, newest first', async () => {
+    const collection = createFakeCollection();
+    const cursor = { sort: () => cursor, toArray: async () => [caseToDocument(opened)] };
+    collection.find.mockReturnValue(cursor);
+
+    expect(await new CaseRepository(dbOf(collection)).findOpenForParticipant('g')).toEqual([opened]);
+    expect(collection.find).toHaveBeenCalledWith({ status: 'open', $or: [{ goalkeeperId: 'g' }, { clientId: 'g' }] });
+  });
+});

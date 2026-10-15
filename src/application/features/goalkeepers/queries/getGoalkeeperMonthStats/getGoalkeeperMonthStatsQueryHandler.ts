@@ -9,17 +9,17 @@ import {
 import type { IBookingRepository } from '../../../goalkeeperRequests/common/ports.js';
 import { isValidTimeZone, toLocalParts } from '../../../goalkeeperRequests/common/zonedTime.js';
 import {
-  resolveGoalkeeperWalletContext,
-  type GoalkeeperWalletContextDependencies,
-} from '../../../wallet/common/goalkeeperWalletContext.js';
+  resolveGoalkeeperOperatingBalanceContext,
+  type GoalkeeperOperatingBalanceContextDependencies,
+} from '../../../operatingBalance/common/goalkeeperOperatingBalanceContext.js';
 import {
   GetGoalkeeperMonthStatsQuery,
   type GetGoalkeeperMonthStatsResult,
 } from './getGoalkeeperMonthStatsQuery.js';
 
 export interface GetGoalkeeperMonthStatsDependencies {
-  /** Who the goalkeeper is and their currency, resolved exactly as for the wallet. */
-  context: GoalkeeperWalletContextDependencies;
+  /** Who the goalkeeper is and their currency, resolved exactly as for the operating balance. */
+  context: GoalkeeperOperatingBalanceContextDependencies;
   bookingRepository: IBookingRepository;
   clock: IClock;
 }
@@ -37,10 +37,10 @@ export class GetGoalkeeperMonthStatsQueryHandler implements IQueryHandler<
 
   async handle(query: GetGoalkeeperMonthStatsQuery): Promise<GetGoalkeeperMonthStatsResult> {
     const { goalkeeperId } = query;
-    const context = await resolveGoalkeeperWalletContext(this.deps.context, goalkeeperId);
+    const context = await resolveGoalkeeperOperatingBalanceContext(this.deps.context, goalkeeperId);
     if (context.kind === 'not_a_goalkeeper') return { outcome: 'not_a_goalkeeper' };
-    if (context.kind === 'wallet_not_configured')
-      return { outcome: 'wallet_not_configured', cityId: context.cityId };
+    if (context.kind === 'operating_balance_not_configured')
+      return { outcome: 'operating_balance_not_configured', cityId: context.cityId };
 
     const city = await this.deps.context.cityRepository.getById(context.profile.cityId);
     const timeZone = city?.timeZone;

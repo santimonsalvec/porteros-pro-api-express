@@ -7,20 +7,20 @@ import { FakeCityRepository } from '../../../../fakes/fakeCityRepository.js';
 import { FakeCountryRepository } from '../../../../fakes/fakeCountryRepository.js';
 import { FakeGoalkeeperProfileRepository } from '../../../../fakes/fakeGoalkeeperProfileRepository.js';
 import { FakeRegionRepository } from '../../../../fakes/fakeRegionRepository.js';
-import { buildGoalkeeperProfile, seedWalletWorld } from '../../../../fixtures/walletFixtures.js';
+import { buildGoalkeeperProfile, seedOperatingBalanceWorld } from '../../../../fixtures/operatingBalanceFixtures.js';
 
 function setup(goalkeeperPenalties?: Record<string, number>, cityId = 'city-cali') {
   const cityRepository = new FakeCityRepository();
   const regionRepository = new FakeRegionRepository();
   const countryRepository = new FakeCountryRepository();
-  seedWalletWorld({ cityRepository, regionRepository, countryRepository });
+  seedOperatingBalanceWorld({ cityRepository, regionRepository, countryRepository });
   const goalkeeperProfileRepository = new FakeGoalkeeperProfileRepository();
   goalkeeperProfileRepository.seed(buildGoalkeeperProfile('gk-1', { cityId }));
   const bookingSettingsRepository = new FakeBookingSettingsRepository();
   bookingSettingsRepository.seed(new BookingSettings({ id: 's-co', scope: 'country', refId: 'country-co', goalkeeperPenalties: goalkeeperPenalties ?? null }));
   const warnings: Record<string, unknown>[] = [];
   const deps = {
-    walletContext: { goalkeeperProfileRepository, cityRepository, regionRepository, countryLookup: countryRepository },
+    operatingBalanceContext: { goalkeeperProfileRepository, cityRepository, regionRepository, countryLookup: countryRepository },
     bookingSettingsRepository,
     logger: { info: () => undefined, warn: (entry: Record<string, unknown>) => void warnings.push(entry) },
   };

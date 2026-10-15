@@ -3,8 +3,8 @@ import type { IQueryHandler } from '../../../../common/mediator/types.js';
 import type { IGoalkeeperProfileRepository } from '../../../goalkeepers/common/ports.js';
 import type { ICityRepository } from '../../../locations/common/ports.js';
 import { OfferEligibilityService } from '../../../notifications/common/offerEligibilityService.js';
-import type { ICommissionResolver, IVatRateResolver, IWalletRepository } from '../../../wallet/common/ports.js';
-import { vatFor } from '../../../../../domain/wallet/vat.js';
+import type { ICommissionResolver, IVatRateResolver, IOperatingBalanceRepository } from '../../../operatingBalance/common/ports.js';
+import { vatFor } from '../../../../../domain/operatingBalance/vat.js';
 import type { IZoneRepository } from '../../../zones/common/ports.js';
 import { loadBookingItemContext, toAvailableItem } from '../../common/goalkeeperBookingResponse.js';
 import type { IBookingRepository, IGoalkeeperRequestRepository } from '../../common/ports.js';
@@ -12,7 +12,7 @@ import { ListAvailableBookingsQuery, type ListAvailableBookingsResult } from './
 
 export interface ListAvailableBookingsDependencies {
   goalkeeperProfileRepository: IGoalkeeperProfileRepository;
-  walletRepository: IWalletRepository;
+  operatingBalanceRepository: IOperatingBalanceRepository;
   commissionResolver: ICommissionResolver;
   bookingRepository: IBookingRepository;
   requestRepository: IGoalkeeperRequestRepository;

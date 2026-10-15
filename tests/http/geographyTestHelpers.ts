@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { Region } from '../../src/domain/locations/region.js';
 import { seedRole, signInStaff } from './adminTestHelpers.js';
-import type { TestApp } from './walletTestHelpers.js';
+import type { TestApp } from './operatingBalanceTestHelpers.js';
 
 /** Calls as one signed-in member (or any bearer token). */
 export const as = (context: TestApp, token: string) => ({

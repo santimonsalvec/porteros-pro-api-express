@@ -15,7 +15,7 @@ import type {
   IGoalkeeperRequestRepository,
 } from '../../../goalkeeperRequests/common/ports.js';
 import type { ICityRepository } from '../../../locations/common/ports.js';
-import type { GoalkeeperWalletContextDependencies } from '../../../wallet/common/goalkeeperWalletContext.js';
+import type { GoalkeeperOperatingBalanceContextDependencies } from '../../../operatingBalance/common/goalkeeperOperatingBalanceContext.js';
 import type { IZoneRepository } from '../../../zones/common/ports.js';
 import { resolvePenaltyConfig } from '../../common/penaltyConfig.js';
 import type { IBookingLifecycleStore, ILifecycleLogger } from '../../common/ports.js';
@@ -23,7 +23,7 @@ import { toWithdrawalSummary } from '../../common/withdrawalResponses.js';
 import { WithdrawFromBookingCommand, type WithdrawFromBookingResult } from './withdrawFromBookingCommand.js';
 
 export interface WithdrawFromBookingDependencies {
-  walletContext: GoalkeeperWalletContextDependencies;
+  operatingBalanceContext: GoalkeeperOperatingBalanceContextDependencies;
   bookingSettingsRepository: IBookingSettingsRepository;
   store: IBookingLifecycleStore;
   bookingRepository: IBookingRepository;
@@ -65,7 +65,7 @@ export class WithdrawFromBookingCommandHandler implements ICommandHandler<Withdr
     } catch {
       return { outcome: 'invalid_reason' };
     }
-    if (!(await this.deps.walletContext.goalkeeperProfileRepository.getByUserId(goalkeeperId))) return { outcome: 'not_a_goalkeeper' };
+    if (!(await this.deps.operatingBalanceContext.goalkeeperProfileRepository.getByUserId(goalkeeperId))) return { outcome: 'not_a_goalkeeper' };
     // A first look for the request (its goalkeeper count, for the replacement's event); the
     // transaction decides everything else again.
     const seen = await this.deps.bookingRepository.findById(bookingId);

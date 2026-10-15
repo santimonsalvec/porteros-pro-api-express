@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
-import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../walletTestHelpers.js';
+import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../operatingBalanceTestHelpers.js';
 import { RunSweepCommand } from '../../../src/application/features/events/commands/runSweep/runSweepCommand.js';
 
 /** The match of `createRequestAsClient` starts 20:00Z; its search ends 19:30Z. */
@@ -24,7 +24,7 @@ describe('Booking expiry — US1: a booking nobody took expires, and the client 
     const { context, client } = await setUp();
     const created = await createRequestAsClient(context, client.token, { goalkeeperCount: 2 });
     const goalkeeper = await signInGoalkeeper(context, 'sub-0802');
-    await context.walletLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: 'k-0802' });
+    await context.operatingBalanceLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: 'k-0802' });
 
     context.clock.set(AFTER_SEARCH_END);
     await sweep(context);
@@ -49,11 +49,11 @@ describe('Booking expiry — US1: a booking nobody took expires, and the client 
     const { context, client } = await setUp();
     const created = await createRequestAsClient(context, client.token, { goalkeeperCount: 2 });
     const goalkeeper = await signInGoalkeeper(context, 'sub-0803');
-    await context.walletLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: 'k-0803' });
+    await context.operatingBalanceLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: 'k-0803' });
     await request(context.app)
       .post(`/goalkeepers/me/bookings/${created.bookings[0]!.bookingId}/accept`)
       .set('Authorization', `Bearer ${goalkeeper.token}`);
-    const movementsBefore = context.walletStore.movements().length;
+    const movementsBefore = context.operatingBalanceStore.movements().length;
 
     context.clock.set(AFTER_SEARCH_END);
     await sweep(context);
@@ -64,6 +64,6 @@ describe('Booking expiry — US1: a booking nobody took expires, and the client 
     // The request outcome notice, next to 019's assignment and contacts notices.
     const outcomes = context.notificationRepository.all().filter((item) => item.userId === client.userId && item.type.startsWith('request.') && item.type.endsWith('expired'));
     expect(outcomes.map((item) => item.type)).toEqual(['request.partially_expired']);
-    expect(context.walletStore.movements()).toHaveLength(movementsBefore);
+    expect(context.operatingBalanceStore.movements()).toHaveLength(movementsBefore);
   });
 });

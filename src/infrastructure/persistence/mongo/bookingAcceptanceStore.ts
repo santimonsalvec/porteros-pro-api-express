@@ -3,14 +3,14 @@ import type {
   AcceptanceResult,
   IBookingAcceptanceStore,
 } from '../../../application/features/goalkeeperRequests/common/ports.js';
-import type { MovementDraft } from '../../../application/features/wallet/common/ports.js';
+import type { MovementDraft } from '../../../application/features/operatingBalance/common/ports.js';
 import type { Booking } from '../../../domain/bookings/booking.js';
 import type { DomainEvent } from '../../../domain/events/domainEvent.js';
-import type { WalletMovement } from '../../../domain/wallet/walletMovement.js';
+import type { BalanceMovement } from '../../../domain/operatingBalance/balanceMovement.js';
 import { firstConflict, holdsSameRequest } from '../../../domain/bookings/schedulePolicy.js';
 import { BOOKINGS_COLLECTION, bookingFromDocument } from './bookingRepository.js';
 import { appendEventsInSession } from './outboxStore.js';
-import { appendMovementInSession } from './walletStore.js';
+import { appendMovementInSession } from './operatingBalanceStore.js';
 
 /** Aborts the acceptance transaction with a business outcome; `withTransaction` does not retry it. */
 class AcceptanceAbort extends Error {
@@ -24,8 +24,8 @@ class AcceptanceAbort extends Error {
  *   1. claim it — a conditional update that only matches while it is pending, its search is open
  *      and it is not the goalkeeper's own request (so two goalkeepers can never both get it);
  *   2. check it against the bookings the goalkeeper already holds (clash, same request);
- *   3. charge its commission, and its VAT (feature 023), through the wallet (011) — which always writes the goalkeeper's
- *      wallet document, so two acceptances by the same goalkeeper conflict there: the driver
+ *   3. charge its commission, and its VAT (feature 023), through the operating balance (011) — which always writes the goalkeeper's
+ *      operating balance document, so two acceptances by the same goalkeeper conflict there: the driver
  *      retries the loser, whose snapshot then includes the winner's assignment, and step 2
  *      refuses it. Concurrent clashes are therefore impossible.
  * Any refusal aborts the transaction: nothing is assigned and nothing is charged.
@@ -41,7 +41,7 @@ export class MongoBookingAcceptanceStore implements IBookingAcceptanceStore {
     goalkeeperId: string;
     now: Date;
     chargeDrafts: (booking: Booking) => MovementDraft[];
-    events: (booking: Booking, charged: readonly WalletMovement[]) => DomainEvent[];
+    events: (booking: Booking, charged: readonly BalanceMovement[]) => DomainEvent[];
   }): Promise<AcceptanceResult> {
     const { bookingId, goalkeeperId, now } = args;
     const bookings = this.db.collection(BOOKINGS_COLLECTION);
@@ -68,7 +68,7 @@ export class MongoBookingAcceptanceStore implements IBookingAcceptanceStore {
           const conflict = firstConflict(booking, held);
           if (conflict) throw new AcceptanceAbort({ kind: 'schedule_conflict', conflictingBookingId: conflict.id });
 
-          const charged: WalletMovement[] = [];
+          const charged: BalanceMovement[] = [];
           for (const draft of args.chargeDrafts(booking)) {
             const charge = await appendMovementInSession(this.db, session, draft, now);
             if (charge.kind === 'insufficient_funds') {

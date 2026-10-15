@@ -2,7 +2,7 @@ import { MatchFormat } from '../../../../../src/domain/bookings/matchFormat.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ListAvailableBookingsQuery } from '../../../../../src/application/features/goalkeeperRequests/queries/listAvailableBookings/listAvailableBookingsQuery.js';
 import { ListAvailableBookingsQueryHandler } from '../../../../../src/application/features/goalkeeperRequests/queries/listAvailableBookings/listAvailableBookingsQueryHandler.js';
-import { buildGoalkeeperProfile } from '../../../../fixtures/walletFixtures.js';
+import { buildGoalkeeperProfile } from '../../../../fixtures/operatingBalanceFixtures.js';
 import { GoalkeeperBookingHarness, inHours, NOW } from './goalkeeperBookingHarness.js';
 import { fixedVatRates } from '../../../../fakes/fakeVatRates.js';
 
@@ -13,7 +13,7 @@ beforeEach(async () => {
   h = new GoalkeeperBookingHarness();
   handler = new ListAvailableBookingsQueryHandler({
     goalkeeperProfileRepository: h.profiles,
-    walletRepository: h.wallet,
+    operatingBalanceRepository: h.operatingBalance,
     commissionResolver: h.commissionResolver,
     bookingRepository: h.bookings,
     requestRepository: h.requests,
@@ -100,7 +100,7 @@ describe('ListAvailableBookingsQueryHandler — US1: a goalkeeper sees the match
     fresh.seedRequest('sur', inHours(6), { goalkeeperCount: 1, zoneId: 'zone-cali-sur' });
     const freshHandler = new ListAvailableBookingsQueryHandler({
       goalkeeperProfileRepository: fresh.profiles,
-      walletRepository: fresh.wallet,
+      operatingBalanceRepository: fresh.operatingBalance,
       commissionResolver: fresh.commissionResolver,
       bookingRepository: fresh.bookings,
       requestRepository: fresh.requests,
@@ -121,7 +121,7 @@ describe('ListAvailableBookingsQueryHandler — US1: a goalkeeper sees the match
     poor.seedRequest('norte', inHours(5), { goalkeeperCount: 1 });
     const poorHandler = new ListAvailableBookingsQueryHandler({
       goalkeeperProfileRepository: poor.profiles,
-      walletRepository: poor.wallet,
+      operatingBalanceRepository: poor.operatingBalance,
       commissionResolver: poor.commissionResolver,
       bookingRepository: poor.bookings,
       requestRepository: poor.requests,

@@ -1,5 +1,5 @@
-import type { ICommissionSettingRepository } from '../../src/application/features/wallet/common/ports.js';
-import type { CommissionSetting } from '../../src/domain/wallet/commissionSetting.js';
+import type { ICommissionSettingRepository } from '../../src/application/features/operatingBalance/common/ports.js';
+import type { CommissionSetting } from '../../src/domain/operatingBalance/commissionSetting.js';
 
 export class FakeCommissionSettingRepository implements ICommissionSettingRepository {
   /** The stored commissions, shared with the admin web's fake (spec 004 of the admin). */

@@ -60,7 +60,7 @@ describe('WithdrawFromBookingCommand — US1: withdrawal and replacement', () =>
     });
     // The commission stays charged: that's the money penalty.
     expect(await h.balanceOf('g')).toBe(13000);
-    expect(h.wallet.movements().filter((movement) => movement.type === 'commission_refund')).toHaveLength(0);
+    expect(h.operatingBalance.movements().filter((movement) => movement.type === 'commission_refund')).toHaveLength(0);
 
     const replacement = h.bookingRepository.all().find((booking) => booking.replacesBookingId === h.booking.id)!;
     expect(replacement).toMatchObject({
@@ -158,7 +158,7 @@ describe('WithdrawFromBookingCommand — US1: withdrawal and replacement', () =>
     await h.withdraw(h.booking.id, 'g');
 
     expect(await h.cancel('r1', h.booking.id)).toEqual({ outcome: 'not_cancellable', status: 'goalkeeper_withdrew' });
-    expect(h.wallet.movements().filter((movement) => movement.type === 'commission_refund')).toHaveLength(0);
+    expect(h.operatingBalance.movements().filter((movement) => movement.type === 'commission_refund')).toHaveLength(0);
   });
 
   it('resolves a simultaneous withdrawal and client cancellation to exactly one outcome', async () => {
@@ -166,7 +166,7 @@ describe('WithdrawFromBookingCommand — US1: withdrawal and replacement', () =>
 
     const [withdrawal, cancellation] = await Promise.all([h.withdraw(h.booking.id, 'g'), h.cancel('r1', h.booking.id)]);
 
-    const refunds = h.wallet.movements().filter((movement) => movement.type === 'commission_refund').length;
+    const refunds = h.operatingBalance.movements().filter((movement) => movement.type === 'commission_refund').length;
     const withdrawals = h.store.incidents().length;
     if (withdrawal.outcome === 'withdrawn') {
       expect(cancellation).toMatchObject({ outcome: 'not_cancellable' });

@@ -2,7 +2,7 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 import { seedRole, signInStaff } from '../adminTestHelpers.js';
-import type { TestApp } from '../walletTestHelpers.js';
+import type { TestApp } from '../operatingBalanceTestHelpers.js';
 import { GoalkeeperRegistration } from '../../../src/domain/goalkeepers/goalkeeperRegistration.js';
 
 async function world() {

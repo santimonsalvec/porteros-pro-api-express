@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
-import { signInAdmin, signInClient } from '../walletTestHelpers.js';
+import { signInAdmin, signInClient } from '../operatingBalanceTestHelpers.js';
 
 // Admin spec 007 (FR-025): every save names the revision it read; `null` creates the country's first.
 const VALID = {

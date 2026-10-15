@@ -2,6 +2,7 @@ import type { IUserRepository } from '../../auth/common/ports.js';
 import type { ICountryRepository } from '../../profile/common/ports.js';
 import type { IGoalkeeperProfileRepository } from '../../goalkeepers/common/ports.js';
 import type { IStaffMemberRepository } from '../../staff/common/ports.js';
+import type { IAccountClosureRepository } from '../../accountClosures/common/ports.js';
 import type { IUserAdminReader, IUserBlockRepository } from './ports.js';
 
 /** What the admin's user queries read (admin spec 005). */
@@ -12,4 +13,6 @@ export interface UsersQueryDependencies {
   countries: ICountryRepository;
   staff: Pick<IStaffMemberRepository, 'findByUserId'>;
   reader: IUserAdminReader;
+  /** Whether the user asked to leave or was closed (feature 029); absent where closures are not wired. */
+  closures?: Pick<IAccountClosureRepository, 'findLatestByUserId'>;
 }

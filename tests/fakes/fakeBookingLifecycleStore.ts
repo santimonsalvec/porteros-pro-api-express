@@ -12,8 +12,8 @@ import type {
   ReversalOutcome,
   WithdrawResult,
 } from '../../src/application/features/bookingLifecycle/common/ports.js';
-import type { CancellationDetails, MovementActor } from '../../src/domain/wallet/walletMovement.js';
-import { commissionVatRefundDraft, commissionRefundDraft, type LedgerOwner } from '../../src/application/features/wallet/common/walletLedger.js';
+import type { CancellationDetails, MovementActor } from '../../src/domain/operatingBalance/balanceMovement.js';
+import { commissionVatRefundDraft, commissionRefundDraft, type LedgerOwner } from '../../src/application/features/operatingBalance/common/operatingBalanceLedger.js';
 import { Booking, leftTheRequest, type BookingProps, type CheckIn } from '../../src/domain/bookings/booking.js';
 import { GoalkeeperRequest } from '../../src/domain/bookings/goalkeeperRequest.js';
 import type { DomainEvent } from '../../src/domain/events/domainEvent.js';
@@ -25,7 +25,7 @@ import { Rating, ratingWindowFor, type RatingSide } from '../../src/domain/ratin
 import type { FakeBookingRepository } from './fakeBookingRepository.js';
 import type { FakeGoalkeeperRequestRepository } from './fakeGoalkeeperRequestRepository.js';
 import type { FakeOutboxStore } from './fakeOutboxStore.js';
-import type { FakeWalletStore } from './fakeWalletStore.js';
+import type { FakeOperatingBalanceStore } from './fakeOperatingBalanceStore.js';
 
 /**
  * `MongoBookingLifecycleStore` over the in-memory fakes. Every check and write of one call happens
@@ -39,7 +39,7 @@ export class FakeBookingLifecycleStore implements IBookingLifecycleStore {
   constructor(
     private readonly bookings: FakeBookingRepository,
     private readonly requests: FakeGoalkeeperRequestRepository,
-    private readonly wallet: FakeWalletStore,
+    private readonly operatingBalance: FakeOperatingBalanceStore,
     private readonly outbox: FakeOutboxStore,
     private readonly profiles?: FakeGoalkeeperProfileRepository,
   ) {}
@@ -96,7 +96,7 @@ export class FakeBookingLifecycleStore implements IBookingLifecycleStore {
       .filter((booking) => booking.requestId === requestId && !leftTheRequest(booking) && booking.status !== 'goalkeeper_withdrew');
     const toCancel = all.filter((booking) => booking.status === 'pending_assignment' || booking.status === 'assigned');
     const allAssigned = all.every((booking) => booking.status === 'assigned');
-    const movements = this.wallet.movements();
+    const movements = this.operatingBalance.movements();
     const missing = toCancel.find(
       (booking) => booking.status === 'assigned' && !movements.some((movement) => movement.causeKey === `commission:${booking.id}`),
     );
@@ -217,7 +217,7 @@ export class FakeBookingLifecycleStore implements IBookingLifecycleStore {
     }
     const unowned = targets.find((booking) => booking.status === 'assigned' && !args.owners.has(booking.goalkeeperId!));
     if (unowned) return { kind: 'owner_required', goalkeeperId: unowned.goalkeeperId! };
-    const movements = this.wallet.movements();
+    const movements = this.operatingBalance.movements();
     const missing = targets.find(
       (booking) => booking.status === 'assigned' && !movements.some((movement) => movement.causeKey === `commission:${booking.id}`),
     );
@@ -310,7 +310,7 @@ export class FakeBookingLifecycleStore implements IBookingLifecycleStore {
     let refund: { amount: number; currency: string } | null = null;
     if (args.refund && incident.moneyReversal === null) {
       if (!args.owner) throw new Error(`No ledger owner resolved for goalkeeper ${goalkeeperId}`);
-      const movements = this.wallet.movements();
+      const movements = this.operatingBalance.movements();
       const charge = movements.find((movement) => movement.causeKey === `commission:${incident.bookingId}`);
       if (!charge) return { kind: 'missing_charge', bookingId: incident.bookingId };
       refund = this.refund(incident.bookingId, incident.requestId, args.owner, { by: 'admin', at: now, reason: args.reason }, args.newId, now, {
@@ -514,7 +514,7 @@ export class FakeBookingLifecycleStore implements IBookingLifecycleStore {
     return suspendedUntil;
   }
 
-  /** Records the refund synchronously (the fake wallet ignores a known cause key). */
+  /** Records the refund synchronously (the fake operating balance ignores a known cause key). */
   /**
    * The commission and its VAT (feature 023) given back once, with the `commission.refunded` event,
    * as `refundCommissionInSession` does. A known refund is answered without writing anything.
@@ -528,7 +528,7 @@ export class FakeBookingLifecycleStore implements IBookingLifecycleStore {
     now: Date,
     actor?: MovementActor,
   ): { amount: number; vat: number; currency: string } {
-    const movements = this.wallet.movements();
+    const movements = this.operatingBalance.movements();
     const charge = movements.find((movement) => movement.causeKey === `commission:${bookingId}`)!;
     const amount = -charge.amount;
     const known = movements.find((movement) => movement.causeKey === `commission_refund:${bookingId}`);
@@ -537,12 +537,12 @@ export class FakeBookingLifecycleStore implements IBookingLifecycleStore {
     const vat = vatCharge ? -vatCharge.amount : 0;
     const rateBps = vatCharge?.taxRateBps ?? 0;
     const refundId = newId();
-    // The fake wallet store records synchronously.
-    void this.wallet.append(commissionRefundDraft(owner, { bookingId, requestId, amount, cancellation }, refundId, now, actor));
+    // The fake operating balance store records synchronously.
+    void this.operatingBalance.append(commissionRefundDraft(owner, { bookingId, requestId, amount, cancellation }, refundId, now, actor));
     let vatMovementId: string | null = null;
     if (vatCharge) {
       vatMovementId = newId();
-      void this.wallet.append(commissionVatRefundDraft(owner, { bookingId, requestId, amount: vat, rateBps }, vatMovementId, now, actor));
+      void this.operatingBalance.append(commissionVatRefundDraft(owner, { bookingId, requestId, amount: vat, rateBps }, vatMovementId, now, actor));
     }
     this.outbox.append(
       [

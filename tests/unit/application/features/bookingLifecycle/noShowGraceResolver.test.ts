@@ -5,13 +5,13 @@ import { FakeBookingSettingsRepository } from '../../../../fakes/fakeBookingSett
 import { FakeCityRepository } from '../../../../fakes/fakeCityRepository.js';
 import { FakeCountryRepository } from '../../../../fakes/fakeCountryRepository.js';
 import { FakeRegionRepository } from '../../../../fakes/fakeRegionRepository.js';
-import { seedWalletWorld } from '../../../../fixtures/walletFixtures.js';
+import { seedOperatingBalanceWorld } from '../../../../fixtures/operatingBalanceFixtures.js';
 import { buildRequest } from '../../../../fixtures/quoteFixtures.js';
 
 function setup(noShowGraceMinutes?: number) {
   const cityRepository = new FakeCityRepository();
   const regionRepository = new FakeRegionRepository();
-  seedWalletWorld({ cityRepository, regionRepository, countryRepository: new FakeCountryRepository() });
+  seedOperatingBalanceWorld({ cityRepository, regionRepository, countryRepository: new FakeCountryRepository() });
   const bookingSettingsRepository = new FakeBookingSettingsRepository();
   bookingSettingsRepository.seed(new BookingSettings({ id: 's', scope: 'country', refId: 'country-co', noShowGraceMinutes: noShowGraceMinutes ?? null }));
   const warnings: Record<string, unknown>[] = [];

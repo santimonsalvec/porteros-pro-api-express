@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
-import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../walletTestHelpers.js';
+import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../operatingBalanceTestHelpers.js';
 
 function agenda(context: TestApp, token: string, query = '') {
   return request(context.app).get(`/goalkeepers/me/bookings${query}`).set('Authorization', `Bearer ${token}`);
@@ -15,7 +15,7 @@ describe('GET /goalkeepers/me/bookings — US6: the goalkeeper\'s agenda', () =>
     const mine = await signInGoalkeeper(context, 'sub-0602');
     const other = await signInGoalkeeper(context, 'sub-0603');
     for (const [goalkeeper, key] of [[mine, 'k-1'], [other, 'k-2']] as const) {
-      await context.walletLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo', operationKey: key });
+      await context.operatingBalanceLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo', operationKey: key });
     }
     const created = await createRequestAsClient(context, client.token);
     const [first, second] = created.bookings.map((booking: { bookingId: string }) => booking.bookingId);

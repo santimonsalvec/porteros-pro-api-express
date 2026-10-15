@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BookingSettings } from '../../../../../src/domain/pricing/bookingSettings.js';
 import { RentalRate } from '../../../../../src/domain/pricing/rentalRate.js';
-import { CommissionSetting } from '../../../../../src/domain/wallet/commissionSetting.js';
+import { CommissionSetting } from '../../../../../src/domain/operatingBalance/commissionSetting.js';
 import { DocumentType } from '../../../../../src/domain/goalkeepers/documentType.js';
 import { City } from '../../../../../src/domain/locations/city.js';
 import { Country } from '../../../../../src/domain/countries/country.js';
@@ -17,7 +17,7 @@ import { geographyKit } from './geographyTestKit.js';
 import { GetServiceQuoteQuery } from '../../../../../src/application/features/goalkeeperRequests/queries/getServiceQuote/getServiceQuoteQuery.js';
 import { GetServiceQuoteQueryHandler } from '../../../../../src/application/features/goalkeeperRequests/queries/getServiceQuote/getServiceQuoteQueryHandler.js';
 import { parseStartsAt } from '../../../../../src/application/features/goalkeeperRequests/common/startsAt.js';
-import { CommissionResolver } from '../../../../../src/application/features/wallet/common/commissionResolver.js';
+import { CommissionResolver } from '../../../../../src/application/features/operatingBalance/common/commissionResolver.js';
 import { FakeMatchSurfaceRepository } from '../../../../fakes/fakeMatchSurfaceRepository.js';
 import { QUOTE_FORMAT_FIELDS } from '../../../../fixtures/quoteFixtures.js';
 

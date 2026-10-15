@@ -5,7 +5,7 @@ import { WithdrawalAdminDetails } from '../../../../../src/application/features/
 import type { Booking } from '../../../../../src/domain/bookings/booking.js';
 import type { Zone } from '../../../../../src/domain/zones/zone.js';
 import type { City } from '../../../../../src/domain/locations/city.js';
-import type { WalletMovement } from '../../../../../src/domain/wallet/walletMovement.js';
+import type { BalanceMovement } from '../../../../../src/domain/operatingBalance/balanceMovement.js';
 import { lifecycleHarness } from './lifecycleHarness.js';
 
 describe('WithdrawalAdminDetails (admin spec 005, research §13)', () => {
@@ -13,7 +13,7 @@ describe('WithdrawalAdminDetails (admin spec 005, research §13)', () => {
     bookings: { findById: async (id) => (id === 'b1' ? ({ id: 'b1', zoneId: 'z1' } as Booking) : null) },
     zones: { getManyByIds: async (ids) => (ids.includes('z1') ? [{ id: 'z1', cityId: 'med' } as Zone] : []) },
     cities: { getByIds: async (ids) => (ids.includes('med') ? [{ id: 'med', name: 'Medellín', timeZone: 'America/Bogota' } as City] : []) },
-    movements: { findByCauseKey: async (key) => (key === 'commission:b1' ? ({ amount: -7000, currency: 'COP' } as WalletMovement) : null) },
+    movements: { findByCauseKey: async (key) => (key === 'commission:b1' ? ({ amount: -7000, currency: 'COP' } as BalanceMovement) : null) },
   });
 
   it("gives each booking its city's clock and the commission charged, positive", async () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BookingSettings } from '../../../../../src/domain/pricing/bookingSettings.js';
-import { CommissionSetting } from '../../../../../src/domain/wallet/commissionSetting.js';
+import { CommissionSetting } from '../../../../../src/domain/operatingBalance/commissionSetting.js';
 import { RentalRate } from '../../../../../src/domain/pricing/rentalRate.js';
 import { GetReadinessQuery } from '../../../../../src/application/features/geography/queries/getReadiness/getReadinessQuery.js';
 import { GetReadinessQueryHandler } from '../../../../../src/application/features/geography/queries/getReadiness/getReadinessQueryHandler.js';

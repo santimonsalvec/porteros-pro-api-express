@@ -5,7 +5,7 @@ import { ListGoalkeeperWithdrawalsQuery } from '../../application/features/booki
 import { ApiError } from '../apiError.js';
 import { zodFieldErrors } from '../requests/goalkeeperRequests/getServiceQuoteRequest.js';
 import { listClientBookingsRequestSchema } from '../requests/goalkeeperRequests/listClientBookingsRequest.js';
-import { goalkeeperNotFound } from '../wallet/walletHttp.js';
+import { goalkeeperNotFound } from '../operatingBalance/operatingBalanceHttp.js';
 
 /** A goalkeeper's withdrawals, for themselves or an administrator (contracts/withdrawals.md §2–§3). */
 export async function sendWithdrawals(mediator: ISender, goalkeeperId: string, view: WithdrawalView, req: Request, res: Response): Promise<void> {

@@ -1,4 +1,4 @@
-import type { ITaxSettingsRepository } from '../../wallet/common/ports.js';
+import type { ITaxSettingsRepository } from '../../operatingBalance/common/ports.js';
 
 /** Each country's VAT rate in basis points, 0 where none is configured (business-settings §10). */
 export async function vatRatesOf(taxSettings: ITaxSettingsRepository, countryIds: readonly (string | null)[]): Promise<Map<string, number>> {

@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
-import { signInClient, signInGoalkeeper, type TestApp } from '../walletTestHelpers.js';
+import { signInClient, signInGoalkeeper, type TestApp } from '../operatingBalanceTestHelpers.js';
 import { User } from '../../../src/domain/users/user.js';
 import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js';
 

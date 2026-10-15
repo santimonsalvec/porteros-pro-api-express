@@ -2,8 +2,8 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 import { seedRole, signInStaff } from '../adminTestHelpers.js';
-import { signInClient, type TestApp } from '../walletTestHelpers.js';
-import { buildGoalkeeperProfile, COLOMBIA_INVOICING } from '../../fixtures/walletFixtures.js';
+import { signInClient, type TestApp } from '../operatingBalanceTestHelpers.js';
+import { buildGoalkeeperProfile, COLOMBIA_INVOICING } from '../../fixtures/operatingBalanceFixtures.js';
 
 async function world() {
   const context = await buildTestApp();

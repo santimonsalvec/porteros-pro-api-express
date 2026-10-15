@@ -1,8 +1,8 @@
 import type { Collection, Db, Document } from 'mongodb';
 import type { BillableMovementRef, IBillableMovementScanner } from '../../../application/features/invoicing/common/ports.js';
-import { BILLABLE_MOVEMENT_TYPES, type BillableMovementType } from '../../../domain/wallet/walletMovement.js';
+import { BILLABLE_MOVEMENT_TYPES, type BillableMovementType } from '../../../domain/operatingBalance/balanceMovement.js';
 import { INVOICING_DOCUMENTS_COLLECTION } from './invoicingDocumentRepository.js';
-import { WALLET_MOVEMENTS_COLLECTION } from './walletMovementRepository.js';
+import { BALANCE_MOVEMENTS_COLLECTION } from './balanceMovementRepository.js';
 
 const WINDOW_MS = 7 * 24 * 60 * 60_000;
 
@@ -15,7 +15,7 @@ export class BillableMovementScanner implements IBillableMovementScanner {
   private readonly movements: Collection<Document>;
 
   constructor(db: Db) {
-    this.movements = db.collection(WALLET_MOVEMENTS_COLLECTION);
+    this.movements = db.collection(BALANCE_MOVEMENTS_COLLECTION);
   }
 
   async findWithoutDocument(olderThan: Date, cap: number): Promise<BillableMovementRef[]> {

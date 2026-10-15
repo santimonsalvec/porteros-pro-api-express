@@ -4,7 +4,7 @@ import { City } from '../../../src/domain/locations/city.js';
 import { COLOMBIA_SIIGO_CONFIG } from '../../fakes/fakeInvoicingSettingsRepository.js';
 import { TEST_INVOICING_CREDENTIALS } from '../../fakes/fakeInvoicingSecrets.js';
 import { buildTestApp } from '../testAppFactory.js';
-import { createRequestAsClient, MATCH_NOW, ownerOf, signInAdmin, signInClient, signInGoalkeeper, type TestApp } from '../walletTestHelpers.js';
+import { createRequestAsClient, MATCH_NOW, ownerOf, signInAdmin, signInClient, signInGoalkeeper, type TestApp } from '../operatingBalanceTestHelpers.js';
 
 function admin(context: TestApp, token: string) {
   const auth = (req: request.Test) => req.set('Authorization', `Bearer ${token}`);
@@ -109,7 +109,7 @@ describe('/admin/invoicing/documents — US4: watching invoicing and retrying fa
     const { token } = await signInAdmin(context);
     const client = await signInClient(context, 'sub-2312');
     const goalkeeper = await signInGoalkeeper(context, 'sub-2313');
-    await context.walletLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo', operationKey: 'k-1' });
+    await context.operatingBalanceLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo', operationKey: 'k-1' });
     const bookingId = (await createRequestAsClient(context, client.token)).bookings[0]!.bookingId;
     context.invoicingProvider.script('invalid');
     await request(context.app).post(`/goalkeepers/me/bookings/${bookingId}/accept`).set('Authorization', `Bearer ${goalkeeper.token}`);

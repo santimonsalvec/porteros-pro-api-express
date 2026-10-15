@@ -1,11 +1,11 @@
 import { PushNotifier } from '../../../../../src/application/features/devices/common/pushNotifier.js';
 import { OfferSender } from '../../../../../src/application/features/notifications/common/offerSender.js';
 import { OfferEligibilityService } from '../../../../../src/application/features/notifications/common/offerEligibilityService.js';
-import type { IWalletRepository } from '../../../../../src/application/features/wallet/common/ports.js';
-import { Wallet } from '../../../../../src/domain/wallet/wallet.js';
+import type { IOperatingBalanceRepository } from '../../../../../src/application/features/operatingBalance/common/ports.js';
+import { OperatingBalance } from '../../../../../src/domain/operatingBalance/operatingBalance.js';
 import { FakeBookingRepository } from '../../../../fakes/fakeBookingRepository.js';
 import { FakeGoalkeeperProfileRepository } from '../../../../fakes/fakeGoalkeeperProfileRepository.js';
-import { buildGoalkeeperProfile } from '../../../../fixtures/walletFixtures.js';
+import { buildGoalkeeperProfile } from '../../../../fixtures/operatingBalanceFixtures.js';
 import type { Booking } from '../../../../../src/domain/bookings/booking.js';
 import type { GoalkeeperRequest } from '../../../../../src/domain/bookings/goalkeeperRequest.js';
 import { City } from '../../../../../src/domain/locations/city.js';
@@ -67,15 +67,15 @@ export function offerHarness() {
   const bookingRepository = new FakeBookingRepository();
   const goalkeeperProfileRepository = new FakeGoalkeeperProfileRepository();
   const balances = new Map<string, number>();
-  const wallet = (goalkeeperId: string) =>
-    Wallet.rehydrate({ goalkeeperId, currency: 'COP', balance: balances.get(goalkeeperId)!, lastSequence: 1, createdAt: clock.now(), updatedAt: clock.now() });
-  const walletRepository: IWalletRepository = {
-    findByGoalkeeperId: async (id) => (balances.has(id) ? wallet(id) : null),
-    findByGoalkeeperIds: async (ids) => ids.filter((id) => balances.has(id)).map(wallet),
+  const operatingBalance = (goalkeeperId: string) =>
+    OperatingBalance.rehydrate({ goalkeeperId, currency: 'COP', balance: balances.get(goalkeeperId)!, lastSequence: 1, createdAt: clock.now(), updatedAt: clock.now() });
+  const operatingBalanceRepository: IOperatingBalanceRepository = {
+    findByGoalkeeperId: async (id) => (balances.has(id) ? operatingBalance(id) : null),
+    findByGoalkeeperIds: async (ids) => ids.filter((id) => balances.has(id)).map(operatingBalance),
   };
   const eligibility = new OfferEligibilityService({
     goalkeeperProfileRepository,
-    walletRepository,
+    operatingBalanceRepository,
     commissionResolver: {
       resolveForZones: async (zoneIds: string[]) => new Map(zoneIds.map((zoneId) => [zoneId, 7000] as const)),
       resolveForMatch: async () => 7000,

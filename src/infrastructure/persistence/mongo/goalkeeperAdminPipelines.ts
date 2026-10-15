@@ -1,13 +1,13 @@
 import type { Document } from 'mongodb';
 import type { GoalkeeperListFilter } from '../../../application/features/goalkeepers/common/adminPorts.js';
-import { WALLETS_COLLECTION } from './walletRepository.js';
+import { OPERATING_BALANCES_COLLECTION } from './operatingBalanceRepository.js';
 
-/** What a goalkeeper row reads from the profile and its wallet. */
+/** What a goalkeeper row reads from the profile and its operating balance. */
 const ROW_PROJECTION = { userId: 1, cityId: 1, zoneCount: { $size: { $ifNull: ['$zoneIds', []] } }, availableForOffers: 1, suspendedUntil: 1, balance: 1, currency: 1, activatedAt: 1 };
 
 /**
  * The admin's goalkeeper list (admin spec 005, research §5): the profile's own filters first (its
- * indexes), then the wallet (`_id` = the goalkeeper's user id; none = balance 0) and its filter,
+ * indexes), then the operating balance (`_id` = the goalkeeper's user id; none = balance 0) and its filter,
  * newest activations first, one page and the total.
  */
 export function goalkeepersListPipeline(filter: GoalkeeperListFilter): Document[] {
@@ -22,8 +22,8 @@ export function goalkeepersListPipeline(filter: GoalkeeperListFilter): Document[
 
   const pipeline: Document[] = Object.keys(own).length > 0 ? [{ $match: own }] : [];
   pipeline.push(
-    { $lookup: { from: WALLETS_COLLECTION, localField: 'userId', foreignField: '_id', as: 'wallet', pipeline: [{ $project: { balance: 1, currency: 1 } }] } },
-    { $addFields: { balance: { $ifNull: [{ $first: '$wallet.balance' }, 0] }, currency: { $first: '$wallet.currency' } } },
+    { $lookup: { from: OPERATING_BALANCES_COLLECTION, localField: 'userId', foreignField: '_id', as: 'operatingBalance', pipeline: [{ $project: { balance: 1, currency: 1 } }] } },
+    { $addFields: { balance: { $ifNull: [{ $first: '$operatingBalance.balance' }, 0] }, currency: { $first: '$operatingBalance.currency' } } },
   );
   if (filter.balanceBelow !== undefined) pipeline.push({ $match: { balance: { $lt: filter.balanceBelow } } });
   pipeline.push(

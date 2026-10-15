@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js';
 import { User } from '../../../src/domain/users/user.js';
-import type { TestApp } from '../walletTestHelpers.js';
+import type { TestApp } from '../operatingBalanceTestHelpers.js';
 
 /** An app account flagged `isAdmin` that signs in on the phone and completes its profile. */
 async function signInFlaggedAccount(context: TestApp): Promise<string> {

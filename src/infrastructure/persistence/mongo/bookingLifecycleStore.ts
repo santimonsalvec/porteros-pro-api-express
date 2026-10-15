@@ -12,13 +12,13 @@ import type {
   ReversalOutcome,
   WithdrawResult,
 } from '../../../application/features/bookingLifecycle/common/ports.js';
-import { commissionRefundDraft, commissionVatRefundDraft, type LedgerOwner } from '../../../application/features/wallet/common/walletLedger.js';
+import { commissionRefundDraft, commissionVatRefundDraft, type LedgerOwner } from '../../../application/features/operatingBalance/common/operatingBalanceLedger.js';
 import { commissionRefunded } from '../../../domain/events/billingEvents.js';
 import { Booking, leftTheRequest, type CheckIn } from '../../../domain/bookings/booking.js';
 import type { DomainEvent } from '../../../domain/events/domainEvent.js';
 import { GoalkeeperIncident, suspensionEndOf, type IncidentKind } from '../../../domain/goalkeepers/goalkeeperIncident.js';
 import { isLate, penaltiesFor, windowStart, type GoalkeeperPenaltyConfig } from '../../../domain/goalkeepers/penaltyPolicy.js';
-import type { CancellationDetails, MovementActor } from '../../../domain/wallet/walletMovement.js';
+import type { CancellationDetails, MovementActor } from '../../../domain/operatingBalance/balanceMovement.js';
 import { BOOKINGS_COLLECTION, bookingFromDocument, bookingToDocument } from './bookingRepository.js';
 import { SupportCase, type CaseType } from '../../../domain/cases/case.js';
 import { Rating, ratingWindowFor, type RatingSide } from '../../../domain/ratings/rating.js';
@@ -27,8 +27,8 @@ import { RATINGS_COLLECTION, ratingToDocument } from './ratingRepository.js';
 import { GOALKEEPER_INCIDENTS_COLLECTION, incidentFromDocument, incidentToDocument } from './goalkeeperIncidentRepository.js';
 import { GOALKEEPER_REQUESTS_COLLECTION, requestFromDocument } from './goalkeeperRequestRepository.js';
 import { appendEventsInSession } from './outboxStore.js';
-import { WALLET_MOVEMENTS_COLLECTION } from './walletMovementRepository.js';
-import { appendMovementInSession } from './walletStore.js';
+import { BALANCE_MOVEMENTS_COLLECTION } from './balanceMovementRepository.js';
+import { appendMovementInSession } from './operatingBalanceStore.js';
 
 const GOALKEEPER_PROFILES_COLLECTION = 'goalkeeperProfiles';
 
@@ -65,7 +65,7 @@ export async function refundCommissionInSession(
     actor?: MovementActor;
   },
 ): Promise<{ amount: number; vat: number; currency: string }> {
-  const movements = db.collection(WALLET_MOVEMENTS_COLLECTION);
+  const movements = db.collection(BALANCE_MOVEMENTS_COLLECTION);
   const charge = await movements.findOne({ causeKey: `commission:${booking.id}` } as Document, { session });
   if (!charge) throw new LifecycleAbort({ kind: 'missing_charge' as const, bookingId: booking.id });
   const amount = -(charge.amount as number);
@@ -264,7 +264,7 @@ export class MongoBookingLifecycleStore implements IBookingLifecycleStore {
         cancellationNote: args.reason,
         cancelledByStaffId: args.staffUserId,
       },
-      // The goalkeeper sees a movement's reason in their wallet: the code, never the internal reason.
+      // The goalkeeper sees a movement's reason in their operating balance: the code, never the internal reason.
       cancellation: { by: 'admin', at: args.now, reason: 'admin_cancelled' },
       actor: { kind: 'admin', userId: args.staffUserId },
     });

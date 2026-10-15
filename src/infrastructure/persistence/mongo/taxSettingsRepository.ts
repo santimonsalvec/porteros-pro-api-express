@@ -1,6 +1,6 @@
 import type { Collection, Db, Document } from 'mongodb';
-import type { ITaxSettingsRepository } from '../../../application/features/wallet/common/ports.js';
-import { TaxSetting } from '../../../domain/wallet/taxSetting.js';
+import type { ITaxSettingsRepository } from '../../../application/features/operatingBalance/common/ports.js';
+import { TaxSetting } from '../../../domain/operatingBalance/taxSetting.js';
 
 export const TAX_SETTINGS_COLLECTION = 'taxSettings';
 
