@@ -14,6 +14,11 @@ export interface IssuedServiceQuote extends ServiceQuote {
   cancelAllAvailable: boolean;
   /** UTC ISO-8601: start − free-cancellation period, when a "cancel all" request is evaluated. */
   cancelAllUntil: string;
+  /**
+   * Admin spec 030: per goalkeeper, what the client pays if one without the verification seal
+   * takes the match. Absent when the zone has no discount.
+   */
+  unverifiedDiscount?: { rateBps: number; unitDiscount: number; unitTotal: number };
 }
 
 export type IssueServiceQuoteResult =

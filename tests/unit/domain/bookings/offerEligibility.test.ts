@@ -47,3 +47,26 @@ describe('isEligible', () => {
     expect(isEligible(eligibleSnapshot({ balance: 7000 }), booking, OFFER_NOW)).toBe(true);
   });
 });
+
+describe('isEligible by vetting tier (admin spec 030)', () => {
+  const windowEnd = new Date(OFFER_NOW.getTime() + 10 * 60_000);
+  const openToUnverified = buildBooking({ acceptsUnverified: true, verifiedOnlyUntil: windowEnd });
+
+  it('never offers anything to an unvalidated goalkeeper', () => {
+    expect(isEligible(eligibleSnapshot({ tier: 'unvalidated' }), openToUnverified, windowEnd)).toBe(false);
+  });
+
+  it('offers to a validated goalkeeper only when the client accepted it, once the window ended', () => {
+    const validated = eligibleSnapshot({ tier: 'validated' });
+
+    expect(isEligible(validated, buildBooking({ verifiedOnlyUntil: OFFER_NOW }), OFFER_NOW)).toBe(false);
+    expect(isEligible(validated, openToUnverified, OFFER_NOW)).toBe(false);
+    expect(isEligible(validated, openToUnverified, new Date(windowEnd.getTime() - 1))).toBe(false);
+    expect(isEligible(validated, openToUnverified, windowEnd)).toBe(true);
+  });
+
+  it('a verified goalkeeper is offered as before, window or not', () => {
+    expect(isEligible(eligibleSnapshot({ tier: 'verified' }), openToUnverified, OFFER_NOW)).toBe(true);
+    expect(isEligible(eligibleSnapshot({ tier: 'verified' }), booking, OFFER_NOW)).toBe(true);
+  });
+});

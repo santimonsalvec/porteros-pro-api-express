@@ -18,6 +18,8 @@ const EXPECTED: [area: string, areaName: string, permission: string, description
   ['goalkeepers', 'Porteros', 'goalkeepers.update', 'Corregir los datos de identificación de un portero'],
   ['goalkeepers', 'Porteros', 'goalkeepers.registrations.review', 'Revisar registros de portero en curso'],
   ['goalkeepers', 'Porteros', 'goalkeepers.penalties.reverse', 'Revertir penalidades y levantar suspensiones'],
+  ['goalkeepers', 'Porteros', 'goalkeepers.validate', 'Revisar antecedentes y validar, rechazar o revocar la validación de porteros'],
+  ['goalkeepers', 'Porteros', 'goalkeepers.verify', 'Otorgar y revocar el sello de verificado de porteros'],
   ['requests', 'Solicitudes', 'requests.read', 'Ver solicitudes, reservas y su línea de tiempo'],
   ['requests', 'Solicitudes', 'requests.cancel', 'Cancelar solicitudes y reservas'],
   ['ratings', 'Calificaciones', 'ratings.read', 'Ver calificaciones'],
@@ -35,6 +37,7 @@ const EXPECTED: [area: string, areaName: string, permission: string, description
   ['catalogs', 'Catálogos', 'catalogs.manage', 'Editar tipos de documento y superficies'],
   ['pricing', 'Precios y reglas', 'pricing.read', 'Ver tarifas, comisiones, reglas de reserva e IVA'],
   ['pricing', 'Precios y reglas', 'pricing.manage', 'Cambiar tarifas, comisiones, reglas de reserva e IVA'],
+  ['pricing', 'Precios y reglas', 'pricing.unverified_discount.manage', 'Configurar el descuento por portero no verificado'],
   ['payments', 'Pagos', 'payments.settings.manage', 'Configurar la pasarela de depósitos por país'],
   ['notifications', 'Notificaciones', 'notifications.read', 'Ver los avisos enviados a un usuario'],
   ['notifications', 'Notificaciones', 'notifications.send', 'Enviar un aviso de prueba a un usuario'],
@@ -61,5 +64,17 @@ describe('permission catalog', () => {
     expect(isPermission('cases.read')).toBe(true);
     expect(isPermission('x.y')).toBe(false);
     expect(isPermission('')).toBe(false);
+  });
+});
+
+describe('admin spec 030 permissions', () => {
+  it('separates validating, verifying and configuring the unverified discount', () => {
+    for (const id of ['goalkeepers.validate', 'goalkeepers.verify', 'pricing.unverified_discount.manage']) {
+      expect(isPermission(id)).toBe(true);
+    }
+    const area = (id: string) => PERMISSION_AREAS.find((candidate) => candidate.permissions.some((permission) => permission.id === id))?.id;
+    expect(area('goalkeepers.validate')).toBe('goalkeepers');
+    expect(area('goalkeepers.verify')).toBe('goalkeepers');
+    expect(area('pricing.unverified_discount.manage')).toBe('pricing');
   });
 });

@@ -1,3 +1,5 @@
+import { Booking } from '../../../../../src/domain/bookings/booking.js';
+import { VALIDATED_VETTING } from '../../../../fixtures/vettingFixtures.js';
 import { MatchFormat } from '../../../../../src/domain/bookings/matchFormat.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ListAvailableBookingsQuery } from '../../../../../src/application/features/goalkeeperRequests/queries/listAvailableBookings/listAvailableBookingsQuery.js';
@@ -186,5 +188,20 @@ describe('ListAvailableBookingsQueryHandler — US1: a goalkeeper sees the match
 
   it('refuses a user who is not an active goalkeeper', async () => {
     expect(await handler.handle(new ListAvailableBookingsQuery('someone', 1, 20))).toEqual({ outcome: 'not_a_goalkeeper' });
+  });
+});
+
+describe('ListAvailableBookingsQueryHandler — a goalkeeper without the seal (admin spec 030)', () => {
+  it('shows what they would earn with the discount; a verified goalkeeper, the full price', async () => {
+    const { bookings } = h.seedRequest('norte', inHours(5), { goalkeeperCount: 1 });
+    h.bookings.seed(Booking.rehydrate({ ...bookings[0]!, acceptsUnverified: true, unverifiedDiscountBps: 1000, verifiedOnlyUntil: h.clock.now() }));
+
+    const verified = await list();
+    expect(verified.outcome === 'success' && verified.items[0]).toMatchObject({ earnings: 60000 });
+    expect(verified.outcome === 'success' && 'discount' in verified.items[0]!).toBe(false);
+
+    h.profiles.seed(buildGoalkeeperProfile('gk-1', { zoneIds: ['zone-cali-norte', 'zone-cali-sur'], vetting: VALIDATED_VETTING }));
+    const validated = await list();
+    expect(validated.outcome === 'success' && validated.items[0]).toMatchObject({ earnings: 54000, discount: { rateBps: 1000, amount: 6000 } });
   });
 });

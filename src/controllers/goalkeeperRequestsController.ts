@@ -174,6 +174,7 @@ export function createGoalkeeperRequestsController(deps: GoalkeeperRequestsContr
         req.authClaims!.sub,
         parsed.data.quoteId,
         parsed.data.partialFulfillment ?? PARTIAL_FULFILLMENT_DEFAULT,
+        parsed.data.acceptUnverified ?? false,
       ));
 
     // Exhaustive on purpose: adding an outcome without mapping it here fails compilation.

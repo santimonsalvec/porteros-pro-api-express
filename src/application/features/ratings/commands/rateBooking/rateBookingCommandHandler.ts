@@ -17,6 +17,9 @@ export interface RateBookingDependencies extends PenaltyConfigDependencies {
   idGenerator: IIdGenerator;
   clock: IClock;
   audit: IBookingAuditLogger;
+  /** Admin spec 030: a client's rating may verify the goalkeeper by reputation; never fails the rating. */
+  reputation?: { evaluate(goalkeeperId: string): Promise<unknown> };
+  onReputationFailure?: (error: unknown) => void;
 }
 
 /**
@@ -65,6 +68,7 @@ export class RateBookingCommandHandler implements ICommandHandler<RateBookingCom
     switch (result.kind) {
       case 'rated':
         if (result.events.length > 0) await this.deps.relay.relay(result.events);
+        if (result.rating.side === 'client') await this.evaluateReputation(result.rating.subjectId);
         return { outcome: 'rated', rating: toRatingResponse(result.rating) };
       case 'not_found':
         return { outcome: 'booking_not_found' };
@@ -72,6 +76,14 @@ export class RateBookingCommandHandler implements ICommandHandler<RateBookingCom
         return { outcome: 'already_rated' };
       case 'not_rateable':
         return { outcome: 'not_rateable', reason: result.reason };
+    }
+  }
+
+  private async evaluateReputation(goalkeeperId: string): Promise<void> {
+    try {
+      await this.deps.reputation?.evaluate(goalkeeperId);
+    } catch (error) {
+      this.deps.onReputationFailure?.(error);
     }
   }
 }

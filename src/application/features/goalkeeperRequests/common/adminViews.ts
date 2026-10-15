@@ -86,6 +86,10 @@ export interface BookingView {
   incidents: IncidentView[];
   ratings: RatingView[];
   cases: { caseId: string; type: string; status: string }[];
+  /** Admin spec 030: the assigned goalkeeper had no verification seal. */
+  unverifiedGoalkeeper?: true;
+  /** Admin spec 030: what was taken off the price for that goalkeeper. */
+  discount?: number;
 }
 
 export interface RequestDetail {

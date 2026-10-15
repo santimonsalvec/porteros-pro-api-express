@@ -28,6 +28,9 @@ export function requestToDocument(request: GoalkeeperRequest): Document {
     createdAt: request.createdAt,
     cancelAllEvaluatedAt: request.cancelAllEvaluatedAt,
     contactsRevealedAt: request.contactsRevealedAt,
+    // Admin spec 030: written only when they differ from the default, so other requests keep their shape.
+    ...(request.acceptsUnverified ? { acceptsUnverified: true } : {}),
+    ...(request.unverifiedDiscountBps > 0 ? { unverifiedDiscountBps: request.unverifiedDiscountBps } : {}),
   };
 }
 
@@ -48,6 +51,8 @@ export function requestFromDocument(doc: Document): GoalkeeperRequest {
     createdAt: doc.createdAt as Date,
     cancelAllEvaluatedAt: (doc.cancelAllEvaluatedAt as Date | null | undefined) ?? null,
     contactsRevealedAt: (doc.contactsRevealedAt as Date | null | undefined) ?? null,
+    acceptsUnverified: doc.acceptsUnverified === true,
+    unverifiedDiscountBps: (doc.unverifiedDiscountBps as number | undefined) ?? 0,
   });
 }
 

@@ -1,6 +1,7 @@
 import type { Booking } from '../../../../domain/bookings/booking.js';
 import { isEligible, type OfferSnapshot } from '../../../../domain/bookings/offerEligibility.js';
 import type { GoalkeeperProfile } from '../../../../domain/goalkeepers/goalkeeperProfile.js';
+import type { VettingTier } from '../../../../domain/goalkeepers/vetting.js';
 import { offersStatus } from '../../../../domain/operatingBalance/fundsPolicy.js';
 import { AVAILABLE_CANDIDATES_CAP } from '../../goalkeeperRequests/common/bookingLimits.js';
 import type { IBookingRepository } from '../../goalkeeperRequests/common/ports.js';
@@ -16,8 +17,11 @@ export interface OfferEligibilityDependencies {
   vatRates: IVatRateResolver;
 }
 
-/** Why a goalkeeper sees no matches at all, checked in this order (clarification 3 first). */
-export type UnavailableReason = 'not_available_for_offers' | 'suspended' | 'insufficient_funds';
+/**
+ * Why a goalkeeper sees no matches at all, checked in this order: pending validation (admin spec
+ * 030) first, then clarification 3's order.
+ */
+export type UnavailableReason = 'pending_validation' | 'not_available_for_offers' | 'suspended' | 'insufficient_funds';
 
 interface SnapshotWithFunds {
   snapshot: OfferSnapshot;
@@ -28,7 +32,7 @@ interface SnapshotWithFunds {
 export type AvailableBookingsResult =
   | { kind: 'not_a_goalkeeper' }
   | { kind: 'unavailable'; reason: UnavailableReason; missingAmount: number | null; suspendedUntil: Date | null }
-  | { kind: 'ok'; bookings: Booking[]; capReached: boolean; vatRateBps: number };
+  | { kind: 'ok'; bookings: Booking[]; capReached: boolean; vatRateBps: number; tier: VettingTier };
 
 /**
  * "Can this goalkeeper take this booking now", in both directions (research §1): per goalkeeper
@@ -41,6 +45,9 @@ export class OfferEligibilityService {
   async availableBookingsFor(goalkeeperId: string, now: Date): Promise<AvailableBookingsResult> {
     const profile = await this.deps.goalkeeperProfileRepository.getByUserId(goalkeeperId);
     if (!profile) return { kind: 'not_a_goalkeeper' };
+    if (profile.tier === 'unvalidated') {
+      return { kind: 'unavailable', reason: 'pending_validation', missingAmount: null, suspendedUntil: null };
+    }
     if (!profile.availableForOffers) {
       return { kind: 'unavailable', reason: 'not_available_for_offers', missingAmount: null, suspendedUntil: null };
     }
@@ -65,6 +72,7 @@ export class OfferEligibilityService {
       bookings: candidates.filter((booking) => isEligible(snapshot, booking, now)),
       capReached: candidates.length === AVAILABLE_CANDIDATES_CAP,
       vatRateBps: snapshot.vatRateBps,
+      tier: profile.tier,
     };
   }
 
@@ -109,6 +117,7 @@ export class OfferEligibilityService {
           canSeeOffers: funds.canSeeOffers,
           vatRateBps,
           held: held.filter((booking) => booking.goalkeeperId === profile.userId),
+          tier: profile.tier,
         },
         missingAmount: funds.missingAmount,
       };

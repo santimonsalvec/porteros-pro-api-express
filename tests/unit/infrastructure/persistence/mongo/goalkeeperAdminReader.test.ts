@@ -24,7 +24,7 @@ describe('GoalkeeperAdminReader (mocked driver, admin spec 005)', () => {
 
     expect(result).toEqual({
       totalItems: 7,
-      items: [{ userId: 'u1', cityId: 'med', zoneCount: 3, availableForOffers: true, suspendedUntil: NOW, balance: -4000, currency: 'COP', activatedAt: NOW }],
+      items: [{ userId: 'u1', cityId: 'med', zoneCount: 3, availableForOffers: true, suspendedUntil: NOW, balance: -4000, currency: 'COP', activatedAt: NOW, vetting: { tier: 'unvalidated', verificationMethod: null, backgroundCheckAlert: null } }],
     });
     expect(goalkeeperProfiles.aggregate.mock.calls[0]![0][0]).toEqual({ $match: { cityId: 'med' } });
   });

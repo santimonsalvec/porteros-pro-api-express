@@ -1,3 +1,4 @@
+import type { VettingTier } from '../../../../../src/domain/goalkeepers/vetting.js';
 import { describe, expect, it, vi } from 'vitest';
 import type { ClientSession, Collection, Db, Document } from 'mongodb';
 import { commissionChargeDraft } from '../../../../../src/application/features/operatingBalance/common/operatingBalanceLedger.js';
@@ -32,8 +33,9 @@ function harness() {
   outbox.insertMany.mockResolvedValue({});
   const draft = (booking: Booking) =>
     commissionChargeDraft({ goalkeeperId: 'gk-1', currency: 'COP', invoicing: COLOMBIA_INVOICING }, { bookingId: booking.id, requestId: booking.requestId, amount: booking.commission }, 'm-1', now);
-  const accept = () =>
-    store.accept({ bookingId: pending!.id, goalkeeperId: 'gk-1', now, chargeDrafts: (booking) => [draft(booking)], events: (booking) => [goalkeeperAssigned('ev-1', booking, now)] });
+  // Verified unless a test says otherwise: the claim of before admin spec 030, unchanged.
+  const accept = (tier: VettingTier = 'verified') =>
+    store.accept({ bookingId: pending!.id, goalkeeperId: 'gk-1', now, tier, chargeDrafts: (booking) => [draft(booking)], events: (booking) => [goalkeeperAssigned('ev-1', booking, now)] });
   return { bookings, operatingBalances, movements, outbox, session, accept };
 }
 
@@ -106,5 +108,27 @@ describe('MongoBookingAcceptanceStore (mocked driver)', () => {
 
     await expect(accept()).rejects.toThrow('connection reset');
     expect(session.endSession).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('MongoBookingAcceptanceStore — vetting tier (admin spec 030)', () => {
+  it('a validated goalkeeper claims only a booking opened to goalkeepers without the seal whose window ended', async () => {
+    const { bookings, accept } = harness();
+    bookings.findOneAndUpdate.mockResolvedValue(null);
+
+    expect(await accept('validated')).toEqual({ kind: 'not_claimed' });
+    expect(bookings.findOneAndUpdate.mock.calls[0]![0]).toMatchObject({
+      acceptsUnverified: true,
+      $or: [{ verifiedOnlyUntil: { $lte: now } }, { verifiedOnlyUntil: { $exists: false } }],
+    });
+  });
+
+  it('an unvalidated goalkeeper can never claim', async () => {
+    const { bookings, accept } = harness();
+    bookings.findOneAndUpdate.mockResolvedValue(null);
+
+    await accept('unvalidated');
+
+    expect(bookings.findOneAndUpdate.mock.calls[0]![0]).toMatchObject({ _id: { $exists: false } });
   });
 });

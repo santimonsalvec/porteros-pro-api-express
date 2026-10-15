@@ -56,6 +56,11 @@ export class FakeBookingLifecycleStore implements IBookingLifecycleStore {
     return [...this.ratingList];
   }
 
+  /** Ratings from earlier matches, as if already stored (admin spec 030's reputation tests). */
+  seedRating(rating: Rating): void {
+    this.ratingList.push(rating);
+  }
+
   /** The cases, with a way for the fake case repository to write a resolution back. */
   readonly cases = {
     all: (): SupportCase[] => [...this.caseList],

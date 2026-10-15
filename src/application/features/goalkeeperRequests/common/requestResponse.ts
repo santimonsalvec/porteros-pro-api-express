@@ -22,6 +22,10 @@ export interface BookingItemResponse {
   assignedAt: string | null;
   /** The goalkeeper's check-in (feature 020): when and the photo. Never the location. */
   checkIn: { at: string; photoUrl: string } | null;
+  /** Admin spec 030: taken off because the goalkeeper had no seal; absent when none. */
+  discount?: number;
+  /** Admin spec 030: present (true) when the assigned goalkeeper had no verification seal. */
+  unverifiedGoalkeeper?: true;
 }
 
 /** A request with its bookings: match and quoted price flattened, bookings nested. */
@@ -52,6 +56,8 @@ export interface RequestResponse {
   contactsVisibleFrom: string;
   createdAt: string;
   bookings: BookingItemResponse[];
+  /** Admin spec 030: present (true) when the client accepted goalkeepers without the seal. */
+  acceptsUnverified?: true;
 }
 
 /** A `GET /bookings` item: the request plus the current zone and city names (contracts/list-requests.md). */
@@ -120,6 +126,9 @@ export function toRequestResponse(
       goalkeeper: (visible && booking.status === 'assigned' && booking.goalkeeperId && contacts.get(booking.goalkeeperId)) || null,
       assignedAt: booking.assignedAt?.toISOString() ?? null,
       checkIn: booking.checkIn ? { at: booking.checkIn.at.toISOString(), photoUrl: booking.checkIn.photoUrl } : null,
+      ...(booking.price.discount > 0 ? { discount: booking.price.discount } : {}),
+      ...(booking.goalkeeperVerified === false ? { unverifiedGoalkeeper: true as const } : {}),
     })),
+    ...(request.acceptsUnverified ? { acceptsUnverified: true as const } : {}),
   };
 }

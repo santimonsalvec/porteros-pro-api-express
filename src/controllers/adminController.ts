@@ -7,6 +7,7 @@ import { registerPricingRoutes } from './admin/pricingRoutes.js';
 import { registerAccountClosureRoutes } from './admin/accountClosuresRoutes.js';
 import { registerUsersRoutes } from './admin/usersRoutes.js';
 import { registerGoalkeeperAdminRoutes } from './admin/goalkeepersRoutes.js';
+import { registerGoalkeeperVettingRoutes } from './admin/goalkeeperVettingRoutes.js';
 import { registerReadinessRoutes } from './admin/readinessRoutes.js';
 import { registerRequestsRoutes } from './admin/requestsRoutes.js';
 import { registerCasesRoutes } from './admin/casesRoutes.js';
@@ -60,6 +61,7 @@ export function createAdminController(deps: AdminControllerDependencies): Router
   registerUsersRoutes(route, deps.mediator);
   registerAccountClosureRoutes(route, deps.mediator);
   registerGoalkeeperAdminRoutes(route, deps.mediator);
+  registerGoalkeeperVettingRoutes(route, deps.mediator);
   registerRequestsRoutes(route, deps.mediator);
   registerCasesRoutes(route, deps.mediator);
   registerNotificationsRoutes(route, deps.mediator);

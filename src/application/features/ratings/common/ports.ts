@@ -4,4 +4,6 @@ import type { Rating, RatingSide } from '../../../../domain/ratings/rating.js';
 export interface IRatingRepository {
   findByBookingsAndSide(bookingIds: readonly string[], side: RatingSide): Promise<Rating[]>;
   getById(id: string): Promise<Rating | null>;
+  /** How many ratings clients gave the goalkeeper and their average stars (admin spec 030). */
+  summaryForGoalkeeper(goalkeeperId: string): Promise<{ count: number; average: number | null }>;
 }

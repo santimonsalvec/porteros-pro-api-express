@@ -1,4 +1,5 @@
 import { canAfford } from '../operatingBalance/fundsPolicy.js';
+import type { VettingTier } from '../goalkeepers/vetting.js';
 import type { Booking } from './booking.js';
 import { firstConflict, holdsSameRequest, type Commitment } from './schedulePolicy.js';
 
@@ -15,13 +16,27 @@ export interface OfferSnapshot {
   vatRateBps: number;
   /** The bookings the goalkeeper holds (assigned). */
   held: readonly Commitment[];
+  /** Validation and verification (admin spec 030). */
+  tier: VettingTier;
 }
 
 /**
  * Whether the goalkeeper can take the booking right now — the single rule behind "available
  * matches" (012), offers and reminders (015), so they can never disagree (FR-002).
  */
+/**
+ * Whether a goalkeeper of this tier can take the booking now (admin spec 030): nobody unvalidated;
+ * a validated goalkeeper without the seal only when the client accepted it and the verified-only
+ * window has ended (clarification 1); a verified goalkeeper always.
+ */
+export function isOpenToTier(booking: Pick<Booking, 'acceptsUnverified' | 'verifiedOnlyUntil'>, tier: VettingTier, now: Date): boolean {
+  if (tier === 'unvalidated') return false;
+  if (tier === 'validated') return booking.acceptsUnverified && now.getTime() >= booking.verifiedOnlyUntil.getTime();
+  return true;
+}
+
 export function isEligible(snapshot: OfferSnapshot, booking: Booking, now: Date): boolean {
+  if (!isOpenToTier(booking, snapshot.tier, now)) return false;
   if (!snapshot.availableForOffers) return false;
   if (snapshot.suspendedUntil && snapshot.suspendedUntil > now) return false;
   if (!snapshot.canSeeOffers || !canAfford(snapshot.balance, booking.commission, snapshot.vatRateBps)) return false;

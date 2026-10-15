@@ -1,5 +1,6 @@
 import type { IGoalkeeperProfileRepository } from '../../src/application/features/goalkeepers/common/ports.js';
 import { GoalkeeperProfile } from '../../src/domain/goalkeepers/goalkeeperProfile.js';
+import type { Vetting } from '../../src/domain/goalkeepers/vetting.js';
 
 export class FakeGoalkeeperProfileRepository implements IGoalkeeperProfileRepository {
   private readonly profiles = new Map<string, GoalkeeperProfile>();
@@ -57,6 +58,13 @@ export class FakeGoalkeeperProfileRepository implements IGoalkeeperProfileReposi
     if (!current) return null;
     await this.patch(userId, { availableForOffers: value });
     return { previous: current.availableForOffers };
+  }
+
+  async updateVetting(userId: string, expectedRevision: number, vetting: Vetting): Promise<'saved' | 'stale'> {
+    const current = [...this.profiles.values()].find((profile) => profile.userId === userId);
+    if (!current || current.vetting.revision !== expectedRevision) return 'stale';
+    this.profiles.set(current.id, new GoalkeeperProfile({ ...current, vetting }));
+    return 'saved';
   }
 
   /** The lifecycle store's `$set: { suspendedUntil }`, synchronous so the fake store stays atomic (018). */

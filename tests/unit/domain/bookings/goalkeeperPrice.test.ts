@@ -18,3 +18,23 @@ describe('GoalkeeperPrice', () => {
     expect(() => new GoalkeeperPrice({ ...valid, ...change })).toThrow(message);
   });
 });
+
+describe('GoalkeeperPrice with a discount (admin spec 030)', () => {
+  it('has no discount by default', () => {
+    expect(new GoalkeeperPrice({ unitRate: 55000, unitSurcharge: 5000, total: 60000, currency: 'COP' }).discount).toBe(0);
+  });
+
+  it('subtracts the discount from the total', () => {
+    const price = new GoalkeeperPrice({ unitRate: 55000, unitSurcharge: 5000, discount: 6000, total: 54000, currency: 'COP' });
+
+    expect(price).toMatchObject({ discount: 6000, total: 54000 });
+  });
+
+  it.each([
+    ['a total that does not add up', { discount: 6000, total: 60000 }],
+    ['a negative discount', { discount: -1, total: 60001 }],
+    ['a discount above the price', { discount: 60001, total: -1 }],
+  ])('refuses %s', (_label, amounts) => {
+    expect(() => new GoalkeeperPrice({ unitRate: 55000, unitSurcharge: 5000, currency: 'COP', ...amounts })).toThrow();
+  });
+});

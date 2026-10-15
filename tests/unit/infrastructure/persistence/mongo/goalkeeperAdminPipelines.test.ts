@@ -48,3 +48,21 @@ describe('ratingsPipeline', () => {
     ]);
   });
 });
+
+describe('goalkeepersListPipeline — validation and verification (admin spec 030, contracts C1)', () => {
+  it('filters by tier on the profile, a missing vetting being unvalidated', () => {
+    expect(matches(goalkeepersListPipeline({ ...BASE, vetting: 'unvalidated' }))[0]).toEqual({ 'vetting.validation': { $ne: 'validated' } });
+    expect(matches(goalkeepersListPipeline({ ...BASE, vetting: 'validated' }))[0]).toEqual({ 'vetting.validation': 'validated', 'vetting.verification': null });
+    expect(matches(goalkeepersListPipeline({ ...BASE, vetting: 'verified' }))[0]).toEqual({ 'vetting.validation': 'validated', 'vetting.verification': { $ne: null } });
+    expect(matches(goalkeepersListPipeline({ ...BASE, verificationMethod: 'referral' }))[0]).toEqual({ 'vetting.verification.method': 'referral' });
+  });
+
+  it('reads each row\'s background-check alert, and filters by it after the join', () => {
+    const pipeline = goalkeepersListPipeline({ ...BASE, backgroundCheck: 'expiring' });
+
+    expect(pipeline).toContainEqual(expect.objectContaining({ $lookup: expect.objectContaining({ from: 'goalkeeperBackgroundChecks', localField: 'userId', foreignField: 'goalkeeperId' }) }));
+    expect(matches(pipeline)).toContainEqual({ backgroundCheckAlert: 'expiring' });
+    const facet = pipeline.find((step) => '$facet' in step)!.$facet;
+    expect(facet.items.find((step: Document) => '$project' in step).$project).toMatchObject({ vettingValidation: '$vetting.validation', verificationMethod: '$vetting.verification.method', backgroundCheckAlert: 1 });
+  });
+});

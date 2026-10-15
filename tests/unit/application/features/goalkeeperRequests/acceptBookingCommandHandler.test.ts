@@ -10,6 +10,9 @@ import { FakeEventRelay } from '../../../../fakes/fakeEventRelay.js';
 import { GoalkeeperBookingHarness, inHours } from './goalkeeperBookingHarness.js';
 import { fixedVatRates } from '../../../../fakes/fakeVatRates.js';
 import { CHECK_IN_DEFAULTS } from '../../../../../src/domain/bookings/checkInWindow.js';
+import { PENDING_VETTING, type Vetting } from '../../../../../src/domain/goalkeepers/vetting.js';
+import { buildGoalkeeperProfile } from '../../../../fixtures/operatingBalanceFixtures.js';
+import { VALIDATED_VETTING } from '../../../../fixtures/vettingFixtures.js';
 
 let h: GoalkeeperBookingHarness;
 let store: FakeBookingAcceptanceStore;
@@ -337,5 +340,58 @@ describe('AcceptBookingCommandHandler — 023: VAT on top of the commission', ()
 
     expect(await accept(bookingId!, 'gk-3')).toMatchObject({ outcome: 'insufficient_funds', missingAmount: 830 });
     expect(h.operatingBalance.movements().filter((movement) => movement.operatingBalanceId === 'gk-3' && movement.type !== 'admin_adjustment')).toEqual([]);
+  });
+});
+
+describe('AcceptBookingCommandHandler — vetting tier (admin spec 030)', () => {
+  const asTier = (vetting: Vetting) => h.profiles.seed(buildGoalkeeperProfile('gk-1', { zoneIds: ['zone-cali-norte', 'zone-cali-sur'], vetting }));
+  const reseed = async (bookingId: string, changes: Partial<Booking>) => {
+    const current = (await h.bookings.findById(bookingId))!;
+    h.bookings.seed(Booking.rehydrate({ ...current, ...changes }));
+  };
+
+  it('refuses an unvalidated goalkeeper, charges nothing and audits once', async () => {
+    asTier(PENDING_VETTING);
+    const [bookingId] = match(1, 5);
+
+    expect(await accept(bookingId!)).toEqual({ outcome: 'not_validated' });
+    expect(store.calls).toBe(0);
+    expect(charges()).toHaveLength(0);
+    expect(audit.entries.map((entry) => entry.outcome)).toEqual(['not_validated']);
+  });
+
+  it('refuses a validated goalkeeper when the client did not accept goalkeepers without the seal', async () => {
+    asTier(VALIDATED_VETTING);
+    const [bookingId] = match(1, 5);
+
+    expect(await accept(bookingId!)).toEqual({ outcome: 'verified_only' });
+    expect(store.calls).toBe(0);
+  });
+
+  it('refuses a validated goalkeeper while the booking is still for verified goalkeepers only', async () => {
+    asTier(VALIDATED_VETTING);
+    const [bookingId] = match(1, 5);
+    await reseed(bookingId!, { acceptsUnverified: true, verifiedOnlyUntil: new Date(h.clock.now().getTime() + 60_000) });
+
+    expect(await accept(bookingId!)).toEqual({ outcome: 'verified_only' });
+  });
+
+  it('lets a validated goalkeeper take it once the window ended, passing the tier to the store', async () => {
+    asTier(VALIDATED_VETTING);
+    const [bookingId] = match(1, 5);
+    await reseed(bookingId!, { acceptsUnverified: true, verifiedOnlyUntil: h.clock.now() });
+
+    expect(await accept(bookingId!)).toMatchObject({ outcome: 'accepted' });
+    expect(store.lastTier).toBe('validated');
+  });
+
+  it('the store refuses when the booking stopped being open to unverified goalkeepers meanwhile', async () => {
+    asTier(VALIDATED_VETTING);
+    const [bookingId] = match(1, 5);
+    await reseed(bookingId!, { acceptsUnverified: true, verifiedOnlyUntil: h.clock.now() });
+    store.beforeNextClaim(() => reseed(bookingId!, { acceptsUnverified: false }));
+
+    expect(await accept(bookingId!)).toEqual({ outcome: 'verified_only' });
+    expect(charges()).toHaveLength(0);
   });
 });

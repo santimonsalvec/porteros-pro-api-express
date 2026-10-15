@@ -42,6 +42,9 @@ import { checkInRequestSchema } from './requests/checkIn/checkInRequest.js';
 import { CheckInToBookingCommand } from '../application/features/bookingLifecycle/commands/checkInToBooking/checkInToBookingCommand.js';
 import { assertNotClosing } from './accountClosing.js';
 import { sendWithdrawals } from './withdrawals/withdrawalsHttp.js';
+import { UploadBackgroundCheckCommand } from '../application/features/goalkeepers/commands/uploadBackgroundCheck/uploadBackgroundCheckCommand.js';
+import { DeleteBackgroundCheckCommand } from '../application/features/goalkeepers/commands/deleteBackgroundCheck/deleteBackgroundCheckCommand.js';
+import { ListMyBackgroundChecksQuery } from '../application/features/goalkeepers/queries/listMyBackgroundChecks/listMyBackgroundChecksQuery.js';
 import { WithdrawFromBookingCommand } from '../application/features/bookingLifecycle/commands/withdrawFromBooking/withdrawFromBookingCommand.js';
 
 /** Same accepted formats as `/images` (research.md §11) — no goalkeeper-specific override. */
@@ -313,6 +316,60 @@ export function createGoalkeeperController(deps: GoalkeeperControllerDependencie
     },
   );
 
+  // The goalkeeper's criminal background certificates, which the team reviews (admin spec 030).
+  const backgroundCheckUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: config.images.maxUploadSizeBytes } }).single('file');
+
+  router.get('/me/background-checks', async (req, res) => {
+    const result = await deps.mediator.send(new ListMyBackgroundChecksQuery(req.authClaims!.sub));
+    if (result.outcome === 'not_a_goalkeeper') throw goalkeeperNotFound();
+    res.status(200).json({ items: result.items });
+  });
+
+  router.post(
+    '/me/background-checks',
+    (req: Request, res: Response, next: NextFunction) => {
+      backgroundCheckUpload(req, res, (err: unknown) => {
+        if (err instanceof MulterError && err.code === 'LIMIT_FILE_SIZE') {
+          next(new ApiError(413, 'file_too_large', 'The uploaded file exceeds the maximum allowed size.'));
+          return;
+        }
+        next(err);
+      });
+    },
+    async (req, res) => {
+      const file = req.file;
+      const detected = file ? await fileTypeFromBuffer(file.buffer) : undefined;
+      if (!file || !detected || !ALLOWED_IMAGE_MIME_TYPES.has(detected.mime)) {
+        throw new ApiError(400, 'invalid_image', 'The uploaded file is not a supported image.');
+      }
+      const result = await deps.mediator.send(new UploadBackgroundCheckCommand(req.authClaims!.sub, file.buffer, detected.mime));
+      switch (result.outcome) {
+        case 'created':
+          res.status(201).json(result.check);
+          return;
+        case 'not_a_goalkeeper':
+          throw goalkeeperNotFound();
+        case 'limit_reached':
+          throw new ApiError(409, 'background_check_limit', 'You already have 5 documents waiting for review or valid.');
+        case 'storage_unavailable':
+          throw new ApiError(502, 'storage_unavailable', 'The image could not be stored. Please try again.');
+      }
+    },
+  );
+
+  router.delete('/me/background-checks/:checkId', async (req, res) => {
+    const result = await deps.mediator.send(new DeleteBackgroundCheckCommand(req.authClaims!.sub, String(req.params.checkId)));
+    switch (result.outcome) {
+      case 'deleted':
+        res.status(204).end();
+        return;
+      case 'reviewed':
+        throw new ApiError(409, 'background_check_reviewed', 'This document was already reviewed and cannot be deleted.');
+      case 'not_found':
+        throw new ApiError(404, 'background_check_not_found', 'This document does not exist.');
+    }
+  });
+
   // Matches the goalkeeper can take right now (feature 012).
   router.get('/me/available-bookings', async (req, res) => {
     await assertNotClosing(deps.mediator, req.authClaims!.sub);
@@ -419,6 +476,10 @@ export function createGoalkeeperController(deps: GoalkeeperControllerDependencie
         throw new ApiError(404, 'booking_not_available', 'This booking is not available.');
       case 'not_a_goalkeeper':
         throw goalkeeperNotFound();
+      case 'not_validated':
+        throw new ApiError(403, 'not_validated', 'You can take matches once the team validates you.');
+      case 'verified_only':
+        throw new ApiError(409, 'verified_only', 'This booking is still reserved for verified goalkeepers.');
     }
   });
 

@@ -186,3 +186,30 @@ describe('IssueServiceQuoteCommandHandler — Story 3: every quote is recorded',
     expect(result).toMatchObject({ outcome: 'success', freeCancellationDefaulted: true, cityId: 'city-cali' });
   });
 });
+
+describe('IssueServiceQuoteCommandHandler — goalkeepers without the seal (admin spec 030)', () => {
+  function harnessWith(terms: { discountBps: number; verifiedPriorityMinutes: number }) {
+    const h = new Harness();
+    const handler = new IssueServiceQuoteCommandHandler(h.sender, h.quotes, { newId: () => 'quote-x' }, h.clock, { forZone: async () => terms });
+    h.sender.respondWith(GetServiceQuoteQuery, success);
+    return { h, issue: () => handler.handle(new IssueServiceQuoteCommand('client-a', input)) };
+  }
+
+  it('shows the price with the zone\'s discount and keeps both terms in the quote', async () => {
+    const { h, issue } = harnessWith({ discountBps: 1000, verifiedPriorityMinutes: 20 });
+
+    const result = await issue();
+
+    expect(result.outcome === 'success' && result.quote.unverifiedDiscount).toEqual({ rateBps: 1000, unitDiscount: 6000, unitTotal: 54000 });
+    expect(h.quotes.all()[0]).toMatchObject({ unverifiedDiscountBps: 1000, verifiedPriorityMinutes: 20 });
+  });
+
+  it('says nothing about a discount where there is none', async () => {
+    const { h, issue } = harnessWith({ discountBps: 0, verifiedPriorityMinutes: 15 });
+
+    const result = await issue();
+
+    expect(result.outcome === 'success' && 'unverifiedDiscount' in result.quote).toBe(false);
+    expect(h.quotes.all()[0]).toMatchObject({ unverifiedDiscountBps: 0, verifiedPriorityMinutes: 15 });
+  });
+});

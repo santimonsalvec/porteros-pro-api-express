@@ -35,7 +35,10 @@ export class FakeGoalkeeperAdminReader implements IGoalkeeperAdminReader {
         balance: operatingBalances.get(profile.userId)?.balance ?? 0,
         currency: operatingBalances.get(profile.userId)?.currency ?? null,
         activatedAt: profile.activatedAt,
+        vetting: { tier: profile.tier, verificationMethod: profile.vetting.verification?.method ?? null, backgroundCheckAlert: null },
       }))
+      .filter((record) => filter.vetting === undefined || record.vetting?.tier === filter.vetting)
+      .filter((record) => filter.verificationMethod === undefined || record.vetting?.verificationMethod === filter.verificationMethod)
       .filter((record) => filter.balanceBelow === undefined || record.balance < filter.balanceBelow)
       .sort((a, b) => b.activatedAt.getTime() - a.activatedAt.getTime());
     const start = (filter.page - 1) * filter.pageSize;

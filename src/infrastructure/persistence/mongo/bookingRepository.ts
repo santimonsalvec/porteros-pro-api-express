@@ -29,12 +29,7 @@ export function bookingToDocument(booking: Booking): Document {
     startsAt: booking.startsAt,
     endsAt: booking.endsAt,
     status: booking.status,
-    price: {
-      unitRate: booking.price.unitRate,
-      unitSurcharge: booking.price.unitSurcharge,
-      total: booking.price.total,
-      currency: booking.price.currency,
-    },
+    price: priceToDocument(booking.price),
     commission: booking.commission,
     travelBufferMinutes: booking.travelBufferMinutes,
     searchEndsAt: booking.searchEndsAt,
@@ -57,6 +52,22 @@ export function bookingToDocument(booking: Booking): Document {
     noShowAt: booking.noShowAt,
     // Written only when an administrator cancelled it (admin 006): every other document keeps its shape.
     ...(booking.cancelledByStaffId !== null ? { cancelledByStaffId: booking.cancelledByStaffId } : {}),
+    // Admin spec 030: written only when they differ from the default (no, 0, `createdAt`).
+    ...(booking.acceptsUnverified ? { acceptsUnverified: true } : {}),
+    ...(booking.unverifiedDiscountBps > 0 ? { unverifiedDiscountBps: booking.unverifiedDiscountBps } : {}),
+    ...(booking.verifiedOnlyUntil.getTime() !== booking.createdAt.getTime() ? { verifiedOnlyUntil: booking.verifiedOnlyUntil } : {}),
+    ...(booking.goalkeeperVerified !== null ? { goalkeeperVerified: booking.goalkeeperVerified } : {}),
+  };
+}
+
+/** A booking's price as stored; the discount (admin spec 030) only when there is one. */
+export function priceToDocument(price: GoalkeeperPrice): Document {
+  return {
+    unitRate: price.unitRate,
+    unitSurcharge: price.unitSurcharge,
+    ...(price.discount > 0 ? { discount: price.discount } : {}),
+    total: price.total,
+    currency: price.currency,
   };
 }
 
@@ -73,6 +84,7 @@ export function bookingFromDocument(doc: Document): Booking {
     price: new GoalkeeperPrice({
       unitRate: price.unitRate as number,
       unitSurcharge: price.unitSurcharge as number,
+      discount: (price.discount as number | undefined) ?? 0,
       total: price.total as number,
       currency: price.currency as string,
     }),
@@ -97,6 +109,10 @@ export function bookingFromDocument(doc: Document): Booking {
     completedAt: (doc.completedAt as Date | null | undefined) ?? null,
     attendance: (doc.attendance as BookingAttendance | null | undefined) ?? null,
     noShowAt: (doc.noShowAt as Date | null | undefined) ?? null,
+    acceptsUnverified: doc.acceptsUnverified === true,
+    unverifiedDiscountBps: (doc.unverifiedDiscountBps as number | undefined) ?? 0,
+    verifiedOnlyUntil: (doc.verifiedOnlyUntil as Date | null | undefined) ?? null,
+    goalkeeperVerified: (doc.goalkeeperVerified as boolean | null | undefined) ?? null,
   });
 }
 

@@ -18,7 +18,11 @@ export type AcceptBookingResult =
   | { outcome: 'same_request' }
   /** Unknown or malformed id, or cancelled, expired or completed. */
   | { outcome: 'not_available' }
-  | { outcome: 'not_a_goalkeeper' };
+  | { outcome: 'not_a_goalkeeper' }
+  /** The team has not validated the goalkeeper yet (admin spec 030). */
+  | { outcome: 'not_validated' }
+  /** Not open to goalkeepers without the seal: the client did not accept them, or the window is still on. */
+  | { outcome: 'verified_only' };
 
 /** The goalkeeper takes a booking: assigned and charged in one step (FR-004). Idempotent per booking. */
 export class AcceptBookingCommand extends ICommand<AcceptBookingResult> {

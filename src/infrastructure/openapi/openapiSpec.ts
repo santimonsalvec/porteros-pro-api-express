@@ -243,9 +243,9 @@ export const openapiSpec = {
           unavailableReason: {
             type: 'string',
             nullable: true,
-            enum: ['not_available_for_offers', 'insufficient_funds', 'suspended', null],
+            enum: ['pending_validation', 'not_available_for_offers', 'insufficient_funds', 'suspended', null],
             description:
-              'Why the list is empty whatever the matches, checked in this order: not_available_for_offers (the goalkeeper turned offers off), suspended, insufficient_funds. null when the goalkeeper can see offers',
+              'Why the list is empty whatever the matches, checked in this order: pending_validation (the team has not validated the goalkeeper yet, admin spec 030), not_available_for_offers (the goalkeeper turned offers off), suspended, insufficient_funds. null when the goalkeeper can see offers',
           },
           missingAmount: { type: 'integer', nullable: true, description: 'With insufficient_funds' },
           suspendedUntil: { type: 'string', format: 'date-time', nullable: true, description: 'With suspended' },
@@ -645,6 +645,12 @@ export const openapiSpec = {
             format: 'date-time',
             description: 'UTC: start − free-cancellation period, when a "cancel all" request is evaluated',
           },
+          unverifiedDiscount: {
+            type: 'object',
+            description:
+              'Admin spec 030: per goalkeeper, what the client pays if a goalkeeper without the verification seal takes the match. Absent when the zone has no discount',
+            properties: { rateBps: { type: 'integer', example: 1000 }, unitDiscount: { type: 'integer', example: 6000 }, unitTotal: { type: 'integer', example: 54000 } },
+          },
         },
         required: [
           'unitRate',
@@ -674,6 +680,12 @@ export const openapiSpec = {
             default: 'keep_confirmed',
             description: 'What to do if only some of the goalkeepers are confirmed. Ignored when the request already exists (a replay).',
           },
+          acceptUnverified: {
+            type: 'boolean',
+            default: false,
+            description:
+              'Admin spec 030: accept a goalkeeper without the verification seal if no verified one takes the match within the priority window; that goalkeeper is paid the discounted price',
+          },
         },
         required: ['quoteId'],
       },
@@ -688,7 +700,9 @@ export const openapiSpec = {
           },
           unitRate: { type: 'integer', example: 55000 },
           unitSurcharge: { type: 'integer', example: 5000 },
-          total: { type: 'integer', example: 60000, description: 'unitRate + unitSurcharge' },
+          total: { type: 'integer', example: 60000, description: 'unitRate + unitSurcharge − discount' },
+          discount: { type: 'integer', description: 'Admin spec 030: taken off because the goalkeeper had no verification seal; absent when none' },
+          unverifiedGoalkeeper: { type: 'boolean', enum: [true], description: 'Admin spec 030: present when the assigned goalkeeper had no verification seal' },
           currency: { type: 'string', example: 'COP' },
           createdAt: { type: 'string', format: 'date-time' },
           goalkeeper: {
@@ -1686,11 +1700,11 @@ export const openapiSpec = {
           '201': { description: 'Accepted now; the commission was charged', content: { 'application/json': { schema: { $ref: '#/components/schemas/AgendaItem' } } } },
           '200': { description: 'Already assigned to this goalkeeper; nothing charged again', content: { 'application/json': { schema: { $ref: '#/components/schemas/AgendaItem' } } } },
           '401': { description: 'Not signed in' },
-          '403': { description: 'goalkeeper_suspended (suspendedUntil)', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '403': { description: 'goalkeeper_suspended (suspendedUntil), or not_validated (the team has not validated the goalkeeper yet, admin spec 030)', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
           '404': { description: 'booking_not_available (unknown or malformed id, cancelled, expired or completed), or goalkeeper_not_found', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
           '409': {
             description:
-              'booking_already_taken, search_ended (now \u2265 start \u2212 travel margin), zone_not_enabled, insufficient_funds (missingAmount), schedule_conflict (conflictingBookingId), own_request, same_request, or goalkeeper_not_available (offers switched off; nothing charged)',
+              'booking_already_taken, search_ended (now \u2265 start \u2212 travel margin), zone_not_enabled, insufficient_funds (missingAmount), schedule_conflict (conflictingBookingId), own_request, same_request, or goalkeeper_not_available (offers switched off; nothing charged), or verified_only (still reserved for verified goalkeepers, or the client did not accept goalkeepers without the seal; admin spec 030)',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
           },
         },
@@ -2588,7 +2602,7 @@ export const openapiSpec = {
         tags: ['Admin'],
         security: [{ adminBearerAuth: [] }],
         description: 'Needs goalkeepers.read (porteros-pro-admin spec 005).',
-        parameters: [...PAGING, { name: 'q', in: 'query', schema: { type: 'string' } }, { name: 'cityId', in: 'query', schema: { type: 'string' } }, { name: 'zoneId', in: 'query', schema: { type: 'string' } }, { name: 'suspended', in: 'query', schema: { type: 'string' } }, { name: 'availableForOffers', in: 'query', schema: { type: 'string' } }, { name: 'balanceBelow', in: 'query', schema: { type: 'string' } }],
+        parameters: [{ name: 'vetting', in: 'query', schema: { type: 'string', enum: ['unvalidated', 'validated', 'verified'] } }, { name: 'verificationMethod', in: 'query', schema: { type: 'string', enum: ['referral', 'other_platform', 'practice', 'reputation'] } }, { name: 'backgroundCheck', in: 'query', schema: { type: 'string', enum: ['pending', 'expiring', 'expired'] } }, ...PAGING, { name: 'q', in: 'query', schema: { type: 'string' } }, { name: 'cityId', in: 'query', schema: { type: 'string' } }, { name: 'zoneId', in: 'query', schema: { type: 'string' } }, { name: 'suspended', in: 'query', schema: { type: 'string' } }, { name: 'availableForOffers', in: 'query', schema: { type: 'string' } }, { name: 'balanceBelow', in: 'query', schema: { type: 'string' } }],
         responses: { '200': { description: 'A page of goalkeepers' }, '400': { description: 'validation_failed or search_too_broad' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
       },
     },
@@ -2619,6 +2633,151 @@ export const openapiSpec = {
         parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }],
         requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['version', 'documentType', 'documentNumber'], properties: { version: { type: 'string' }, documentType: { type: 'string' }, documentNumber: { type: 'string' } } } } } },
         responses: { '200': { description: 'The detail with idNumberChanged and changedFields, without the number' }, '400': { description: 'validation_failed' }, '404': { description: 'goalkeeper_not_found' }, '409': { description: 'stale_revision, invalid_document_type or document_already_registered' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/goalkeepers/{userId}/vetting': {
+      get: {
+        summary: "A goalkeeper's validation and verification: identity photos, background checks, reputation and history",
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs goalkeepers.read (admin spec 030, contracts C2). A sensitive read, audited without the data.',
+        parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'revision, tier, verification, identification, backgroundChecks, reputation, canApproveValidation and history' }, '404': { description: 'goalkeeper_not_found' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/goalkeepers/{userId}/background-checks/{checkId}/review': {
+      post: {
+        summary: 'Approve (with an expiry, one year by default) or reject (with a reason) a background check',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs goalkeepers.validate (admin spec 030, contracts C3).',
+        parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }, { name: 'checkId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['revision', 'decision'], properties: { revision: { type: 'integer' }, decision: { type: 'string', enum: ['approve', 'reject'] }, reason: { type: 'string', description: '3–300 characters; required to reject' }, expiresAt: { type: 'string', format: 'date' } } } } } },
+        responses: { '200': { description: 'id, status, expiresAt, rejectionReason and revision' }, '400': { description: 'validation_failed' }, '404': { description: 'goalkeeper_not_found or background_check_not_found' }, '409': { description: 'stale_revision or background_check_reviewed' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/goalkeepers/{userId}/validation': {
+      post: {
+        summary: 'Validate the goalkeeper, or reject the validation with a reason; the goalkeeper is told',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs goalkeepers.validate (admin spec 030, contracts C4).',
+        parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['revision', 'decision'], properties: { revision: { type: 'integer' }, decision: { type: 'string', enum: ['approve', 'reject'] }, reason: { type: 'string' }, verification: { type: 'object', description: 'Validate and verify in one step (FR-011): the fields of /verification without revision; also needs goalkeepers.verify' } } } } } },
+        responses: { '200': { description: 'revision and tier' }, '400': { description: 'validation_failed' }, '404': { description: 'goalkeeper_not_found' }, '409': { description: 'validation_not_ready (missing), already_validated or stale_revision' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/goalkeepers/{userId}/verification': {
+      post: {
+        summary: 'Give a validated goalkeeper the verification seal: by referral, another platform or a practice',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs goalkeepers.verify (admin spec 030, contracts C6). A failed practice is only recorded (verified: false).',
+        parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['revision', 'method'],
+                properties: {
+                  revision: { type: 'integer' },
+                  method: { type: 'string', enum: ['referral', 'other_platform', 'practice'] },
+                  referrerId: { type: 'string' },
+                  platformName: { type: 'string', description: '2–80 characters' },
+                  evidenceImageIds: { type: 'array', items: { type: 'string' }, maxItems: 5 },
+                  evaluatedOn: { type: 'string', format: 'date' },
+                  result: { type: 'string', enum: ['passed', 'failed'] },
+                  notes: { type: 'string', nullable: true },
+                },
+              },
+            },
+          },
+        },
+        responses: { '200': { description: 'verified, revision and tier' }, '400': { description: 'validation_failed' }, '404': { description: 'goalkeeper_not_found' }, '409': { description: 'not_validated, already_verified, invalid_referrer, invalid_evidence or stale_revision' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/goalkeepers/{userId}/verification-evidence': {
+      post: {
+        summary: 'Upload an image proving the goalkeeper works on another platform',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs goalkeepers.verify (admin spec 030, contracts C8). multipart/form-data with `file`.',
+        parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '201': { description: 'imageId and url' }, '400': { description: 'invalid_image' }, '404': { description: 'goalkeeper_not_found' }, '413': { description: 'file_too_large' }, '502': { description: 'storage_unavailable' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/goalkeepers/{userId}/referrer-options': {
+      get: {
+        summary: 'Validated or verified goalkeepers, not blocked, who can refer this one',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs goalkeepers.verify (admin spec 030, contracts C9). At most 20; `q` needs 2 characters.',
+        parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }, { name: 'q', in: 'query', schema: { type: 'string' } }],
+        responses: { '200': { description: 'items: userId, name, city' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/unverified-discounts': {
+      get: {
+        summary: "A country's terms for goalkeepers without the seal at every level: the discount and the verified-only window, with what each inherits",
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs pricing.read (admin spec 030, contracts D1).',
+        parameters: [{ name: 'countryId', in: 'query', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'maxBps, maxPriorityMinutes, country, cities and zones with setting and effective terms' }, '404': { description: 'country_not_found' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+      post: {
+        summary: 'Set the discount and/or the verified-only window of a level that had none',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs pricing.unverified_discount.manage (admin spec 030, contracts D2). discountBps 0–3000, verifiedPriorityMinutes 0–1440; at least one.',
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['scope', 'refId'], properties: { scope: { type: 'string', enum: ['country', 'city', 'zone'] }, refId: { type: 'string' }, discountBps: { type: 'integer', nullable: true }, verifiedPriorityMinutes: { type: 'integer', nullable: true } } } } } },
+        responses: { '201': { description: 'id' }, '400': { description: 'validation_failed' }, '404': { description: 'zone_not_found, city_not_found or country_not_found' }, '409': { description: 'discount_already_exists or city_not_anchor' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/unverified-discounts/{discountId}': {
+      patch: {
+        summary: "Change a level's discount and verified-only window (null = inherit)",
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs pricing.unverified_discount.manage (admin spec 030, contracts D3).',
+        parameters: [{ name: 'discountId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['revision'], properties: { revision: { type: 'integer' }, discountBps: { type: 'integer', nullable: true }, verifiedPriorityMinutes: { type: 'integer', nullable: true } } } } } },
+        responses: { '200': { description: 'The saved values and the new revision' }, '400': { description: 'validation_failed' }, '404': { description: 'discount_not_found' }, '409': { description: 'stale_revision' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/unverified-discounts/{discountId}/delete': {
+      post: {
+        summary: 'Remove a level: it inherits from the level above again',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs pricing.unverified_discount.manage (admin spec 030, contracts D4).',
+        parameters: [{ name: 'discountId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['revision'], properties: { revision: { type: 'integer' } } } } } },
+        responses: { '204': { description: 'Deleted' }, '404': { description: 'discount_not_found' }, '409': { description: 'stale_revision' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/goalkeepers/{userId}/validation/revoke': {
+      post: {
+        summary: 'Revoke the validation: back to unvalidated, without the seal; matches already taken stay',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs goalkeepers.validate (admin spec 030, contracts C5). Reputation can no longer verify on its own.',
+        parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['revision', 'reason'], properties: { revision: { type: 'integer' }, reason: { type: 'string', description: '3–300 characters' } } } } } },
+        responses: { '200': { description: 'revision and tier' }, '400': { description: 'validation_failed' }, '404': { description: 'goalkeeper_not_found' }, '409': { description: 'not_validated or stale_revision' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+      },
+    },
+    '/admin/goalkeepers/{userId}/verification/revoke': {
+      post: {
+        summary: 'Revoke the verification seal: back to validated',
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        description: 'Needs goalkeepers.verify (admin spec 030, contracts C7). Reputation can no longer give the seal again on its own.',
+        parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['revision', 'reason'], properties: { revision: { type: 'integer' }, reason: { type: 'string', description: '3–300 characters' } } } } } },
+        responses: { '200': { description: 'revision and tier' }, '400': { description: 'validation_failed' }, '404': { description: 'goalkeeper_not_found' }, '409': { description: 'not_verified or stale_revision' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
       },
     },
     '/admin/goalkeeper-registrations': {
@@ -3412,7 +3571,7 @@ export const openapiSpec = {
         security: [{ adminBearerAuth: [] }],
         responses: {
           '200': {
-            description: 'Current registration state (not_started/in_progress/active)',
+            description: 'Current registration state (not_started/in_progress/active). Once active it carries `vetting` (admin spec 030, contracts A1): tier, the last rejection while unvalidated, the background-check counts and the unverified discount range; never who decided nor the verification method',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/GoalkeeperRegistrationResponse' } } },
           },
           '401': { description: 'Not signed in' },
@@ -3529,6 +3688,32 @@ export const openapiSpec = {
             content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
           },
         },
+      },
+    },
+    '/goalkeepers/me/background-checks': {
+      get: {
+        summary: "The goalkeeper's criminal background checks, newest first",
+        tags: ['Goalkeepers'],
+        security: [{ bearerAuth: [] }],
+        description: 'Admin spec 030, contracts A2. Never who reviewed them.',
+        responses: { '200': { description: 'items: id, url, uploadedAt, status, rejectionReason, expiresAt, expired' }, '404': { description: 'goalkeeper_not_found' }, '401': { description: 'Not signed in' } },
+      },
+      post: {
+        summary: 'Upload a criminal background check (an image) for the team to review',
+        tags: ['Goalkeepers'],
+        security: [{ bearerAuth: [] }],
+        description: 'Admin spec 030, contracts A3. multipart/form-data with `file` (JPEG, PNG, WebP, HEIC). At most 5 pending or valid.',
+        responses: { '201': { description: 'The check, pending' }, '400': { description: 'invalid_image' }, '404': { description: 'goalkeeper_not_found' }, '409': { description: 'background_check_limit' }, '413': { description: 'file_too_large' }, '502': { description: 'storage_unavailable' }, '401': { description: 'Not signed in' } },
+      },
+    },
+    '/goalkeepers/me/background-checks/{checkId}': {
+      delete: {
+        summary: 'Delete a background check the team has not reviewed yet',
+        tags: ['Goalkeepers'],
+        security: [{ bearerAuth: [] }],
+        description: 'Admin spec 030, contracts A4.',
+        parameters: [{ name: 'checkId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '204': { description: 'Deleted' }, '404': { description: 'background_check_not_found' }, '409': { description: 'background_check_reviewed' }, '401': { description: 'Not signed in' } },
       },
     },
     '/goalkeepers/me/document-photo': {

@@ -9,6 +9,13 @@ export class FakeRatingRepository implements IRatingRepository {
     return this.ratings().filter((rating) => bookingIds.includes(rating.bookingId) && rating.side === side);
   }
 
+  async summaryForGoalkeeper(goalkeeperId: string): Promise<{ count: number; average: number | null }> {
+    const stars = this.ratings()
+      .filter((rating) => rating.subjectId === goalkeeperId && rating.side === 'client')
+      .map((rating) => rating.stars);
+    return { count: stars.length, average: stars.length > 0 ? stars.reduce((sum, value) => sum + value, 0) / stars.length : null };
+  }
+
   async getById(id: string): Promise<Rating | null> {
     return this.ratings().find((rating) => rating.id === id) ?? null;
   }

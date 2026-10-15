@@ -7,6 +7,8 @@ import { GetServiceQuoteQuery } from '../../queries/getServiceQuote/getServiceQu
 import { MatchDetails } from '../../../../../domain/bookings/matchDetails.js';
 import { PricingSnapshot } from '../../../../../domain/bookings/pricingSnapshot.js';
 import { Quote } from '../../../../../domain/bookings/quote.js';
+import { discountFor } from '../../../../../domain/pricing/unverifiedDiscount.js';
+import type { UnverifiedTerms } from '../../../pricing/common/unverifiedDiscountResolver.js';
 import {
   IssueServiceQuoteCommand,
   type IssueServiceQuoteResult,
@@ -27,6 +29,8 @@ export class IssueServiceQuoteCommandHandler implements ICommandHandler<
     private readonly quoteRepository: IQuoteRepository,
     private readonly idGenerator: IIdGenerator,
     private readonly clock: IClock,
+    /** Admin spec 030: the zone's discount and verified-only window; none without it. */
+    private readonly unverified?: { forZone(zoneId: string): Promise<UnverifiedTerms> },
   ) {}
 
   async handle(command: IssueServiceQuoteCommand): Promise<IssueServiceQuoteResult> {
@@ -47,6 +51,7 @@ export class IssueServiceQuoteCommandHandler implements ICommandHandler<
       durationMinutes: command.input.durationMinutes,
       format: area.format,
     });
+    const terms = this.unverified ? await this.unverified.forZone(area.zoneId) : { discountBps: 0, verifiedPriorityMinutes: 0 };
     const pricing = new PricingSnapshot(
       {
         unitRate: priced.unitRate,
@@ -68,8 +73,13 @@ export class IssueServiceQuoteCommandHandler implements ICommandHandler<
       area.freeCancellationMinutes ?? FREE_CANCELLATION_MINUTES_DEFAULT,
       area.commission,
       area.travelBufferMinutes ?? TRAVEL_BUFFER_MINUTES_DEFAULT,
+      terms,
     );
     await this.quoteRepository.add(quote);
+    // The price per goalkeeper if one without the seal takes it (FR-017): only when there is a discount.
+    const unitFull = priced.unitRate + priced.unitSurcharge;
+    const unitDiscount = discountFor(unitFull, terms.discountBps, area.commission);
+    const unverifiedDiscount = terms.discountBps > 0 ? { rateBps: terms.discountBps, unitDiscount, unitTotal: unitFull - unitDiscount } : null;
 
     return {
       outcome: 'success',
@@ -79,6 +89,7 @@ export class IssueServiceQuoteCommandHandler implements ICommandHandler<
         expiresAt: quote.expiresAt.toISOString(),
         cancelAllAvailable: quote.isCancelAllAvailableAt(issuedAt),
         cancelAllUntil: quote.cancelAllUntil().toISOString(),
+        ...(unverifiedDiscount ? { unverifiedDiscount } : {}),
       },
       freeCancellationDefaulted: area.freeCancellationMinutes === null,
       travelBufferDefaulted: area.travelBufferMinutes === null,

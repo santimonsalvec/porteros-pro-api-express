@@ -61,9 +61,9 @@ export class ConfirmBookingCommandHandler implements ICommandHandler<
 
     // (2) The atomic claim: delete the quote and insert the request with its bookings, all or nothing.
     const claim = await this.store.claimAndCreateRequest(quoteId, clientId, now, (quote) => {
-      const request = GoalkeeperRequest.fromQuote(this.idGenerator.newId(), quote, command.partialFulfillment, now);
+      const request = GoalkeeperRequest.fromQuote(this.idGenerator.newId(), quote, command.partialFulfillment, now, command.acceptUnverified);
       const bookings = Array.from({ length: request.goalkeeperCount }, () =>
-        Booking.forRequest(this.idGenerator.newId(), request, now),
+        Booking.forRequest(this.idGenerator.newId(), request, now, quote.verifiedPriorityMinutes),
       );
       const events = bookings.map((booking) => bookingCreated(this.idGenerator.newId(), booking, request, now));
       return { request, bookings, events };

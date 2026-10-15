@@ -85,6 +85,9 @@ export class GetRequestAdminQueryHandler implements IQueryHandler<GetRequestAdmi
       searchEndsAt: booking.searchEndsAt.toISOString(),
       goalkeeper: booking.goalkeeperId ? people(booking.goalkeeperId) : null,
       assignedAt: iso(booking.assignedAt),
+      // Admin spec 030: a goalkeeper without the seal, and what was taken off; absent otherwise.
+      ...(booking.goalkeeperVerified === false ? { unverifiedGoalkeeper: true as const } : {}),
+      ...(booking.price.discount > 0 ? { discount: booking.price.discount } : {}),
       checkIn: booking.checkIn
         ? {
             at: booking.checkIn.at.toISOString(),
