@@ -43,6 +43,7 @@ export class GetGoalkeeperAdminQueryHandler implements IQueryHandler<GetGoalkeep
         documentType: { code: profile.documentType, name: documentType?.name ?? profile.documentType },
         version: documentVersion(profile),
         rating: ratings.get(userId) ?? null,
+        vetting: { tier: profile.tier, verificationMethod: profile.vetting.verification?.method ?? null },
         stats: {
           month:
             month.outcome === 'success'

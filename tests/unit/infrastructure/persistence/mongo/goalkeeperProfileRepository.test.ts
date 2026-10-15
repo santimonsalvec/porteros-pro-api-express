@@ -3,6 +3,8 @@ import type { Collection, Db, Document } from 'mongodb';
 import { GoalkeeperProfileRepository } from '../../../../../src/infrastructure/persistence/mongo/goalkeeperProfileRepository.js';
 import { GoalkeeperProfile } from '../../../../../src/domain/goalkeepers/goalkeeperProfile.js';
 import { createFakeCollection } from '../../../../fakes/fakeMongoCollection.js';
+import { PENDING_VETTING } from '../../../../../src/domain/goalkeepers/vetting.js';
+import { VERIFIED_VETTING } from '../../../../fixtures/vettingFixtures.js';
 
 function repositoryWith(collection: ReturnType<typeof createFakeCollection>) {
   const db = { collection: () => collection as unknown as Collection<Document> } as unknown as Db;
@@ -184,5 +186,59 @@ describe('GoalkeeperProfileRepository (mocked driver)', () => {
 
     collection.findOne.mockResolvedValue({ ...stored, suspendedUntil: undefined });
     expect((await repositoryWith(collection).getById('profile-1'))?.suspendedUntil).toBeNull();
+  });
+
+  describe('vetting (admin spec 030)', () => {
+    it('creates the index the admin list filters by state with', async () => {
+      const collection = createFakeCollection();
+      collection.createIndex.mockResolvedValue('ok');
+
+      await repositoryWith(collection).ensureIndexes();
+
+      expect(collection.createIndex).toHaveBeenCalledWith(
+        { 'vetting.validation': 1, activatedAt: -1, _id: -1 },
+        { name: 'vetting_validation_activatedAt' },
+      );
+    });
+
+    it('reads a profile stored before 030 (no vetting) as pending', async () => {
+      const collection = createFakeCollection();
+      collection.findOne.mockResolvedValue({ _id: 'profile-1', ...baseParams, id: undefined });
+
+      const found = await repositoryWith(collection).getByUserId('user-1');
+
+      expect(found?.vetting).toEqual(PENDING_VETTING);
+      expect(found?.tier).toBe('unvalidated');
+    });
+
+    it('round-trips a full vetting, dates and verification details included', async () => {
+      const collection = createFakeCollection();
+      collection.insertOne.mockResolvedValue({ acknowledged: true, insertedId: 'profile-1' });
+      await repositoryWith(collection).add(new GoalkeeperProfile({ ...baseParams, vetting: VERIFIED_VETTING }));
+      const stored = collection.insertOne.mock.calls[0]![0] as Record<string, unknown>;
+
+      // What the driver gives back: dates may come as ISO strings in serialized fixtures.
+      collection.findOne.mockResolvedValue(JSON.parse(JSON.stringify(stored)));
+      const found = await repositoryWith(collection).getByUserId('user-1');
+
+      expect(found?.vetting).toEqual(VERIFIED_VETTING);
+      expect(found?.tier).toBe('verified');
+    });
+
+    it('writes the vetting only at the expected revision (a seeded profile without one counts 0)', async () => {
+      const collection = createFakeCollection();
+      collection.updateOne.mockResolvedValue({ matchedCount: 1 });
+      const repository = repositoryWith(collection);
+
+      expect(await repository.updateVetting('user-1', 0, VERIFIED_VETTING)).toBe('saved');
+      expect(collection.updateOne).toHaveBeenCalledWith(
+        { userId: 'user-1', $or: [{ 'vetting.revision': 0 }, { vetting: { $exists: false } }] },
+        { $set: { vetting: expect.objectContaining({ validation: 'validated', revision: VERIFIED_VETTING.revision }) } },
+      );
+
+      collection.updateOne.mockResolvedValue({ matchedCount: 0 });
+      expect(await repository.updateVetting('user-1', 3, VERIFIED_VETTING)).toBe('stale');
+      expect(collection.updateOne.mock.calls[1]![0]).toEqual({ userId: 'user-1', 'vetting.revision': 3 });
+    });
   });
 });

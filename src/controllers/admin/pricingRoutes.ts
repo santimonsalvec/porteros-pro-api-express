@@ -32,6 +32,16 @@ import {
   updatePriceRequestSchema,
 } from '../requests/pricing/pricingRequests.js';
 import { conflict, invalidFields, notFound, parse, sendDeleted, stale, warningsUnacknowledged, type Route } from './geographyRoutes.js';
+import {
+  createUnverifiedDiscountRequestSchema,
+  deleteUnverifiedDiscountRequestSchema,
+  listUnverifiedDiscountsQuerySchema,
+  updateUnverifiedDiscountRequestSchema,
+} from '../requests/pricing/unverifiedDiscountRequests.js';
+import { ListUnverifiedDiscountsQuery } from '../../application/features/pricing/queries/listUnverifiedDiscounts/listUnverifiedDiscountsQuery.js';
+import { CreateUnverifiedDiscountCommand } from '../../application/features/pricing/commands/createUnverifiedDiscount/createUnverifiedDiscountCommand.js';
+import { UpdateUnverifiedDiscountCommand } from '../../application/features/pricing/commands/updateUnverifiedDiscount/updateUnverifiedDiscountCommand.js';
+import { DeleteUnverifiedDiscountCommand } from '../../application/features/pricing/commands/deleteUnverifiedDiscount/deleteUnverifiedDiscountCommand.js';
 
 /**
  * Prices and booking rules in the admin web (spec 004 of the admin, contracts/pricing-api.md):
@@ -41,6 +51,7 @@ import { conflict, invalidFields, notFound, parse, sendDeleted, stale, warningsU
 export function registerPricingRoutes(route: Route, mediator: ISender): void {
   registerRentalRateRoutes(route, mediator);
   registerCommissionRoutes(route, mediator);
+  registerUnverifiedDiscountRoutes(route, mediator);
   registerBookingSettingsRoutes(route, mediator);
   registerPreviewRoute(route, mediator);
 }
@@ -336,6 +347,73 @@ function registerPreviewRoute(route: Route, mediator: ISender): void {
         throw invalidFields(result.fieldErrors);
       case 'time_zone_not_configured':
         throw conflict('time_zone_not_configured', "The zone's city has no valid time zone.");
+    }
+  });
+}
+
+/** The discount and verified-only window for goalkeepers without the seal, per country, anchor city or zone (admin spec 030, contracts D1–D4). */
+function registerUnverifiedDiscountRoutes(route: Route, mediator: ISender): void {
+  const audit = (action: string) => ({
+    permission: 'pricing.unverified_discount.manage' as const,
+    audit: { action, resourceType: 'unverifiedDiscount', resourceId: (req: Request) => param(req, 'discountId') },
+  });
+
+  route('get', '/unverified-discounts', 'pricing.read', async (req, res) => {
+    const { countryId } = parse(listUnverifiedDiscountsQuerySchema, req.query);
+    const result = await mediator.send(new ListUnverifiedDiscountsQuery(countryId));
+    if (result.outcome === 'not_found') throw notFound('country_not_found');
+    res.status(200).json(result.view);
+  });
+
+  route(
+    'post',
+    '/unverified-discounts',
+    { permission: 'pricing.unverified_discount.manage', audit: { action: 'unverifiedDiscount.create', resourceType: 'unverifiedDiscount', resourceId: () => 'new' } },
+    async (req, res) => {
+      const result = await mediator.send(new CreateUnverifiedDiscountCommand(parse(createUnverifiedDiscountRequestSchema, req.body)));
+      switch (result.outcome) {
+        case 'saved':
+          res.locals.auditResourceId = result.id;
+          res.status(201).json({ id: result.id });
+          return;
+        case 'invalid':
+          throw invalidFields(result.fieldErrors);
+        case 'duplicate':
+          throw new ApiError(409, 'discount_already_exists', 'This level already has a discount.', undefined, { existingId: result.existingId });
+        default:
+          throw targetError(result);
+      }
+    },
+  );
+
+  route('patch', '/unverified-discounts/:discountId', audit('unverifiedDiscount.update'), async (req, res) => {
+    const { revision, ...fields } = parse(updateUnverifiedDiscountRequestSchema, req.body);
+    const result = await mediator.send(new UpdateUnverifiedDiscountCommand(req.params.discountId, revision, fields));
+    switch (result.outcome) {
+      case 'saved':
+        res.status(200).json({ id: result.id, ...fields, revision: revision + 1 });
+        return;
+      case 'invalid':
+        throw invalidFields(result.fieldErrors);
+      case 'not_found':
+        throw notFound('discount_not_found');
+      case 'stale':
+        throw stale();
+    }
+  });
+
+  route('post', '/unverified-discounts/:discountId/delete', audit('unverifiedDiscount.delete'), async (req, res) => {
+    const { revision } = parse(deleteUnverifiedDiscountRequestSchema, req.body);
+    const result = await mediator.send(new DeleteUnverifiedDiscountCommand(req.params.discountId, revision));
+    switch (result.outcome) {
+      case 'deleted':
+        // `res.json` is what writes the audit entry: the 204 goes out with an empty body.
+        res.status(204).json(null);
+        return;
+      case 'not_found':
+        throw notFound('discount_not_found');
+      case 'stale':
+        throw stale();
     }
   });
 }

@@ -8,6 +8,8 @@ import { FakeGoalkeeperProfileRepository } from '../../../../fakes/fakeGoalkeepe
 import { buildBooking, OFFER_NOW } from '../../../../fixtures/offerFixtures.js';
 import { buildGoalkeeperProfile } from '../../../../fixtures/operatingBalanceFixtures.js';
 import { fixedVatRates } from '../../../../fakes/fakeVatRates.js';
+import { PENDING_VETTING } from '../../../../../src/domain/goalkeepers/vetting.js';
+import { VALIDATED_VETTING } from '../../../../fixtures/vettingFixtures.js';
 
 const at = (iso: string) => new Date(iso);
 
@@ -108,5 +110,40 @@ describe('OfferEligibilityService', () => {
     }
     expect(byBooking.get('eligible')!.map((booking) => booking.id).sort()).toEqual(['booking-1']);
     expect(byBooking.get('other-zone')!.map((booking) => booking.id)).toEqual(['b-copa']);
+  });
+});
+
+describe('OfferEligibilityService by vetting tier (admin spec 030)', () => {
+  it('tells an unvalidated goalkeeper they are pending validation before any other reason', async () => {
+    const w = world();
+    w.goalkeeper('pending', 0, { vetting: PENDING_VETTING, availableForOffers: false, suspendedUntil: at('2026-10-10T00:00:00.000Z') });
+
+    expect(await w.service.availableBookingsFor('pending', OFFER_NOW)).toEqual({
+      kind: 'unavailable',
+      reason: 'pending_validation',
+      missingAmount: null,
+      suspendedUntil: null,
+    });
+  });
+
+  it('offers a booking only to the tiers that can take it', async () => {
+    const w = world();
+    const booking = buildBooking({ acceptsUnverified: true, verifiedOnlyUntil: OFFER_NOW });
+    w.bookings.seed(booking);
+    w.goalkeeper('verified', 20000);
+    w.goalkeeper('validated', 20000, { vetting: VALIDATED_VETTING });
+    w.goalkeeper('pending', 20000, { vetting: PENDING_VETTING });
+
+    const eligible = await w.service.eligibleGoalkeepersFor([booking], OFFER_NOW);
+
+    expect([...eligible.keys()].sort()).toEqual(['validated', 'verified']);
+  });
+
+  it('a validated goalkeeper does not see a match whose client did not accept it', async () => {
+    const w = world();
+    w.bookings.seed(buildBooking());
+    w.goalkeeper('validated', 20000, { vetting: VALIDATED_VETTING });
+
+    expect(await w.service.availableBookingsFor('validated', OFFER_NOW)).toMatchObject({ kind: 'ok', bookings: [] });
   });
 });

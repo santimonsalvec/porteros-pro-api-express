@@ -39,7 +39,7 @@ describe('admin readers with sparse documents (admin spec 005)', () => {
 
     expect(await reader.list({ now: NOW, page: 1, pageSize: 20 })).toEqual({
       totalItems: 0,
-      items: [{ userId: 'g1', cityId: null, zoneCount: 0, availableForOffers: false, suspendedUntil: null, balance: 0, currency: null, activatedAt: NOW }],
+      items: [{ userId: 'g1', cityId: null, zoneCount: 0, availableForOffers: false, suspendedUntil: null, balance: 0, currency: null, activatedAt: NOW, vetting: { tier: 'unvalidated', verificationMethod: null, backgroundCheckAlert: null } }],
     });
     expect(await reader.list({ now: NOW, page: 1, pageSize: 20 })).toEqual({ items: [], totalItems: 0 });
   });

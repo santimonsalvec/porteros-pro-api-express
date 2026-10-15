@@ -1,3 +1,5 @@
+import type { VettingTier } from '../../../../domain/goalkeepers/vetting.js';
+import { discountFor } from '../../../../domain/pricing/unverifiedDiscount.js';
 import type { Booking } from '../../../../domain/bookings/booking.js';
 import type { GoalkeeperRequest } from '../../../../domain/bookings/goalkeeperRequest.js';
 import { contactsVisibleAt, contactsVisibleFrom } from '../../../../domain/bookings/contactVisibility.js';
@@ -24,8 +26,13 @@ export interface AvailableBookingItem {
   goalkeeperCount: number;
   /** Modality, level and surface (feature 024); `null` for requests created before it. */
   matchFormat: MatchFormatResponse | null;
-  /** What the client pays the goalkeeper for this booking (rate + surcharge). */
+  /** What the client pays the goalkeeper for this booking (rate + surcharge − discount). */
   earnings: number;
+  /**
+   * Admin spec 030: what a goalkeeper without the verification seal gives up on this booking.
+   * Absent for everybody else.
+   */
+  discount?: { rateBps: number; amount: number };
   /** The platform's commission, fixed when the quote was issued. */
   commission: number;
   currency: string;
@@ -78,7 +85,7 @@ export async function loadBookingItemContext(
   };
 }
 
-export function toAvailableItem(booking: Booking, context: BookingItemContext): AvailableBookingItem {
+export function toAvailableItem(booking: Booking, context: BookingItemContext, viewerTier: VettingTier = 'verified'): AvailableBookingItem {
   const request = context.requests.get(booking.requestId);
   if (!request) throw new Error(`Booking ${booking.id} references missing request ${booking.requestId}`);
   const { match } = request;
@@ -95,10 +102,27 @@ export function toAvailableItem(booking: Booking, context: BookingItemContext): 
     durationMinutes: match.durationMinutes,
     goalkeeperCount: match.goalkeeperCount,
     matchFormat: toMatchFormatResponse(match.format),
-    earnings: booking.price.total,
+    ...earningsFor(booking, viewerTier),
     commission: booking.commission,
     currency: booking.price.currency,
   };
+}
+
+/**
+ * What the goalkeeper earns and, when it applies, the discount (admin spec 030): an assigned
+ * booking already carries its discounted price; a pending one is discounted for a viewer without
+ * the seal, as accepting it would.
+ */
+function earningsFor(booking: Booking, viewerTier: VettingTier): { earnings: number; discount?: { rateBps: number; amount: number } } {
+  if (booking.price.discount > 0) {
+    return { earnings: booking.price.total, discount: { rateBps: booking.unverifiedDiscountBps, amount: booking.price.discount } };
+  }
+  if (booking.status === 'pending_assignment' && viewerTier === 'validated' && booking.unverifiedDiscountBps > 0) {
+    const full = booking.price.unitRate + booking.price.unitSurcharge;
+    const amount = discountFor(full, booking.unverifiedDiscountBps, booking.commission);
+    if (amount > 0) return { earnings: full - amount, discount: { rateBps: booking.unverifiedDiscountBps, amount } };
+  }
+  return { earnings: booking.price.total };
 }
 
 /** The check-in window values of each request in `context`, one country lookup per city. */

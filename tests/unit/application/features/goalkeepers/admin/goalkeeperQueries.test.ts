@@ -1,3 +1,4 @@
+import { VERIFIED_VETTING } from '../../../../../fixtures/vettingFixtures.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ListGoalkeepersQuery } from '../../../../../../src/application/features/goalkeepers/queries/listGoalkeepers/listGoalkeepersQuery.js';
 import { ListGoalkeepersQueryHandler } from '../../../../../../src/application/features/goalkeepers/queries/listGoalkeepers/listGoalkeepersQueryHandler.js';
@@ -86,6 +87,8 @@ describe('goalkeeper queries (admin spec 005, US2)', () => {
           items: [{
             userId: 'u-andres', name: 'Andrés Ruiz', city: { id: 'med', name: 'Medellín' }, zoneCount: 2, availableForOffers: false,
             suspendedUntil: '2026-10-18T23:00:00.000Z', balance: -4000, currency: 'COP', rating: { average: 4.6, count: 18 }, blocked: true,
+            // Admin spec 030: a reader that does not know the vetting yet answers unvalidated.
+            vetting: { tier: 'unvalidated', verificationMethod: null, backgroundCheckAlert: null },
           }],
           page: 1, pageSize: 20, totalItems: 1, totalPages: 1,
         },
@@ -123,6 +126,8 @@ describe('goalkeeper queries (admin spec 005, US2)', () => {
           documentType: { code: 'CC', name: 'Cédula de ciudadanía' }, version: documentVersion({ documentType: 'CC', documentNumber: '1020304050' }),
           rating: { average: 4.6, count: 18 },
           stats: { month: { playedCount: 6, earned: 330000, toPlay: 2, currency: 'COP' }, withdrawalCount: 1, noShowCount: 2 },
+          // Admin spec 030: a profile without vetting is pending.
+          vetting: { tier: 'unvalidated', verificationMethod: null },
         },
       });
       expect(JSON.stringify(result)).not.toContain('1020304050');
@@ -144,6 +149,37 @@ describe('goalkeeper queries (admin spec 005, US2)', () => {
 
       expect((await handler.handle(new GetGoalkeeperAdminQuery('u-andres'))).outcome === 'ok').toBe(true);
       expect(await handler.handle(new GetGoalkeeperAdminQuery('u-client'))).toEqual({ outcome: 'not_a_goalkeeper' });
+    });
+  });
+
+  describe('GetGoalkeeperAdminQuery — vetting (admin spec 030)', () => {
+    it('names the tier and how the seal was given, never who decided', async () => {
+      profiles.seed(profile('u-andres', { vetting: VERIFIED_VETTING }));
+
+      const result = await new GetGoalkeeperAdminQueryHandler(deps).handle(new GetGoalkeeperAdminQuery('u-andres'));
+
+      expect(result.outcome === 'ok' && result.goalkeeper.vetting).toEqual({ tier: 'verified', verificationMethod: 'practice' });
+    });
+  });
+
+  describe('ListGoalkeepersQuery — validation and verification (admin spec 030, C1)', () => {
+    it('passes the new filters to the reader and answers each row\'s level', async () => {
+      const result = await new ListGoalkeepersQueryHandler({
+        ...deps,
+        reader: {
+          ...deps.reader,
+          list: async (filter) => {
+            listed.push(filter);
+            return {
+              totalItems: 1,
+              items: [{ userId: 'u-andres', cityId: 'med', zoneCount: 2, availableForOffers: true, suspendedUntil: null, balance: 0, currency: 'COP', activatedAt: NOW, vetting: { tier: 'verified', verificationMethod: 'practice', backgroundCheckAlert: 'expiring' } }],
+            };
+          },
+        },
+      }).handle(new ListGoalkeepersQuery({ vetting: 'verified', verificationMethod: 'practice', backgroundCheck: 'expiring', page: 1, pageSize: 20 }));
+
+      expect(listed[0]).toMatchObject({ vetting: 'verified', verificationMethod: 'practice', backgroundCheck: 'expiring' });
+      expect(result.outcome === 'ok' && result.page.items[0]!.vetting).toEqual({ tier: 'verified', verificationMethod: 'practice', backgroundCheckAlert: 'expiring' });
     });
   });
 });

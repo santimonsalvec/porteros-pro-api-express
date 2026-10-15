@@ -25,6 +25,10 @@ interface GoalkeeperRequestProps {
   cancelAllEvaluatedAt?: Date | null;
   /** When the contacts-visible notices were sent (feature 019); absent on older documents. */
   contactsRevealedAt?: Date | null;
+  /** The client accepts goalkeepers without the verification seal (admin spec 030); absent = no. */
+  acceptsUnverified?: boolean;
+  /** The discount for an unverified goalkeeper the client was shown, in basis points; absent = 0. */
+  unverifiedDiscountBps?: number;
 }
 
 /**
@@ -51,6 +55,9 @@ export class GoalkeeperRequest extends Entity<string> {
   readonly active: boolean;
   readonly quoteIssuedAt: Date;
   readonly createdAt: Date;
+  /** Fixed when the request is created (admin spec 030); copied to each booking. */
+  readonly acceptsUnverified: boolean;
+  readonly unverifiedDiscountBps: number;
 
   private constructor(props: GoalkeeperRequestProps) {
     super(props.id);
@@ -70,6 +77,8 @@ export class GoalkeeperRequest extends Entity<string> {
     this.createdAt = new Date(props.createdAt);
     this.cancelAllEvaluatedAt = props.cancelAllEvaluatedAt ? new Date(props.cancelAllEvaluatedAt) : null;
     this.contactsRevealedAt = props.contactsRevealedAt ? new Date(props.contactsRevealedAt) : null;
+    this.acceptsUnverified = props.acceptsUnverified ?? false;
+    this.unverifiedDiscountBps = props.unverifiedDiscountBps ?? 0;
   }
 
   static fromQuote(
@@ -77,6 +86,7 @@ export class GoalkeeperRequest extends Entity<string> {
     quote: Quote,
     partialFulfillment: PartialFulfillment,
     createdAt: Date,
+    acceptsUnverified = false,
   ): GoalkeeperRequest {
     return new GoalkeeperRequest({
       id,
@@ -91,6 +101,8 @@ export class GoalkeeperRequest extends Entity<string> {
       active: true,
       quoteIssuedAt: quote.issuedAt,
       createdAt,
+      acceptsUnverified,
+      unverifiedDiscountBps: quote.unverifiedDiscountBps,
     });
   }
 

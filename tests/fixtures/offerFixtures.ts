@@ -38,6 +38,8 @@ export function eligibleSnapshot(overrides: Partial<OfferSnapshot> = {}): OfferS
     canSeeOffers: true,
     vatRateBps: 0,
     held: [],
+    // Verified, so the rules of before admin spec 030 apply unchanged.
+    tier: 'verified',
     ...overrides,
   };
 }

@@ -2,7 +2,15 @@ import type { HandlerRegistration } from '../application/common/mediator/mediato
 import type { IClock } from '../application/common/clock.js';
 import type { IIdGenerator } from '../application/features/auth/common/ports.js';
 import type { PricingGeographyDependencies } from '../application/features/pricing/common/pricingGeography.js';
-import type { IBookingSettingsAdmin, ICommissionAdmin, IRentalRateAdmin } from '../application/features/pricing/common/ports.js';
+import type { IBookingSettingsAdmin, ICommissionAdmin, IRentalRateAdmin, IUnverifiedDiscountRepository } from '../application/features/pricing/common/ports.js';
+import { ListUnverifiedDiscountsQuery } from '../application/features/pricing/queries/listUnverifiedDiscounts/listUnverifiedDiscountsQuery.js';
+import { ListUnverifiedDiscountsQueryHandler } from '../application/features/pricing/queries/listUnverifiedDiscounts/listUnverifiedDiscountsQueryHandler.js';
+import { CreateUnverifiedDiscountCommand } from '../application/features/pricing/commands/createUnverifiedDiscount/createUnverifiedDiscountCommand.js';
+import { CreateUnverifiedDiscountCommandHandler } from '../application/features/pricing/commands/createUnverifiedDiscount/createUnverifiedDiscountCommandHandler.js';
+import { UpdateUnverifiedDiscountCommand } from '../application/features/pricing/commands/updateUnverifiedDiscount/updateUnverifiedDiscountCommand.js';
+import { UpdateUnverifiedDiscountCommandHandler } from '../application/features/pricing/commands/updateUnverifiedDiscount/updateUnverifiedDiscountCommandHandler.js';
+import { DeleteUnverifiedDiscountCommand } from '../application/features/pricing/commands/deleteUnverifiedDiscount/deleteUnverifiedDiscountCommand.js';
+import { DeleteUnverifiedDiscountCommandHandler } from '../application/features/pricing/commands/deleteUnverifiedDiscount/deleteUnverifiedDiscountCommandHandler.js';
 import type { ITaxSettingsRepository } from '../application/features/operatingBalance/common/ports.js';
 import { ListPricingAreasQuery } from '../application/features/pricing/queries/listPricingAreas/listPricingAreasQuery.js';
 import { ListPricingAreasQueryHandler } from '../application/features/pricing/queries/listPricingAreas/listPricingAreasQueryHandler.js';
@@ -46,6 +54,8 @@ export interface PricingHandlerDependencies extends PricingGeographyDependencies
   rentalRates: IRentalRateAdmin;
   commissions: ICommissionAdmin;
   bookingSettings: IBookingSettingsAdmin;
+  /** Admin spec 030. */
+  discounts: IUnverifiedDiscountRepository;
   taxSettings: ITaxSettingsRepository;
   ids: IIdGenerator;
   clock: IClock;
@@ -75,5 +85,9 @@ export function pricingHandlerRegistrations(deps: PricingHandlerDependencies): H
     { requestType: SaveCityBookingSettingsCommand, handler: new SaveCityBookingSettingsCommandHandler(deps) },
     { requestType: GetPricingPreviewQuery, handler: new GetPricingPreviewQueryHandler(deps) },
     { requestType: ListPricingAreasQuery, handler: new ListPricingAreasQueryHandler(deps) },
+    { requestType: ListUnverifiedDiscountsQuery, handler: new ListUnverifiedDiscountsQueryHandler(deps) },
+    { requestType: CreateUnverifiedDiscountCommand, handler: new CreateUnverifiedDiscountCommandHandler(deps) },
+    { requestType: UpdateUnverifiedDiscountCommand, handler: new UpdateUnverifiedDiscountCommandHandler(deps) },
+    { requestType: DeleteUnverifiedDiscountCommand, handler: new DeleteUnverifiedDiscountCommandHandler(deps) },
   ];
 }

@@ -16,6 +16,10 @@ export const listGoalkeepersQuerySchema = z
     suspended: booleanQuery.optional(),
     availableForOffers: booleanQuery.optional(),
     balanceBelow: z.string().regex(/^-?\d+$/, 'Must be a whole number.').transform(Number).optional(),
+    // Admin spec 030.
+    vetting: z.enum(['unvalidated', 'validated', 'verified']).optional(),
+    verificationMethod: z.enum(['referral', 'other_platform', 'practice', 'reputation']).optional(),
+    backgroundCheck: z.enum(['pending', 'expiring', 'expired']).optional(),
   })
   .strict();
 

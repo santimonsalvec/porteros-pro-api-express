@@ -1,3 +1,5 @@
+import type { VerificationMethod } from '../../../domain/goalkeepers/vetting.js';
+import type { BackgroundCheckAlert } from '../../../application/features/goalkeepers/common/adminPorts.js';
 import type { Collection, Db, Document } from 'mongodb';
 import type { GoalkeeperListFilter, GoalkeeperListRecord, IGoalkeeperAdminReader } from '../../../application/features/goalkeepers/common/adminPorts.js';
 import type { RatingSummary } from '../../../application/features/goalkeepers/common/adminViews.js';
@@ -64,5 +66,10 @@ function toRecord(doc: Document): GoalkeeperListRecord {
     balance: (doc.balance as number | undefined) ?? 0,
     currency: (doc.currency as string | undefined) ?? null,
     activatedAt: new Date(doc.activatedAt as Date),
+    vetting: {
+      tier: doc.vettingValidation === 'validated' ? (doc.verificationMethod ? 'verified' : 'validated') : 'unvalidated',
+      verificationMethod: (doc.verificationMethod as VerificationMethod | undefined) ?? null,
+      backgroundCheckAlert: (doc.backgroundCheckAlert as BackgroundCheckAlert | null | undefined) ?? null,
+    },
   };
 }

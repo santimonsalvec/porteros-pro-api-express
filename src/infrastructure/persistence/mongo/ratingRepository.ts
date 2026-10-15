@@ -57,6 +57,16 @@ export class RatingRepository implements IRatingRepository {
     return docs.map(ratingFromDocument);
   }
 
+  async summaryForGoalkeeper(goalkeeperId: string): Promise<{ count: number; average: number | null }> {
+    const [row] = await this.collection
+      .aggregate<{ count: number; average: number }>([
+        { $match: { subjectId: goalkeeperId, side: 'client' } },
+        { $group: { _id: null, count: { $sum: 1 }, average: { $avg: '$stars' } } },
+      ])
+      .toArray();
+    return row ? { count: row.count, average: row.average } : { count: 0, average: null };
+  }
+
   async getById(id: string): Promise<Rating | null> {
     const doc = await this.collection.findOne({ _id: id } as Document);
     return doc ? ratingFromDocument(doc) : null;

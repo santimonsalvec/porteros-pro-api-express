@@ -1,5 +1,6 @@
 import { Entity } from '../common/entity.js';
 import type { GoalkeeperRegistration } from './goalkeeperRegistration.js';
+import { PENDING_VETTING, vettingTier, type Vetting, type VettingTier } from './vetting.js';
 
 /**
  * The active, permanent record establishing a client as a discoverable goalkeeper
@@ -29,6 +30,8 @@ export class GoalkeeperProfile extends Entity<string> {
    * matches and no accepting. Absent in stored documents means on.
    */
   readonly availableForOffers: boolean;
+  /** Validation and verification (admin spec 030). Absent means pending: nobody reviewed it yet. */
+  readonly vetting: Vetting;
 
   constructor(params: {
     id: string;
@@ -46,6 +49,7 @@ export class GoalkeeperProfile extends Entity<string> {
     activatedAt: Date;
     suspendedUntil?: Date | null;
     availableForOffers?: boolean;
+    vetting?: Vetting;
   }) {
     super(params.id);
     this.userId = params.userId;
@@ -62,6 +66,12 @@ export class GoalkeeperProfile extends Entity<string> {
     this.activatedAt = params.activatedAt;
     this.suspendedUntil = params.suspendedUntil ?? null;
     this.availableForOffers = params.availableForOffers ?? true;
+    this.vetting = params.vetting ?? PENDING_VETTING;
+  }
+
+  /** Unvalidated, validated or verified — derived, never stored (research §1). */
+  get tier(): VettingTier {
+    return vettingTier(this.vetting);
   }
 
   /** The only constructor — reads every field off a registration whose completeness has already been confirmed by the caller. */
@@ -83,6 +93,8 @@ export class GoalkeeperProfile extends Entity<string> {
       activatedAt: new Date(),
       // A new goalkeeper starts off offers and switches them on when ready.
       availableForOffers: false,
+      // Activation no longer gives access to matches: the team validates first (admin spec 030).
+      vetting: PENDING_VETTING,
     });
   }
 }

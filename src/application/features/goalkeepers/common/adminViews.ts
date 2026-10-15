@@ -1,3 +1,5 @@
+import type { VerificationMethod, VettingTier } from '../../../../domain/goalkeepers/vetting.js';
+import type { BackgroundCheckAlert } from './adminPorts.js';
 /**
  * What the admin web sees of a goalkeeper and of a registration in progress (admin spec 005,
  * contracts/users-goalkeepers-api.md §3–§4). The document number and its photos are never part of
@@ -21,6 +23,8 @@ export interface GoalkeeperRow {
   currency: string | null;
   rating: RatingSummary | null;
   blocked: boolean;
+  /** Admin spec 030: the level, how the seal was given and the background checks needing attention. */
+  vetting: { tier: VettingTier; verificationMethod: VerificationMethod | null; backgroundCheckAlert: BackgroundCheckAlert | null };
 }
 
 export interface DocumentTypeRef {
@@ -44,6 +48,8 @@ export interface GoalkeeperDetail {
   /** The fingerprint a document correction sends back (research §9). */
   version: string;
   rating: RatingSummary | null;
+  /** Admin spec 030: the level, and how the seal was given; the details are in the vetting read. */
+  vetting: { tier: VettingTier; verificationMethod: VerificationMethod | null };
   stats: {
     /** This month's numbers (feature 026); `null` when they can't be computed. */
     month: { playedCount: number; earned: number; toPlay: number; currency: string } | null;

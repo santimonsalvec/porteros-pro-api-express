@@ -94,6 +94,9 @@ export function quoteToDocument(quote: Quote): Document {
     freeCancellationMinutes: quote.freeCancellationMinutes,
     commission: quote.commission,
     travelBufferMinutes: quote.travelBufferMinutes,
+    // Admin spec 030: written only when set, so other quotes keep their shape.
+    ...(quote.unverifiedDiscountBps > 0 ? { unverifiedDiscountBps: quote.unverifiedDiscountBps } : {}),
+    ...(quote.verifiedPriorityMinutes > 0 ? { verifiedPriorityMinutes: quote.verifiedPriorityMinutes } : {}),
   };
 }
 
@@ -110,6 +113,8 @@ export function quoteFromDocument(doc: Document): Quote {
     freeCancellationMinutes: (doc.freeCancellationMinutes as number | undefined) ?? FREE_CANCELLATION_MINUTES_DEFAULT,
     commission: doc.commission as number,
     travelBufferMinutes: doc.travelBufferMinutes as number,
+    unverifiedDiscountBps: (doc.unverifiedDiscountBps as number | undefined) ?? 0,
+    verifiedPriorityMinutes: (doc.verifiedPriorityMinutes as number | undefined) ?? 0,
   });
 }
 

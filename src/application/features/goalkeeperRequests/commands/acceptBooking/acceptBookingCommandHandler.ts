@@ -16,6 +16,8 @@ import type { IEventRelay } from '../../../events/common/ports.js';
 import type { Booking } from '../../../../../domain/bookings/booking.js';
 import { goalkeeperAssigned } from '../../../../../domain/events/bookingEvents.js';
 import { canAfford, missingFor } from '../../../../../domain/operatingBalance/fundsPolicy.js';
+import { isOpenToTier } from '../../../../../domain/bookings/offerEligibility.js';
+import type { VettingTier } from '../../../../../domain/goalkeepers/vetting.js';
 import { loadContacts } from '../../common/contacts.js';
 import type { CheckInWindowResolver } from '../../../bookingLifecycle/common/checkInWindowResolver.js';
 import { loadBookingItemContext, loadCheckInWindows, toAgendaItem } from '../../common/goalkeeperBookingResponse.js';
@@ -68,13 +70,16 @@ export class AcceptBookingCommandHandler implements ICommandHandler<AcceptBookin
     if (booking.goalkeeperId === goalkeeperId) return this.finish(command, { outcome: 'replayed', booking: await this.item(booking) }, booking);
 
     const profile = context.kind === 'ok' ? context.profile : await this.deps.operatingBalanceContext.goalkeeperProfileRepository.getByUserId(goalkeeperId);
+    // Nobody the team has not validated takes matches (admin spec 030).
+    const tier: VettingTier = profile?.tier ?? 'unvalidated';
+    if (tier === 'unvalidated') return this.finish(command, { outcome: 'not_validated' }, booking);
     // Offers switched off: the goalkeeper must be available to take matches (feature 015).
     if (profile && !profile.availableForOffers) return this.finish(command, { outcome: 'not_available_for_offers' }, booking);
     if (profile?.suspendedUntil && profile.suspendedUntil > now) {
       return this.finish(command, { outcome: 'suspended', suspendedUntil: profile.suspendedUntil.toISOString() }, booking);
     }
     if (!profile?.zoneIds.includes(booking.zoneId)) return this.finish(command, { outcome: 'zone_not_enabled' }, booking);
-    const unclaimable = this.classify(booking, goalkeeperId, now);
+    const unclaimable = this.classify(booking, goalkeeperId, now, tier);
     if (unclaimable) return this.finish(command, unclaimable, booking);
     if (context.kind === 'operating_balance_not_configured') return this.finish(command, { outcome: 'not_available' }, booking);
 
@@ -92,6 +97,7 @@ export class AcceptBookingCommandHandler implements ICommandHandler<AcceptBookin
       bookingId,
       goalkeeperId,
       now,
+      tier,
       chargeDrafts: (claimed) => {
         const refs = { bookingId: claimed.id, requestId: claimed.requestId };
         const commission = commissionChargeDraft(owner, { ...refs, amount: claimed.commission }, this.deps.idGenerator.newId(), now);
@@ -129,13 +135,13 @@ export class AcceptBookingCommandHandler implements ICommandHandler<AcceptBookin
         // A concurrent change won the race: look again to say which.
         const current = await this.deps.bookingRepository.findById(bookingId);
         if (current?.goalkeeperId === goalkeeperId) return this.finish(command, { outcome: 'replayed', booking: await this.item(current) }, current);
-        return this.finish(command, (current && this.classify(current, goalkeeperId, now)) ?? { outcome: 'not_available' }, booking);
+        return this.finish(command, (current && this.classify(current, goalkeeperId, now, tier)) ?? { outcome: 'not_available' }, booking);
       }
     }
   }
 
   /** Why a booking cannot be claimed by this goalkeeper right now, or null when it can. */
-  private classify(booking: Booking, goalkeeperId: string, now: Date): AcceptBookingResult | null {
+  private classify(booking: Booking, goalkeeperId: string, now: Date, tier: VettingTier): AcceptBookingResult | null {
     if (booking.status === 'assigned') return { outcome: 'already_taken' };
     if (booking.status !== 'pending_assignment') return { outcome: 'not_available' };
     if (booking.clientId === goalkeeperId) return { outcome: 'own_request' };
@@ -143,6 +149,7 @@ export class AcceptBookingCommandHandler implements ICommandHandler<AcceptBookin
     // a match they dismissed (feature 024).
     if (booking.isClosedTo(goalkeeperId)) return { outcome: 'not_available' };
     if (!booking.isSearchOpenAt(now)) return { outcome: 'search_ended' };
+    if (!isOpenToTier(booking, tier, now)) return { outcome: 'verified_only' };
     return null;
   }
 

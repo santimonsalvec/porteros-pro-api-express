@@ -1,5 +1,6 @@
 import { IQuery } from '../../../../common/mediator/types.js';
 import type { AvailableListItem } from '../../common/goalkeeperBookingResponse.js';
+import type { UnavailableReason } from '../../../notifications/common/offerEligibilityService.js';
 
 export type ListAvailableBookingsResult =
   | {
@@ -10,7 +11,7 @@ export type ListAvailableBookingsResult =
       totalItems: number;
       totalPages: number;
       /** Why the list is empty whatever the matches (FR-002); null when the goalkeeper can see offers. */
-      unavailableReason: 'not_available_for_offers' | 'insufficient_funds' | 'suspended' | null;
+      unavailableReason: UnavailableReason | null;
       missingAmount: number | null;
       suspendedUntil: string | null;
     }

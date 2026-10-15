@@ -4,6 +4,8 @@ import type {
   IBookingAcceptanceStore,
 } from '../../src/application/features/goalkeeperRequests/common/ports.js';
 import { firstConflict, holdsSameRequest } from '../../src/domain/bookings/schedulePolicy.js';
+import { isOpenToTier } from '../../src/domain/bookings/offerEligibility.js';
+import type { VettingTier } from '../../src/domain/goalkeepers/vetting.js';
 import type { FakeBookingRepository } from './fakeBookingRepository.js';
 import type { FakeOutboxStore } from './fakeOutboxStore.js';
 import type { FakeOperatingBalanceStore } from './fakeOperatingBalanceStore.js';
@@ -18,6 +20,9 @@ type AcceptArgs = Parameters<IBookingAcceptanceStore['accept']>[0];
  */
 export class FakeBookingAcceptanceStore implements IBookingAcceptanceStore {
   calls = 0;
+  /** The tier the handler passed on the last call (admin spec 030). */
+  lastTier: VettingTier | null = null;
+  private beforeClaim: (() => Promise<void>) | null = null;
   private forced: AcceptanceResult | Error | null = null;
   private queue: Promise<unknown> = Promise.resolve();
 
@@ -26,6 +31,11 @@ export class FakeBookingAcceptanceStore implements IBookingAcceptanceStore {
     private readonly operatingBalance: FakeOperatingBalanceStore,
     private readonly outbox?: FakeOutboxStore,
   ) {}
+
+  /** Runs `change` right before the next claim, as a concurrent write would. */
+  beforeNextClaim(change: () => Promise<void>): void {
+    this.beforeClaim = change;
+  }
 
   failNextWith(result: AcceptanceResult | Error): void {
     this.forced = result;
@@ -46,17 +56,24 @@ export class FakeBookingAcceptanceStore implements IBookingAcceptanceStore {
       return forced;
     }
 
+    this.lastTier = args.tier;
+    if (this.beforeClaim) {
+      const change = this.beforeClaim;
+      this.beforeClaim = null;
+      await change();
+    }
     const original = await this.bookings.findById(args.bookingId);
     if (
       !original ||
       original.status !== 'pending_assignment' ||
       !original.isSearchOpenAt(args.now) ||
-      original.clientId === args.goalkeeperId
+      original.clientId === args.goalkeeperId ||
+      !isOpenToTier(original, args.tier, args.now)
     ) {
       return { kind: 'not_claimed' };
     }
 
-    const booking = original.assign(args.goalkeeperId, args.now);
+    const booking = original.assign(args.goalkeeperId, args.now, args.tier);
     const held = (await this.bookings.findAssignedToGoalkeeper(args.goalkeeperId)).filter((other) => other.id !== booking.id);
     if (holdsSameRequest(booking, held)) return { kind: 'same_request' };
     const conflict = firstConflict(booking, held);

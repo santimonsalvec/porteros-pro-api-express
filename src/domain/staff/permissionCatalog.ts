@@ -44,6 +44,8 @@ export const PERMISSION_AREAS = [
       { id: 'goalkeepers.update', description: 'Corregir los datos de identificación de un portero' },
       { id: 'goalkeepers.registrations.review', description: 'Revisar registros de portero en curso' },
       { id: 'goalkeepers.penalties.reverse', description: 'Revertir penalidades y levantar suspensiones' },
+      { id: 'goalkeepers.validate', description: 'Revisar antecedentes y validar, rechazar o revocar la validación de porteros' },
+      { id: 'goalkeepers.verify', description: 'Otorgar y revocar el sello de verificado de porteros' },
     ],
   },
   {
@@ -107,6 +109,7 @@ export const PERMISSION_AREAS = [
     permissions: [
       { id: 'pricing.read', description: 'Ver tarifas, comisiones, reglas de reserva e IVA' },
       { id: 'pricing.manage', description: 'Cambiar tarifas, comisiones, reglas de reserva e IVA' },
+      { id: 'pricing.unverified_discount.manage', description: 'Configurar el descuento por portero no verificado' },
     ],
   },
   {

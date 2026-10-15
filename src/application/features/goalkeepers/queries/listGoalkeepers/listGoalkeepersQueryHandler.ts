@@ -23,6 +23,9 @@ export class ListGoalkeepersQueryHandler implements IQueryHandler<ListGoalkeeper
       suspended: criteria.suspended,
       availableForOffers: criteria.availableForOffers,
       balanceBelow: criteria.balanceBelow,
+      vetting: criteria.vetting,
+      verificationMethod: criteria.verificationMethod,
+      backgroundCheck: criteria.backgroundCheck,
       now: this.deps.clock.now(),
       page: criteria.page,
       pageSize: criteria.pageSize,
@@ -51,6 +54,7 @@ export class ListGoalkeepersQueryHandler implements IQueryHandler<ListGoalkeeper
         currency: item.currency,
         rating: ratings.get(item.userId) ?? null,
         blocked: blocks.get(item.userId)?.blocked ?? false,
+        vetting: item.vetting ?? { tier: 'unvalidated' as const, verificationMethod: null, backgroundCheckAlert: null },
       };
     });
     return { outcome: 'ok', page: pageOf(rows, criteria.page, criteria.pageSize, totalItems) };

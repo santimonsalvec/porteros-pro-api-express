@@ -248,6 +248,13 @@ import { TemplateLoginCodeMailer } from './email/templateLoginCodeMailer.js';
 import { HmacLoginCodeHasher } from './auth/hmacLoginCodeHasher.js';
 import { CryptoOneTimeCodeGenerator } from './auth/cryptoOneTimeCodeGenerator.js';
 import { MongoLoginCodeStore } from './persistence/mongo/loginCodeStore.js';
+import { BackgroundCheckRepository } from './persistence/mongo/backgroundCheckRepository.js';
+import { UnverifiedDiscountRepository } from './persistence/mongo/unverifiedDiscountRepository.js';
+import { UnverifiedDiscountResolver } from '../application/features/pricing/common/unverifiedDiscountResolver.js';
+import { VettingLogRepository } from './persistence/mongo/vettingLogRepository.js';
+import { VettingNotifier } from '../application/features/goalkeepers/common/vettingNotifier.js';
+import { ReputationVerifier } from '../application/features/goalkeepers/common/reputationVerifier.js';
+import { goalkeeperVettingHandlerRegistrations } from './goalkeeperVettingHandlers.js';
 import { MongoRateLimiter } from './persistence/mongo/mongoRateLimiter.js';
 import { MongoAccessSettingsRepository } from './persistence/mongo/accessSettingsRepository.js';
 import { JwtAdminTokenIssuer } from './auth/jwtAdminTokenIssuer.js';
@@ -322,11 +329,20 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   const documentTypeRepository = new DocumentTypeRepository(db);
   const goalkeeperProfileRepository = new GoalkeeperProfileRepository(db);
   await goalkeeperProfileRepository.ensureIndexes();
+  // Validation and verification (admin spec 030).
+  const backgroundCheckRepository = new BackgroundCheckRepository(db);
+  await backgroundCheckRepository.ensureIndexes();
+  const vettingLogRepository = new VettingLogRepository(db);
+  await vettingLogRepository.ensureIndexes();
+  const unverifiedDiscountRepository = new UnverifiedDiscountRepository(db);
+  await unverifiedDiscountRepository.ensureIndexes();
   const cityRepository = new CityRepository(db);
   await cityRepository.ensureIndexes();
   const regionRepository = new RegionRepository(db);
   await regionRepository.ensureIndexes();
   const zoneRepository = new ZoneRepository(db);
+  // Admin spec 030: the discount and verified-only window of each zone, for the quote.
+  const unverifiedDiscountResolver = new UnverifiedDiscountResolver(unverifiedDiscountRepository, zoneRepository, cityRepository, regionRepository);
   await zoneRepository.ensureIndexes();
   const rentalRateRepository = new RentalRateRepository(db);
   await rentalRateRepository.ensureIndexes();
@@ -738,6 +754,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       rentalRates: rentalRateRepository,
       commissions: commissionSettingRepository,
       bookingSettings: bookingSettingsRepository,
+      discounts: unverifiedDiscountRepository,
       taxSettings: taxSettingsRepository,
       ids: idGenerator,
       clock,
@@ -809,6 +826,37 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       registrations: goalkeeperRegistrationRepository,
       images: imageRepository,
       documentWriter: new MongoGoalkeeperDocumentWriter(() => connectionProvider.startSession(), db),
+    }),
+  );
+  // Validation and verification (admin spec 030): the notices and the reputation seal.
+  const vettingNotifier = new VettingNotifier({ notifications: notificationRepository, pushNotifier, idGenerator, clock, logger });
+  const reputationVerifier = new ReputationVerifier({
+    profiles: goalkeeperProfileRepository,
+    checks: backgroundCheckRepository,
+    log: vettingLogRepository,
+    notifier: vettingNotifier,
+    idGenerator,
+    clock,
+    ratings: ratingRepository,
+  });
+  registerHandlers(
+    mediator,
+    goalkeeperVettingHandlerRegistrations({
+      profiles: goalkeeperProfileRepository,
+      checks: backgroundCheckRepository,
+      log: vettingLogRepository,
+      notifier: vettingNotifier,
+      reputation: reputationVerifier,
+      idGenerator,
+      clock,
+      images: imageRepository,
+      sender: mediator,
+      staff: staffMemberRepository,
+      users: userRepository,
+      ratings: ratingRepository,
+      blocks: userBlockRepository,
+      userReader: userAdminReader,
+      cities: cityRepository,
     }),
   );
   registerHandlers(
@@ -979,7 +1027,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     },
     {
       requestType: IssueServiceQuoteCommand,
-      handler: new IssueServiceQuoteCommandHandler(mediator, quoteRepository, idGenerator, clock),
+      handler: new IssueServiceQuoteCommandHandler(mediator, quoteRepository, idGenerator, clock, unverifiedDiscountResolver),
     },
     {
       requestType: ConfirmBookingCommand,
@@ -1173,6 +1221,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         goalkeeperProfileRepository,
         cityRepository,
         regionRepository,
+        { checks: backgroundCheckRepository, clock, discounts: unverifiedDiscountResolver },
       ),
     },
     { requestType: GetDocumentTypesQuery, handler: new GetDocumentTypesQueryHandler(documentTypeRepository) },
@@ -1307,6 +1356,8 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         idGenerator: idGenerator,
         clock,
         audit: auditLogger,
+        reputation: reputationVerifier,
+        onReputationFailure: (error) => logger.warn({ outcome: 'reputation_evaluation_failed', error: error instanceof Error ? error.message : String(error) }, 'Reputation could not be evaluated after a rating'),
       }),
     },
     {

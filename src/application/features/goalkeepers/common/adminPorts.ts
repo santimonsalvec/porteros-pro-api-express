@@ -1,3 +1,4 @@
+import type { VerificationMethod, VettingTier } from '../../../../domain/goalkeepers/vetting.js';
 import type { GoalkeeperRegistration } from '../../../../domain/goalkeepers/goalkeeperRegistration.js';
 import type { RatingSummary } from './adminViews.js';
 import type { ScheduledRecord } from '../../users/common/ports.js';
@@ -16,6 +17,10 @@ export interface GoalkeeperListFilter {
   availableForOffers?: boolean;
   /** Balance strictly below this amount; without a operating balance the balance is 0. */
   balanceBelow?: number;
+  /** Admin spec 030: the tier, how the seal was given, and the background checks needing attention. */
+  vetting?: VettingTier;
+  verificationMethod?: VerificationMethod;
+  backgroundCheck?: BackgroundCheckAlert;
   now: Date;
   page: number;
   pageSize: number;
@@ -30,7 +35,12 @@ export interface GoalkeeperListRecord {
   balance: number;
   currency: string | null;
   activatedAt: Date;
+  /** Admin spec 030; absent from readers that do not know them yet. */
+  vetting?: { tier: VettingTier; verificationMethod: VerificationMethod | null; backgroundCheckAlert: BackgroundCheckAlert | null };
 }
+
+/** A goalkeeper's background checks that need the team: one to review, all expired, or the valid ones expiring within 30 days. */
+export type BackgroundCheckAlert = 'pending' | 'expiring' | 'expired';
 
 export interface IGoalkeeperAdminReader {
   list(filter: GoalkeeperListFilter): Promise<{ items: GoalkeeperListRecord[]; totalItems: number }>;

@@ -63,7 +63,7 @@ export class ListAvailableBookingsQueryHandler implements IQueryHandler<ListAvai
           outcome: 'success',
           items: pageOf.map((booking) => {
             const vat = vatFor(booking.commission, available.vatRateBps);
-            return { ...toAvailableItem(booking, context), vat, totalCharge: booking.commission + vat };
+            return { ...toAvailableItem(booking, context, available.tier), vat, totalCharge: booking.commission + vat };
           }),
           page,
           pageSize,

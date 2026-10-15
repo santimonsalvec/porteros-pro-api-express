@@ -1,6 +1,7 @@
 import type { Db, Document } from 'mongodb';
 import type { IGoalkeeperProfileRepository } from '../../../application/features/goalkeepers/common/ports.js';
 import { GoalkeeperProfile } from '../../../domain/goalkeepers/goalkeeperProfile.js';
+import { PENDING_VETTING, type Verification, type Vetting } from '../../../domain/goalkeepers/vetting.js';
 import { MongoRepository } from './mongoRepository.js';
 import { stripNulls } from './stripNulls.js';
 
@@ -14,6 +15,8 @@ export class GoalkeeperProfileRepository extends MongoRepository<GoalkeeperProfi
     await this.collection.createIndex({ zoneIds: 1, availableForOffers: 1 }, { name: 'zone_offers' });
     // The admin's goalkeeper list by city (admin spec 005).
     await this.collection.createIndex({ cityId: 1, activatedAt: -1 }, { name: 'cityId_activatedAt' });
+    // The admin's goalkeeper list filtered by validation state (admin spec 030).
+    await this.collection.createIndex({ 'vetting.validation': 1, activatedAt: -1, _id: -1 }, { name: 'vetting_validation_activatedAt' });
   }
 
   protected toDocument(entity: GoalkeeperProfile): Document {
@@ -33,6 +36,7 @@ export class GoalkeeperProfileRepository extends MongoRepository<GoalkeeperProfi
       activatedAt: entity.activatedAt,
       suspendedUntil: entity.suspendedUntil,
       availableForOffers: entity.availableForOffers,
+      vetting: entity.vetting,
     });
   }
 
@@ -54,6 +58,7 @@ export class GoalkeeperProfileRepository extends MongoRepository<GoalkeeperProfi
       suspendedUntil: doc.suspendedUntil ? new Date(doc.suspendedUntil as string | Date) : null,
       // Absent on profiles activated before feature 015: on by default (FR-024).
       availableForOffers: doc.availableForOffers !== false,
+      vetting: readVetting(doc.vetting),
     });
   }
 
@@ -89,9 +94,42 @@ export class GoalkeeperProfileRepository extends MongoRepository<GoalkeeperProfi
     return before ? { previous: before.availableForOffers !== false } : null;
   }
 
+  async updateVetting(userId: string, expectedRevision: number, vetting: Vetting): Promise<'saved' | 'stale'> {
+    // A profile from before 030 has no vetting: it is at revision 0.
+    const atRevision = expectedRevision === 0 ? { $or: [{ 'vetting.revision': 0 }, { vetting: { $exists: false } }] } : { 'vetting.revision': expectedRevision };
+    const result = await this.collection.updateOne({ userId, ...atRevision }, { $set: { vetting } });
+    return result.matchedCount > 0 ? 'saved' : 'stale';
+  }
+
   /** `$set`s only the given keys, so writes to different fields of the same profile never overwrite each other. */
   private async setFields(userId: string, changes: Document): Promise<GoalkeeperProfile | null> {
     const doc = await this.collection.findOneAndUpdate({ userId }, { $set: changes }, { returnDocument: 'after' });
     return doc ? this.fromDocument(doc) : null;
   }
+}
+
+const toDate = (value: unknown): Date => new Date(value as string | Date);
+
+/** Absent on profiles activated before admin spec 030: nobody reviewed them, so they are pending (research §2). */
+function readVetting(raw: unknown): Vetting {
+  if (!raw || typeof raw !== 'object') return PENDING_VETTING;
+  const doc = raw as Document;
+  const verification = doc.verification as Document | null | undefined;
+  const rejection = doc.lastRejection as Document | null | undefined;
+  return {
+    validation: doc.validation === 'validated' ? 'validated' : 'pending',
+    validatedAt: doc.validatedAt ? toDate(doc.validatedAt) : null,
+    validatedBy: (doc.validatedBy as string | undefined) ?? null,
+    lastRejection: rejection ? { reason: rejection.reason as string, at: toDate(rejection.at), by: rejection.by as string } : null,
+    verification: verification
+      ? {
+          method: verification.method as Verification['method'],
+          at: toDate(verification.at),
+          by: verification.by as Verification['by'],
+          details: verification.details as Verification['details'],
+        }
+      : null,
+    autoVerificationBlocked: doc.autoVerificationBlocked === true,
+    revision: typeof doc.revision === 'number' ? doc.revision : 0,
+  };
 }

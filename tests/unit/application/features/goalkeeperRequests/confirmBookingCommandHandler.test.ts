@@ -14,6 +14,7 @@ import { FakeOutboxStore } from '../../../../fakes/fakeOutboxStore.js';
 import { FakeEventRelay } from '../../../../fakes/fakeEventRelay.js';
 import { FakeUserRepository } from '../../../../fakes/fakeUserRepository.js';
 import { User } from '../../../../../src/domain/users/user.js';
+import { Quote } from '../../../../../src/domain/bookings/quote.js';
 import {
   buildRequest,
   buildStoredQuote,
@@ -520,5 +521,29 @@ describe('ConfirmBookingCommandHandler — feature 016: "cancel all" only while 
 
     h.clock.set('2026-09-21T19:30:00.000Z');
     expect(await h.confirm(STORED_QUOTE_ID, 'client-a', 'cancel_all')).toMatchObject({ outcome: 'replayed' });
+  });
+});
+
+describe('ConfirmBookingCommandHandler — goalkeepers without the seal (admin spec 030)', () => {
+  it('keeps the client\'s choice and the quote\'s terms in the request and each booking', async () => {
+    const quote = h.quotes.all()[0]!;
+    h.quotes.seed(Quote.rehydrate({ ...quote, unverifiedDiscountBps: 1000, verifiedPriorityMinutes: 20 }));
+
+    const result = await h.handler.handle(new ConfirmBookingCommand('client-a', STORED_QUOTE_ID, 'keep_confirmed', true));
+
+    expect(result.outcome).toBe('created');
+    const [request] = h.requests.all();
+    expect(request).toMatchObject({ acceptsUnverified: true, unverifiedDiscountBps: 1000 });
+    const bookings = await h.bookings.findByRequestIds([request!.id]);
+    for (const booking of bookings) {
+      expect(booking).toMatchObject({ acceptsUnverified: true, unverifiedDiscountBps: 1000, verifiedOnlyUntil: new Date(h.clock.now().getTime() + 20 * 60_000) });
+    }
+  });
+
+  it('without the client\'s choice, goalkeepers without the seal never get it', async () => {
+    await h.handler.handle(new ConfirmBookingCommand('client-a', STORED_QUOTE_ID, 'keep_confirmed'));
+
+    const [request] = h.requests.all();
+    expect(request!.acceptsUnverified).toBe(false);
   });
 });

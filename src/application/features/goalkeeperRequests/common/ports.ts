@@ -8,6 +8,7 @@ import type { Country } from '../../../../domain/countries/country.js';
 import type { BookingSettings } from '../../../../domain/pricing/bookingSettings.js';
 import type { RentalRate } from '../../../../domain/pricing/rentalRate.js';
 import type { MatchSurface } from '../../../../domain/pricing/matchSurface.js';
+import type { VettingTier } from '../../../../domain/goalkeepers/vetting.js';
 
 /** The playing surfaces clients can pick (feature 024). Externally seeded, read-only. */
 export interface IMatchSurfaceRepository {
@@ -150,6 +151,11 @@ export interface IBookingAcceptanceStore {
     bookingId: string;
     goalkeeperId: string;
     now: Date;
+    /**
+     * The goalkeeper's tier (admin spec 030): a `validated` one claims only a booking still open to
+     * goalkeepers without the seal, checked again inside the transaction.
+     */
+    tier: VettingTier;
     /** The commission and, when VAT applies, its VAT (feature 023), all appended or none. */
     chargeDrafts: (booking: Booking) => MovementDraft[];
     /**
@@ -173,7 +179,9 @@ export type AcceptanceOutcome =
   | 'own_request'
   | 'same_request'
   | 'not_available'
-  | 'not_a_goalkeeper';
+  | 'not_a_goalkeeper'
+  | 'not_validated'
+  | 'verified_only';
 
 /** Audit trail of every acceptance attempt (FR-015). */
 export interface IAcceptanceAuditLogger {

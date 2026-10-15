@@ -1,5 +1,7 @@
 import { Entity } from '../common/entity.js';
-import type { GoalkeeperPrice } from './goalkeeperPrice.js';
+import { withDiscount, type GoalkeeperPrice } from './goalkeeperPrice.js';
+import type { VettingTier } from '../goalkeepers/vetting.js';
+import { discountFor } from '../pricing/unverifiedDiscount.js';
 import type { GoalkeeperRequest } from './goalkeeperRequest.js';
 
 /**
@@ -109,6 +111,13 @@ export interface BookingProps {
   completedAt?: Date | null;
   attendance?: BookingAttendance | null;
   noShowAt?: Date | null;
+  /** Admin spec 030: copied from the request; absent on older documents (= no, 0, `createdAt`). */
+  acceptsUnverified?: boolean;
+  unverifiedDiscountBps?: number;
+  /** Until this instant only verified goalkeepers can take it. */
+  verifiedOnlyUntil?: Date | null;
+  /** Whether whoever took it had the seal; `null` while pending (absent on older documents). */
+  goalkeeperVerified?: boolean | null;
 }
 
 /**
@@ -146,6 +155,13 @@ export class Booking extends Entity<string> {
   readonly completedAt: Date | null;
   readonly attendance: BookingAttendance | null;
   readonly noShowAt: Date | null;
+  /** The client accepts goalkeepers without the seal once the verified-only window ends (admin spec 030). */
+  readonly acceptsUnverified: boolean;
+  /** The discount for an unverified goalkeeper, fixed when quoting (basis points). */
+  readonly unverifiedDiscountBps: number;
+  readonly verifiedOnlyUntil: Date;
+  /** Whether the assigned goalkeeper had the seal when they took it; `null` while nobody has. */
+  readonly goalkeeperVerified: boolean | null;
 
   private constructor(props: BookingProps) {
     super(props.id);
@@ -183,11 +199,19 @@ export class Booking extends Entity<string> {
     this.completedAt = props.completedAt ? new Date(props.completedAt) : null;
     this.attendance = props.attendance ?? null;
     this.noShowAt = props.noShowAt ? new Date(props.noShowAt) : null;
+    this.acceptsUnverified = props.acceptsUnverified ?? false;
+    this.unverifiedDiscountBps = props.unverifiedDiscountBps ?? 0;
+    this.verifiedOnlyUntil = new Date(props.verifiedOnlyUntil ?? props.createdAt);
+    this.goalkeeperVerified = props.goalkeeperVerified ?? null;
   }
 
-  /** A new place for one goalkeeper, at the request's per-goalkeeper price, awaiting assignment. */
-  static forRequest(id: string, request: GoalkeeperRequest, createdAt: Date): Booking {
+  /**
+   * A new place for one goalkeeper, at the request's per-goalkeeper price, awaiting assignment. For
+   * `verifiedPriorityMinutes` only verified goalkeepers can take it, never past the end of the search.
+   */
+  static forRequest(id: string, request: GoalkeeperRequest, createdAt: Date, verifiedPriorityMinutes = 0): Booking {
     const startMs = request.startsAt.getTime();
+    const searchEndsAt = startMs - request.travelBufferMinutes * 60_000;
     return new Booking({
       id,
       requestId: request.id,
@@ -199,10 +223,13 @@ export class Booking extends Entity<string> {
       price: request.pricing.perGoalkeeper(),
       commission: request.commission,
       travelBufferMinutes: request.travelBufferMinutes,
-      searchEndsAt: new Date(startMs - request.travelBufferMinutes * 60_000),
+      searchEndsAt: new Date(searchEndsAt),
       goalkeeperId: null,
       assignedAt: null,
       createdAt,
+      acceptsUnverified: request.acceptsUnverified,
+      unverifiedDiscountBps: request.unverifiedDiscountBps,
+      verifiedOnlyUntil: new Date(Math.min(createdAt.getTime() + verifiedPriorityMinutes * 60_000, searchEndsAt)),
     });
   }
 
@@ -220,7 +247,8 @@ export class Booking extends Entity<string> {
       startsAt: original.startsAt,
       endsAt: original.endsAt,
       status: 'pending_assignment',
-      price: original.price,
+      // The full price again: whoever takes the replacement decides the discount (admin spec 030).
+      price: withDiscount(original.price, 0),
       commission: original.commission,
       travelBufferMinutes: original.travelBufferMinutes,
       searchEndsAt: original.searchEndsAt,
@@ -231,6 +259,9 @@ export class Booking extends Entity<string> {
       excludedGoalkeeperIds: [...new Set([...original.excludedGoalkeeperIds, withdrawingGoalkeeperId])],
       // Whoever dismissed the match keeps not seeing it (feature 024).
       dismissedGoalkeeperIds: original.dismissedGoalkeeperIds,
+      acceptsUnverified: original.acceptsUnverified,
+      unverifiedDiscountBps: original.unverifiedDiscountBps,
+      verifiedOnlyUntil: original.verifiedOnlyUntil,
     });
   }
 
@@ -253,9 +284,16 @@ export class Booking extends Entity<string> {
     return Math.max(0, Math.floor((this.startsAt.getTime() - now.getTime()) / 60_000));
   }
 
-  /** The booking once a goalkeeper has taken it. Only a pending booking can be assigned. */
-  assign(goalkeeperId: string, at: Date): Booking {
+  /**
+   * The booking once a goalkeeper has taken it. Only a pending booking can be assigned. A
+   * validated goalkeeper without the seal takes it at the discounted price (admin spec 030): the
+   * commission stays as it was, so the goalkeeper absorbs the discount.
+   */
+  assign(goalkeeperId: string, at: Date, tier: VettingTier = 'verified'): Booking {
     if (this.status !== 'pending_assignment') throw new Error(`Booking ${this.id} is ${this.status}, not pending`);
-    return new Booking({ ...this, status: 'assigned', goalkeeperId, assignedAt: at });
+    const verified = tier === 'verified';
+    const full = this.price.unitRate + this.price.unitSurcharge;
+    const discount = verified ? 0 : discountFor(full, this.unverifiedDiscountBps, this.commission);
+    return new Booking({ ...this, status: 'assigned', goalkeeperId, assignedAt: at, price: withDiscount(this.price, discount), goalkeeperVerified: verified });
   }
 }

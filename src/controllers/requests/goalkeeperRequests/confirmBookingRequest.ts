@@ -17,4 +17,6 @@ export const confirmBookingRequestSchema = z.object({
       errorMap: () => ({ message: `partialFulfillment must be ${PARTIAL_FULFILLMENT_OPTIONS.join(' or ')}` }),
     })
     .optional(),
+  /** Admin spec 030: accept a goalkeeper without the verification seal if no verified one takes it. */
+  acceptUnverified: z.boolean({ invalid_type_error: 'acceptUnverified must be a boolean' }).optional(),
 });

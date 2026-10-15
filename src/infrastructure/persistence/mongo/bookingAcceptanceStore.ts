@@ -4,11 +4,12 @@ import type {
   IBookingAcceptanceStore,
 } from '../../../application/features/goalkeeperRequests/common/ports.js';
 import type { MovementDraft } from '../../../application/features/operatingBalance/common/ports.js';
-import type { Booking } from '../../../domain/bookings/booking.js';
+import { Booking } from '../../../domain/bookings/booking.js';
 import type { DomainEvent } from '../../../domain/events/domainEvent.js';
+import type { VettingTier } from '../../../domain/goalkeepers/vetting.js';
 import type { BalanceMovement } from '../../../domain/operatingBalance/balanceMovement.js';
 import { firstConflict, holdsSameRequest } from '../../../domain/bookings/schedulePolicy.js';
-import { BOOKINGS_COLLECTION, bookingFromDocument } from './bookingRepository.js';
+import { BOOKINGS_COLLECTION, bookingFromDocument, priceToDocument } from './bookingRepository.js';
 import { appendEventsInSession } from './outboxStore.js';
 import { appendMovementInSession } from './operatingBalanceStore.js';
 
@@ -40,6 +41,7 @@ export class MongoBookingAcceptanceStore implements IBookingAcceptanceStore {
     bookingId: string;
     goalkeeperId: string;
     now: Date;
+    tier: VettingTier;
     chargeDrafts: (booking: Booking) => MovementDraft[];
     events: (booking: Booking, charged: readonly BalanceMovement[]) => DomainEvent[];
   }): Promise<AcceptanceResult> {
@@ -55,12 +57,20 @@ export class MongoBookingAcceptanceStore implements IBookingAcceptanceStore {
               status: 'pending_assignment',
               searchEndsAt: { $gt: now },
               clientId: { $ne: goalkeeperId },
+              ...openToTierFilter(args.tier, now),
             } as Document,
             { $set: { status: 'assigned', goalkeeperId, assignedAt: now } },
             { returnDocument: 'after', session },
           );
           if (!claimed) return { kind: 'not_claimed' };
-          const booking = bookingFromDocument(claimed);
+          // Admin spec 030: the price of whoever took it, and whether they had the seal.
+          const claimedBooking = bookingFromDocument(claimed);
+          const booking = Booking.rehydrate({ ...claimedBooking, status: 'pending_assignment', goalkeeperId: null, assignedAt: null }).assign(goalkeeperId, now, args.tier);
+          await bookings.updateOne(
+            { _id: bookingId } as Document,
+            { $set: { price: priceToDocument(booking.price), goalkeeperVerified: booking.goalkeeperVerified } },
+            { session },
+          );
 
           const heldDocs = await bookings.find({ goalkeeperId, status: 'assigned', _id: { $ne: bookingId } } as Document, { session }).toArray();
           const held = heldDocs.map(bookingFromDocument);
@@ -93,4 +103,15 @@ export class MongoBookingAcceptanceStore implements IBookingAcceptanceStore {
       await session.endSession();
     }
   }
+}
+
+/**
+ * The claim's half of `isOpenToTier` (admin spec 030): a validated goalkeeper without the seal only
+ * claims a booking the client opened to them whose verified-only window has ended. An absent
+ * `verifiedOnlyUntil` means it equals the creation, which is always in the past.
+ */
+export function openToTierFilter(tier: VettingTier, now: Date): Document {
+  if (tier === 'verified') return {};
+  if (tier === 'unvalidated') return { _id: { $exists: false } };
+  return { acceptsUnverified: true, $or: [{ verifiedOnlyUntil: { $lte: now } }, { verifiedOnlyUntil: { $exists: false } }] };
 }

@@ -17,6 +17,10 @@ interface QuoteProps {
   commission: number;
   /** Minutes a goalkeeper needs to travel between matches here (012, FR-010). */
   travelBufferMinutes: number;
+  /** Admin spec 030: the zone's discount for a goalkeeper without the seal (basis points); absent = 0. */
+  unverifiedDiscountBps?: number;
+  /** Admin spec 030: how long the bookings wait for verified goalkeepers; absent = 0. */
+  verifiedPriorityMinutes?: number;
 }
 
 /**
@@ -35,6 +39,9 @@ export class Quote extends Entity<string> {
   readonly freeCancellationMinutes: number;
   readonly commission: number;
   readonly travelBufferMinutes: number;
+  /** Fixed with the price, so what the client saw is what applies (FR-019). */
+  readonly unverifiedDiscountBps: number;
+  readonly verifiedPriorityMinutes: number;
 
   private constructor(props: QuoteProps) {
     super(props.id);
@@ -59,6 +66,8 @@ export class Quote extends Entity<string> {
     this.freeCancellationMinutes = props.freeCancellationMinutes;
     this.commission = props.commission;
     this.travelBufferMinutes = props.travelBufferMinutes;
+    this.unverifiedDiscountBps = props.unverifiedDiscountBps ?? 0;
+    this.verifiedPriorityMinutes = props.verifiedPriorityMinutes ?? 0;
   }
 
   static issue(
@@ -71,6 +80,7 @@ export class Quote extends Entity<string> {
     freeCancellationMinutes: number,
     commission: number,
     travelBufferMinutes: number,
+    unverified: { discountBps: number; verifiedPriorityMinutes: number } = { discountBps: 0, verifiedPriorityMinutes: 0 },
   ): Quote {
     const expiresAt = new Date(issuedAt.getTime() + validityMinutes * 60_000);
     return new Quote({
@@ -83,6 +93,8 @@ export class Quote extends Entity<string> {
       freeCancellationMinutes,
       commission,
       travelBufferMinutes,
+      unverifiedDiscountBps: unverified.discountBps,
+      verifiedPriorityMinutes: unverified.verifiedPriorityMinutes,
     });
   }
 

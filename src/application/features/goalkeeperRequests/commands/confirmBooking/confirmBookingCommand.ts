@@ -30,6 +30,8 @@ export class ConfirmBookingCommand extends ICommand<ConfirmBookingResult> {
     public readonly clientId: string,
     public readonly quoteId: string,
     public readonly partialFulfillment: PartialFulfillment = PARTIAL_FULFILLMENT_DEFAULT,
+    /** Admin spec 030: the client accepts goalkeepers without the seal. */
+    public readonly acceptUnverified = false,
   ) {
     super();
   }

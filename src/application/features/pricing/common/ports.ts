@@ -1,3 +1,4 @@
+import type { UnverifiedDiscountSetting } from '../../../../domain/pricing/unverifiedDiscount.js';
 import type { MatchLevel, PricedModality } from '../../../../domain/bookings/matchFormat.js';
 import type { BookingSettingsFields } from '../../../../domain/pricing/bookingSettingsRules.js';
 import type { UpdateResult } from '../../geography/common/ports.js';
@@ -78,4 +79,23 @@ export interface IBookingSettingsAdmin {
 /** The commission document that applies to one match in a zone (the quote's resolver, admin spec 004 simulator). */
 export interface ICommissionSettingResolver {
   resolveSettingForMatch(zoneId: string, match: MatchTier): Promise<CommissionSetting | null>;
+}
+
+export type DiscountCreateResult = { outcome: 'created' } | { outcome: 'duplicate'; existingId: string | null };
+export type DiscountDeleteResult = 'deleted' | 'stale' | 'not_found';
+
+/** What one level of the unverified settings holds; `null` = inherit (admin spec 030). */
+export interface UnverifiedFields {
+  discountBps: number | null;
+  verifiedPriorityMinutes: number | null;
+}
+
+/** The unverified discount and priority window by level (admin spec 030). Read by the quote and written by the admin. */
+export interface IUnverifiedDiscountRepository {
+  /** Every setting for any of these zones, anchor cities or countries, in one read. */
+  findFor(refs: { zoneIds: string[]; cityIds: string[]; countryIds: string[] }): Promise<UnverifiedDiscountSetting[]>;
+  getById(id: string): Promise<UnverifiedDiscountSetting | null>;
+  create(setting: { id: string; scope: string; refId: string } & UnverifiedFields): Promise<DiscountCreateResult>;
+  update(id: string, expectedRevision: number, fields: UnverifiedFields): Promise<'saved' | 'stale'>;
+  delete(id: string, expectedRevision: number): Promise<DiscountDeleteResult>;
 }

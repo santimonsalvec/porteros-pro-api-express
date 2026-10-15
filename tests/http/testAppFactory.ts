@@ -40,6 +40,13 @@ import { FakeGoalkeeperAdminReader } from '../fakes/fakeGoalkeeperAdminReader.js
 import { FakeGoalkeeperDocumentWriter } from '../fakes/fakeGoalkeeperDocumentWriter.js';
 import { GetGoalkeeperMonthStatsQuery as AdminMonthStatsQuery } from '../../src/application/features/goalkeepers/queries/getGoalkeeperMonthStats/getGoalkeeperMonthStatsQuery.js';
 import { goalkeepersAdminHandlerRegistrations } from '../../src/infrastructure/goalkeepersAdminHandlers.js';
+import { goalkeeperVettingHandlerRegistrations } from '../../src/infrastructure/goalkeeperVettingHandlers.js';
+import { VettingNotifier } from '../../src/application/features/goalkeepers/common/vettingNotifier.js';
+import { ReputationVerifier } from '../../src/application/features/goalkeepers/common/reputationVerifier.js';
+import { FakeBackgroundCheckRepository } from '../fakes/fakeBackgroundCheckRepository.js';
+import { FakeVettingLogRepository } from '../fakes/fakeVettingLogRepository.js';
+import { FakeUnverifiedDiscountRepository } from '../fakes/fakeUnverifiedDiscountRepository.js';
+import { UnverifiedDiscountResolver } from '../../src/application/features/pricing/common/unverifiedDiscountResolver.js';
 import { operationsHandlerRegistrations } from '../../src/infrastructure/operationsAdminHandlers.js';
 import { financeHandlerRegistrations } from '../../src/infrastructure/financeAdminHandlers.js';
 import { dashboardSystemHandlerRegistrations } from '../../src/infrastructure/dashboardSystemAdminHandlers.js';
@@ -320,6 +327,10 @@ export interface TestAppContext {
   goalkeeperRegistrationRepository: FakeGoalkeeperRegistrationRepository;
   documentTypeRepository: FakeDocumentTypeRepository;
   goalkeeperProfileRepository: FakeGoalkeeperProfileRepository;
+  /** Admin spec 030: background checks and the history of vetting decisions. */
+  backgroundCheckRepository: FakeBackgroundCheckRepository;
+  vettingLogRepository: FakeVettingLogRepository;
+  unverifiedDiscountRepository: FakeUnverifiedDiscountRepository;
   cityRepository: FakeCityRepository;
   regionRepository: FakeRegionRepository;
   zoneRepository: FakeZoneRepository;
@@ -445,6 +456,9 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
   const termsAcceptanceRepository = new FakeTermsAcceptanceRepository();
   const imageStorageProvider = new FakeImageStorageProvider();
   const imageRepository = new FakeImageRepository();
+  const backgroundCheckRepository = new FakeBackgroundCheckRepository();
+  const vettingLogRepository = new FakeVettingLogRepository();
+  const unverifiedDiscountRepository = new FakeUnverifiedDiscountRepository();
   const goalkeeperRegistrationRepository = new FakeGoalkeeperRegistrationRepository();
   const documentTypeRepository = new FakeDocumentTypeRepository();
   documentTypeRepository.seed(new DocumentType({ id: 'dt1', code: 'cedula_ciudadania', name: 'Cédula de ciudadanía' }));
@@ -460,6 +474,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
   cityRepository.seed(new City({ id: 'city-envigado', name: 'Envigado', regionId: 'region-antioquia', zoneCityId: 'city-medellin' }));
   cityRepository.seed(new City({ id: 'city-bogota', name: 'Bogotá', regionId: 'region-cundinamarca', zoneCityId: null }));
   const zoneRepository = new FakeZoneRepository();
+  const unverifiedDiscountResolver = new UnverifiedDiscountResolver(unverifiedDiscountRepository, zoneRepository, cityRepository, regionRepository);
   const zonePolygon = { type: 'Polygon' as const, coordinates: [[[0, 0]]] };
   zoneRepository.seed(
     new Zone({ id: 'zone-bello', cityId: 'city-medellin', name: 'Bello', slug: 'medellin-co-bello', geometry: zonePolygon, active: true, displayOrder: 1 }),
@@ -805,6 +820,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       rentalRates: new FakeRentalRateAdmin(rentalRateRepository),
       commissions: new FakeCommissionAdmin(commissionSettingRepository),
       bookingSettings: new FakeBookingSettingsAdmin(bookingSettingsRepository),
+      discounts: unverifiedDiscountRepository,
       taxSettings: taxSettingsRepository,
       ids: { newId: () => uuidv7() },
       clock,
@@ -872,6 +888,42 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       registrations: goalkeeperRegistrationRepository,
       images: imageRepository,
       documentWriter: new FakeGoalkeeperDocumentWriter(goalkeeperProfileRepository, goalkeeperRegistrationRepository),
+    }),
+  );
+  const vettingNotifier = new VettingNotifier({
+    notifications: notificationRepository,
+    pushNotifier,
+    idGenerator,
+    clock,
+    logger: { info: () => undefined, warn: () => undefined },
+  });
+  const reputationVerifier = new ReputationVerifier({
+    profiles: goalkeeperProfileRepository,
+    checks: backgroundCheckRepository,
+    log: vettingLogRepository,
+    notifier: vettingNotifier,
+    idGenerator,
+    clock,
+    ratings: ratingRepository,
+  });
+  registerHandlers(
+    mediator,
+    goalkeeperVettingHandlerRegistrations({
+      profiles: goalkeeperProfileRepository,
+      checks: backgroundCheckRepository,
+      log: vettingLogRepository,
+      notifier: vettingNotifier,
+      reputation: reputationVerifier,
+      idGenerator,
+      clock,
+      images: imageRepository,
+      sender: mediator,
+      staff: staffMemberRepository,
+      users: userRepository,
+      ratings: ratingRepository,
+      blocks: userBlockRepository,
+      userReader: userAdminReader,
+      cities: cityRepository,
     }),
   );
   registerHandlers(
@@ -1079,7 +1131,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     },
     {
       requestType: IssueServiceQuoteCommand,
-      handler: new IssueServiceQuoteCommandHandler(mediator, quoteRepository, uuidGenerator, clock),
+      handler: new IssueServiceQuoteCommandHandler(mediator, quoteRepository, uuidGenerator, clock, unverifiedDiscountResolver),
     },
     {
       requestType: ConfirmBookingCommand,
@@ -1258,6 +1310,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
         goalkeeperProfileRepository,
         cityRepository,
         regionRepository,
+        { checks: backgroundCheckRepository, clock, discounts: unverifiedDiscountResolver },
       ),
     },
     { requestType: GetDocumentTypesQuery, handler: new GetDocumentTypesQueryHandler(documentTypeRepository) },
@@ -1383,6 +1436,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
         idGenerator: lifecycleIds,
         clock,
         audit: bookingAuditLogger,
+        reputation: reputationVerifier,
       }),
     },
     {
@@ -1493,6 +1547,9 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     goalkeeperRegistrationRepository,
     documentTypeRepository,
     goalkeeperProfileRepository,
+    backgroundCheckRepository,
+    vettingLogRepository,
+    unverifiedDiscountRepository,
     cityRepository,
     regionRepository,
     zoneRepository,

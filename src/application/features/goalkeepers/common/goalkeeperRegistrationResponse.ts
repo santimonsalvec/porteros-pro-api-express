@@ -1,6 +1,7 @@
 import type { GoalkeeperRegistration } from '../../../../domain/goalkeepers/goalkeeperRegistration.js';
 import type { GoalkeeperProfile } from '../../../../domain/goalkeepers/goalkeeperProfile.js';
 import { computeGoalkeeperSections, type GoalkeeperSectionsView } from './goalkeeperSections.js';
+import type { VettingTier } from '../../../../domain/goalkeepers/vetting.js';
 
 /** Display data for the saved `cityId`; `region` is the region's name, same convention as `GET /locations/cities`. */
 export interface GoalkeeperCityView {
@@ -30,6 +31,19 @@ export interface GoalkeeperRegistrationResponse {
    * two extra lookups on every autosave.
    */
   city?: GoalkeeperCityView | null;
+  /**
+   * Where the goalkeeper stands with the team (admin spec 030, contracts A1); only on
+   * `GET /goalkeepers/me` and only once active. Never who decided nor how they were verified.
+   */
+  vetting?: GoalkeeperVettingSummary;
+}
+
+export interface GoalkeeperVettingSummary {
+  tier: VettingTier;
+  rejection: { reason: string; at: string } | null;
+  backgroundChecks: { pending: number; approved: number; rejected: number; expired: number };
+  /** The discount range across the goalkeeper's zones while validated without the seal; null otherwise. */
+  unverifiedDiscount: { minBps: number; maxBps: number } | null;
 }
 
 function toIsoDate(date: Date | null): string | null {

@@ -12,6 +12,10 @@ export const ADMIN_LIMITS = Object.freeze({
   tierMinutes: 129_600,
   tiers: 20,
   penaltyCount: 365,
+  /** Admin spec 030: the platform's ceiling for the unverified discount (30 %). */
+  unverifiedDiscountBps: 3000,
+  /** Admin spec 030: the verified-only window, at most a day. */
+  verifiedPriorityMinutes: 1440,
 });
 
 const aboveLimit = (path: string, limit: number) => issue(path, 'above_limit', `${path} must be at most ${limit}`);
