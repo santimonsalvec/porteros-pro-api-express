@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp, TEST_INTERNAL_TOKEN } from '../testAppFactory.js';
-import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../walletTestHelpers.js';
+import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../operatingBalanceTestHelpers.js';
 
 /** Colombia at 19 % VAT with Siigo configured; events reach the consumers during the request. */
 async function setUp(balance = 10000) {
@@ -11,7 +11,7 @@ async function setUp(balance = 10000) {
   context.invoicingSettingsRepository.seed();
   const client = await signInClient(context, 'sub-2301');
   const goalkeeper = await signInGoalkeeper(context, 'sub-2302');
-  await context.walletLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: balance, reason: 'Saldo de pruebas', operationKey: 'k-gk' });
+  await context.operatingBalanceLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: balance, reason: 'Saldo de pruebas', operationKey: 'k-gk' });
   const created = await createRequestAsClient(context, client.token);
   return { context, client, goalkeeper, bookingId: created.bookings[0]!.bookingId };
 }
@@ -21,8 +21,8 @@ function as(context: TestApp, token: string) {
   return {
     accept: (bookingId: string) => auth(request(context.app).post(`/goalkeepers/me/bookings/${bookingId}/accept`)),
     available: () => auth(request(context.app).get('/goalkeepers/me/available-bookings')),
-    movements: () => auth(request(context.app).get('/goalkeepers/me/wallet/movements')),
-    wallet: () => auth(request(context.app).get('/goalkeepers/me/wallet')),
+    movements: () => auth(request(context.app).get('/goalkeepers/me/operating-balance/movements')),
+    operatingBalance: () => auth(request(context.app).get('/goalkeepers/me/operating-balance')),
   };
 }
 
@@ -38,7 +38,7 @@ describe('Invoicing — US1: every commission charged gets one electronic invoic
       ['commission_vat', -1330, 1900],
       ['commission_charge', -7000, undefined],
     ]);
-    expect((await as(context, goalkeeper.token).wallet()).body.balance).toBe(1670);
+    expect((await as(context, goalkeeper.token).operatingBalance()).body.balance).toBe(1670);
     expect(context.invoicingDocumentRepository.all()).toMatchObject([
       { kind: 'invoice', status: 'issued', goalkeeperId: goalkeeper.userId, bookingId, base: 7000, vat: 1330, total: 8330 },
     ]);
@@ -50,12 +50,12 @@ describe('Invoicing — US1: every commission charged gets one electronic invoic
 
     const available = await as(context, goalkeeper.token).available();
     const accepted = await as(context, goalkeeper.token).accept(bookingId);
-    const wallet = await as(context, goalkeeper.token).wallet();
+    const operatingBalance = await as(context, goalkeeper.token).operatingBalance();
 
     expect(available.body).toMatchObject({ items: [], unavailableReason: 'insufficient_funds', missingAmount: 830 });
     expect(accepted.status).toBe(409);
     expect(accepted.body).toMatchObject({ error: 'insufficient_funds', missingAmount: 830 });
-    expect(wallet.body.offers).toEqual({ canSeeOffers: false, lowestCommission: 7000, lowestCharge: 8330, vatRateBps: 1900, missingAmount: 830 });
+    expect(operatingBalance.body.offers).toEqual({ canSeeOffers: false, lowestCommission: 7000, lowestCharge: 8330, vatRateBps: 1900, missingAmount: 830 });
     expect(context.invoicingDocumentRepository.all()).toEqual([]);
   });
 
@@ -97,7 +97,7 @@ describe('Invoicing — US2: a credit note for each refund', () => {
     await request(context.app).post('/internal/sweep').set('Authorization', `Bearer ${TEST_INTERNAL_TOKEN}`);
 
     expect(cancelled.status).toBe(200);
-    expect((await as(context, goalkeeper.token).wallet()).body.balance).toBe(10000);
+    expect((await as(context, goalkeeper.token).operatingBalance()).body.balance).toBe(10000);
     const [invoice, note] = context.invoicingDocumentRepository.all();
     expect(note).toMatchObject({ kind: 'credit_note', status: 'issued', originalDocumentId: invoice!.id, base: 7000, vat: 1330, total: 8330 });
     expect(context.invoicingProvider.creditNotes()).toHaveLength(1);

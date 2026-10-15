@@ -16,7 +16,7 @@ import { FakeUserBlockRepository } from '../../../../fakes/fakeUserBlockReposito
 import { FakeGoalkeeperProfileRepository } from '../../../../fakes/fakeGoalkeeperProfileRepository.js';
 import { FakeGoalkeeperRegistrationRepository } from '../../../../fakes/fakeGoalkeeperRegistrationRepository.js';
 import { FakeDocumentTypeRepository } from '../../../../fakes/fakeDocumentTypeRepository.js';
-import { buildGoalkeeperProfile } from '../../../../fixtures/walletFixtures.js';
+import { buildGoalkeeperProfile } from '../../../../fixtures/operatingBalanceFixtures.js';
 
 const NOW = new Date('2026-10-12T15:00:00.000Z');
 

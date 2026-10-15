@@ -27,8 +27,8 @@ import { offersAvailabilityRequestSchema } from './requests/goalkeepers/offersAv
 import { SetOffersAvailabilityCommand } from '../application/features/notifications/commands/setOffersAvailability/setOffersAvailabilityCommand.js';
 import { ApiError } from './apiError.js';
 import { logger } from '../infrastructure/observability/logger.js';
-import { goalkeeperNotFound, sendMovements, sendWallet, walletNotConfigured } from './wallet/walletHttp.js';
-import { sendTopUp, sendTopUpOptions, sendTopUps, startTopUp } from './payments/topUpHttp.js';
+import { goalkeeperNotFound, sendMovements, sendOperatingBalance, operatingBalanceNotConfigured } from './operatingBalance/operatingBalanceHttp.js';
+import { sendDeposit, sendDepositOptions, sendDeposits, startDeposit } from './deposits/depositHttp.js';
 import { sendDocumentFile, sendMyDocument, sendMyDocuments } from './invoicing/invoicingHttp.js';
 import { AcceptBookingCommand } from '../application/features/goalkeeperRequests/commands/acceptBooking/acceptBookingCommand.js';
 import { DismissBookingCommand } from '../application/features/goalkeeperRequests/commands/dismissBooking/dismissBookingCommand.js';
@@ -40,6 +40,7 @@ import { zodFieldErrors } from './requests/goalkeeperRequests/getServiceQuoteReq
 import { withdrawRequestSchema } from './requests/withdrawals/withdrawRequest.js';
 import { checkInRequestSchema } from './requests/checkIn/checkInRequest.js';
 import { CheckInToBookingCommand } from '../application/features/bookingLifecycle/commands/checkInToBooking/checkInToBookingCommand.js';
+import { assertNotClosing } from './accountClosing.js';
 import { sendWithdrawals } from './withdrawals/withdrawalsHttp.js';
 import { WithdrawFromBookingCommand } from '../application/features/bookingLifecycle/commands/withdrawFromBooking/withdrawFromBookingCommand.js';
 
@@ -182,6 +183,8 @@ export function createGoalkeeperController(deps: GoalkeeperControllerDependencie
   // The "available for offers" switch (feature 015): off hides and refuses matches; on sends the open ones now.
   router.put('/me/offers-availability', async (req, res) => {
     const body = offersAvailabilityRequestSchema.parse(req.body);
+    // Turning offers off is always fine; on, never while the account is inactive (feature 029).
+    if (body.available) await assertNotClosing(deps.mediator, req.authClaims!.sub);
     const result = await deps.mediator.send(new SetOffersAvailabilityCommand(req.authClaims!.sub, body.available));
 
     switch (result.outcome) {
@@ -312,6 +315,7 @@ export function createGoalkeeperController(deps: GoalkeeperControllerDependencie
 
   // Matches the goalkeeper can take right now (feature 012).
   router.get('/me/available-bookings', async (req, res) => {
+    await assertNotClosing(deps.mediator, req.authClaims!.sub);
     const parsed = listClientBookingsRequestSchema.safeParse(req.query);
     if (!parsed.success) {
       throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
@@ -344,8 +348,8 @@ export function createGoalkeeperController(deps: GoalkeeperControllerDependencie
         return;
       case 'not_a_goalkeeper':
         throw goalkeeperNotFound();
-      case 'wallet_not_configured':
-        throw walletNotConfigured(result.cityId);
+      case 'operating_balance_not_configured':
+        throw operatingBalanceNotConfigured(result.cityId);
       case 'time_zone_not_configured':
         logger.warn({ outcome: 'time_zone_not_configured', cityId: result.cityId }, 'Goalkeeper stats refused: city time zone not configured');
         throw new ApiError(422, 'time_zone_not_configured', 'The time zone of the goalkeeper city is not configured.');
@@ -376,6 +380,7 @@ export function createGoalkeeperController(deps: GoalkeeperControllerDependencie
 
   // The goalkeeper takes a booking: assigned and charged in one step (feature 012).
   router.post('/me/bookings/:bookingId/accept', async (req, res) => {
+    await assertNotClosing(deps.mediator, req.authClaims!.sub);
     const result = await deps.mediator.send(new AcceptBookingCommand(req.authClaims!.sub, req.params.bookingId));
 
     // Exhaustive on purpose: adding an outcome without mapping it here fails compilation.
@@ -501,30 +506,32 @@ export function createGoalkeeperController(deps: GoalkeeperControllerDependencie
     await sendWithdrawals(deps.mediator, req.authClaims!.sub, 'goalkeeper', req, res);
   });
 
-  // The goalkeeper's wallet (feature 011). The goalkeeper is always the token's subject.
-  router.get('/me/wallet', async (req, res) => {
-    await sendWallet(deps.mediator, req.authClaims!.sub, res);
+  // The goalkeeper's operating balance (feature 011). The goalkeeper is always the token's subject.
+  router.get('/me/operating-balance', async (req, res) => {
+    await sendOperatingBalance(deps.mediator, req.authClaims!.sub, res);
   });
 
-  router.get('/me/wallet/movements', async (req, res) => {
+  router.get('/me/operating-balance/movements', async (req, res) => {
     await sendMovements(deps.mediator, req.authClaims!.sub, 'goalkeeper', req, res);
   });
 
-  // Top-ups through the country's payment gateway (feature 022).
-  router.get('/me/wallet/top-up-options', async (req, res) => {
-    await sendTopUpOptions(deps.mediator, req.authClaims!.sub, res);
+  // Deposits through the country's payment gateway (feature 022).
+  router.get('/me/operating-balance/deposit-options', async (req, res) => {
+    await sendDepositOptions(deps.mediator, req.authClaims!.sub, res);
   });
 
-  router.post('/me/wallet/top-ups', async (req, res) => {
-    await startTopUp(deps.mediator, req.authClaims!.sub, req, res);
+  router.post('/me/operating-balance/deposits', async (req, res) => {
+    // Only to cover the debt an administrator asked to cover, while the account is closing (feature 029).
+    await assertNotClosing(deps.mediator, req.authClaims!.sub, { allowDebtDeposit: true });
+    await startDeposit(deps.mediator, req.authClaims!.sub, req, res);
   });
 
-  router.get('/me/wallet/top-ups', async (req, res) => {
-    await sendTopUps(deps.mediator, req.authClaims!.sub, req, res);
+  router.get('/me/operating-balance/deposits', async (req, res) => {
+    await sendDeposits(deps.mediator, req.authClaims!.sub, req, res);
   });
 
-  router.get('/me/wallet/top-ups/:topUpId', async (req, res) => {
-    await sendTopUp(deps.mediator, req.authClaims!.sub, req.params.topUpId, res);
+  router.get('/me/operating-balance/deposits/:depositId', async (req, res) => {
+    await sendDeposit(deps.mediator, req.authClaims!.sub, req.params.depositId, res);
   });
 
   // Electronic invoices and credit notes (feature 023).

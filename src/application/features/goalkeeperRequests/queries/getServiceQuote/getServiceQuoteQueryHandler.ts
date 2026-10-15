@@ -12,7 +12,7 @@ import { MatchFormat } from '../../../../../domain/bookings/matchFormat.js';
 import { matchFormatResponse } from '../../common/matchFormatResponse.js';
 import { evaluateQuoteInArea } from '../../common/quoteEvaluation.js';
 import { resolveServiceArea } from '../../common/serviceArea.js';
-import type { ICommissionResolver } from '../../../wallet/common/ports.js';
+import type { ICommissionResolver } from '../../../operatingBalance/common/ports.js';
 import { GetServiceQuoteQuery, type GetServiceQuoteResult } from './getServiceQuoteQuery.js';
 
 /**

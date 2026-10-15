@@ -45,7 +45,7 @@ describe('admin invoicing documents (spec 007 of the admin, US2)', () => {
 
   it('needs invoicing.read', async () => {
     const { context } = await documentWorld();
-    const member = await memberWith(context, 'recargas', ['topups.read']);
+    const member = await memberWith(context, 'recargas', ['deposits.read']);
     expect((await adminGet(context, '/admin/invoicing/documents/inv-1', member.token)).status).toBe(403);
   });
 });

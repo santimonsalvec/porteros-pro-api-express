@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { City } from '../../../../../src/domain/locations/city.js';
 import { Region } from '../../../../../src/domain/locations/region.js';
-import { CommissionSetting } from '../../../../../src/domain/wallet/commissionSetting.js';
+import { CommissionSetting } from '../../../../../src/domain/operatingBalance/commissionSetting.js';
 import { compareNames, compareTiers } from '../../../../../src/application/features/pricing/common/ordering.js';
 import { PricingGeography, checkWriteTarget } from '../../../../../src/application/features/pricing/common/pricingGeography.js';
 import { GetCityBookingSettingsQuery } from '../../../../../src/application/features/pricing/queries/getCityBookingSettings/getCityBookingSettingsQuery.js';

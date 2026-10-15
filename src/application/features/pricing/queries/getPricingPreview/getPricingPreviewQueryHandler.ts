@@ -1,6 +1,6 @@
 import type { IClock } from '../../../../common/clock.js';
 import type { IQueryHandler } from '../../../../common/mediator/types.js';
-import { vatFor } from '../../../../../domain/wallet/vat.js';
+import { vatFor } from '../../../../../domain/operatingBalance/vat.js';
 import type { RentalRate } from '../../../../../domain/pricing/rentalRate.js';
 import type { MatchTier } from '../../../../../domain/pricing/tieredRate.js';
 import { selectSurchargeTier, selectUnitRate } from '../../../goalkeeperRequests/common/pricing.js';
@@ -8,8 +8,8 @@ import { evaluateQuoteInArea, resolveStartInstant, type AreaQuoteResult, type Qu
 import { resolveBookingSettingsWithOrigin } from '../../../goalkeeperRequests/common/resolveBookingSettings.js';
 import { parseStartsAt } from '../../../goalkeeperRequests/common/startsAt.js';
 import { formatLocalIso, isValidTimeZone } from '../../../goalkeeperRequests/common/zonedTime.js';
-import type { ITaxSettingsRepository } from '../../../wallet/common/ports.js';
-import type { CommissionSetting } from '../../../../../domain/wallet/commissionSetting.js';
+import type { ITaxSettingsRepository } from '../../../operatingBalance/common/ports.js';
+import type { CommissionSetting } from '../../../../../domain/operatingBalance/commissionSetting.js';
 import type { PricingGeographyDependencies } from '../../common/pricingGeography.js';
 import type { ICommissionSettingResolver } from '../../common/ports.js';
 import {

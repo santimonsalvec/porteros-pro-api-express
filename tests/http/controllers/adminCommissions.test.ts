@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 import { as } from '../geographyTestHelpers.js';
 import { pricingStaff } from '../pricingTestHelpers.js';
-import { signInClient } from '../walletTestHelpers.js';
+import { signInClient } from '../operatingBalanceTestHelpers.js';
 
 const NORTE = { scope: 'zone', refId: 'zone-cali-norte', amount: 9000 };
 

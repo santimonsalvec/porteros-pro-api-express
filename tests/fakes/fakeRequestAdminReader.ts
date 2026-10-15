@@ -14,7 +14,7 @@ import type { FakeCityRepository } from './fakeCityRepository.js';
 import type { FakeGoalkeeperRequestRepository } from './fakeGoalkeeperRequestRepository.js';
 import type { FakeNotificationRepository } from './fakeNotificationRepository.js';
 import type { FakeRegionRepository } from './fakeRegionRepository.js';
-import type { FakeWalletStore } from './fakeWalletStore.js';
+import type { FakeOperatingBalanceStore } from './fakeOperatingBalanceStore.js';
 
 /** The admin's request reads over the in-memory stores, filtering like the Mongo reader (admin spec 006). */
 export class FakeRequestAdminReader implements IRequestAdminReader {
@@ -24,7 +24,7 @@ export class FakeRequestAdminReader implements IRequestAdminReader {
       cities: FakeCityRepository;
       requests: FakeGoalkeeperRequestRepository;
       bookings: FakeBookingRepository;
-      wallet: FakeWalletStore;
+      operatingBalance: FakeOperatingBalanceStore;
       lifecycle: FakeBookingLifecycleStore;
       notifications: FakeNotificationRepository;
     },
@@ -84,7 +84,7 @@ export class FakeRequestAdminReader implements IRequestAdminReader {
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || (a.id < b.id ? -1 : 1));
     const ids = new Set(bookings.map((booking) => booking.id));
     const money = new Map<string, BookingMoneyRecord>();
-    for (const movement of this.stores.wallet.movements()) {
+    for (const movement of this.stores.operatingBalance.movements()) {
       const [key, bookingId] = movement.causeKey.split(/:(.*)/s) as [string, string];
       if (!ids.has(bookingId) || !['commission', 'commission_vat', 'commission_refund', 'commission_vat_refund'].includes(key)) continue;
       const record = money.get(bookingId) ?? { charged: 0, chargedVat: 0, refunded: 0, refundedVat: 0, currency: movement.currency };

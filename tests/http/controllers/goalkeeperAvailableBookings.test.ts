@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
-import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../walletTestHelpers.js';
+import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../operatingBalanceTestHelpers.js';
 
 async function setUp() {
   const context = await buildTestApp();
@@ -19,7 +19,7 @@ describe('GET /goalkeepers/me/available-bookings — US1: the goalkeeper sees wh
   it('200 with both bookings of a 2-goalkeeper match, their earnings and commission, and no client data', async () => {
     const { context, client, goalkeeper } = await setUp();
     const created = await createRequestAsClient(context, client.token);
-    await context.walletLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: 'k-1' });
+    await context.operatingBalanceLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: 'k-1' });
 
     const response = await available(context, goalkeeper.token);
 
@@ -41,7 +41,7 @@ describe('GET /goalkeepers/me/available-bookings — US1: the goalkeeper sees wh
     expect(JSON.stringify(response.body)).not.toContain('Ana');
   });
 
-  it('shows nothing, and why, when the wallet cannot cover the commission', async () => {
+  it('shows nothing, and why, when the operatingBalance cannot cover the commission', async () => {
     const { context, client, goalkeeper } = await setUp();
     await createRequestAsClient(context, client.token);
 
@@ -53,7 +53,7 @@ describe('GET /goalkeepers/me/available-bookings — US1: the goalkeeper sees wh
   it('shows nothing while the goalkeeper has offers switched off (feature 015)', async () => {
     const { context, client, goalkeeper } = await setUp();
     await createRequestAsClient(context, client.token);
-    await context.walletLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: 'k-off' });
+    await context.operatingBalanceLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: 'k-off' });
     await context.goalkeeperProfileRepository.setAvailableForOffers(goalkeeper.userId, false);
 
     const response = await available(context, goalkeeper.token);

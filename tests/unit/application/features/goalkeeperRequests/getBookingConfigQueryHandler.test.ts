@@ -13,7 +13,7 @@ import { GetServiceQuoteQueryHandler } from '../../../../../src/application/feat
 import { parseStartsAt } from '../../../../../src/application/features/goalkeeperRequests/common/startsAt.js';
 import { FakeBookingSettingsRepository } from '../../../../fakes/fakeBookingSettingsRepository.js';
 import { FakeCommissionSettingRepository } from '../../../../fakes/fakeCommissionSettingRepository.js';
-import { CommissionResolver } from '../../../../../src/application/features/wallet/common/commissionResolver.js';
+import { CommissionResolver } from '../../../../../src/application/features/operatingBalance/common/commissionResolver.js';
 import { FakeCityRepository } from '../../../../fakes/fakeCityRepository.js';
 import { FixedClock } from '../../../../fakes/fakeClock.js';
 import { FakeCountryRepository } from '../../../../fakes/fakeCountryRepository.js';

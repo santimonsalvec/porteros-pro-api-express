@@ -2,7 +2,7 @@ import { QUOTE_FORMAT_FIELDS } from '../../fixtures/quoteFixtures.js';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
-import { MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../walletTestHelpers.js';
+import { MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../operatingBalanceTestHelpers.js';
 import { RunSweepCommand } from '../../../src/application/features/events/commands/runSweep/runSweepCommand.js';
 
 /** The match starts 15:00 in Bogotá (20:00Z); "cancel all" is evaluated at 19:00Z. */
@@ -25,7 +25,7 @@ async function setUp() {
   context.clock.set(MATCH_NOW);
   const client = await signInClient(context, 'sub-0901');
   const goalkeeper = await signInGoalkeeper(context, 'sub-0902');
-  await context.walletLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: 'k-0902' });
+  await context.operatingBalanceLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: 'k-0902' });
   for (const [who, token] of [['c', client.token], ['g', goalkeeper.token]] as const) {
     await request(context.app).post('/devices').set('Authorization', `Bearer ${token}`).send({ token: `phone-${who}-09`, platform: 'android' });
   }
@@ -50,11 +50,11 @@ describe('"Cancel all" — US2: applied automatically when the match is not comp
     expect(listed).toMatchObject({ status: 'cancelled' });
     expect(listed.bookings.map((booking: { status: string }) => booking.status)).toEqual(['cancelled', 'cancelled']);
 
-    const refunds = context.walletStore.movements().filter((movement) => movement.type === 'commission_refund');
+    const refunds = context.operatingBalanceStore.movements().filter((movement) => movement.type === 'commission_refund');
     expect(refunds).toHaveLength(1);
     expect(refunds[0]).toMatchObject({ amount: 7000, cancellation: { by: 'system', reason: 'cancel_all' }, references: { bookingId: taken!.bookingId } });
-    const wallet = await request(context.app).get('/goalkeepers/me/wallet').set('Authorization', `Bearer ${goalkeeper.token}`);
-    expect(wallet.body.balance).toBe(20000);
+    const operatingBalance = await request(context.app).get('/goalkeepers/me/operating-balance').set('Authorization', `Bearer ${goalkeeper.token}`);
+    expect(operatingBalance.body.balance).toBe(20000);
 
     const agenda = await request(context.app).get('/goalkeepers/me/bookings').set('Authorization', `Bearer ${goalkeeper.token}`);
     expect(agenda.body.items.find((item: { bookingId: string }) => item.bookingId === taken!.bookingId)).toMatchObject({ status: 'cancelled' });
@@ -72,7 +72,7 @@ describe('"Cancel all" — US2: applied automatically when the match is not comp
   it('keeps a complete request firm', async () => {
     const { context, client, goalkeeper } = await setUp();
     const second = await signInGoalkeeper(context, 'sub-0903');
-    await context.walletLedger.adjust(ownerOf(second.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: 'k-0903' });
+    await context.operatingBalanceLedger.adjust(ownerOf(second.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: 'k-0903' });
     const created = await confirm(context, client.token, (await quote(context, client.token)).body.quoteId, 'cancel_all');
     const [a, b] = created.body.bookings as Array<{ bookingId: string }>;
     await accept(context, goalkeeper.token, a!.bookingId);
@@ -83,7 +83,7 @@ describe('"Cancel all" — US2: applied automatically when the match is not comp
 
     const listed = (await request(context.app).get('/goalkeeper-requests/bookings').set('Authorization', `Bearer ${client.token}`)).body.items[0];
     expect(listed.status).toBe('assigned');
-    expect(context.walletStore.movements().filter((movement) => movement.type === 'commission_refund')).toHaveLength(0);
+    expect(context.operatingBalanceStore.movements().filter((movement) => movement.type === 'commission_refund')).toHaveLength(0);
   });
 
   it('lets the client request the same match again after the cancellation', async () => {

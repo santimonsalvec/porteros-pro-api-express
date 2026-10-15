@@ -4,7 +4,7 @@ import type { GoalkeeperIncident } from '../../../../domain/goalkeepers/goalkeep
 import type { GoalkeeperPenaltyConfig } from '../../../../domain/goalkeepers/penaltyPolicy.js';
 import type { CaseType } from '../../../../domain/cases/case.js';
 import type { Rating } from '../../../../domain/ratings/rating.js';
-import type { LedgerOwner } from '../../wallet/common/walletLedger.js';
+import type { LedgerOwner } from '../../operatingBalance/common/operatingBalanceLedger.js';
 
 export interface ExpireResult {
   /** The bookings this call expired (as they are now). Empty when another sweep already did. */

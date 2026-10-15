@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
-import { createRequestAsClient, MATCH_NOW, ownerOf, signInAdmin, signInClient, signInGoalkeeper, type TestApp } from '../walletTestHelpers.js';
+import { createRequestAsClient, MATCH_NOW, ownerOf, signInAdmin, signInClient, signInGoalkeeper, type TestApp } from '../operatingBalanceTestHelpers.js';
 
 const get = (context: TestApp, token: string, path: string) => request(context.app).get(path).set('Authorization', `Bearer ${token}`);
 const reverse = (context: TestApp, token: string, userId: string, withdrawalId: string, body: object) =>
@@ -14,7 +14,7 @@ async function setUp() {
   const admin = await signInAdmin(context);
   const client = await signInClient(context, 'sub-1001');
   const g = await signInGoalkeeper(context, 'sub-1002');
-  await context.walletLedger.adjust(ownerOf(g.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: 'k-g' });
+  await context.operatingBalanceLedger.adjust(ownerOf(g.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: 'k-g' });
   const created = await createRequestAsClient(context, client.token, { goalkeeperCount: 1 });
   const bookingId = created.bookings[0]!.bookingId;
   await request(context.app).post(`/goalkeepers/me/bookings/${bookingId}/accept`).set('Authorization', `Bearer ${g.token}`);
@@ -39,12 +39,12 @@ describe('/admin/goalkeepers/:userId/withdrawals — US4: reversal', () => {
         penalties: [{ kind: 'late', reversal: { by: 'admin-1', reason: 'Incapacidad médica' } }],
       },
     });
-    expect((await get(context, g.token, '/goalkeepers/me/wallet')).body.balance).toBe(20000);
+    expect((await get(context, g.token, '/goalkeepers/me/operating-balance')).body.balance).toBe(20000);
     expect((await get(context, g.token, '/goalkeepers/me/available-bookings')).body.unavailableReason).toBeNull();
 
     const again = await reverse(context, admin.token, g.userId, withdrawalId, { refund: true, liftSuspension: true, reason: 'Otra vez' });
     expect(again.status).toBe(200);
-    expect((await get(context, g.token, '/goalkeepers/me/wallet')).body.balance).toBe(20000);
+    expect((await get(context, g.token, '/goalkeepers/me/operating-balance')).body.balance).toBe(20000);
   });
 
   it('shows the administrator in the admin history, but not in the goalkeeper\'s own', async () => {

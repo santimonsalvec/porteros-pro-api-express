@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Collection, Db, Document } from 'mongodb';
 import { BookingRepository } from '../../../../../src/infrastructure/persistence/mongo/bookingRepository.js';
 import { GoalkeeperProfileRepository } from '../../../../../src/infrastructure/persistence/mongo/goalkeeperProfileRepository.js';
-import { WalletRepository } from '../../../../../src/infrastructure/persistence/mongo/walletRepository.js';
+import { OperatingBalanceRepository } from '../../../../../src/infrastructure/persistence/mongo/operatingBalanceRepository.js';
 import { GoalkeeperRequestRepository, requestToDocument } from '../../../../../src/infrastructure/persistence/mongo/goalkeeperRequestRepository.js';
 import { buildRequest } from '../../../../fixtures/quoteFixtures.js';
 import { createFakeCollection, toArrayCursor, toArrayResult } from '../../../../fakes/fakeMongoCollection.js';
@@ -87,10 +87,10 @@ describe('feature 015 reads on existing repositories (mocked driver)', () => {
     expect(collection.find).toHaveBeenCalledWith({ goalkeeperId: { $in: ['g1', 'g2'] }, status: 'assigned' });
   });
 
-  it('reads the wallets of several goalkeepers in one query', async () => {
+  it('reads the operatingBalances of several goalkeepers in one query', async () => {
     const collection = createFakeCollection();
     collection.find.mockReturnValue(toArrayResult([]));
-    const repository = new WalletRepository(dbOf(collection));
+    const repository = new OperatingBalanceRepository(dbOf(collection));
 
     expect(await repository.findByGoalkeeperIds([])).toEqual([]);
     await repository.findByGoalkeeperIds(['g1']);

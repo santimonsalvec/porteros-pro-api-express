@@ -38,10 +38,10 @@ export interface GeometryError {
 const MESSAGES: Record<GeometryErrorCode, string> = {
   geometry_type: 'La geometría debe ser un Polygon o un MultiPolygon',
   ring_not_closed: 'El anillo no está cerrado',
-  ring_too_short: 'El anillo necesita al menos 4 puntos',
+  ring_too_short: 'El anillo necesita al menos 4 vértices',
   coordinate_out_of_range: 'Hay coordenadas fuera de rango',
   self_intersection: 'El polígono se cruza a sí mismo',
-  too_many_vertices: `El polígono tiene más de ${MAX_ZONE_POSITIONS.toLocaleString('es-CO')} puntos`,
+  too_many_vertices: `El polígono tiene más de ${MAX_ZONE_POSITIONS.toLocaleString('es-CO')} vértices`,
 };
 
 const error = (code: GeometryErrorCode, where: Omit<GeometryError, 'code' | 'message'> = {}): GeometryError => ({

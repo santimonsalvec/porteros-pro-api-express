@@ -7,16 +7,16 @@ import type {
   InvoicingArea,
   RegistrationsArea,
   RequestsArea,
-  TopUpsArea,
-  WalletsArea,
+  DepositsArea,
+  OperatingBalancesArea,
 } from '../../../application/features/dashboard/common/ports.js';
 import { CASES_COLLECTION } from './caseRepository.js';
-import { goalkeepersSummaryPipeline, matchesPipeline, toGoalkeepersArea, toRequestsArea, toWalletsArea, walletsByCurrencyPipeline, type MatchesFacet } from './dashboardPipelines.js';
+import { goalkeepersSummaryPipeline, matchesPipeline, toGoalkeepersArea, toRequestsArea, toOperatingBalancesArea, operatingBalancesByCurrencyPipeline, type MatchesFacet } from './dashboardPipelines.js';
 import { GOALKEEPER_REQUESTS_COLLECTION } from './goalkeeperRequestRepository.js';
 import { documentAdminFilter } from './invoicingDocumentAdminPipelines.js';
 import { INVOICING_DOCUMENTS_COLLECTION } from './invoicingDocumentRepository.js';
-import { TOP_UPS_COLLECTION } from './topUpRepository.js';
-import { WALLETS_COLLECTION } from './walletRepository.js';
+import { DEPOSITS_COLLECTION } from './depositRepository.js';
+import { OPERATING_BALANCES_COLLECTION } from './operatingBalanceRepository.js';
 
 /** `{ field: { $in: cityIds } }`, or nothing for the whole platform. */
 const inCities = (field: string, cityIds: readonly string[] | null): Document => (cityIds === null ? {} : { [field]: { $in: [...cityIds] } });
@@ -28,13 +28,13 @@ export class MongoDashboardReader implements IDashboardReader {
   private readonly registrationsCollection: Collection<Document>;
   private readonly casesCollection: Collection<Document>;
   private readonly documents: Collection<Document>;
-  private readonly topUpsCollection: Collection<Document>;
-  private readonly walletsCollection: Collection<Document>;
+  private readonly depositsCollection: Collection<Document>;
+  private readonly operatingBalancesCollection: Collection<Document>;
 
   constructor(db: Db) {
     this.documents = db.collection(INVOICING_DOCUMENTS_COLLECTION);
-    this.topUpsCollection = db.collection(TOP_UPS_COLLECTION);
-    this.walletsCollection = db.collection(WALLETS_COLLECTION);
+    this.depositsCollection = db.collection(DEPOSITS_COLLECTION);
+    this.operatingBalancesCollection = db.collection(OPERATING_BALANCES_COLLECTION);
     this.requestsCollection = db.collection(GOALKEEPER_REQUESTS_COLLECTION);
     this.profiles = db.collection('goalkeeperProfiles');
     this.registrationsCollection = db.collection('goalkeeperRegistrations');
@@ -84,20 +84,20 @@ export class MongoDashboardReader implements IDashboardReader {
     return { rejected, stale };
   }
 
-  async topUps(context: DashboardReadContext): Promise<TopUpsArea> {
+  async deposits(context: DashboardReadContext): Promise<DepositsArea> {
     const scope = await this.moneyScope(context);
     if (scope === null) return { pending: 0 };
-    return { pending: await this.topUpsCollection.countDocuments({ status: 'pending', ...(scope.countryId ? { countryId: scope.countryId } : {}), ...scope.goalkeepers }) };
+    return { pending: await this.depositsCollection.countDocuments({ status: 'pending', ...(scope.countryId ? { countryId: scope.countryId } : {}), ...scope.goalkeepers }) };
   }
 
-  async wallets(context: DashboardReadContext): Promise<WalletsArea> {
+  async operatingBalances(context: DashboardReadContext): Promise<OperatingBalancesArea> {
     const goalkeeperIds = await context.goalkeeperIds();
     if (goalkeeperIds?.length === 0) return { byCurrency: [] };
-    return toWalletsArea(await this.walletsCollection.aggregate<{ _id: string; balanceTotal: number; debtTotal: number; negativeCount: number }>(walletsByCurrencyPipeline(goalkeeperIds)).toArray());
+    return toOperatingBalancesArea(await this.operatingBalancesCollection.aggregate<{ _id: string; balanceTotal: number; debtTotal: number; negativeCount: number }>(operatingBalancesByCurrencyPipeline(goalkeeperIds)).toArray());
   }
 
   /**
-   * Documents and top-ups store their country: a country is filtered by it, a city through its
+   * Documents and deposits store their country: a country is filtered by it, a city through its
    * goalkeepers (`null` when that city has none, so nothing is read).
    */
   private async moneyScope({ scope, goalkeeperIds }: DashboardReadContext): Promise<{ countryId?: string; goalkeepers: Document } | null> {

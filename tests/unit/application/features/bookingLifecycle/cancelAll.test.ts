@@ -21,7 +21,7 @@ describe('CancelAllJob', () => {
     expect(bookings.map((booking) => h.current(booking.id).status)).toEqual(['cancelled', 'cancelled']);
     expect(h.current(bookings[0]!.id)).toMatchObject({ endReason: 'cancel_all', cancelledBy: 'system', goalkeeperId: 'gk-1' });
     expect(await h.balanceOf('gk-1')).toBe(20000);
-    const refunds = h.wallet.movements().filter((movement) => movement.type === 'commission_refund');
+    const refunds = h.operatingBalance.movements().filter((movement) => movement.type === 'commission_refund');
     expect(refunds).toHaveLength(1);
     expect(refunds[0]).toMatchObject({ amount: 7000, causeKey: `commission_refund:${bookings[0]!.id}`, cancellation: { by: 'system', reason: 'cancel_all' } });
     expect(h.relayed.map((event) => [event.type, (event.payload as { refundedAmount: number | null }).refundedAmount])).toEqual([
@@ -97,11 +97,11 @@ describe('CancelAllJob', () => {
 
     await Promise.all([h.cancelAllJob.run(h.clock.now()), h.cancelAllJob.run(h.clock.now())]);
 
-    expect(h.wallet.movements().filter((movement) => movement.type === 'commission_refund')).toHaveLength(1);
+    expect(h.operatingBalance.movements().filter((movement) => movement.type === 'commission_refund')).toHaveLength(1);
     expect(h.relayed).toHaveLength(2);
   });
 
-  it('skips a request whose goalkeeper wallet cannot be resolved, and retries it later', async () => {
+  it('skips a request whose goalkeeper operatingBalance cannot be resolved, and retries it later', async () => {
     const h = lifecycleHarness();
     const { bookings } = h.match('r1', 2, 2, 'cancel_all');
     await h.acceptAndPay(bookings[0]!, 'gk-1');

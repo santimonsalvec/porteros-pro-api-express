@@ -3,17 +3,17 @@ import type { IIdGenerator } from '../../auth/common/ports.js';
 import type { IEventRelay, IScheduledJob } from '../../events/common/ports.js';
 import type { IBookingRepository, IGoalkeeperRequestRepository } from '../../goalkeeperRequests/common/ports.js';
 import {
-  resolveGoalkeeperWalletContext,
-  type GoalkeeperWalletContextDependencies,
-} from '../../wallet/common/goalkeeperWalletContext.js';
-import type { LedgerOwner } from '../../wallet/common/walletLedger.js';
+  resolveGoalkeeperOperatingBalanceContext,
+  type GoalkeeperOperatingBalanceContextDependencies,
+} from '../../operatingBalance/common/goalkeeperOperatingBalanceContext.js';
+import type { LedgerOwner } from '../../operatingBalance/common/operatingBalanceLedger.js';
 import type { IBookingLifecycleStore, ILifecycleLogger } from '../common/ports.js';
 
 export interface CancelAllDependencies {
   requestRepository: IGoalkeeperRequestRepository;
   bookingRepository: IBookingRepository;
   store: IBookingLifecycleStore;
-  walletContext: GoalkeeperWalletContextDependencies;
+  operatingBalanceContext: GoalkeeperOperatingBalanceContextDependencies;
   relay: IEventRelay;
   idGenerator: IIdGenerator;
   logger: ILifecycleLogger;
@@ -25,7 +25,7 @@ export interface CancelAllDependencies {
  * Applies the client's "cancel all" preference at the end of the free-cancellation period
  * (Story 2): a request not fully assigned by then is cancelled as a whole, and the goalkeepers
  * who had paid get their commission back; a full one is left firm. Each request is evaluated
- * once — the store's gate — and a request whose goalkeepers' wallets can't be resolved is left
+ * once — the store's gate — and a request whose goalkeepers' operating balances can't be resolved is left
  * for the next sweep rather than half-cancelled.
  */
 export class CancelAllJob implements IScheduledJob {
@@ -87,7 +87,7 @@ export class CancelAllJob implements IScheduledJob {
     const bookings = await this.deps.bookingRepository.findByRequestIds([requestId]);
     const owners = new Map<string, LedgerOwner>();
     for (const goalkeeperId of new Set(bookings.flatMap((booking) => (booking.status === 'assigned' && booking.goalkeeperId ? [booking.goalkeeperId] : [])))) {
-      const context = await resolveGoalkeeperWalletContext(this.deps.walletContext, goalkeeperId);
+      const context = await resolveGoalkeeperOperatingBalanceContext(this.deps.operatingBalanceContext, goalkeeperId);
       if (context.kind !== 'ok') {
         this.deps.logger.warn({ outcome: 'cancel_all_skipped', requestId, reason: context.kind, goalkeeperId }, '"Cancel all" skipped a request');
         return null;

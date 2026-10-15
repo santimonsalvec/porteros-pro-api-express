@@ -1,11 +1,11 @@
 import { PushNotifier } from '../../../../../src/application/features/devices/common/pushNotifier.js';
 import { ApplyGatewayEventCommand } from '../../../../../src/application/features/payments/commands/applyGatewayEvent/applyGatewayEventCommand.js';
 import { ApplyGatewayEventCommandHandler } from '../../../../../src/application/features/payments/commands/applyGatewayEvent/applyGatewayEventCommandHandler.js';
-import { TopUpReconcileJob } from '../../../../../src/application/features/payments/jobs/topUpReconcileJob.js';
+import { DepositReconcileJob } from '../../../../../src/application/features/deposits/jobs/depositReconcileJob.js';
 import type { GatewayOutcome } from '../../../../../src/application/features/payments/common/ports.js';
-import { StartTopUpCommand } from '../../../../../src/application/features/payments/commands/startTopUp/startTopUpCommand.js';
-import { StartTopUpCommandHandler } from '../../../../../src/application/features/payments/commands/startTopUp/startTopUpCommandHandler.js';
-import { GetTopUpOptionsQueryHandler } from '../../../../../src/application/features/payments/queries/getTopUpOptions/getTopUpOptionsQueryHandler.js';
+import { StartDepositCommand } from '../../../../../src/application/features/deposits/commands/startDeposit/startDepositCommand.js';
+import { StartDepositCommandHandler } from '../../../../../src/application/features/deposits/commands/startDeposit/startDepositCommandHandler.js';
+import { GetDepositOptionsQueryHandler } from '../../../../../src/application/features/deposits/queries/getDepositOptions/getDepositOptionsQueryHandler.js';
 import { TermsAcceptance } from '../../../../../src/domain/users/termsAcceptance.js';
 import { sha256TokenFingerprint } from '../../../../../src/infrastructure/push/tokenRef.js';
 import { FakeDeviceRepository } from '../../../../fakes/fakeDeviceRepository.js';
@@ -15,10 +15,10 @@ import { FakePaymentGatewaySettingsRepository } from '../../../../fakes/fakePaym
 import { FakePaymentSecrets, TEST_GATEWAY_SECRETS } from '../../../../fakes/fakePaymentSecrets.js';
 import { FakePushSender } from '../../../../fakes/fakePushSender.js';
 import { FakeTermsAcceptanceRepository } from '../../../../fakes/fakeTermsAcceptanceRepository.js';
-import { FakeTopUpRepository } from '../../../../fakes/fakeTopUpRepository.js';
-import { FakeTopUpStore } from '../../../../fakes/fakeTopUpStore.js';
-import { buildGoalkeeperProfile } from '../../../../fixtures/walletFixtures.js';
-import { WalletHarness } from '../wallet/walletHarness.js';
+import { FakeDepositRepository } from '../../../../fakes/fakeDepositRepository.js';
+import { FakeDepositStore } from '../../../../fakes/fakeDepositStore.js';
+import { buildGoalkeeperProfile } from '../../../../fixtures/operatingBalanceFixtures.js';
+import { OperatingBalanceHarness } from '../operatingBalance/operatingBalanceHarness.js';
 
 export const TERMS_VERSION = '2.0';
 export const PUBLIC_BASE_URL = 'https://api.porterospro.co';
@@ -34,18 +34,18 @@ export function recordingLogger() {
 }
 
 /**
- * The Cali wallet world plus top-ups: Colombia's Wompi settings (20 000 costs 1 464), its secrets,
+ * The Cali operating balance world plus deposits: Colombia's Wompi settings (20 000 costs 1 464), its secrets,
  * a fake gateway that signs like Wompi, and the inbox and push for notices.
  */
 export class PaymentsHarness {
-  readonly wallet = new WalletHarness();
+  readonly operatingBalance = new OperatingBalanceHarness();
   readonly settings = new FakePaymentGatewaySettingsRepository();
   readonly terms = new FakeTermsAcceptanceRepository();
   readonly gateway = new FakePaymentGateway();
   readonly gateways = new FakePaymentGatewayRegistry([this.gateway]);
   readonly secrets = new FakePaymentSecrets();
-  readonly topUps = new FakeTopUpRepository();
-  readonly store = new FakeTopUpStore(this.topUps, this.wallet.store);
+  readonly deposits = new FakeDepositRepository();
+  readonly store = new FakeDepositStore(this.deposits, this.operatingBalance.store);
   readonly notifications = new FakeNotificationRepository();
   readonly devices = new FakeDeviceRepository();
   readonly pushSender = new FakePushSender();
@@ -64,7 +64,7 @@ export class PaymentsHarness {
   }
 
   get clock() {
-    return this.wallet.clock;
+    return this.operatingBalance.clock;
   }
 
   get noticeDeps() {
@@ -73,7 +73,7 @@ export class PaymentsHarness {
 
   /** An active goalkeeper of Cali who accepted the current terms, with Colombia's gateway configured. */
   goalkeeper(id = 'gk-1', options: { acceptedVersion?: string | null } = {}): string {
-    this.wallet.profiles.seed(buildGoalkeeperProfile(id));
+    this.operatingBalance.profiles.seed(buildGoalkeeperProfile(id));
     const version = options.acceptedVersion === undefined ? TERMS_VERSION : options.acceptedVersion;
     if (version !== null) {
       this.terms.records.push(
@@ -91,18 +91,18 @@ export class PaymentsHarness {
     return id;
   }
 
-  optionsHandler(): GetTopUpOptionsQueryHandler {
-    return new GetTopUpOptionsQueryHandler(this.wallet.context, this.settings, this.terms, { termsVersion: TERMS_VERSION });
+  optionsHandler(): GetDepositOptionsQueryHandler {
+    return new GetDepositOptionsQueryHandler(this.operatingBalance.context, this.settings, this.terms, { termsVersion: TERMS_VERSION });
   }
 
-  startHandler(publicBaseUrl = PUBLIC_BASE_URL): StartTopUpCommandHandler {
-    return new StartTopUpCommandHandler({
-      context: this.wallet.context,
+  startHandler(publicBaseUrl = PUBLIC_BASE_URL): StartDepositCommandHandler {
+    return new StartDepositCommandHandler({
+      context: this.operatingBalance.context,
       settingsRepository: this.settings,
       termsRepository: this.terms,
       gateways: this.gateways,
       secrets: this.secrets,
-      topUpRepository: this.topUps,
+      depositRepository: this.deposits,
       idGenerator: this.idGenerator,
       clock: this.clock,
       logger: this.logger,
@@ -110,41 +110,41 @@ export class PaymentsHarness {
     });
   }
 
-  /** Starts a top-up through the real command; throws unless it started. */
+  /** Starts a deposit through the real command; throws unless it started. */
   async start(goalkeeperId = 'gk-1', amount = 20000) {
-    const result = await this.startHandler().handle(new StartTopUpCommand(goalkeeperId, amount));
-    if (result.outcome !== 'started') throw new Error(`top-up not started: ${result.outcome}`);
+    const result = await this.startHandler().handle(new StartDepositCommand(goalkeeperId, amount));
+    if (result.outcome !== 'started') throw new Error(`deposit not started: ${result.outcome}`);
     return result;
   }
 
   eventHandler(): ApplyGatewayEventCommandHandler {
     return new ApplyGatewayEventCommandHandler({
-      walletContext: this.wallet.context,
+      operatingBalanceContext: this.operatingBalance.context,
       store: this.store,
       notices: this.noticeDeps,
       logger: this.logger,
       gateways: this.gateways,
       secrets: this.secrets,
-      topUpRepository: this.topUps,
-      countryLookup: this.wallet.countries,
+      depositRepository: this.deposits,
+      countryLookup: this.operatingBalance.countries,
       clock: this.clock,
     });
   }
 
-  reconcileJob(): TopUpReconcileJob {
-    return new TopUpReconcileJob({
-      walletContext: this.wallet.context,
+  reconcileJob(): DepositReconcileJob {
+    return new DepositReconcileJob({
+      operatingBalanceContext: this.operatingBalance.context,
       store: this.store,
       notices: this.noticeDeps,
       logger: this.logger,
-      topUpRepository: this.topUps,
+      depositRepository: this.deposits,
       gateways: this.gateways,
       secrets: this.secrets,
-      countryLookup: this.wallet.countries,
+      countryLookup: this.operatingBalance.countries,
     });
   }
 
-  /** What the gateway's transactions query answers for a top-up. */
+  /** What the gateway's transactions query answers for a deposit. */
   answer(reference: string, status: GatewayOutcome['status'], amountInCents = 2000000): GatewayOutcome {
     return { reference, transactionId: `tx-${reference}`, status, amountInCents, currency: 'COP' };
   }
@@ -154,7 +154,7 @@ export class PaymentsHarness {
     return this.eventHandler().handle(new ApplyGatewayEventCommand(gateway, body, {}));
   }
 
-  /** A Wompi event for a top-up's reference, signed with Colombia's events secret. */
+  /** A Wompi event for a deposit's reference, signed with Colombia's events secret. */
   event(reference: string, status: string, overrides: { amountInCents?: number; currency?: string; id?: string; secret?: string } = {}) {
     return signedEvent(
       {

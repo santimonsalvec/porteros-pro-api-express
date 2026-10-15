@@ -15,7 +15,7 @@ describe('ChangeStaffMemberRoleCommandHandler', () => {
     h = staffHarness();
     handler = new ChangeStaffMemberRoleCommandHandler({ members: h.members, roles: h.roles, clock: h.clock, accessResolver: h.resolver });
     await h.role('soporte', ['cases.read']);
-    await h.role('finanzas', ['wallets.read']);
+    await h.role('finanzas', ['operating_balances.read']);
     await h.activeMember('owner-1', 'dueno@example.com', 'owner', 'user-owner');
     await h.activeMember('staff-1', 'ana@example.com', 'soporte', 'user-1');
   });

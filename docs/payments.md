@@ -1,10 +1,10 @@
-# Recargas de la billetera con pasarelas de pago (feature 022)
+# Depósitos al saldo operativo con pasarelas de pago (feature 022)
 
-El portero recarga su billetera con un monto predefinido de su país. El backend crea la recarga
+El portero deposita en su saldo operativo con un monto predefinido de su país. El backend crea el depósito
 pendiente y responde la dirección del **Web Checkout de Wompi** firmada en el servidor; la app la
 abre en el navegador del sistema. Solo acreditan la **confirmación de Wompi** (evento
-`transaction.updated`) o la **conciliación** (cada 15 min, 1 h, 6 h y 24 h; vence a las 48 h). Una
-recarga aprobada deja dos movimientos: `top_up` (+monto) y `gateway_fee` (−costo de la pasarela).
+`transaction.updated`) o la **conciliación** (cada 15 min, 1 h, 6 h y 24 h; vence a las 48 h). Un
+depósito aprobado deja dos movimientos: `deposit` (+monto) y `gateway_fee` (−costo de la pasarela).
 
 ## 1. Secretos: Google Secret Manager
 
@@ -28,13 +28,13 @@ firebase apphosting:secrets:grantaccess wompi-co-private-key,wompi-co-events-sec
 ```
 
 En local van en `.env` (ver `.env.example`). Si faltan los secretos de un país configurado, iniciar
-una recarga responde `503 gateway_unavailable` y el log dice qué falta (nunca el valor).
+un depósito responde `503 gateway_unavailable` y el log dice qué falta (nunca el valor).
 
 ## 2. Configuración no secreta
 
 | Variable | Uso |
 |---|---|
-| `PAYMENTS_PUBLIC_BASE_URL` | Base HTTPS pública del API. La dirección de retorno es `{base}/pagos/retorno/{reference}`. Sin ella no se pueden iniciar recargas. |
+| `PAYMENTS_PUBLIC_BASE_URL` | Base HTTPS pública del API. La dirección de retorno es `{base}/pagos/retorno/{reference}`. Sin ella no se pueden iniciar depósitos. |
 | `PAYMENTS_APP_OPEN_URL` | A dónde lleva el botón "Volver a PorterosPRO" de la página de retorno. |
 | `ANDROID_APP_PACKAGE`, `ANDROID_CERT_SHA256` | App Links de Android (`/.well-known/assetlinks.json`). Huellas SHA-256 separadas por comas (la de subida y la de Play App Signing). |
 | `IOS_APP_ID` | Universal Links de iOS (`/.well-known/apple-app-site-association`), formato `TEAMID.bundle.id`. |
@@ -60,7 +60,7 @@ Se configura en el administrador: **Configuración → Pasarela de pagos**, por 
 - El costo se redondea hacia arriba: 20.000 → 1.464, neto 18.536. El formulario lo muestra para cada monto. Usar las tarifas reales del contrato.
 - La pantalla dice si los tres secretos del país están en Secret Manager ("Credenciales cargadas"), nunca su valor.
 - Cada guardado exige la revisión leída: si otra persona guardó antes, se rechaza y se muestra el valor actual (admin spec 007).
-- Las recargas en curso conservan la pasarela y el entorno con que empezaron.
+- Los depósitos en curso conservan la pasarela y el entorno con que empezaron.
 
 ## 4. Panel de Wompi
 

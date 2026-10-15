@@ -6,7 +6,7 @@ import { GetPricingPreviewQuery } from '../../../../../src/application/features/
 import { GetPricingPreviewQueryHandler } from '../../../../../src/application/features/pricing/queries/getPricingPreview/getPricingPreviewQueryHandler.js';
 import type { MatchLevel, Modality } from '../../../../../src/domain/bookings/matchFormat.js';
 import { RentalRate } from '../../../../../src/domain/pricing/rentalRate.js';
-import { CommissionSetting } from '../../../../../src/domain/wallet/commissionSetting.js';
+import { CommissionSetting } from '../../../../../src/domain/operatingBalance/commissionSetting.js';
 import { FakeMatchSurfaceRepository } from '../../../../fakes/fakeMatchSurfaceRepository.js';
 import { POINTS } from '../../../../fixtures/quoteFixtures.js';
 import { previewWorld } from '../pricing/preview/previewWorld.js';

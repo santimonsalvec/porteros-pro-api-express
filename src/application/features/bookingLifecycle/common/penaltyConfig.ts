@@ -5,13 +5,13 @@ import {
 } from '../../../../domain/goalkeepers/penaltyPolicy.js';
 import type { IBookingSettingsRepository } from '../../goalkeeperRequests/common/ports.js';
 import {
-  resolveGoalkeeperWalletContext,
-  type GoalkeeperWalletContextDependencies,
-} from '../../wallet/common/goalkeeperWalletContext.js';
+  resolveGoalkeeperOperatingBalanceContext,
+  type GoalkeeperOperatingBalanceContextDependencies,
+} from '../../operatingBalance/common/goalkeeperOperatingBalanceContext.js';
 import type { ILifecycleLogger } from './ports.js';
 
 export interface PenaltyConfigDependencies {
-  walletContext: GoalkeeperWalletContextDependencies;
+  operatingBalanceContext: GoalkeeperOperatingBalanceContextDependencies;
   bookingSettingsRepository: IBookingSettingsRepository;
   logger: ILifecycleLogger;
 }
@@ -22,9 +22,9 @@ export interface PenaltyConfigDependencies {
  * default, with a warning naming what was defaulted.
  */
 export async function resolvePenaltyConfig(deps: PenaltyConfigDependencies, goalkeeperId: string): Promise<GoalkeeperPenaltyConfig> {
-  const context = await resolveGoalkeeperWalletContext(deps.walletContext, goalkeeperId);
+  const context = await resolveGoalkeeperOperatingBalanceContext(deps.operatingBalanceContext, goalkeeperId);
   const countryId = context.kind === 'ok' ? context.countryId : null;
-  const cityId = context.kind === 'ok' ? context.profile.cityId : context.kind === 'wallet_not_configured' ? context.cityId : null;
+  const cityId = context.kind === 'ok' ? context.profile.cityId : context.kind === 'operating_balance_not_configured' ? context.cityId : null;
   const configured = cityId !== null ? (await deps.bookingSettingsRepository.findFor(cityId, countryId)).country?.goalkeeperPenalties ?? {} : {};
 
   const config: GoalkeeperPenaltyConfig = { ...DEFAULT_GOALKEEPER_PENALTIES };

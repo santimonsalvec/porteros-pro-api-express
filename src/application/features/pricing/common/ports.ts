@@ -2,7 +2,7 @@ import type { MatchLevel, PricedModality } from '../../../../domain/bookings/mat
 import type { BookingSettingsFields } from '../../../../domain/pricing/bookingSettingsRules.js';
 import type { UpdateResult } from '../../geography/common/ports.js';
 import type { MatchTier } from '../../../../domain/pricing/tieredRate.js';
-import type { CommissionSetting } from '../../../../domain/wallet/commissionSetting.js';
+import type { CommissionSetting } from '../../../../domain/operatingBalance/commissionSetting.js';
 
 /**
  * The admin's write side of prices and booking rules (admin spec 004). Separate from the read-only

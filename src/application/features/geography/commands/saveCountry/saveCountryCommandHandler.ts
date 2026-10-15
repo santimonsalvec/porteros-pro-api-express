@@ -18,7 +18,7 @@ export class SaveCountryCommandHandler implements ICommandHandler<SaveCountryCom
 
     const sameCode = await this.deps.countries.findByCode(fields.countryCode);
     if (sameCode && sameCode.id !== id) return { outcome: 'country_code_taken' };
-    // The currency of a country with wallets, top-ups or bookings never changes (clarification 3).
+    // The currency of a country with operating balances, deposits or bookings never changes (clarification 3).
     if (stored && fields.currency !== stored.currency && (await this.deps.usage.countryOperates(stored.id))) return { outcome: 'currency_locked' };
 
     const warnings: Warning[] =

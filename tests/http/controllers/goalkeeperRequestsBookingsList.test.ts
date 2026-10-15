@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js';
 import { buildRequest, buildRequestBookings, POINTS, QUOTE_FORMAT_FIELDS } from '../../fixtures/quoteFixtures.js';
-import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper } from '../walletTestHelpers.js';
+import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper } from '../operatingBalanceTestHelpers.js';
 
 type TestApp = Awaited<ReturnType<typeof buildTestApp>>;
 
@@ -214,7 +214,7 @@ describe('GET /goalkeeper-requests/bookings — 012 US5: the assigned goalkeeper
     context.clock.set(MATCH_NOW);
     const client = await signInClient(context, 'sub-0501');
     const goalkeeper = await signInGoalkeeper(context, 'sub-0502');
-    await context.walletLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo', operationKey: 'k-gk' });
+    await context.operatingBalanceLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo', operationKey: 'k-gk' });
     const created = await createRequestAsClient(context, client.token);
     const taken = created.bookings[0]!.bookingId;
     await request(context.app).post(`/goalkeepers/me/bookings/${taken}/accept`).set('Authorization', `Bearer ${goalkeeper.token}`);

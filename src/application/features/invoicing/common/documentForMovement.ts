@@ -1,16 +1,16 @@
 import type { IClock } from '../../../common/clock.js';
 import { InvoicingDocument, type InvoicingConcept, type InvoicingDocumentKind } from '../../../../domain/invoicing/invoicingDocument.js';
-import type { WalletMovement } from '../../../../domain/wallet/walletMovement.js';
+import type { BalanceMovement } from '../../../../domain/operatingBalance/balanceMovement.js';
 import type { IIdGenerator, IUserRepository } from '../../auth/common/ports.js';
-import { resolveGoalkeeperWalletContext, type GoalkeeperWalletContextDependencies } from '../../wallet/common/goalkeeperWalletContext.js';
-import type { IWalletMovementRepository } from '../../wallet/common/ports.js';
+import { resolveGoalkeeperOperatingBalanceContext, type GoalkeeperOperatingBalanceContextDependencies } from '../../operatingBalance/common/goalkeeperOperatingBalanceContext.js';
+import type { IBalanceMovementRepository } from '../../operatingBalance/common/ports.js';
 import type { IInvoicingDocumentRepository } from './ports.js';
 
 export interface DocumentForMovementDependencies {
   documents: IInvoicingDocumentRepository;
-  movements: IWalletMovementRepository;
+  movements: IBalanceMovementRepository;
   users: IUserRepository;
-  walletContext: GoalkeeperWalletContextDependencies;
+  operatingBalanceContext: GoalkeeperOperatingBalanceContextDependencies;
   idGenerator: IIdGenerator;
   clock: IClock;
 }
@@ -23,7 +23,7 @@ const KINDS: Record<string, { kind: InvoicingDocumentKind; concept: InvoicingCon
 };
 
 /** The charge a refund or reversal gives back. */
-async function originalMovementOf(deps: DocumentForMovementDependencies, movement: WalletMovement): Promise<WalletMovement | null> {
+async function originalMovementOf(deps: DocumentForMovementDependencies, movement: BalanceMovement): Promise<BalanceMovement | null> {
   if (movement.type === 'commission_refund') return deps.movements.findByCauseKey(`commission:${movement.references.bookingId}`);
   if (movement.type === 'penalty_reversal' && movement.references.penaltyMovementId) return deps.movements.findById(movement.references.penaltyMovementId);
   return null;
@@ -59,9 +59,9 @@ export async function documentForMovement(
   }
 
   const vatMovement = await deps.movements.findByCauseKey(`${shape.vatPrefix}${movement.causeKey.slice(shape.prefix.length)}`);
-  const context = await resolveGoalkeeperWalletContext(deps.walletContext, movement.walletId);
-  if (context.kind !== 'ok') throw new Error(`Goalkeeper ${movement.walletId} of movement ${movement.id} has no wallet context (${context.kind})`);
-  const user = await deps.users.getById(movement.walletId);
+  const context = await resolveGoalkeeperOperatingBalanceContext(deps.operatingBalanceContext, movement.operatingBalanceId);
+  if (context.kind !== 'ok') throw new Error(`Goalkeeper ${movement.operatingBalanceId} of movement ${movement.id} has no operating balance context (${context.kind})`);
+  const user = await deps.users.getById(movement.operatingBalanceId);
   const now = deps.clock.now();
 
   return deps.documents.createIfAbsent(
@@ -69,7 +69,7 @@ export async function documentForMovement(
       id: deps.idGenerator.newId(),
       kind: shape.kind,
       concept: shape.concept,
-      goalkeeperId: movement.walletId,
+      goalkeeperId: movement.operatingBalanceId,
       countryId: context.countryId,
       sourceEventId,
       sourceMovementId: movement.id,

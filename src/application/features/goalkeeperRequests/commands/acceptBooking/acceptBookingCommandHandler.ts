@@ -4,18 +4,18 @@ import type { ICommandHandler } from '../../../../common/mediator/types.js';
 import type { IIdGenerator, IUserRepository } from '../../../auth/common/ports.js';
 import type { ICityRepository } from '../../../locations/common/ports.js';
 import {
-  resolveGoalkeeperWalletContext,
-  type GoalkeeperWalletContextDependencies,
-} from '../../../wallet/common/goalkeeperWalletContext.js';
-import type { IWalletRepository } from '../../../wallet/common/ports.js';
-import { commissionChargeDraft, commissionVatDraft } from '../../../wallet/common/walletLedger.js';
+  resolveGoalkeeperOperatingBalanceContext,
+  type GoalkeeperOperatingBalanceContextDependencies,
+} from '../../../operatingBalance/common/goalkeeperOperatingBalanceContext.js';
+import type { IOperatingBalanceRepository } from '../../../operatingBalance/common/ports.js';
+import { commissionChargeDraft, commissionVatDraft } from '../../../operatingBalance/common/operatingBalanceLedger.js';
 import { commissionCharged } from '../../../../../domain/events/billingEvents.js';
-import type { IVatRateResolver } from '../../../wallet/common/ports.js';
+import type { IVatRateResolver } from '../../../operatingBalance/common/ports.js';
 import type { IZoneRepository } from '../../../zones/common/ports.js';
 import type { IEventRelay } from '../../../events/common/ports.js';
 import type { Booking } from '../../../../../domain/bookings/booking.js';
 import { goalkeeperAssigned } from '../../../../../domain/events/bookingEvents.js';
-import { canAfford, missingFor } from '../../../../../domain/wallet/fundsPolicy.js';
+import { canAfford, missingFor } from '../../../../../domain/operatingBalance/fundsPolicy.js';
 import { loadContacts } from '../../common/contacts.js';
 import type { CheckInWindowResolver } from '../../../bookingLifecycle/common/checkInWindowResolver.js';
 import { loadBookingItemContext, loadCheckInWindows, toAgendaItem } from '../../common/goalkeeperBookingResponse.js';
@@ -28,8 +28,8 @@ import type {
 import { AcceptBookingCommand, type AcceptBookingResult } from './acceptBookingCommand.js';
 
 export interface AcceptBookingDependencies {
-  walletContext: GoalkeeperWalletContextDependencies;
-  walletRepository: IWalletRepository;
+  operatingBalanceContext: GoalkeeperOperatingBalanceContextDependencies;
+  operatingBalanceRepository: IOperatingBalanceRepository;
   bookingRepository: IBookingRepository;
   requestRepository: IGoalkeeperRequestRepository;
   zoneRepository: IZoneRepository;
@@ -60,14 +60,14 @@ export class AcceptBookingCommandHandler implements ICommandHandler<AcceptBookin
     const now = this.deps.clock.now();
     if (!isUuid(bookingId)) return this.finish(command, { outcome: 'not_available' });
 
-    const context = await resolveGoalkeeperWalletContext(this.deps.walletContext, goalkeeperId);
+    const context = await resolveGoalkeeperOperatingBalanceContext(this.deps.operatingBalanceContext, goalkeeperId);
     if (context.kind === 'not_a_goalkeeper') return this.finish(command, { outcome: 'not_a_goalkeeper' });
 
     const booking = await this.deps.bookingRepository.findById(bookingId);
     if (!booking) return this.finish(command, { outcome: 'not_available' });
     if (booking.goalkeeperId === goalkeeperId) return this.finish(command, { outcome: 'replayed', booking: await this.item(booking) }, booking);
 
-    const profile = context.kind === 'ok' ? context.profile : await this.deps.walletContext.goalkeeperProfileRepository.getByUserId(goalkeeperId);
+    const profile = context.kind === 'ok' ? context.profile : await this.deps.operatingBalanceContext.goalkeeperProfileRepository.getByUserId(goalkeeperId);
     // Offers switched off: the goalkeeper must be available to take matches (feature 015).
     if (profile && !profile.availableForOffers) return this.finish(command, { outcome: 'not_available_for_offers' }, booking);
     if (profile?.suspendedUntil && profile.suspendedUntil > now) {
@@ -76,13 +76,13 @@ export class AcceptBookingCommandHandler implements ICommandHandler<AcceptBookin
     if (!profile?.zoneIds.includes(booking.zoneId)) return this.finish(command, { outcome: 'zone_not_enabled' }, booking);
     const unclaimable = this.classify(booking, goalkeeperId, now);
     if (unclaimable) return this.finish(command, unclaimable, booking);
-    if (context.kind === 'wallet_not_configured') return this.finish(command, { outcome: 'not_available' }, booking);
+    if (context.kind === 'operating_balance_not_configured') return this.finish(command, { outcome: 'not_available' }, booking);
 
-    const [wallet, vatRateBps] = await Promise.all([
-      this.deps.walletRepository.findByGoalkeeperId(goalkeeperId),
+    const [operatingBalance, vatRateBps] = await Promise.all([
+      this.deps.operatingBalanceRepository.findByGoalkeeperId(goalkeeperId),
       this.deps.vatRates.forCountry(context.countryId),
     ]);
-    const balance = wallet?.balance ?? 0;
+    const balance = operatingBalance?.balance ?? 0;
     if (!canAfford(balance, booking.commission, vatRateBps)) {
       return this.finish(command, { outcome: 'insufficient_funds', missingAmount: missingFor(balance, booking.commission, vatRateBps) }, booking);
     }

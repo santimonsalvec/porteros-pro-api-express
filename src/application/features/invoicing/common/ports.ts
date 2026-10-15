@@ -4,7 +4,7 @@ import type {
   InvoicingDocumentStatus,
 } from '../../../../domain/invoicing/invoicingDocument.js';
 import type { InvoicingSettings } from '../../../../domain/invoicing/invoicingSettings.js';
-import type { BillableMovementType } from '../../../../domain/wallet/walletMovement.js';
+import type { BillableMovementType } from '../../../../domain/operatingBalance/balanceMovement.js';
 
 /** A provider's credentials for one country, from the environment (Secret Manager). Never stored or logged. */
 export interface InvoicingCredentials {

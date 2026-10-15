@@ -1,6 +1,6 @@
 import type { GatewayEnvironment, GatewayName, PaymentGatewaySettings } from '../../../../domain/payments/gatewaySettings.js';
-import type { TopUp, TopUpCheck, TopUpStatus } from '../../../../domain/payments/topUp.js';
-import type { LedgerOwner } from '../../wallet/common/walletLedger.js';
+import type { Deposit, DepositCheck, DepositStatus } from '../../../../domain/deposits/deposit.js';
+import type { LedgerOwner } from '../../operatingBalance/common/operatingBalanceLedger.js';
 
 /** A gateway's secrets for one country. Read from the environment (Secret Manager), never stored. */
 export interface GatewaySecrets {
@@ -67,50 +67,52 @@ export interface IPaymentGatewaySettingsRepository {
   update(settings: PaymentGatewaySettings, expectedRevision: number): Promise<'saved' | 'stale'>;
 }
 
-export interface ITopUpRepository {
-  create(topUp: TopUp): Promise<void>;
-  getById(id: string): Promise<TopUp | null>;
-  getByReference(reference: string): Promise<TopUp | null>;
+export interface IDepositRepository {
+  create(deposit: Deposit): Promise<void>;
+  getById(id: string): Promise<Deposit | null>;
+  getByReference(reference: string): Promise<Deposit | null>;
   /** Newest first. */
-  listForGoalkeeper(goalkeeperId: string, skip: number, limit: number): Promise<TopUp[]>;
+  listForGoalkeeper(goalkeeperId: string, skip: number, limit: number): Promise<Deposit[]>;
   countForGoalkeeper(goalkeeperId: string): Promise<number>;
-  /** Pending top-ups whose next check is due, oldest first, at most `cap`. */
-  findDueForCheck(now: Date, cap: number): Promise<TopUp[]>;
-  /** Records an unfinished check; only while the top-up is still pending. */
+  /** The goalkeeper's deposits still waiting for the gateway (feature 029: they hold up a closure). */
+  findPendingForGoalkeeper(goalkeeperId: string): Promise<Deposit[]>;
+  /** Pending deposits whose next check is due, oldest first, at most `cap`. */
+  findDueForCheck(now: Date, cap: number): Promise<Deposit[]>;
+  /** Records an unfinished check; only while the deposit is still pending. */
   scheduleNextCheck(id: string, nextCheckAt: Date, now: Date): Promise<void>;
-  /** Keeps one ask to the gateway on the top-up (admin spec 007, FR-005); never touches the schedule. */
-  recordCheck(id: string, entry: TopUpCheck): Promise<void>;
-  /** Holds the top-up for one ask to the gateway; `false` when another is in flight (research §2). */
+  /** Keeps one ask to the gateway on the deposit (admin spec 007, FR-005); never touches the schedule. */
+  recordCheck(id: string, entry: DepositCheck): Promise<void>;
+  /** Holds the deposit for one ask to the gateway; `false` when another is in flight (research §2). */
   acquireCheckLease(id: string, now: Date): Promise<boolean>;
   releaseCheckLease(id: string): Promise<void>;
 }
 
 export interface ApplyOutcomeArgs {
-  topUpId: string;
-  status: Exclude<TopUpStatus, 'pending'>;
+  depositId: string;
+  status: Exclude<DepositStatus, 'pending'>;
   /** The gateway's own id, when it gave one. */
   gatewayTransactionId: string | null;
-  /** What the gateway charged; checked against the top-up. `null` for an expiry, which has none. */
+  /** What the gateway charged; checked against the deposit. `null` for an expiry, which has none. */
   charged: { amountInCents: number; currency: string } | null;
-  /** The wallet's owner, resolved by the caller (011's wallet context). */
+  /** The operating balance's owner, resolved by the caller (011's operating balance context). */
   owner: LedgerOwner;
   now: Date;
 }
 
 export type ApplyOutcomeResult =
-  /** The status changed; an approval also credited the wallet (`balance` is the new balance). */
-  | { kind: 'applied'; topUp: TopUp; balance: number | null }
+  /** The status changed; an approval also credited the operating balance (`balance` is the new balance). */
+  | { kind: 'applied'; deposit: Deposit; balance: number | null }
   /** The transition is not allowed (a repeat, or a final status already recorded); nothing changed. */
-  | { kind: 'unchanged'; topUp: TopUp }
-  /** The gateway's amount or currency differs from the top-up's; nothing was credited. */
-  | { kind: 'mismatch'; topUp: TopUp }
+  | { kind: 'unchanged'; deposit: Deposit }
+  /** The gateway's amount or currency differs from the deposit's; nothing was credited. */
+  | { kind: 'mismatch'; deposit: Deposit }
   | { kind: 'not_found' };
 
 /**
  * Applies a gateway outcome in one transaction (research.md §5): the status change and, for an
- * approval, the `top_up` credit and the `gateway_fee` debit, each at most once per top-up.
+ * approval, the `deposit` credit and the `gateway_fee` debit, each at most once per deposit.
  */
-export interface ITopUpStore {
+export interface IDepositStore {
   applyOutcome(args: ApplyOutcomeArgs): Promise<ApplyOutcomeResult>;
 }
 

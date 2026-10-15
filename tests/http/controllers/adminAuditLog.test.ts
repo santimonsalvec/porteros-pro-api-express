@@ -2,7 +2,7 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 import { seedRole, signInStaff } from '../adminTestHelpers.js';
-import { signInClient, type TestApp } from '../walletTestHelpers.js';
+import { signInClient, type TestApp } from '../operatingBalanceTestHelpers.js';
 import type { AuditEntry } from '../../../src/domain/staff/auditEntry.js';
 
 const get = (context: TestApp, token: string, path: string) => request(context.app).get(path).set('Authorization', `Bearer ${token}`);
@@ -15,8 +15,8 @@ function entry(n: number, extra: Partial<AuditEntry> = {}): AuditEntry {
     actor: { staffId: n % 2 === 0 ? 'staff-even' : 'staff-odd', userId: 'u', email: 'x@porteros.pro' },
     sessionId: 'sid',
     permission: 'pricing.manage',
-    action: n % 3 === 0 ? 'taxSettings.update' : 'wallet.adjust',
-    resourceType: n % 3 === 0 ? 'taxSettings' : 'wallet',
+    action: n % 3 === 0 ? 'taxSettings.update' : 'operating_balance.adjust',
+    resourceType: n % 3 === 0 ? 'taxSettings' : 'operatingBalance',
     resourceId: 'r',
     outcome: n % 5 === 0 ? 'denied' : 'done',
     httpStatus: 200,
@@ -67,7 +67,7 @@ describe('GET /admin/audit-log (spec 002, US4)', () => {
 
     expect((await ids('staffId=staff-even')).every((n: number) => n % 2 === 0)).toBe(true);
     expect((await ids('resourceType=taxSettings')).every((n: number) => n % 3 === 0)).toBe(true);
-    expect((await ids('action=wallet.adjust')).every((n: number) => n % 3 !== 0)).toBe(true);
+    expect((await ids('action=operatingBalance.adjust')).every((n: number) => n % 3 !== 0)).toBe(true);
     expect(await ids('outcome=denied')).toEqual([30, 25, 20, 15, 10, 5]);
     expect(await ids(`from=${new Date(Date.UTC(2026, 8, 1) + 10 * 60_000).toISOString()}&to=${new Date(Date.UTC(2026, 8, 1) + 12 * 60_000).toISOString()}`)).toEqual([
       12, 11, 10,

@@ -2,7 +2,7 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 import { CSRF, seedRole, signInStaff } from '../adminTestHelpers.js';
-import { signInClient, type TestApp } from '../walletTestHelpers.js';
+import { signInClient, type TestApp } from '../operatingBalanceTestHelpers.js';
 import type { Permission } from '../../../src/domain/staff/permissionCatalog.js';
 import { SetStaffMemberStatusCommand } from '../../../src/application/features/staff/commands/setStaffMemberStatus/setStaffMemberStatusCommand.js';
 import { SCRIPT_ACTOR } from '../../../src/domain/staff/staffActor.js';
@@ -12,9 +12,9 @@ type Method = 'get' | 'post' | 'put';
 
 /** contracts/admin-access.md: every existing admin route and the permission it needs. */
 const ROUTES: [Method, string, Permission][] = [
-  ['get', '/admin/goalkeepers/g-1/wallet', 'wallets.read'],
-  ['get', '/admin/goalkeepers/g-1/wallet/movements', 'wallets.read'],
-  ['post', '/admin/goalkeepers/g-1/wallet/adjustments', 'wallets.adjust'],
+  ['get', '/admin/goalkeepers/g-1/operating-balance', 'operating_balances.read'],
+  ['get', '/admin/goalkeepers/g-1/operating-balance/movements', 'operating_balances.read'],
+  ['post', '/admin/goalkeepers/g-1/operating-balance/adjustments', 'operating_balances.adjust'],
   ['get', '/admin/goalkeepers/g-1/withdrawals', 'goalkeepers.read'],
   ['post', '/admin/goalkeepers/g-1/withdrawals/w-1/reversal', 'goalkeepers.penalties.reverse'],
   ['get', '/admin/cases', 'cases.read'],
@@ -61,7 +61,7 @@ describe('admin route permissions (spec 001, US2)', () => {
     const response = await call(context, 'get', '/admin/permissions', member.token);
 
     expect(response.status).toBe(200);
-    expect(response.body.areas).toHaveLength(17);
+    expect(response.body.areas).toHaveLength(18);
   });
 
   it('a disabled member is out within 30 seconds and cannot refresh', async () => {

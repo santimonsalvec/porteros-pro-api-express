@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { evaluateQuoteInArea, type QuoteEvaluationDependencies } from '../../../../../src/application/features/goalkeeperRequests/common/quoteEvaluation.js';
 import { parseStartsAt } from '../../../../../src/application/features/goalkeeperRequests/common/startsAt.js';
-import { CommissionResolver } from '../../../../../src/application/features/wallet/common/commissionResolver.js';
+import { CommissionResolver } from '../../../../../src/application/features/operatingBalance/common/commissionResolver.js';
 import type { City } from '../../../../../src/domain/locations/city.js';
 import type { Zone } from '../../../../../src/domain/zones/zone.js';
 import { FakeBookingSettingsRepository } from '../../../../fakes/fakeBookingSettingsRepository.js';

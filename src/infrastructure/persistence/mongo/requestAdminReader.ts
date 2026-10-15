@@ -15,7 +15,7 @@ import { GOALKEEPER_REQUESTS_COLLECTION, requestFromDocument } from './goalkeepe
 import { NOTIFICATIONS_COLLECTION } from './notificationRepository.js';
 import { RATINGS_COLLECTION, ratingFromDocument } from './ratingRepository.js';
 import { requestsListPipeline } from './requestAdminPipelines.js';
-import { WALLET_MOVEMENTS_COLLECTION } from './walletMovementRepository.js';
+import { BALANCE_MOVEMENTS_COLLECTION } from './balanceMovementRepository.js';
 
 /** The cause keys of one booking's commission (016–018, 023): charge and refund, with their VAT. */
 const MONEY_KEYS = ['commission', 'commission_vat', 'commission_refund', 'commission_vat_refund'] as const;
@@ -41,7 +41,7 @@ export class RequestAdminReader implements IRequestAdminReader {
     this.cities = db.collection('cities');
     this.requests = db.collection(GOALKEEPER_REQUESTS_COLLECTION);
     this.bookings = db.collection(BOOKINGS_COLLECTION);
-    this.movements = db.collection(WALLET_MOVEMENTS_COLLECTION);
+    this.movements = db.collection(BALANCE_MOVEMENTS_COLLECTION);
     this.incidents = db.collection(GOALKEEPER_INCIDENTS_COLLECTION);
     this.ratings = db.collection(RATINGS_COLLECTION);
     this.cases = db.collection(CASES_COLLECTION);

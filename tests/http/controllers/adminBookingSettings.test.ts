@@ -3,7 +3,7 @@ import { City } from '../../../src/domain/locations/city.js';
 import { buildTestApp } from '../testAppFactory.js';
 import { as } from '../geographyTestHelpers.js';
 import { pricingStaff } from '../pricingTestHelpers.js';
-import { signInClient } from '../walletTestHelpers.js';
+import { signInClient } from '../operatingBalanceTestHelpers.js';
 
 const tiers = { tiers: [{ fromMinutes: 0, toMinutes: 180, amount: 5000 }, { fromMinutes: 180, toMinutes: null, amount: 0 }] };
 const COLOMBIA = {

@@ -8,12 +8,12 @@ import { ApiError } from '../apiError.js';
 import { ListGoalkeeperRegistrationsQuery } from '../../application/features/goalkeepers/queries/listGoalkeeperRegistrations/listGoalkeeperRegistrationsQuery.js';
 import { GetGoalkeeperRegistrationAdminQuery } from '../../application/features/goalkeepers/queries/getGoalkeeperRegistrationAdmin/getGoalkeeperRegistrationAdminQuery.js';
 import { correctDocumentRequestSchema, listGoalkeepersQuerySchema, listRegistrationsQuerySchema } from '../requests/goalkeepers/goalkeepersAdminRequests.js';
-import { goalkeeperNotFound } from '../wallet/walletHttp.js';
+import { goalkeeperNotFound } from '../operatingBalance/operatingBalanceHttp.js';
 import { conflict, invalidFields, notFound, parse, stale, type Route } from './geographyRoutes.js';
 
 /**
  * Goalkeepers and registrations in progress in the admin web (spec 005 of the admin,
- * contracts/users-goalkeepers-api.md §3–§4). The wallet, withdrawals and reversal routes stay in
+ * contracts/users-goalkeepers-api.md §3–§4). The operating balance, withdrawals and reversal routes stay in
  * `adminController.ts`; the identity document is a sensitive read of its own.
  */
 export function registerGoalkeeperAdminRoutes(route: Route, mediator: ISender): void {

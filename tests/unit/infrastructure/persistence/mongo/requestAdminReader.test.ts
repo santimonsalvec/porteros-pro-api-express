@@ -143,14 +143,14 @@ describe('RequestAdminReader (mocked driver, admin spec 006)', () => {
     function collections() {
       const goalkeeperRequests = createFakeCollection();
       const bookings = createFakeCollection();
-      const walletMovements = createFakeCollection();
+      const balanceMovements = createFakeCollection();
       const goalkeeperIncidents = createFakeCollection();
       const ratings = createFakeCollection();
       const cases = createFakeCollection();
       const notifications = createFakeCollection();
       goalkeeperRequests.findOne.mockResolvedValue(requestToDocument(request));
       bookings.find.mockReturnValue(toArrayCursor([bookingToDocument(pending!), bookingToDocument(held)]));
-      walletMovements.find.mockReturnValue(
+      balanceMovements.find.mockReturnValue(
         toArrayResult([
           { causeKey: `commission:${held.id}`, amount: -8330, currency: 'COP' },
           { causeKey: `commission_vat:${held.id}`, amount: -1583, currency: 'COP' },
@@ -160,7 +160,7 @@ describe('RequestAdminReader (mocked driver, admin spec 006)', () => {
       ratings.find.mockReturnValue(toArrayResult([ratingToDocument(rating)]));
       cases.find.mockReturnValue(toArrayResult([caseToDocument(opened)]));
       notifications.countDocuments.mockResolvedValue(14);
-      return { goalkeeperRequests, bookings, walletMovements, goalkeeperIncidents, ratings, cases, notifications };
+      return { goalkeeperRequests, bookings, balanceMovements, goalkeeperIncidents, ratings, cases, notifications };
     }
 
     it('reads the request, its bookings, their money, incidents, ratings, cases and offers', async () => {
@@ -177,7 +177,7 @@ describe('RequestAdminReader (mocked driver, admin spec 006)', () => {
       expect(detail!.offersSent).toBe(14);
 
       const ids = [pending!.id, held.id];
-      expect(all.walletMovements.find).toHaveBeenCalledWith({
+      expect(all.balanceMovements.find).toHaveBeenCalledWith({
         causeKey: { $in: ids.flatMap((id) => [`commission:${id}`, `commission_vat:${id}`, `commission_refund:${id}`, `commission_vat_refund:${id}`]) },
       });
       expect(all.goalkeeperIncidents.find).toHaveBeenCalledWith({ kind: { $in: ['withdrawal', 'no_show'] }, bookingId: { $in: ids } });
@@ -188,7 +188,7 @@ describe('RequestAdminReader (mocked driver, admin spec 006)', () => {
 
     it('adds up refunds', async () => {
       const all = collections();
-      all.walletMovements.find.mockReturnValue(
+      all.balanceMovements.find.mockReturnValue(
         toArrayResult([
           { causeKey: `commission:${held.id}`, amount: -8330, currency: 'COP' },
           { causeKey: `commission_refund:${held.id}`, amount: 8330, currency: 'COP' },

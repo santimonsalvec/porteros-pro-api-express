@@ -11,7 +11,7 @@ import type { Zone } from '../../../../../src/domain/zones/zone.js';
 import { FakeUserRepository } from '../../../../fakes/fakeUserRepository.js';
 import { FakeUserBlockRepository } from '../../../../fakes/fakeUserBlockRepository.js';
 import { FakeGoalkeeperProfileRepository } from '../../../../fakes/fakeGoalkeeperProfileRepository.js';
-import { buildGoalkeeperProfile } from '../../../../fixtures/walletFixtures.js';
+import { buildGoalkeeperProfile } from '../../../../fixtures/operatingBalanceFixtures.js';
 
 const NOW = new Date('2026-10-12T15:00:00.000Z');
 const LATER = new Date('2026-10-13T00:00:00.000Z');

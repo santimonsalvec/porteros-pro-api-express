@@ -15,7 +15,7 @@ import { FakeCountryRepository } from '../../../../fakes/fakeCountryRepository.j
 import { FakeGoalkeeperProfileRepository } from '../../../../fakes/fakeGoalkeeperProfileRepository.js';
 import { FakeRegionRepository } from '../../../../fakes/fakeRegionRepository.js';
 import { buildRequest, buildRequestBookings } from '../../../../fixtures/quoteFixtures.js';
-import { buildGoalkeeperProfile, seedWalletWorld } from '../../../../fixtures/walletFixtures.js';
+import { buildGoalkeeperProfile, seedOperatingBalanceWorld } from '../../../../fixtures/operatingBalanceFixtures.js';
 
 /** Bogotá is UTC−5 all year: local midnight of a day is 05:00Z. */
 const template = buildRequestBookings(
@@ -56,7 +56,7 @@ beforeEach(() => {
   cities = new FakeCityRepository();
   const regions = new FakeRegionRepository();
   const countries = new FakeCountryRepository();
-  seedWalletWorld({
+  seedOperatingBalanceWorld({
     cityRepository: cities,
     regionRepository: regions,
     countryRepository: countries,
@@ -232,11 +232,11 @@ describe('GetGoalkeeperMonthStatsQueryHandler — refusals', () => {
     });
   });
 
-  it('refuses a country without currency, like the wallet', async () => {
+  it('refuses a country without currency, like the operatingBalance', async () => {
     profiles.seed(buildGoalkeeperProfile('gk-3', { cityId: 'city-orphan' }));
 
     expect(await handler.handle(new GetGoalkeeperMonthStatsQuery('gk-3'))).toEqual({
-      outcome: 'wallet_not_configured',
+      outcome: 'operating_balance_not_configured',
       cityId: 'city-orphan',
     });
   });

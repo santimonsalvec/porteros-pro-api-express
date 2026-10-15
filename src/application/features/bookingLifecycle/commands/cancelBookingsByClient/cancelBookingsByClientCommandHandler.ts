@@ -7,8 +7,8 @@ import type { IEventRelay } from '../../../events/common/ports.js';
 import { loadContacts } from '../../../goalkeeperRequests/common/contacts.js';
 import type { IBookingAuditLogger, IBookingRepository, IGoalkeeperRequestRepository } from '../../../goalkeeperRequests/common/ports.js';
 import { assignedGoalkeeperIds, toRequestResponse } from '../../../goalkeeperRequests/common/requestResponse.js';
-import type { GoalkeeperWalletContextDependencies } from '../../../wallet/common/goalkeeperWalletContext.js';
-import type { LedgerOwner } from '../../../wallet/common/walletLedger.js';
+import type { GoalkeeperOperatingBalanceContextDependencies } from '../../../operatingBalance/common/goalkeeperOperatingBalanceContext.js';
+import type { LedgerOwner } from '../../../operatingBalance/common/operatingBalanceLedger.js';
 import type { ClientCancelResult, IBookingLifecycleStore, ILifecycleLogger } from '../../common/ports.js';
 import { addLedgerOwner } from '../../common/resolveOwners.js';
 import { CancelBookingsByClientCommand, type CancelBookingsByClientResult } from './cancelBookingsByClientCommand.js';
@@ -18,7 +18,7 @@ export interface CancelBookingsByClientDependencies {
   bookingRepository: IBookingRepository;
   userRepository: IUserRepository;
   store: IBookingLifecycleStore;
-  walletContext: GoalkeeperWalletContextDependencies;
+  operatingBalanceContext: GoalkeeperOperatingBalanceContextDependencies;
   relay: IEventRelay;
   idGenerator: IIdGenerator;
   clock: IClock;
@@ -101,7 +101,7 @@ export class CancelBookingsByClientCommandHandler
     }
   }
 
-  /** False when the goalkeeper's wallet can't be resolved (a configuration gap). */
+  /** False when the goalkeeper's operating balance can't be resolved (a configuration gap). */
   private addOwner(owners: Map<string, LedgerOwner>, goalkeeperId: string): Promise<boolean> {
     return addLedgerOwner(this.deps, owners, goalkeeperId, 'client_cancel_owner_unresolved');
   }

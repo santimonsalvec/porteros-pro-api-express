@@ -7,7 +7,7 @@ import { bookingToDocument } from '../../../../../src/infrastructure/persistence
 import { requestToDocument } from '../../../../../src/infrastructure/persistence/mongo/goalkeeperRequestRepository.js';
 import { createFakeCollection, toArrayResult } from '../../../../fakes/fakeMongoCollection.js';
 import { buildRequest, buildRequestBookings } from '../../../../fixtures/quoteFixtures.js';
-import { COLOMBIA_INVOICING } from '../../../../fixtures/walletFixtures.js';
+import { COLOMBIA_INVOICING } from '../../../../fixtures/operatingBalanceFixtures.js';
 
 const now = new Date('2026-09-28T19:31:00.000Z');
 const request = buildRequest('r-1', new Date('2026-09-28T20:00:00.000Z'), { goalkeeperCount: 2 });
@@ -19,7 +19,7 @@ const owner = { goalkeeperId: 'gk-1', currency: 'COP', invoicing: COLOMBIA_INVOI
 function harness() {
   const bookings = createFakeCollection();
   const requests = createFakeCollection();
-  const wallets = createFakeCollection();
+  const operatingBalances = createFakeCollection();
   const movements = createFakeCollection();
   const outbox = createFakeCollection();
   const incidents = createFakeCollection();
@@ -29,8 +29,8 @@ function harness() {
   const collections: Record<string, unknown> = {
     bookings,
     goalkeeperRequests: requests,
-    wallets,
-    walletMovements: movements,
+    operatingBalances,
+    balanceMovements: movements,
     outbox,
     goalkeeperIncidents: incidents,
     goalkeeperProfiles: profiles,
@@ -47,8 +47,8 @@ function harness() {
   bookings.updateOne.mockResolvedValue({});
   requests.updateOne.mockResolvedValue({});
   outbox.insertMany.mockResolvedValue({});
-  wallets.updateOne.mockResolvedValue({});
-  wallets.findOneAndUpdate.mockResolvedValue({ _id: 'gk-1', currency: 'COP', balance: 20000, lastSequence: 3, createdAt: now, updatedAt: now });
+  operatingBalances.updateOne.mockResolvedValue({});
+  operatingBalances.findOneAndUpdate.mockResolvedValue({ _id: 'gk-1', currency: 'COP', balance: 20000, lastSequence: 3, createdAt: now, updatedAt: now });
   movements.insertOne.mockResolvedValue({});
   let ids = 0;
   const cancelAll = () =>

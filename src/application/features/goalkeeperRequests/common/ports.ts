@@ -1,8 +1,8 @@
-import type { WalletMovement } from '../../../../domain/wallet/walletMovement.js';
+import type { BalanceMovement } from '../../../../domain/operatingBalance/balanceMovement.js';
 import type { DomainEvent } from '../../../../domain/events/domainEvent.js';
 import type { Booking } from '../../../../domain/bookings/booking.js';
 import type { GoalkeeperRequest } from '../../../../domain/bookings/goalkeeperRequest.js';
-import type { MovementDraft } from '../../wallet/common/ports.js';
+import type { MovementDraft } from '../../operatingBalance/common/ports.js';
 import type { Quote } from '../../../../domain/bookings/quote.js';
 import type { Country } from '../../../../domain/countries/country.js';
 import type { BookingSettings } from '../../../../domain/pricing/bookingSettings.js';
@@ -138,7 +138,7 @@ export type AcceptanceResult =
   | { kind: 'same_request' }
   /** It clashes with a booking the goalkeeper holds. Nothing written. */
   | { kind: 'schedule_conflict'; conflictingBookingId: string }
-  /** The wallet cannot cover the booking's commission. Nothing written. */
+  /** The operating balance cannot cover the booking's commission. Nothing written. */
   | { kind: 'insufficient_funds'; balance: number };
 
 /**
@@ -156,7 +156,7 @@ export interface IBookingAcceptanceStore {
      * The events recorded with the assignment: "goalkeeper assigned" (013) and "commission
      * charged" (023), built from the movements actually recorded.
      */
-    events: (booking: Booking, charged: readonly WalletMovement[]) => DomainEvent[];
+    events: (booking: Booking, charged: readonly BalanceMovement[]) => DomainEvent[];
   }): Promise<AcceptanceResult>;
 }
 

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { Collection, Db, Document } from 'mongodb';
 import { PaymentGatewaySettings } from '../../../../../src/domain/payments/gatewaySettings.js';
-import { TopUp } from '../../../../../src/domain/payments/topUp.js';
+import { Deposit } from '../../../../../src/domain/deposits/deposit.js';
 import { InvalidConfigurationError } from '../../../../../src/domain/pricing/invalidConfigurationError.js';
 import { PaymentGatewaySettingsRepository } from '../../../../../src/infrastructure/persistence/mongo/paymentGatewaySettingsRepository.js';
-import { TopUpRepository, topUpToDocument } from '../../../../../src/infrastructure/persistence/mongo/topUpRepository.js';
+import { DepositRepository, depositToDocument } from '../../../../../src/infrastructure/persistence/mongo/depositRepository.js';
 import { createFakeCollection, toArrayCursor } from '../../../../fakes/fakeMongoCollection.js';
 
 const NOW = new Date('2026-09-29T12:00:00.000Z');
@@ -24,7 +24,7 @@ const settingsDoc = {
   updatedBy: 'admin-1',
 };
 
-const topUp = TopUp.start({
+const deposit = Deposit.start({
   id: '0192-abcd',
   goalkeeperId: 'gk-1',
   countryId: 'country-co',
@@ -69,12 +69,12 @@ describe('PaymentGatewaySettingsRepository (mocked driver)', () => {
   });
 });
 
-describe('TopUpRepository (mocked driver)', () => {
+describe('DepositRepository (mocked driver)', () => {
   it('creates its three indexes', async () => {
     const collection = createFakeCollection();
     collection.createIndex.mockResolvedValue('ok');
 
-    await new TopUpRepository(dbWith(collection)).ensureIndexes();
+    await new DepositRepository(dbWith(collection)).ensureIndexes();
 
     expect(collection.createIndex.mock.calls).toEqual([
       [{ reference: 1 }, { name: 'reference_unique', unique: true }],
@@ -83,26 +83,26 @@ describe('TopUpRepository (mocked driver)', () => {
     ]);
   });
 
-  it('stores and reads a top-up back unchanged', async () => {
+  it('stores and reads a deposit back unchanged', async () => {
     const collection = createFakeCollection();
     collection.insertOne.mockResolvedValue({});
-    const repository = new TopUpRepository(dbWith(collection));
+    const repository = new DepositRepository(dbWith(collection));
 
-    await repository.create(topUp);
+    await repository.create(deposit);
     const doc = collection.insertOne.mock.calls[0]![0] as Document;
     collection.findOne.mockResolvedValue(doc);
 
     expect(doc).toMatchObject({ _id: '0192-abcd', reference: 'PPR-0192abcd', status: 'pending', net: 18536 });
-    expect((await repository.getByReference('PPR-0192abcd'))?.toProps()).toEqual(topUp.toProps());
+    expect((await repository.getByReference('PPR-0192abcd'))?.toProps()).toEqual(deposit.toProps());
     expect(collection.findOne).toHaveBeenLastCalledWith({ reference: 'PPR-0192abcd' });
   });
 
-  it('lists a goalkeeper\'s top-ups newest first', async () => {
+  it('lists a goalkeeper\'s deposits newest first', async () => {
     const collection = createFakeCollection();
-    const cursor = toArrayCursor([topUpToDocument(topUp)]);
+    const cursor = toArrayCursor([depositToDocument(deposit)]);
     collection.find.mockReturnValue(cursor);
 
-    const items = await new TopUpRepository(dbWith(collection)).listForGoalkeeper('gk-1', 20, 10);
+    const items = await new DepositRepository(dbWith(collection)).listForGoalkeeper('gk-1', 20, 10);
 
     expect(collection.find).toHaveBeenCalledWith({ goalkeeperId: 'gk-1' });
     expect(cursor.sort).toHaveBeenCalledWith({ createdAt: -1, _id: -1 });
@@ -111,12 +111,12 @@ describe('TopUpRepository (mocked driver)', () => {
     expect(items).toHaveLength(1);
   });
 
-  it('finds pending top-ups whose check is due, oldest first, capped', async () => {
+  it('finds pending deposits whose check is due, oldest first, capped', async () => {
     const collection = createFakeCollection();
     const cursor = toArrayCursor([]);
     collection.find.mockReturnValue(cursor);
 
-    await new TopUpRepository(dbWith(collection)).findDueForCheck(NOW, 50);
+    await new DepositRepository(dbWith(collection)).findDueForCheck(NOW, 50);
 
     expect(collection.find).toHaveBeenCalledWith({ status: 'pending', nextCheckAt: { $lte: NOW } });
     expect(cursor.sort).toHaveBeenCalledWith({ nextCheckAt: 1 });
@@ -128,7 +128,7 @@ describe('TopUpRepository (mocked driver)', () => {
     collection.updateOne.mockResolvedValue({});
     const next = new Date(NOW.getTime() + 3_600_000);
 
-    await new TopUpRepository(dbWith(collection)).scheduleNextCheck('0192-abcd', next, NOW);
+    await new DepositRepository(dbWith(collection)).scheduleNextCheck('0192-abcd', next, NOW);
 
     expect(collection.updateOne).toHaveBeenCalledWith(
       { _id: '0192-abcd', status: 'pending' },

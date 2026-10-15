@@ -1,4 +1,4 @@
-import type { ITaxSettingsRepository } from '../../../wallet/common/ports.js';
+import type { ITaxSettingsRepository } from '../../../operatingBalance/common/ports.js';
 import { PricingGeography, type PricingGeographyDependencies } from '../../common/pricingGeography.js';
 import type { CommissionRecord } from '../../common/ports.js';
 import { vatRatesOf } from '../../common/vatRates.js';

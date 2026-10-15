@@ -63,7 +63,7 @@ function sameHex(expected: string, received: unknown): boolean {
 }
 
 function toStatus(value: unknown): GatewayTransactionStatus {
-  // An unknown status is treated as still pending: it never changes a top-up.
+  // An unknown status is treated as still pending: it never changes a deposit.
   return STATUSES.find((status) => status === value) ?? 'PENDING';
 }
 

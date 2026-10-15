@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { redactForAudit } from '../../../../src/infrastructure/audit/auditRedaction.js';
 
 describe('redactForAudit', () => {
-  it('keeps only the allowed fields of a wallet movement', () => {
+  it('keeps only the allowed fields of a operatingBalance movement', () => {
     expect(
-      redactForAudit('wallet', { id: 'm-1', type: 'admin_adjustment', amount: 5000, balance: 12000, reason: 'Saldo', operationKey: 'k', internal: 'x' }),
+      redactForAudit('operatingBalance', { id: 'm-1', type: 'admin_adjustment', amount: 5000, balance: 12000, reason: 'Saldo', operationKey: 'k', internal: 'x' }),
     ).toEqual({ id: 'm-1', type: 'admin_adjustment', amount: 5000, balance: 12000, reason: 'Saldo', operationKey: 'k' });
   });
 
@@ -67,8 +67,8 @@ describe('redactForAudit', () => {
 
   it('is null for an unknown resource type or a non-object', () => {
     expect(redactForAudit('mystery', { a: 1 })).toBeNull();
-    expect(redactForAudit('wallet', null)).toBeNull();
-    expect(redactForAudit('wallet', 'text')).toBeNull();
+    expect(redactForAudit('operatingBalance', null)).toBeNull();
+    expect(redactForAudit('operatingBalance', 'text')).toBeNull();
   });
 
   it('keeps who and why of a team change, and drops anything else', () => {
@@ -182,14 +182,14 @@ describe('operations writes (spec 006 of the admin)', () => {
 
   // Finance (spec 007 of the admin).
   it('keeps the outcome of a forced reconciliation, without the payment references', () => {
-    const kept = { topUpId: 't-1', status: 'approved', answer: 'APPROVED', result: 'applied', statusAfter: 'approved' };
-    expect(redactForAudit('topUp', { ...kept, reference: 'PPR-1', gatewayTransactionId: 'w-9' })).toEqual(kept);
+    const kept = { depositId: 't-1', status: 'approved', answer: 'APPROVED', result: 'applied', statusAfter: 'approved' };
+    expect(redactForAudit('deposit', { ...kept, reference: 'PPR-1', gatewayTransactionId: 'w-9' })).toEqual(kept);
   });
 
   it("keeps an export's filters and row count, never personal data", () => {
     const filters = { status: 'rejected', kind: 'invoice', countryId: 'country-co', goalkeeperId: 'u-1', from: '2026-10-01', to: '2026-10-14', stale: true, rows: 12 };
-    const topUpFilters = { status: 'pending', countryId: 'country-co', goalkeeperId: 'u-1', from: '2026-10-01', to: '2026-10-14', rows: 2 };
-    expect(redactForAudit('topUps', { ...topUpFilters, email: 'ana@example.com' })).toEqual(topUpFilters);
+    const depositFilters = { status: 'pending', countryId: 'country-co', goalkeeperId: 'u-1', from: '2026-10-01', to: '2026-10-14', rows: 2 };
+    expect(redactForAudit('deposits', { ...depositFilters, email: 'ana@example.com' })).toEqual(depositFilters);
     expect(redactForAudit('invoicingDocuments', { ...filters, buyer: { documentNumber: '123', email: 'a@b.co' } })).toEqual(filters);
   });
 

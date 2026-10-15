@@ -57,7 +57,7 @@ export const config = {
     privacyPolicyVersion: optionalEnv('LEGAL_PRIVACY_POLICY_VERSION', PARAMETER_DEFAULTS.LEGAL_PRIVACY_POLICY_VERSION),
   },
   /**
-   * Wallet top-ups (feature 022). Gateway secrets are NOT here: they are read per gateway and
+   * Operating balance deposits (feature 022). Gateway secrets are NOT here: they are read per gateway and
    * country from environment variables that App Hosting resolves from Secret Manager
    * (`WOMPI_CO_PRIVATE_KEY`, `WOMPI_CO_EVENTS_SECRET`, `WOMPI_CO_INTEGRITY_SECRET`).
    */

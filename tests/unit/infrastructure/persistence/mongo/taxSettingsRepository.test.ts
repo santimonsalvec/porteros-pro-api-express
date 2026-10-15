@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Collection, Db, Document } from 'mongodb';
-import { TaxSetting } from '../../../../../src/domain/wallet/taxSetting.js';
+import { TaxSetting } from '../../../../../src/domain/operatingBalance/taxSetting.js';
 import { TaxSettingsRepository } from '../../../../../src/infrastructure/persistence/mongo/taxSettingsRepository.js';
 import { createFakeCollection } from '../../../../fakes/fakeMongoCollection.js';
 

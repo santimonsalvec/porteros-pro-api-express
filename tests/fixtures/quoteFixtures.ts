@@ -14,7 +14,7 @@ import { Region } from '../../src/domain/locations/region.js';
 import { Zone } from '../../src/domain/zones/zone.js';
 import type { FakeBookingSettingsRepository } from '../fakes/fakeBookingSettingsRepository.js';
 import type { FakeCommissionSettingRepository } from '../fakes/fakeCommissionSettingRepository.js';
-import { CommissionSetting } from '../../src/domain/wallet/commissionSetting.js';
+import { CommissionSetting } from '../../src/domain/operatingBalance/commissionSetting.js';
 import type { FakeCityRepository } from '../fakes/fakeCityRepository.js';
 import type { FakeCountryRepository } from '../fakes/fakeCountryRepository.js';
 import type { FakeRegionRepository } from '../fakes/fakeRegionRepository.js';

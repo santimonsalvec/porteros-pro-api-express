@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp, TEST_INTERNAL_TOKEN } from '../testAppFactory.js';
-import type { TestApp } from '../walletTestHelpers.js';
+import type { TestApp } from '../operatingBalanceTestHelpers.js';
 
 const eventJson = (id = 'ev-1') => ({
   id,
@@ -113,7 +113,7 @@ describe('POST /internal/sweep — US4: the every-minute sweep', () => {
         { name: 'offer-reminders', outcome: 'succeeded', detail: '0 open bookings' },
         { name: 'contacts-reveal', outcome: 'succeeded', detail: '0 revealed, 0 without goalkeepers, 0 notices, 0 failed' },
         { name: 'check-in-watch', outcome: 'succeeded', detail: '0 opened, 0 last calls, 0 missed, 0 failed' },
-        { name: 'top-up-reconcile', outcome: 'succeeded', detail: '0 checked, 0 applied, 0 expired, 0 failed' },
+        { name: 'deposit-reconcile', outcome: 'succeeded', detail: '0 checked, 0 applied, 0 expired, 0 failed' },
         { name: 'invoicing-issuer', outcome: 'succeeded', detail: '0 issued, 0 awaiting, 0 rejected, 0 retried, 0 recovered' },
       ],
     });

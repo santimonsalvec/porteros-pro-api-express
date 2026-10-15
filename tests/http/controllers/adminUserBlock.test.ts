@@ -2,7 +2,7 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 import { seedRole, signInStaff } from '../adminTestHelpers.js';
-import { signInGoalkeeper, type TestApp } from '../walletTestHelpers.js';
+import { signInGoalkeeper, type TestApp } from '../operatingBalanceTestHelpers.js';
 
 async function world() {
   const context = await buildTestApp();

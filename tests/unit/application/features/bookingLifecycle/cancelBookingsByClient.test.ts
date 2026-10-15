@@ -19,7 +19,7 @@ describe('CancelBookingsByClientCommand — US1: a booking nobody has taken', ()
     });
     expect(h.current(bookings[0]!.id).status).toBe('pending_assignment');
     expect(h.relayed.map((event) => [event.type, (event.payload as { by: string }).by])).toEqual([['booking.cancelled', 'client']]);
-    expect(h.wallet.movements()).toHaveLength(0);
+    expect(h.operatingBalance.movements()).toHaveLength(0);
 
     expect(await h.cancel(request.id, bookings[1]!.id)).toMatchObject({ outcome: 'replayed' });
     expect(h.relayed).toHaveLength(1);
@@ -58,7 +58,7 @@ describe('CancelBookingsByClientCommand — US2: a taken booking', () => {
     expect(await h.cancel(request.id, bookings[0]!.id)).toMatchObject({ outcome: 'replayed' });
 
     expect(await h.balanceOf('gk-1')).toBe(20000);
-    const refunds = h.wallet.movements().filter((movement) => movement.type === 'commission_refund');
+    const refunds = h.operatingBalance.movements().filter((movement) => movement.type === 'commission_refund');
     expect(refunds).toHaveLength(1);
     expect(refunds[0]).toMatchObject({ amount: 7000, cancellation: { by: 'client', reason: 'Cambio de planes' } });
     for (const event of h.relayed) await h.goalkeeperNotices.handle(event);
@@ -86,7 +86,7 @@ describe('CancelBookingsByClientCommand — US2: a taken booking', () => {
     expect(await h.balanceOf('gk-2')).toBe(13000);
   });
 
-  it("answers temporarily unavailable, changing nothing, when the goalkeeper's wallet can't be resolved", async () => {
+  it("answers temporarily unavailable, changing nothing, when the goalkeeper's operatingBalance can't be resolved", async () => {
     const h = lifecycleHarness();
     const { request, bookings } = h.match('r1', 3);
     await h.acceptAndPay(bookings[0]!, 'gk-1');
@@ -112,7 +112,7 @@ describe('CancelBookingsByClientCommand — US2: a taken booking', () => {
     };
 
     expect(await h.cancel(request.id, bookings[0]!.id)).toMatchObject({ outcome: 'cancelled' });
-    expect(h.wallet.movements().filter((movement) => movement.type === 'commission_refund')).toHaveLength(1);
+    expect(h.operatingBalance.movements().filter((movement) => movement.type === 'commission_refund')).toHaveLength(1);
   });
 });
 
@@ -126,7 +126,7 @@ describe('CancelBookingsByClientCommand — US3: the whole request', () => {
 
     expect(result).toMatchObject({ outcome: 'cancelled', request: { status: 'cancelled' } });
     expect(bookings.map((booking) => h.current(booking.id).status)).toEqual(['cancelled', 'cancelled']);
-    expect(h.wallet.movements().filter((movement) => movement.type === 'commission_refund')).toHaveLength(1);
+    expect(h.operatingBalance.movements().filter((movement) => movement.type === 'commission_refund')).toHaveLength(1);
     expect(h.request(request.id).active).toBe(false);
     expect(await h.cancel(request.id, null)).toMatchObject({ outcome: 'replayed' });
   });

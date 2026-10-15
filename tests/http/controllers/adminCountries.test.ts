@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { buildTestApp } from '../testAppFactory.js';
 import { as, geographyStaff } from '../geographyTestHelpers.js';
-import { signInClient } from '../walletTestHelpers.js';
+import { signInClient } from '../operatingBalanceTestHelpers.js';
 
 const ECUADOR = { name: 'Ecuador', countryCode: 'EC', dialCode: '+593', currency: 'USD' };
 

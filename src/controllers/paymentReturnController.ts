@@ -1,9 +1,9 @@
 import { Router, type Response } from 'express';
 import type { ISender } from '../application/common/mediator/types.js';
 import {
-  GetTopUpByReferenceQuery,
-  type TopUpReturnView,
-} from '../application/features/payments/queries/getTopUpByReference/getTopUpByReferenceQuery.js';
+  GetDepositByReferenceQuery,
+  type DepositReturnView,
+} from '../application/features/deposits/queries/getDepositByReference/getDepositByReferenceQuery.js';
 import { formatAmount } from '../domain/notifications/outcomeMessages.js';
 
 /** Where the return page's button goes, and the app link association (research.md §8). Empty = not configured. */
@@ -25,17 +25,17 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
 }
 
-function describe(topUp: TopUpReturnView): { title: string; detail: string } {
-  switch (topUp.status) {
+function describe(deposit: DepositReturnView): { title: string; detail: string } {
+  switch (deposit.status) {
     case 'approved':
-      return { title: 'Recarga aprobada', detail: `Acreditamos ${formatAmount(topUp.net, topUp.currency)} a tu billetera.` };
+      return { title: 'Depósito aprobado', detail: `Sumamos ${formatAmount(deposit.net, deposit.currency)} a tu saldo operativo.` };
     case 'pending':
-      return { title: 'Recarga pendiente', detail: 'Estamos esperando la confirmación del pago. Te avisaremos cuando se acredite.' };
+      return { title: 'Depósito pendiente', detail: 'Estamos esperando la confirmación del pago. Te avisaremos cuando se acredite.' };
     case 'declined':
     case 'voided':
     case 'error':
     case 'expired':
-      return { title: 'Recarga no completada', detail: 'El pago no se completó. Puedes intentar con otro medio de pago.' };
+      return { title: 'Depósito no completado', detail: 'El pago no se completó. Puedes intentar con otro medio de pago.' };
   }
 }
 
@@ -90,17 +90,17 @@ export function createPaymentReturnController(deps: PaymentReturnControllerDepen
   const settings = deps.paymentReturn;
 
   router.get(`${RETURN_PATH}/:reference`, async (req, res) => {
-    const result = await deps.mediator.send(new GetTopUpByReferenceQuery(req.params.reference));
+    const result = await deps.mediator.send(new GetDepositByReferenceQuery(req.params.reference));
     if (result.outcome === 'not_found') {
-      sendPage(res, page(settings, 'No encontramos esta recarga', ['Revisa el estado de tus recargas en la aplicación.']));
+      sendPage(res, page(settings, 'No encontramos este depósito', ['Revisa el estado de tus depósitos en la aplicación.']));
       return;
     }
-    const { title, detail } = describe(result.topUp);
+    const { title, detail } = describe(result.deposit);
     sendPage(
       res,
       page(settings, title, [
         detail,
-        `Monto: ${formatAmount(result.topUp.amount, result.topUp.currency)} · Recibes: ${formatAmount(result.topUp.net, result.topUp.currency)}`,
+        `Monto: ${formatAmount(result.deposit.amount, result.deposit.currency)} · Recibes: ${formatAmount(result.deposit.net, result.deposit.currency)}`,
       ]),
     );
   });

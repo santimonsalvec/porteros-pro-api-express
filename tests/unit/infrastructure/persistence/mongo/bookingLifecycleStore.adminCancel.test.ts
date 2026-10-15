@@ -6,7 +6,7 @@ import { bookingToDocument } from '../../../../../src/infrastructure/persistence
 import { requestToDocument } from '../../../../../src/infrastructure/persistence/mongo/goalkeeperRequestRepository.js';
 import { createFakeCollection, toArrayResult } from '../../../../fakes/fakeMongoCollection.js';
 import { buildRequest, buildRequestBookings } from '../../../../fixtures/quoteFixtures.js';
-import { COLOMBIA_INVOICING } from '../../../../fixtures/walletFixtures.js';
+import { COLOMBIA_INVOICING } from '../../../../fixtures/operatingBalanceFixtures.js';
 
 // Past the free-cancellation period (it ended at 19:00Z): the client could no longer cancel.
 const late = new Date('2026-09-28T19:31:00.000Z');
@@ -27,7 +27,7 @@ const ENDED = {
 function harness() {
   const bookings = createFakeCollection();
   const requests = createFakeCollection();
-  const wallets = createFakeCollection();
+  const operatingBalances = createFakeCollection();
   const movements = createFakeCollection();
   const outbox = createFakeCollection();
   const incidents = createFakeCollection();
@@ -35,8 +35,8 @@ function harness() {
   const collections: Record<string, unknown> = {
     bookings,
     goalkeeperRequests: requests,
-    wallets,
-    walletMovements: movements,
+    operatingBalances,
+    balanceMovements: movements,
     outbox,
     goalkeeperIncidents: incidents,
     goalkeeperProfiles: profiles,
@@ -50,7 +50,7 @@ function harness() {
   bookings.updateOne.mockResolvedValue({});
   requests.updateOne.mockResolvedValue({});
   outbox.insertMany.mockResolvedValue({});
-  wallets.findOneAndUpdate.mockResolvedValue({ _id: 'gk-1', currency: 'COP', balance: 20000, lastSequence: 3, createdAt: late, updatedAt: late });
+  operatingBalances.findOneAndUpdate.mockResolvedValue({ _id: 'gk-1', currency: 'COP', balance: 20000, lastSequence: 3, createdAt: late, updatedAt: late });
   movements.insertOne.mockResolvedValue({});
   requests.findOne.mockResolvedValue(requestToDocument(request));
   let ids = 0;
@@ -166,7 +166,7 @@ describe('MongoBookingLifecycleStore.cancelByAdmin (admin spec 006, research §1
     expect(await h.cancelByAdmin('other-booking')).toEqual({ kind: 'not_found', what: 'booking' });
   });
 
-  it('asks for the wallet owner of an assigned goalkeeper it lacks, and aborts without a charge, writing nothing', async () => {
+  it('asks for the operatingBalance owner of an assigned goalkeeper it lacks, and aborts without a charge, writing nothing', async () => {
     const h = harness();
     h.bookings.find.mockReturnValue(toArrayResult([pendingDoc, assignedDoc]));
 

@@ -1,20 +1,20 @@
 import type { IClock } from '../../../../common/clock.js';
 import type { ICommandHandler } from '../../../../common/mediator/types.js';
 import type { ICountryLookup } from '../../../goalkeeperRequests/common/ports.js';
-import { applyTopUpOutcome, finalStatusOf, type ApplyTopUpOutcomeDependencies } from '../../common/applyTopUpOutcome.js';
-import type { IPaymentGatewayRegistry, IPaymentSecrets, ITopUpRepository } from '../../common/ports.js';
+import { applyDepositOutcome, finalStatusOf, type ApplyDepositOutcomeDependencies } from '../../../deposits/common/applyDepositOutcome.js';
+import type { IPaymentGatewayRegistry, IPaymentSecrets, IDepositRepository } from '../../common/ports.js';
 import { ApplyGatewayEventCommand, type ApplyGatewayEventResult } from './applyGatewayEventCommand.js';
 
-export interface ApplyGatewayEventDependencies extends ApplyTopUpOutcomeDependencies {
+export interface ApplyGatewayEventDependencies extends ApplyDepositOutcomeDependencies {
   gateways: IPaymentGatewayRegistry;
   secrets: IPaymentSecrets;
-  topUpRepository: ITopUpRepository;
+  depositRepository: IDepositRepository;
   countryLookup: ICountryLookup;
   clock: IClock;
 }
 
 /**
- * The gateway's confirmation (research.md §2): the reference names the top-up, whose own gateway
+ * The gateway's confirmation (research.md §2): the reference names the deposit, whose own gateway
  * and country give the secrets that verify the event. Only a genuine final status changes it.
  * Every failure but an internal one is answered as handled, since a retry could not succeed.
  */
@@ -26,8 +26,8 @@ export class ApplyGatewayEventCommandHandler implements ICommandHandler<ApplyGat
       return { outcome: await this.apply(command) };
     } catch (error) {
       this.deps.logger.warn(
-        { outcome: 'top_up_event_error', gateway: command.gateway, error: error instanceof Error ? error.message : String(error) },
-        'Top-up event failed; the gateway will retry it',
+        { outcome: 'deposit_event_error', gateway: command.gateway, error: error instanceof Error ? error.message : String(error) },
+        'Deposit event failed; the gateway will retry it',
       );
       return { outcome: 'error' };
     }
@@ -38,27 +38,27 @@ export class ApplyGatewayEventCommandHandler implements ICommandHandler<ApplyGat
     const gateway = this.deps.gateways.get(command.gateway);
     const parsed = gateway?.parseEvent(command.body) ?? null;
     if (!gateway || !parsed) {
-      logger.warn({ outcome: 'top_up_event_ignored', gateway: command.gateway, reason: 'unreadable' }, 'Top-up event ignored');
+      logger.warn({ outcome: 'deposit_event_ignored', gateway: command.gateway, reason: 'unreadable' }, 'Deposit event ignored');
       return 'ignored';
     }
-    const topUp = await this.deps.topUpRepository.getByReference(parsed.reference);
-    if (!topUp || topUp.gateway !== gateway.name) {
-      logger.warn({ outcome: 'top_up_event_ignored', gateway: command.gateway, reference: parsed.reference, reason: 'unknown_reference' }, 'Top-up event ignored');
+    const deposit = await this.deps.depositRepository.getByReference(parsed.reference);
+    if (!deposit || deposit.gateway !== gateway.name) {
+      logger.warn({ outcome: 'deposit_event_ignored', gateway: command.gateway, reference: parsed.reference, reason: 'unknown_reference' }, 'Deposit event ignored');
       return 'ignored';
     }
 
-    const country = await this.deps.countryLookup.getById(topUp.countryId);
-    const secrets = country ? this.deps.secrets.forGateway(topUp.gateway, country.countryCode) : null;
-    if (!secrets) throw new Error(`Top-up ${topUp.id}: no ${topUp.gateway} secrets for its country`);
+    const country = await this.deps.countryLookup.getById(deposit.countryId);
+    const secrets = country ? this.deps.secrets.forGateway(deposit.gateway, country.countryCode) : null;
+    if (!secrets) throw new Error(`Deposit ${deposit.id}: no ${deposit.gateway} secrets for its country`);
     const outcome = gateway.verifyEvent(command.body, command.headers, secrets);
     if (!outcome) {
-      logger.warn({ outcome: 'top_up_event_rejected', reference: topUp.reference }, 'Top-up event rejected: invalid signature');
+      logger.warn({ outcome: 'deposit_event_rejected', reference: deposit.reference }, 'Deposit event rejected: invalid signature');
       return 'rejected';
     }
     const status = finalStatusOf(outcome.status);
     if (status === null) return 'ignored';
 
-    const result = await applyTopUpOutcome(this.deps, topUp, status, outcome, this.deps.clock.now());
+    const result = await applyDepositOutcome(this.deps, deposit, status, outcome, this.deps.clock.now());
     switch (result.kind) {
       case 'applied':
         return 'applied';

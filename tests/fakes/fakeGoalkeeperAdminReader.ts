@@ -2,7 +2,7 @@ import type { GoalkeeperListFilter, GoalkeeperListRecord, IGoalkeeperAdminReader
 import type { RatingSummary } from '../../src/application/features/goalkeepers/common/adminViews.js';
 import type { ScheduledRecord } from '../../src/application/features/users/common/ports.js';
 import type { FakeGoalkeeperProfileRepository } from './fakeGoalkeeperProfileRepository.js';
-import type { FakeWalletStore } from './fakeWalletStore.js';
+import type { FakeOperatingBalanceStore } from './fakeOperatingBalanceStore.js';
 import type { FakeBookingLifecycleStore } from './fakeBookingLifecycleStore.js';
 import type { FakeBookingRepository } from './fakeBookingRepository.js';
 
@@ -11,14 +11,14 @@ export class FakeGoalkeeperAdminReader implements IGoalkeeperAdminReader {
   constructor(
     private readonly stores: {
       profiles: FakeGoalkeeperProfileRepository;
-      wallets: FakeWalletStore;
+      operatingBalances: FakeOperatingBalanceStore;
       lifecycle: FakeBookingLifecycleStore;
       bookings: FakeBookingRepository;
     },
   ) {}
 
   async list(filter: GoalkeeperListFilter): Promise<{ items: GoalkeeperListRecord[]; totalItems: number }> {
-    const wallets = new Map(this.stores.wallets.wallets().map((wallet) => [wallet.goalkeeperId, wallet]));
+    const operatingBalances = new Map(this.stores.operatingBalances.operatingBalances().map((operatingBalance) => [operatingBalance.goalkeeperId, operatingBalance]));
     const now = filter.now.getTime();
     const records = (await this.stores.profiles.getAll())
       .filter((profile) => filter.userIds === undefined || filter.userIds.includes(profile.userId))
@@ -32,8 +32,8 @@ export class FakeGoalkeeperAdminReader implements IGoalkeeperAdminReader {
         zoneCount: profile.zoneIds.length,
         availableForOffers: profile.availableForOffers,
         suspendedUntil: profile.suspendedUntil,
-        balance: wallets.get(profile.userId)?.balance ?? 0,
-        currency: wallets.get(profile.userId)?.currency ?? null,
+        balance: operatingBalances.get(profile.userId)?.balance ?? 0,
+        currency: operatingBalances.get(profile.userId)?.currency ?? null,
         activatedAt: profile.activatedAt,
       }))
       .filter((record) => filter.balanceBelow === undefined || record.balance < filter.balanceBelow)

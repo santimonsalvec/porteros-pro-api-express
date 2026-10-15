@@ -2,7 +2,7 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 import { seedRole, signInStaff } from '../adminTestHelpers.js';
-import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../walletTestHelpers.js';
+import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../operatingBalanceTestHelpers.js';
 
 const cancel = (context: TestApp, token: string, path: string, body: object = { reason: 'La cancha cerró por lluvia' }) =>
   request(context.app).post(`/admin/requests/${path}`).set('Authorization', `Bearer ${token}`).send(body);
@@ -13,7 +13,7 @@ async function world() {
   context.clock.set(MATCH_NOW);
   const client = await signInClient(context, 'sub-5001');
   const g = await signInGoalkeeper(context, 'sub-5002');
-  await context.walletLedger.adjust(ownerOf(g.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo', operationKey: 'k-g' });
+  await context.operatingBalanceLedger.adjust(ownerOf(g.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo', operationKey: 'k-g' });
   const created = await createRequestAsClient(context, client.token, { goalkeeperCount: 2, startsAt: '2026-09-21T17:00:00' });
   const requestId = created.requestId as string;
   const [first, second] = created.bookings.map((booking: { bookingId: string }) => booking.bookingId) as [string, string];
@@ -26,7 +26,7 @@ async function world() {
 describe('administrator cancellation (spec 006 of the admin, US5)', () => {
   it('cancels the whole request past its deadline, refunds the goalkeeper once, and audits it with its reason', async () => {
     const { context, owner, g, requestId, first, second } = await world();
-    const balanceBefore = (await request(context.app).get('/goalkeepers/me/wallet').set('Authorization', `Bearer ${g.token}`)).body.balance as number;
+    const balanceBefore = (await request(context.app).get('/goalkeepers/me/operating-balance').set('Authorization', `Bearer ${g.token}`)).body.balance as number;
     context.adminAuditLog.entries.length = 0;
 
     const response = await cancel(context, owner.token, `${requestId}/cancel`);
@@ -41,7 +41,7 @@ describe('administrator cancellation (spec 006 of the admin, US5)', () => {
       refunds: 1,
       reason: 'La cancha cerró por lluvia',
     });
-    const balanceAfter = (await request(context.app).get('/goalkeepers/me/wallet').set('Authorization', `Bearer ${g.token}`)).body.balance as number;
+    const balanceAfter = (await request(context.app).get('/goalkeepers/me/operating-balance').set('Authorization', `Bearer ${g.token}`)).body.balance as number;
     expect(balanceAfter).toBeGreaterThan(balanceBefore);
     const [entry] = context.adminAuditLog.entries;
     expect(entry).toMatchObject({ action: 'request.cancel', resourceType: 'request', resourceId: requestId, permission: 'requests.cancel', outcome: 'done' });
@@ -52,16 +52,16 @@ describe('administrator cancellation (spec 006 of the admin, US5)', () => {
     expect(again.status).toBe(200);
     expect(again.body.outcome).toBe('replayed');
     expect(context.adminAuditLog.entries.at(-1)).toMatchObject({ outcome: 'replayed' });
-    const balanceReplayed = (await request(context.app).get('/goalkeepers/me/wallet').set('Authorization', `Bearer ${g.token}`)).body.balance as number;
+    const balanceReplayed = (await request(context.app).get('/goalkeepers/me/operating-balance').set('Authorization', `Bearer ${g.token}`)).body.balance as number;
     expect(balanceReplayed).toBe(balanceAfter);
   });
 
-  it('never shows the internal reason to the app: wallet movement, notices and lists', async () => {
+  it('never shows the internal reason to the app: operatingBalance movement, notices and lists', async () => {
     const { context, owner, client, g, requestId } = await world();
     await cancel(context, owner.token, `${requestId}/cancel`);
     await request(context.app).post('/internal/sweep').set('Authorization', 'Bearer test-internal-token');
 
-    const movements = await request(context.app).get('/goalkeepers/me/wallet/movements').set('Authorization', `Bearer ${g.token}`);
+    const movements = await request(context.app).get('/goalkeepers/me/operating-balance/movements').set('Authorization', `Bearer ${g.token}`);
     const refund = (movements.body.items as { type: string }[]).find((item) => item.type === 'commission_refund');
     expect(refund).toMatchObject({ cancellation: { by: 'admin', reason: 'admin_cancelled' } });
     const clientList = await request(context.app).get('/goalkeeper-requests/bookings').set('Authorization', `Bearer ${client.token}`);

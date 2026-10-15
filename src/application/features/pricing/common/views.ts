@@ -1,4 +1,4 @@
-import { vatFor } from '../../../../domain/wallet/vat.js';
+import { vatFor } from '../../../../domain/operatingBalance/vat.js';
 import type { CommissionRecord, PriceRecord, RentalRateRecord } from './ports.js';
 
 /**
@@ -46,7 +46,7 @@ export function rentalRateView(record: RentalRateRecord, target: PriceTarget) {
   return { ...priceView(record, target), durationMinutes: record.durationMinutes };
 }
 
-/** With the VAT a goalkeeper pays on top, computed like the wallet does (never re-rounded here). */
+/** With the VAT a goalkeeper pays on top, computed like the operating balance does (never re-rounded here). */
 export function commissionView(record: CommissionRecord, target: PriceTarget, vatRateBps: number) {
   const vatAmount = record.invalid ? null : vatFor(record.amount, vatRateBps);
   return {

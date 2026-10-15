@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { Country } from '../../../../../../src/domain/countries/country.js';
-import { CommissionSetting } from '../../../../../../src/domain/wallet/commissionSetting.js';
+import { CommissionSetting } from '../../../../../../src/domain/operatingBalance/commissionSetting.js';
 import { CreateCommissionCommand } from '../../../../../../src/application/features/pricing/commands/createCommission/createCommissionCommand.js';
 import { CreateCommissionCommandHandler } from '../../../../../../src/application/features/pricing/commands/createCommission/createCommissionCommandHandler.js';
 import { UpdateCommissionCommand } from '../../../../../../src/application/features/pricing/commands/updateCommission/updateCommissionCommand.js';

@@ -1,24 +1,24 @@
-import type { TopUp, TopUpCheck, TopUpStatus } from '../../../../domain/payments/topUp.js';
+import type { Deposit, DepositCheck, DepositStatus } from '../../../../domain/deposits/deposit.js';
 
-/** The admin's top-up filters (admin spec 007, FR-003). Dates bound `createdAt`: `[from, to)`. */
-export interface TopUpAdminFilter {
-  status?: TopUpStatus;
+/** The admin's deposit filters (admin spec 007, FR-003). Dates bound `createdAt`: `[from, to)`. */
+export interface DepositAdminFilter {
+  status?: DepositStatus;
   countryId?: string;
   goalkeeperId?: string;
   from?: Date;
   to?: Date;
 }
 
-/** A top-up with the checks its document keeps beside the entity (FR-005). */
-export interface TopUpAdminRecord {
-  topUp: TopUp;
-  checkLog: TopUpCheck[];
+/** A deposit with the checks its document keeps beside the entity (FR-005). */
+export interface DepositAdminRecord {
+  deposit: Deposit;
+  checkLog: DepositCheck[];
 }
 
-export interface ITopUpAdminReader {
-  list(filter: TopUpAdminFilter & { page: number; pageSize: number }): Promise<{ items: TopUp[]; totalItems: number }>;
-  count(filter: TopUpAdminFilter): Promise<number>;
+export interface IDepositAdminReader {
+  list(filter: DepositAdminFilter & { page: number; pageSize: number }): Promise<{ items: Deposit[]; totalItems: number }>;
+  count(filter: DepositAdminFilter): Promise<number>;
   /** Every match, newest first, at most `limit` (the export). */
-  all(filter: TopUpAdminFilter, limit: number): Promise<TopUp[]>;
-  get(topUpId: string): Promise<TopUpAdminRecord | null>;
+  all(filter: DepositAdminFilter, limit: number): Promise<Deposit[]>;
+  get(depositId: string): Promise<DepositAdminRecord | null>;
 }

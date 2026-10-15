@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ClientSession, Collection, Db, Document } from 'mongodb';
-import { commissionChargeDraft } from '../../../../../src/application/features/wallet/common/walletLedger.js';
+import { commissionChargeDraft } from '../../../../../src/application/features/operatingBalance/common/operatingBalanceLedger.js';
 import type { Booking } from '../../../../../src/domain/bookings/booking.js';
 import { goalkeeperAssigned } from '../../../../../src/domain/events/bookingEvents.js';
 import { MongoBookingAcceptanceStore } from '../../../../../src/infrastructure/persistence/mongo/bookingAcceptanceStore.js';
 import { bookingToDocument } from '../../../../../src/infrastructure/persistence/mongo/bookingRepository.js';
 import { createFakeCollection, toArrayCursor } from '../../../../fakes/fakeMongoCollection.js';
 import { buildRequest, buildRequestBookings } from '../../../../fixtures/quoteFixtures.js';
-import { COLOMBIA_INVOICING } from '../../../../fixtures/walletFixtures.js';
+import { COLOMBIA_INVOICING } from '../../../../fixtures/operatingBalanceFixtures.js';
 
 const now = new Date('2026-09-28T15:00:00.000Z');
 const request = buildRequest('r-1', new Date('2026-09-28T20:00:00.000Z'), { goalkeeperCount: 1 });
@@ -16,25 +16,25 @@ const assignedDoc = bookingToDocument(pending!.assign('gk-1', now));
 
 function harness() {
   const bookings = createFakeCollection();
-  const wallets = createFakeCollection();
+  const operatingBalances = createFakeCollection();
   const movements = createFakeCollection();
   const outbox = createFakeCollection();
-  const collections: Record<string, unknown> = { bookings, wallets, walletMovements: movements, outbox };
+  const collections: Record<string, unknown> = { bookings, operatingBalances, balanceMovements: movements, outbox };
   const db = { collection: (name: string) => collections[name] as Collection<Document> } as unknown as Db;
   const session = {
     withTransaction: vi.fn(async (fn: (s: ClientSession) => Promise<unknown>, _options?: unknown) => fn(session as unknown as ClientSession)),
     endSession: vi.fn(async () => undefined),
   };
   const store = new MongoBookingAcceptanceStore(() => session as unknown as ClientSession, db);
-  wallets.updateOne.mockResolvedValue({});
-  wallets.findOneAndUpdate.mockResolvedValue({ _id: 'gk-1', currency: 'COP', balance: 13000, lastSequence: 2, createdAt: now, updatedAt: now });
+  operatingBalances.updateOne.mockResolvedValue({});
+  operatingBalances.findOneAndUpdate.mockResolvedValue({ _id: 'gk-1', currency: 'COP', balance: 13000, lastSequence: 2, createdAt: now, updatedAt: now });
   movements.insertOne.mockResolvedValue({});
   outbox.insertMany.mockResolvedValue({});
   const draft = (booking: Booking) =>
     commissionChargeDraft({ goalkeeperId: 'gk-1', currency: 'COP', invoicing: COLOMBIA_INVOICING }, { bookingId: booking.id, requestId: booking.requestId, amount: booking.commission }, 'm-1', now);
   const accept = () =>
     store.accept({ bookingId: pending!.id, goalkeeperId: 'gk-1', now, chargeDrafts: (booking) => [draft(booking)], events: (booking) => [goalkeeperAssigned('ev-1', booking, now)] });
-  return { bookings, wallets, movements, outbox, session, accept };
+  return { bookings, operatingBalances, movements, outbox, session, accept };
 }
 
 describe('MongoBookingAcceptanceStore (mocked driver)', () => {
@@ -89,12 +89,12 @@ describe('MongoBookingAcceptanceStore (mocked driver)', () => {
     expect(await accept()).toEqual({ kind: 'same_request' });
   });
 
-  it('aborts when the wallet cannot cover the commission', async () => {
-    const { bookings, wallets, movements, accept } = harness();
+  it('aborts when the operatingBalance cannot cover the commission', async () => {
+    const { bookings, operatingBalances, movements, accept } = harness();
     bookings.findOneAndUpdate.mockResolvedValue(assignedDoc);
     bookings.find.mockReturnValue(toArrayCursor([]));
-    wallets.findOneAndUpdate.mockResolvedValue(null);
-    wallets.findOne.mockResolvedValue({ _id: 'gk-1', currency: 'COP', balance: 5000, lastSequence: 1, createdAt: now, updatedAt: now });
+    operatingBalances.findOneAndUpdate.mockResolvedValue(null);
+    operatingBalances.findOne.mockResolvedValue({ _id: 'gk-1', currency: 'COP', balance: 5000, lastSequence: 1, createdAt: now, updatedAt: now });
 
     expect(await accept()).toEqual({ kind: 'insufficient_funds', balance: 5000 });
     expect(movements.insertOne).not.toHaveBeenCalled();

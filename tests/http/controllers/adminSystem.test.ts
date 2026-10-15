@@ -4,7 +4,7 @@ import { Country } from '../../../src/domain/countries/country.js';
 import type { DomainEvent } from '../../../src/domain/events/domainEvent.js';
 import { adminGet, memberWith } from '../financeTestHelpers.js';
 import { TEST_SYSTEM_ENV, buildTestApp } from '../testAppFactory.js';
-import { signInClient } from '../walletTestHelpers.js';
+import { signInClient } from '../operatingBalanceTestHelpers.js';
 
 // Admin spec 008, US3 (contracts/dashboard-system-api.md §2–§4).
 

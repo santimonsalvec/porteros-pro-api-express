@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { TEST_INTERNAL_TOKEN } from '../testAppFactory.js';
 import { seedRole, signInStaff } from '../adminTestHelpers.js';
 import { closedMatchSetUp } from '../closeHelpers.js';
-import type { TestApp } from '../walletTestHelpers.js';
+import type { TestApp } from '../operatingBalanceTestHelpers.js';
 
 const tinyJpeg = readFileSync(fileURLToPath(new URL('../../fixtures/tinyImage.jpg', import.meta.url)));
 const get = (context: TestApp, token: string, path: string) => request(context.app).get(path).set('Authorization', `Bearer ${token}`);

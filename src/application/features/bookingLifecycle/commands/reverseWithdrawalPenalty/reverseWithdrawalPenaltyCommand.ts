@@ -8,7 +8,7 @@ export type ReverseWithdrawalPenaltyResult =
   | { outcome: 'withdrawal_not_found' }
   /** A reason of 3–500 characters and at least one action are required. */
   | { outcome: 'invalid_request'; errors: Record<string, string> }
-  | { outcome: 'wallet_not_configured'; cityId: string }
+  | { outcome: 'operating_balance_not_configured'; cityId: string }
   /** The booking has no commission charge to give back (data problem): nothing changed. */
   | { outcome: 'missing_charge'; bookingId: string };
 

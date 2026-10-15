@@ -11,7 +11,7 @@ describe('ListStaffRolesQueryHandler / GetStaffRoleQueryHandler', () => {
   beforeEach(async () => {
     h = staffHarness();
     await h.role('soporte', ['cases.read']);
-    await h.role('finanzas', ['wallets.read']);
+    await h.role('finanzas', ['operating_balances.read']);
     await h.activeMember('owner-1', 'dueno@example.com', 'owner', 'user-owner');
     await h.activeMember('staff-1', 'ana@example.com', 'soporte', 'user-1');
     await h.activeMember('staff-2', 'luis@example.com', 'soporte', 'user-2');

@@ -1,3 +1,4 @@
+import { assertNotClosing } from './accountClosing.js';
 import { Router, type Request, type Response } from 'express';
 import type { ISender } from '../application/common/mediator/types.js';
 import type { AccessTokenClaims } from '../application/features/auth/common/accessTokenClaims.js';
@@ -78,6 +79,7 @@ export function createGoalkeeperRequestsController(deps: GoalkeeperRequestsContr
   });
 
   router.post('/quote', async (req, res) => {
+    await assertNotClosing(deps.mediator, req.authClaims!.sub);
     const parsed = getServiceQuoteRequestSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));
@@ -162,6 +164,7 @@ export function createGoalkeeperRequestsController(deps: GoalkeeperRequestsContr
   });
 
   router.post('/bookings', async (req, res) => {
+    await assertNotClosing(deps.mediator, req.authClaims!.sub);
     const parsed = confirmBookingRequestSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', zodFieldErrors(parsed.error));

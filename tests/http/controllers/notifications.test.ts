@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
-import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../walletTestHelpers.js';
+import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../operatingBalanceTestHelpers.js';
 import { RunSweepCommand } from '../../../src/application/features/events/commands/runSweep/runSweepCommand.js';
 
 const inbox = (context: TestApp, token: string, query = '') =>
@@ -15,7 +15,7 @@ async function setUp() {
   context.clock.set(MATCH_NOW);
   const client = await signInClient(context, 'sub-0701');
   const goalkeeper = await signInGoalkeeper(context, 'sub-0702');
-  await context.walletLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 50000, reason: 'Saldo de pruebas', operationKey: 'k-0702' });
+  await context.operatingBalanceLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 50000, reason: 'Saldo de pruebas', operationKey: 'k-0702' });
   await request(context.app).post('/devices').set('Authorization', `Bearer ${goalkeeper.token}`).send({ token: 'phone-0702', platform: 'android' });
   const matches = [];
   for (const startsAt of ['2026-09-21T15:00:00', '2026-09-21T18:00:00', '2026-09-21T21:00:00']) {
@@ -81,7 +81,7 @@ describe('/notifications — US3: users read their inbox, mark it read and dismi
   it('shows an offer as no longer available once another goalkeeper takes the match', async () => {
     const { context, goalkeeper, matches } = await setUp();
     const rival = await signInGoalkeeper(context, 'sub-0703');
-    await context.walletLedger.adjust(ownerOf(rival.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: 'k-0703' });
+    await context.operatingBalanceLedger.adjust(ownerOf(rival.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: 'k-0703' });
     await request(context.app)
       .post(`/goalkeepers/me/bookings/${matches[0]!.bookings[0]!.bookingId}/accept`)
       .set('Authorization', `Bearer ${rival.token}`);

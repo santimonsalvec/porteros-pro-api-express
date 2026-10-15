@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
-import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../walletTestHelpers.js';
+import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../operatingBalanceTestHelpers.js';
 
 const dismiss = (context: TestApp, token: string, bookingId: string) =>
   request(context.app).post(`/goalkeepers/me/bookings/${bookingId}/dismiss`).set('Authorization', `Bearer ${token}`);
@@ -20,7 +20,7 @@ async function setUp() {
   const g = await signInGoalkeeper(context, 'sub-2402');
   const h = await signInGoalkeeper(context, 'sub-2403');
   for (const [goalkeeper, key] of [[g, 'k-g'], [h, 'k-h']] as const) {
-    await context.walletLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: key });
+    await context.operatingBalanceLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: key });
   }
   const created = await createRequestAsClient(context, client.token, { goalkeeperCount: 2, startsAt: '2026-09-21T17:00:00' });
   const [first, second] = created.bookings.map((booking) => booking.bookingId) as [string, string];

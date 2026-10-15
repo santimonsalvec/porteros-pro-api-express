@@ -19,6 +19,8 @@ export class GetUserQueryHandler implements IQueryHandler<GetUserQuery, GetUserR
       this.deps.countries.getAll(),
     ]);
     const codes = countryCodesByDialCode(countries);
+    const closure = (await this.deps.closures?.findLatestByUserId(userId)) ?? null;
+    const closing = closure?.isOpen === true;
     return {
       outcome: 'ok',
       user: {
@@ -39,6 +41,8 @@ export class GetUserQueryHandler implements IQueryHandler<GetUserQuery, GetUserR
         terms: terms.map((term) => ({ version: term.version, acceptedAt: term.acceptedAt.toISOString() })),
         devices: devices.map((device) => ({ platform: device.platform, lastSeenAt: device.lastSeenAt.toISOString() })),
         requestCount,
+        accountState: closing ? 'closing' : closure?.status === 'closed' ? 'closed' : 'active',
+        openClosureId: closing ? closure.id : null,
       },
     };
   }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 import { as, geographyStaff } from '../geographyTestHelpers.js';
-import { signInClient } from '../walletTestHelpers.js';
+import { signInClient } from '../operatingBalanceTestHelpers.js';
 
 const ENVIGADO = { name: 'Sabaneta', regionId: 'region-antioquia', timeZone: 'America/Bogota', zoneCityId: 'city-medellin', daneStateCode: '05', daneCityCode: '05631' };
 

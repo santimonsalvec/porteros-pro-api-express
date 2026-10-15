@@ -1,51 +1,51 @@
 import { describe, expect, it } from 'vitest';
-import { TopUp } from '../../../../../src/domain/payments/topUp.js';
+import { Deposit } from '../../../../../src/domain/deposits/deposit.js';
 import { PaymentsHarness } from './paymentsHarness.js';
 
-async function startedTopUp(harness: PaymentsHarness, amount = 20000) {
+async function startedDeposit(harness: PaymentsHarness, amount = 20000) {
   harness.goalkeeper();
-  const { topUp } = await harness.start('gk-1', amount);
-  return topUp;
+  const { deposit } = await harness.start('gk-1', amount);
+  return deposit;
 }
 
 function movementsOf(harness: PaymentsHarness) {
-  return harness.wallet.store.movements().map((movement) => ({ type: movement.type, amount: movement.amount, causeKey: movement.causeKey }));
+  return harness.operatingBalance.store.movements().map((movement) => ({ type: movement.type, amount: movement.amount, causeKey: movement.causeKey }));
 }
 
 describe('ApplyGatewayEventCommandHandler', () => {
   it('credits an approval once: the gross amount and the fee, with one notice', async () => {
     const harness = new PaymentsHarness();
-    const topUp = await startedTopUp(harness);
+    const deposit = await startedDeposit(harness);
 
-    const result = await harness.deliver(harness.event(topUp.reference, 'APPROVED'));
+    const result = await harness.deliver(harness.event(deposit.reference, 'APPROVED'));
 
     expect(result).toEqual({ outcome: 'applied' });
     expect(movementsOf(harness)).toEqual([
-      { type: 'top_up', amount: 20000, causeKey: `top_up:${topUp.topUpId}` },
-      { type: 'gateway_fee', amount: -1464, causeKey: `gateway_fee:${topUp.topUpId}` },
+      { type: 'deposit', amount: 20000, causeKey: `deposit:${deposit.depositId}` },
+      { type: 'gateway_fee', amount: -1464, causeKey: `gateway_fee:${deposit.depositId}` },
     ]);
-    expect((await harness.wallet.store.findByGoalkeeperId('gk-1'))?.balance).toBe(18536);
-    expect(await harness.topUps.getById(topUp.topUpId)).toMatchObject({
+    expect((await harness.operatingBalance.store.findByGoalkeeperId('gk-1'))?.balance).toBe(18536);
+    expect(await harness.deposits.getById(deposit.depositId)).toMatchObject({
       status: 'approved',
-      gatewayTransactionId: `tx-${topUp.reference}`,
+      gatewayTransactionId: `tx-${deposit.reference}`,
       finalizedAt: harness.clock.now(),
       nextCheckAt: null,
     });
     expect(harness.notifications.all()).toMatchObject([
-      { userId: 'gk-1', type: 'wallet.top_up_approved', body: 'Recarga aprobada: +18.536 COP. Tu saldo es 18.536 COP.' },
+      { userId: 'gk-1', type: 'operating_balance.deposit_approved', body: 'Depósito aprobado: +18.536 COP. Tu saldo operativo es 18.536 COP.' },
     ]);
   });
 
   it('changes nothing on a repeat of the same event', async () => {
     const harness = new PaymentsHarness();
-    const topUp = await startedTopUp(harness);
-    const event = harness.event(topUp.reference, 'APPROVED');
+    const deposit = await startedDeposit(harness);
+    const event = harness.event(deposit.reference, 'APPROVED');
 
     await harness.deliver(event);
     const repeat = await harness.deliver(event);
 
     expect(repeat).toEqual({ outcome: 'unchanged' });
-    expect(harness.wallet.store.movements()).toHaveLength(2);
+    expect(harness.operatingBalance.store.movements()).toHaveLength(2);
     expect(harness.notifications.all()).toHaveLength(1);
   });
 
@@ -55,45 +55,45 @@ describe('ApplyGatewayEventCommandHandler', () => {
     ['ERROR', 'error'],
   ])('records %s without crediting, and tells the goalkeeper once', async (gatewayStatus, status) => {
     const harness = new PaymentsHarness();
-    const topUp = await startedTopUp(harness);
+    const deposit = await startedDeposit(harness);
 
-    const result = await harness.deliver(harness.event(topUp.reference, gatewayStatus));
-    await harness.deliver(harness.event(topUp.reference, gatewayStatus));
+    const result = await harness.deliver(harness.event(deposit.reference, gatewayStatus));
+    await harness.deliver(harness.event(deposit.reference, gatewayStatus));
 
     expect(result).toEqual({ outcome: 'applied' });
-    expect((await harness.topUps.getById(topUp.topUpId))?.status).toBe(status);
-    expect(harness.wallet.store.movements()).toEqual([]);
+    expect((await harness.deposits.getById(deposit.depositId))?.status).toBe(status);
+    expect(harness.operatingBalance.store.movements()).toEqual([]);
     expect(harness.notifications.all()).toMatchObject([
-      { type: 'wallet.top_up_failed', body: 'Tu recarga de 20.000 COP no se completó. Puedes intentar con otro medio de pago.' },
+      { type: 'operating_balance.deposit_failed', body: 'Tu depósito de 20.000 COP no se completó. Puedes intentar con otro medio de pago.' },
     ]);
   });
 
   it('ignores a pending status', async () => {
     const harness = new PaymentsHarness();
-    const topUp = await startedTopUp(harness);
+    const deposit = await startedDeposit(harness);
 
-    expect(await harness.deliver(harness.event(topUp.reference, 'PENDING'))).toEqual({ outcome: 'ignored' });
-    expect((await harness.topUps.getById(topUp.topUpId))?.status).toBe('pending');
+    expect(await harness.deliver(harness.event(deposit.reference, 'PENDING'))).toEqual({ outcome: 'ignored' });
+    expect((await harness.deposits.getById(deposit.depositId))?.status).toBe('pending');
   });
 
   it('rejects an event with a bad signature and changes nothing', async () => {
     const harness = new PaymentsHarness();
-    const topUp = await startedTopUp(harness);
+    const deposit = await startedDeposit(harness);
 
-    const forged = await harness.deliver(harness.event(topUp.reference, 'APPROVED', { secret: 'test_events_guess' }));
-    const tampered = harness.event(topUp.reference, 'DECLINED');
+    const forged = await harness.deliver(harness.event(deposit.reference, 'APPROVED', { secret: 'test_events_guess' }));
+    const tampered = harness.event(deposit.reference, 'DECLINED');
     tampered.data.transaction.status = 'APPROVED';
 
     expect(forged).toEqual({ outcome: 'rejected' });
     expect(await harness.deliver(tampered)).toEqual({ outcome: 'rejected' });
-    expect((await harness.topUps.getById(topUp.topUpId))?.status).toBe('pending');
-    expect(harness.wallet.store.movements()).toEqual([]);
-    expect(harness.logger.entries).toContainEqual(expect.objectContaining({ level: 'warn', entry: expect.objectContaining({ outcome: 'top_up_event_rejected' }) }));
+    expect((await harness.deposits.getById(deposit.depositId))?.status).toBe('pending');
+    expect(harness.operatingBalance.store.movements()).toEqual([]);
+    expect(harness.logger.entries).toContainEqual(expect.objectContaining({ level: 'warn', entry: expect.objectContaining({ outcome: 'deposit_event_rejected' }) }));
   });
 
   it('ignores an unknown reference, an unreadable body and an unknown gateway', async () => {
     const harness = new PaymentsHarness();
-    await startedTopUp(harness);
+    await startedDeposit(harness);
 
     expect(await harness.deliver(harness.event('PPR-unknown', 'APPROVED'))).toEqual({ outcome: 'ignored' });
     expect(await harness.deliver({ hello: 'world' })).toEqual({ outcome: 'ignored' });
@@ -105,54 +105,54 @@ describe('ApplyGatewayEventCommandHandler', () => {
     ['another currency', { currency: 'USD' }],
   ])('never credits a genuine approval for %s', async (_label, overrides) => {
     const harness = new PaymentsHarness();
-    const topUp = await startedTopUp(harness);
+    const deposit = await startedDeposit(harness);
 
-    expect(await harness.deliver(harness.event(topUp.reference, 'APPROVED', overrides))).toEqual({ outcome: 'mismatch' });
-    expect(harness.wallet.store.movements()).toEqual([]);
-    expect((await harness.topUps.getById(topUp.topUpId))?.status).toBe('pending');
+    expect(await harness.deliver(harness.event(deposit.reference, 'APPROVED', overrides))).toEqual({ outcome: 'mismatch' });
+    expect(harness.operatingBalance.store.movements()).toEqual([]);
+    expect((await harness.deposits.getById(deposit.depositId))?.status).toBe('pending');
     expect(harness.logger.entries).toContainEqual(
       expect.objectContaining({
         level: 'warn',
-        entry: expect.objectContaining({ outcome: 'top_up_mismatch', reference: topUp.reference, expected: { amountInCents: 2000000, currency: 'COP' } }),
+        entry: expect.objectContaining({ outcome: 'deposit_mismatch', reference: deposit.reference, expected: { amountInCents: 2000000, currency: 'COP' } }),
       }),
     );
   });
 
-  it('covers a debt: −30 000 plus a 20 000 top-up leaves −11 464, and the fee is never refused', async () => {
+  it('covers a debt: −30 000 plus a 20 000 deposit leaves −11 464, and the fee is never refused', async () => {
     const harness = new PaymentsHarness();
-    const topUp = await startedTopUp(harness);
-    await harness.wallet.ledger.applyPenalty(harness.wallet.owner('gk-1'), { penaltyEventId: 'p-1', amount: 30000 });
+    const deposit = await startedDeposit(harness);
+    await harness.operatingBalance.ledger.applyPenalty(harness.operatingBalance.owner('gk-1'), { penaltyEventId: 'p-1', amount: 30000 });
 
-    expect(await harness.deliver(harness.event(topUp.reference, 'APPROVED'))).toEqual({ outcome: 'applied' });
-    expect((await harness.wallet.store.findByGoalkeeperId('gk-1'))?.balance).toBe(-11464);
-    expect(harness.notifications.all()[0]?.body).toBe('Recarga aprobada: +18.536 COP. Tu saldo es -11.464 COP.');
+    expect(await harness.deliver(harness.event(deposit.reference, 'APPROVED'))).toEqual({ outcome: 'applied' });
+    expect((await harness.operatingBalance.store.findByGoalkeeperId('gk-1'))?.balance).toBe(-11464);
+    expect(harness.notifications.all()[0]?.body).toBe('Depósito aprobado: +18.536 COP. Tu saldo operativo es -11.464 COP.');
   });
 
-  it('credits a late approval of an expired top-up', async () => {
+  it('credits a late approval of an expired deposit', async () => {
     const harness = new PaymentsHarness();
-    const started = await startedTopUp(harness);
-    const stored = (await harness.topUps.getById(started.topUpId))!;
-    harness.topUps.put(TopUp.rehydrate({ ...stored.toProps(), status: 'expired', nextCheckAt: null }));
+    const started = await startedDeposit(harness);
+    const stored = (await harness.deposits.getById(started.depositId))!;
+    harness.deposits.put(Deposit.rehydrate({ ...stored.toProps(), status: 'expired', nextCheckAt: null }));
 
     expect(await harness.deliver(harness.event(started.reference, 'APPROVED'))).toEqual({ outcome: 'applied' });
-    expect((await harness.wallet.store.findByGoalkeeperId('gk-1'))?.balance).toBe(18536);
+    expect((await harness.operatingBalance.store.findByGoalkeeperId('gk-1'))?.balance).toBe(18536);
   });
 
-  it('never changes an approved top-up afterwards', async () => {
+  it('never changes an approved deposit afterwards', async () => {
     const harness = new PaymentsHarness();
-    const topUp = await startedTopUp(harness);
-    await harness.deliver(harness.event(topUp.reference, 'APPROVED'));
+    const deposit = await startedDeposit(harness);
+    await harness.deliver(harness.event(deposit.reference, 'APPROVED'));
 
-    expect(await harness.deliver(harness.event(topUp.reference, 'DECLINED'))).toEqual({ outcome: 'unchanged' });
-    expect((await harness.topUps.getById(topUp.topUpId))?.status).toBe('approved');
+    expect(await harness.deliver(harness.event(deposit.reference, 'DECLINED'))).toEqual({ outcome: 'unchanged' });
+    expect((await harness.deposits.getById(deposit.depositId))?.status).toBe('approved');
     expect(harness.notifications.all()).toHaveLength(1);
   });
 
   it('answers error when its country lost the secrets, so the gateway retries', async () => {
     const harness = new PaymentsHarness();
-    const topUp = await startedTopUp(harness);
+    const deposit = await startedDeposit(harness);
     harness.secrets.secrets.clear();
 
-    expect(await harness.deliver(harness.event(topUp.reference, 'APPROVED'))).toEqual({ outcome: 'error' });
+    expect(await harness.deliver(harness.event(deposit.reference, 'APPROVED'))).toEqual({ outcome: 'error' });
   });
 });

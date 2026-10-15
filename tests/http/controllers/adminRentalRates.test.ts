@@ -3,7 +3,7 @@ import { City } from '../../../src/domain/locations/city.js';
 import { buildTestApp } from '../testAppFactory.js';
 import { as } from '../geographyTestHelpers.js';
 import { pricingStaff } from '../pricingTestHelpers.js';
-import { signInClient } from '../walletTestHelpers.js';
+import { signInClient } from '../operatingBalanceTestHelpers.js';
 
 const CALI_90_FUTBOL_11 = { scope: 'city', refId: 'city-cali', durationMinutes: 90, modality: 'futbol_11', level: 'competitive', amount: 70000 };
 

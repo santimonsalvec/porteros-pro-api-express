@@ -15,7 +15,7 @@ const geography: IDashboardGeography = {
   citiesOfCountry: async () => [{ id: 'medellin', countryId: 'co', timeZone: 'America/Bogota' }],
 };
 
-const ALL: Permission[] = ['dashboard.read', 'requests.read', 'goalkeepers.read', 'goalkeepers.registrations.review', 'cases.read', 'invoicing.read', 'topups.read', 'wallets.read'];
+const ALL: Permission[] = ['dashboard.read', 'requests.read', 'goalkeepers.read', 'goalkeepers.registrations.review', 'cases.read', 'invoicing.read', 'deposits.read', 'operating_balances.read'];
 
 describe('GetDashboardSummaryQueryHandler (admin spec 008, research §1)', () => {
   let calls: string[];
@@ -54,15 +54,15 @@ describe('GetDashboardSummaryQueryHandler (admin spec 008, research §1)', () =>
         await context.goalkeeperIds();
         return { rejected: 1, stale: 0 };
       },
-      topUps: async (context) => {
-        calls.push('topUps');
+      deposits: async (context) => {
+        calls.push('deposits');
         await context.goalkeeperIds();
         return { pending: 4 };
       },
-      wallets: async (context) => {
-        calls.push('wallets');
+      operatingBalances: async (context) => {
+        calls.push('operatingBalances');
         await context.goalkeeperIds();
-        if (failing.has('wallets')) throw new Error('boom wallets');
+        if (failing.has('operatingBalances')) throw new Error('boom operatingBalances');
         return { byCurrency: [] };
       },
     };

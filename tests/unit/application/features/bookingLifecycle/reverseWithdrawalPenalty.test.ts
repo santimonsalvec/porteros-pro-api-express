@@ -19,7 +19,7 @@ async function lateWithdrawal() {
   return { ...h, booking, withdrawal };
 }
 
-const refunds = (h: ReturnType<typeof lifecycleHarness>) => h.wallet.movements().filter((movement) => movement.type === 'commission_refund');
+const refunds = (h: ReturnType<typeof lifecycleHarness>) => h.operatingBalance.movements().filter((movement) => movement.type === 'commission_refund');
 
 describe('ReverseWithdrawalPenaltyCommand — US4', () => {
   it('refunds the commission once, as the administrator, keeping the suspension when only the money is asked', async () => {

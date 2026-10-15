@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { CommissionSetting } from '../../../../../src/domain/wallet/commissionSetting.js';
+import { CommissionSetting } from '../../../../../src/domain/operatingBalance/commissionSetting.js';
 import { MatchFormat } from '../../../../../src/domain/bookings/matchFormat.js';
 import { MatchSurface } from '../../../../../src/domain/pricing/matchSurface.js';
 import { Country } from '../../../../../src/domain/countries/country.js';
@@ -14,7 +14,7 @@ import { GetServiceQuoteQueryHandler } from '../../../../../src/application/feat
 import { parseStartsAt } from '../../../../../src/application/features/goalkeeperRequests/common/startsAt.js';
 import { FakeBookingSettingsRepository } from '../../../../fakes/fakeBookingSettingsRepository.js';
 import { FakeCommissionSettingRepository } from '../../../../fakes/fakeCommissionSettingRepository.js';
-import { CommissionResolver } from '../../../../../src/application/features/wallet/common/commissionResolver.js';
+import { CommissionResolver } from '../../../../../src/application/features/operatingBalance/common/commissionResolver.js';
 import { FakeCityRepository } from '../../../../fakes/fakeCityRepository.js';
 import { FakeCountryRepository } from '../../../../fakes/fakeCountryRepository.js';
 import { FixedClock } from '../../../../fakes/fakeClock.js';

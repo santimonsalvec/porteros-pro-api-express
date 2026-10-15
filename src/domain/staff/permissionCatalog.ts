@@ -29,6 +29,14 @@ export const PERMISSION_AREAS = [
     ],
   },
   {
+    id: 'account_closures',
+    name: 'Cierres de cuenta',
+    permissions: [
+      { id: 'account_closures.read', description: 'Ver las solicitudes de cierre de cuenta' },
+      { id: 'account_closures.manage', description: 'Resolver deudas, registrar devoluciones y cerrar cuentas' },
+    ],
+  },
+  {
     id: 'goalkeepers',
     name: 'Porteros',
     permissions: [
@@ -56,19 +64,19 @@ export const PERMISSION_AREAS = [
     ],
   },
   {
-    id: 'wallets',
-    name: 'Billeteras',
+    id: 'operating_balances',
+    name: 'Saldos operativos',
     permissions: [
-      { id: 'wallets.read', description: 'Ver billeteras y movimientos' },
-      { id: 'wallets.adjust', description: 'Hacer ajustes manuales de saldo' },
+      { id: 'operating_balances.read', description: 'Ver saldos operativos y movimientos' },
+      { id: 'operating_balances.adjust', description: 'Hacer ajustes manuales de saldo operativo' },
     ],
   },
   {
-    id: 'topups',
-    name: 'Recargas',
+    id: 'deposits',
+    name: 'Depósitos',
     permissions: [
-      { id: 'topups.read', description: 'Ver recargas y su conciliación' },
-      { id: 'topups.reconcile', description: 'Forzar la conciliación de una recarga' },
+      { id: 'deposits.read', description: 'Ver depósitos y su conciliación' },
+      { id: 'deposits.reconcile', description: 'Forzar la conciliación de un depósito' },
     ],
   },
   {
@@ -104,7 +112,7 @@ export const PERMISSION_AREAS = [
   {
     id: 'payments',
     name: 'Pagos',
-    permissions: [{ id: 'payments.settings.manage', description: 'Configurar la pasarela de recargas por país' }],
+    permissions: [{ id: 'payments.settings.manage', description: 'Configurar la pasarela de depósitos por país' }],
   },
   {
     id: 'notifications',

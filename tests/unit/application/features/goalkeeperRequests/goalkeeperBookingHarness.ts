@@ -1,9 +1,9 @@
-import { CommissionResolver } from '../../../../../src/application/features/wallet/common/commissionResolver.js';
-import { WalletLedger, type LedgerOwner } from '../../../../../src/application/features/wallet/common/walletLedger.js';
+import { CommissionResolver } from '../../../../../src/application/features/operatingBalance/common/commissionResolver.js';
+import { OperatingBalanceLedger, type LedgerOwner } from '../../../../../src/application/features/operatingBalance/common/operatingBalanceLedger.js';
 import type { Booking } from '../../../../../src/domain/bookings/booking.js';
 import type { GoalkeeperRequest } from '../../../../../src/domain/bookings/goalkeeperRequest.js';
 import { User } from '../../../../../src/domain/users/user.js';
-import { CommissionSetting } from '../../../../../src/domain/wallet/commissionSetting.js';
+import { CommissionSetting } from '../../../../../src/domain/operatingBalance/commissionSetting.js';
 import { Zone } from '../../../../../src/domain/zones/zone.js';
 import { FakeBookingRepository } from '../../../../fakes/fakeBookingRepository.js';
 import { FakeCityRepository } from '../../../../fakes/fakeCityRepository.js';
@@ -14,10 +14,10 @@ import { FakeGoalkeeperProfileRepository } from '../../../../fakes/fakeGoalkeepe
 import { FakeGoalkeeperRequestRepository } from '../../../../fakes/fakeGoalkeeperRequestRepository.js';
 import { FakeRegionRepository } from '../../../../fakes/fakeRegionRepository.js';
 import { FakeUserRepository } from '../../../../fakes/fakeUserRepository.js';
-import { FakeWalletStore } from '../../../../fakes/fakeWalletStore.js';
+import { FakeOperatingBalanceStore } from '../../../../fakes/fakeOperatingBalanceStore.js';
 import { FakeZoneRepository } from '../../../../fakes/fakeZoneRepository.js';
 import { buildRequest, buildRequestBookings } from '../../../../fixtures/quoteFixtures.js';
-import { buildGoalkeeperProfile, COLOMBIA_INVOICING, seedWalletWorld } from '../../../../fixtures/walletFixtures.js';
+import { buildGoalkeeperProfile, COLOMBIA_INVOICING, seedOperatingBalanceWorld } from '../../../../fixtures/operatingBalanceFixtures.js';
 
 /** "Now" for these tests: 13:00 in Bogotá on 2026-09-27. */
 export const NOW = '2026-09-27T18:00:00.000Z';
@@ -39,17 +39,17 @@ export class GoalkeeperBookingHarness {
   readonly countries = new FakeCountryRepository();
   readonly zones = new FakeZoneRepository();
   readonly settings = new FakeCommissionSettingRepository();
-  readonly wallet = new FakeWalletStore();
+  readonly operatingBalance = new FakeOperatingBalanceStore();
   readonly bookings = new FakeBookingRepository();
   readonly requests = new FakeGoalkeeperRequestRepository();
   readonly users = new FakeUserRepository();
   readonly clock = new FixedClock(NOW);
   private counter = 0;
-  readonly ledger = new WalletLedger(this.wallet, this.wallet, { newId: () => `m-${++this.counter}` }, this.clock);
+  readonly ledger = new OperatingBalanceLedger(this.operatingBalance, this.operatingBalance, { newId: () => `m-${++this.counter}` }, this.clock);
   readonly commissionResolver = new CommissionResolver(this.settings, this.zones, this.cities, this.regions);
 
   constructor() {
-    seedWalletWorld({ cityRepository: this.cities, regionRepository: this.regions, countryRepository: this.countries });
+    seedOperatingBalanceWorld({ cityRepository: this.cities, regionRepository: this.regions, countryRepository: this.countries });
     this.zones.seed(zone('zone-cali-norte', 'Norte'));
     this.zones.seed(zone('zone-cali-sur', 'Sur'));
     this.zones.seed(zone('zone-cali-centro', 'Centro'));

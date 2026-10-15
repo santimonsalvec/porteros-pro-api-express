@@ -1,6 +1,6 @@
 import { seedRole, signInStaff } from './adminTestHelpers.js';
 import { as } from './geographyTestHelpers.js';
-import type { TestApp } from './walletTestHelpers.js';
+import type { TestApp } from './operatingBalanceTestHelpers.js';
 
 /** A reader (`pricing.read` only) and an editor (`pricing.read` + `pricing.manage`) of prices (spec 004 of the admin). */
 export async function pricingStaff(context: TestApp) {

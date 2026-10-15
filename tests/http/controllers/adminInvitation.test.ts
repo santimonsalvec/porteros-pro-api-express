@@ -5,7 +5,7 @@ import { seedRole } from '../adminTestHelpers.js';
 import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js';
 import { InviteStaffMemberCommand } from '../../../src/application/features/staff/commands/inviteStaffMember/inviteStaffMemberCommand.js';
 import { SetStaffMemberStatusCommand } from '../../../src/application/features/staff/commands/setStaffMemberStatus/setStaffMemberStatusCommand.js';
-import type { TestApp } from '../walletTestHelpers.js';
+import type { TestApp } from '../operatingBalanceTestHelpers.js';
 import { SCRIPT_ACTOR } from '../../../src/domain/staff/staffActor.js';
 
 const DAY = 24 * 60 * 60 * 1000;

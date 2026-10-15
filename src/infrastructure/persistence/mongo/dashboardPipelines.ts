@@ -1,6 +1,6 @@
 import type { Document } from 'mongodb';
 import { emptyStatusCounts, statusCountsFrom } from '../../../application/features/dashboard/common/areas.js';
-import type { GoalkeepersArea, RequestsArea, WalletsArea } from '../../../application/features/dashboard/common/ports.js';
+import type { GoalkeepersArea, RequestsArea, OperatingBalancesArea } from '../../../application/features/dashboard/common/ports.js';
 import type { DashboardWindows } from '../../../application/features/dashboard/common/windows.js';
 import { BOOKING_STATUSES } from '../../../domain/bookings/booking.js';
 import type { RequestStatus } from '../../../domain/bookings/requestStatus.js';
@@ -107,10 +107,10 @@ export function toGoalkeepersArea(group: (Partial<GoalkeepersArea> & { _id?: nul
 }
 
 /**
- * The wallets' money per currency (research §5, FR-006): positive balances and debts apart, never
- * two currencies together; the scope's goalkeepers (a wallet's id is its goalkeeper's) or all.
+ * The operating balances' money per currency (research §5, FR-006): positive balances and debts apart, never
+ * two currencies together; the scope's goalkeepers (a operating balance's id is its goalkeeper's) or all.
  */
-export function walletsByCurrencyPipeline(goalkeeperIds: readonly string[] | null): Document[] {
+export function operatingBalancesByCurrencyPipeline(goalkeeperIds: readonly string[] | null): Document[] {
   return [
     ...(goalkeeperIds !== null ? [{ $match: { _id: { $in: [...goalkeeperIds] } } }] : []),
     {
@@ -125,6 +125,6 @@ export function walletsByCurrencyPipeline(goalkeeperIds: readonly string[] | nul
   ];
 }
 
-export function toWalletsArea(groups: readonly { _id: string; balanceTotal: number; debtTotal: number; negativeCount: number }[]): WalletsArea {
+export function toOperatingBalancesArea(groups: readonly { _id: string; balanceTotal: number; debtTotal: number; negativeCount: number }[]): OperatingBalancesArea {
   return { byCurrency: groups.map(({ _id, balanceTotal, debtTotal, negativeCount }) => ({ currency: _id, balanceTotal, debtTotal, negativeCount })) };
 }

@@ -62,8 +62,8 @@ import { RefreshTokenRepository } from './persistence/mongo/refreshTokenReposito
 import { TermsAcceptanceRepository } from './persistence/mongo/termsAcceptanceRepository.js';
 import { CountryRepository, MongoAdminCountryRepository } from './persistence/mongo/countryRepository.js';
 import { MongoReferenceUsage } from './persistence/mongo/referenceUsage.js';
-import { CommissionResolver } from '../application/features/wallet/common/commissionResolver.js';
-import { WalletLedger } from '../application/features/wallet/common/walletLedger.js';
+import { CommissionResolver } from '../application/features/operatingBalance/common/commissionResolver.js';
+import { OperatingBalanceLedger } from '../application/features/operatingBalance/common/operatingBalanceLedger.js';
 import { ListAvailableBookingsQuery } from '../application/features/goalkeeperRequests/queries/listAvailableBookings/listAvailableBookingsQuery.js';
 import { ListGoalkeeperAgendaQuery } from '../application/features/goalkeeperRequests/queries/listGoalkeeperAgenda/listGoalkeeperAgendaQuery.js';
 import { ListGoalkeeperAgendaQueryHandler } from '../application/features/goalkeeperRequests/queries/listGoalkeeperAgenda/listGoalkeeperAgendaQueryHandler.js';
@@ -75,25 +75,25 @@ import { DismissBookingCommandHandler } from '../application/features/goalkeeper
 import { AcceptBookingCommandHandler } from '../application/features/goalkeeperRequests/commands/acceptBooking/acceptBookingCommandHandler.js';
 import { MongoBookingAcceptanceStore } from './persistence/mongo/bookingAcceptanceStore.js';
 import { ListAvailableBookingsQueryHandler } from '../application/features/goalkeeperRequests/queries/listAvailableBookings/listAvailableBookingsQueryHandler.js';
-import { RecordWalletAdjustmentCommand } from '../application/features/wallet/commands/recordWalletAdjustment/recordWalletAdjustmentCommand.js';
-import { RecordWalletAdjustmentCommandHandler } from '../application/features/wallet/commands/recordWalletAdjustment/recordWalletAdjustmentCommandHandler.js';
+import { RecordOperatingBalanceAdjustmentCommand } from '../application/features/operatingBalance/commands/recordOperatingBalanceAdjustment/recordOperatingBalanceAdjustmentCommand.js';
+import { RecordOperatingBalanceAdjustmentCommandHandler } from '../application/features/operatingBalance/commands/recordOperatingBalanceAdjustment/recordOperatingBalanceAdjustmentCommandHandler.js';
 import { ApplyGatewayEventCommand } from '../application/features/payments/commands/applyGatewayEvent/applyGatewayEventCommand.js';
 import { ApplyGatewayEventCommandHandler } from '../application/features/payments/commands/applyGatewayEvent/applyGatewayEventCommandHandler.js';
-import { TopUpReconcileJob } from '../application/features/payments/jobs/topUpReconcileJob.js';
-import { ReconcileTopUpCommand } from '../application/features/payments/commands/reconcileTopUp/reconcileTopUpCommand.js';
-import { ReconcileTopUpCommandHandler } from '../application/features/payments/commands/reconcileTopUp/reconcileTopUpCommandHandler.js';
-import { ListTopUpsQuery } from '../application/features/payments/queries/listTopUps/listTopUpsQuery.js';
-import { ListTopUpsQueryHandler } from '../application/features/payments/queries/listTopUps/listTopUpsQueryHandler.js';
-import { GetTopUpQuery } from '../application/features/payments/queries/getTopUp/getTopUpQuery.js';
-import { GetTopUpQueryHandler } from '../application/features/payments/queries/getTopUp/getTopUpQueryHandler.js';
-import { GetTopUpByReferenceQuery } from '../application/features/payments/queries/getTopUpByReference/getTopUpByReferenceQuery.js';
-import { GetTopUpByReferenceQueryHandler } from '../application/features/payments/queries/getTopUpByReference/getTopUpByReferenceQueryHandler.js';
+import { DepositReconcileJob } from '../application/features/deposits/jobs/depositReconcileJob.js';
+import { ReconcileDepositCommand } from '../application/features/deposits/commands/reconcileDeposit/reconcileDepositCommand.js';
+import { ReconcileDepositCommandHandler } from '../application/features/deposits/commands/reconcileDeposit/reconcileDepositCommandHandler.js';
+import { ListDepositsQuery } from '../application/features/deposits/queries/listDeposits/listDepositsQuery.js';
+import { ListDepositsQueryHandler } from '../application/features/deposits/queries/listDeposits/listDepositsQueryHandler.js';
+import { GetDepositQuery } from '../application/features/deposits/queries/getDeposit/getDepositQuery.js';
+import { GetDepositQueryHandler } from '../application/features/deposits/queries/getDeposit/getDepositQueryHandler.js';
+import { GetDepositByReferenceQuery } from '../application/features/deposits/queries/getDepositByReference/getDepositByReferenceQuery.js';
+import { GetDepositByReferenceQueryHandler } from '../application/features/deposits/queries/getDepositByReference/getDepositByReferenceQueryHandler.js';
 import { SetGatewaySettingsCommand } from '../application/features/payments/commands/setGatewaySettings/setGatewaySettingsCommand.js';
 import { SetGatewaySettingsCommandHandler } from '../application/features/payments/commands/setGatewaySettings/setGatewaySettingsCommandHandler.js';
 import { GetGatewaySettingsQuery } from '../application/features/payments/queries/getGatewaySettings/getGatewaySettingsQuery.js';
 import { GetGatewaySettingsQueryHandler } from '../application/features/payments/queries/getGatewaySettings/getGatewaySettingsQueryHandler.js';
 import { TaxSettingsRepository } from './persistence/mongo/taxSettingsRepository.js';
-import { createVatRateResolver } from '../application/features/wallet/common/vatRateResolver.js';
+import { createVatRateResolver } from '../application/features/operatingBalance/common/vatRateResolver.js';
 import { InvoicingDocumentRepository } from './persistence/mongo/invoicingDocumentRepository.js';
 import { InvoicingSettingsRepository } from './persistence/mongo/invoicingSettingsRepository.js';
 import { BillableMovementScanner } from './persistence/mongo/billableMovementScanner.js';
@@ -119,27 +119,27 @@ import { GetInvoicingSettingsQuery } from '../application/features/invoicing/que
 import { GetInvoicingSettingsQueryHandler } from '../application/features/invoicing/queries/getInvoicingSettings/getInvoicingSettingsQueryHandler.js';
 import { RetryDocumentCommand } from '../application/features/invoicing/commands/retryDocument/retryDocumentCommand.js';
 import { RetryDocumentCommandHandler } from '../application/features/invoicing/commands/retryDocument/retryDocumentCommandHandler.js';
-import { GetTopUpOptionsQuery } from '../application/features/payments/queries/getTopUpOptions/getTopUpOptionsQuery.js';
-import { GetTopUpOptionsQueryHandler } from '../application/features/payments/queries/getTopUpOptions/getTopUpOptionsQueryHandler.js';
-import { StartTopUpCommand } from '../application/features/payments/commands/startTopUp/startTopUpCommand.js';
-import { StartTopUpCommandHandler } from '../application/features/payments/commands/startTopUp/startTopUpCommandHandler.js';
+import { GetDepositOptionsQuery } from '../application/features/deposits/queries/getDepositOptions/getDepositOptionsQuery.js';
+import { GetDepositOptionsQueryHandler } from '../application/features/deposits/queries/getDepositOptions/getDepositOptionsQueryHandler.js';
+import { StartDepositCommand } from '../application/features/deposits/commands/startDeposit/startDepositCommand.js';
+import { StartDepositCommandHandler } from '../application/features/deposits/commands/startDeposit/startDepositCommandHandler.js';
 import { AcceptCurrentTermsCommand } from '../application/features/profile/commands/acceptCurrentTerms/acceptCurrentTermsCommand.js';
 import { AcceptCurrentTermsCommandHandler } from '../application/features/profile/commands/acceptCurrentTerms/acceptCurrentTermsCommandHandler.js';
-import { GetGoalkeeperWalletQuery } from '../application/features/wallet/queries/getGoalkeeperWallet/getGoalkeeperWalletQuery.js';
-import { GetGoalkeeperWalletQueryHandler } from '../application/features/wallet/queries/getGoalkeeperWallet/getGoalkeeperWalletQueryHandler.js';
-import { ListWalletMovementsQuery } from '../application/features/wallet/queries/listWalletMovements/listWalletMovementsQuery.js';
-import { ListWalletMovementsQueryHandler } from '../application/features/wallet/queries/listWalletMovements/listWalletMovementsQueryHandler.js';
+import { GetGoalkeeperOperatingBalanceQuery } from '../application/features/operatingBalance/queries/getGoalkeeperOperatingBalance/getGoalkeeperOperatingBalanceQuery.js';
+import { GetGoalkeeperOperatingBalanceQueryHandler } from '../application/features/operatingBalance/queries/getGoalkeeperOperatingBalance/getGoalkeeperOperatingBalanceQueryHandler.js';
+import { ListBalanceMovementsQuery } from '../application/features/operatingBalance/queries/listBalanceMovements/listBalanceMovementsQuery.js';
+import { ListBalanceMovementsQueryHandler } from '../application/features/operatingBalance/queries/listBalanceMovements/listBalanceMovementsQueryHandler.js';
 import { CommissionSettingRepository } from './persistence/mongo/commissionSettingRepository.js';
-import { WalletMovementRepository } from './persistence/mongo/walletMovementRepository.js';
-import { WalletRepository } from './persistence/mongo/walletRepository.js';
+import { BalanceMovementRepository } from './persistence/mongo/balanceMovementRepository.js';
+import { OperatingBalanceRepository } from './persistence/mongo/operatingBalanceRepository.js';
 import { logger } from './observability/logger.js';
-import { TopUpRepository } from './persistence/mongo/topUpRepository.js';
-import { MongoTopUpStore } from './persistence/mongo/topUpStore.js';
+import { DepositRepository } from './persistence/mongo/depositRepository.js';
+import { MongoDepositStore } from './persistence/mongo/depositStore.js';
 import { PaymentGatewaySettingsRepository } from './persistence/mongo/paymentGatewaySettingsRepository.js';
 import { PaymentGatewayRegistry } from './payments/gatewayRegistry.js';
 import { EnvPaymentSecrets } from './payments/envPaymentSecrets.js';
 import { WompiGateway } from './payments/wompiGateway.js';
-import { MongoWalletStore } from './persistence/mongo/walletStore.js';
+import { MongoOperatingBalanceStore } from './persistence/mongo/operatingBalanceStore.js';
 import { CityRepository } from './persistence/mongo/cityRepository.js';
 import { RegionRepository } from './persistence/mongo/regionRepository.js';
 import { ZoneRepository } from './persistence/mongo/zoneRepository.js';
@@ -217,6 +217,13 @@ import { geographyHandlerRegistrations } from './geographyHandlers.js';
 import { pricingHandlerRegistrations } from './pricingHandlers.js';
 import { usersHandlerRegistrations } from './usersHandlers.js';
 import { UserBlockRepository } from './persistence/mongo/userBlockRepository.js';
+import { AccountClosureRepository } from './persistence/mongo/accountClosureRepository.js';
+import { ClosedAccountsService } from '../application/features/accountClosures/common/closedAccounts.js';
+import { ClosureBlockersReader } from '../application/features/accountClosures/common/closureBlockersReader.js';
+import { suggestDepositAmount } from '../application/features/accountClosures/common/depositSuggestion.js';
+import { accountClosureHandlerRegistrations } from './accountClosureHandlers.js';
+import { resolveGoalkeeperOperatingBalanceContext } from '../application/features/operatingBalance/common/goalkeeperOperatingBalanceContext.js';
+import { usableSettings } from '../application/features/deposits/common/depositSetup.js';
 import { UserAdminReader } from './persistence/mongo/userAdminReader.js';
 import { GoalkeeperAdminReader } from './persistence/mongo/goalkeeperAdminReader.js';
 import { MongoGoalkeeperDocumentWriter } from './persistence/mongo/goalkeeperDocumentWriter.js';
@@ -224,8 +231,8 @@ import { goalkeepersAdminHandlerRegistrations } from './goalkeepersAdminHandlers
 import { operationsHandlerRegistrations } from './operationsAdminHandlers.js';
 import { RequestAdminReader } from './persistence/mongo/requestAdminReader.js';
 import { NotificationAdminReader } from './persistence/mongo/notificationAdminReader.js';
-import { TopUpAdminReader } from './persistence/mongo/topUpAdminReader.js';
-import { WalletAdminReader } from './persistence/mongo/walletAdminReader.js';
+import { DepositAdminReader } from './persistence/mongo/depositAdminReader.js';
+import { OperatingBalanceAdminReader } from './persistence/mongo/operatingBalanceAdminReader.js';
 import { InvoicingDocumentAdminReader } from './persistence/mongo/invoicingDocumentAdminReader.js';
 import { financeHandlerRegistrations } from './financeAdminHandlers.js';
 import { dashboardSystemHandlerRegistrations } from './dashboardSystemAdminHandlers.js';
@@ -339,6 +346,9 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   await termsAcceptanceRepository.ensureIndexes();
   const caseRepository = new CaseRepository(db);
   await caseRepository.ensureIndexes();
+  // Requests to leave the platform (feature 029).
+  const accountClosureRepository = new AccountClosureRepository(db);
+  await accountClosureRepository.ensureIndexes();
   // Admin web access (porteros-pro-admin spec 001): staff members, roles and sessions.
   const staffMemberRepository = new MongoStaffMemberRepository(db, () => connectionProvider.startSession());
   await staffMemberRepository.ensureIndexes();
@@ -348,13 +358,13 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   const adminSessionStore = new MongoAdminSessionStore(db);
   await adminSessionStore.ensureIndexes();
   const quoteConfirmationStore = new MongoQuoteConfirmationStore(() => connectionProvider.startSession(), db);
-  const walletRepository = new WalletRepository(db);
-  const walletMovementRepository = new WalletMovementRepository(db);
-  await walletMovementRepository.ensureIndexes();
+  const operatingBalanceRepository = new OperatingBalanceRepository(db);
+  const balanceMovementRepository = new BalanceMovementRepository(db);
+  await balanceMovementRepository.ensureIndexes();
   const commissionSettingRepository = new CommissionSettingRepository(db);
   await commissionSettingRepository.ensureIndexes();
   const commissionResolver = new CommissionResolver(commissionSettingRepository, zoneRepository, cityRepository, regionRepository);
-  const walletContext = { goalkeeperProfileRepository, cityRepository, regionRepository, countryLookup: countryRepository };
+  const operatingBalanceContext = { goalkeeperProfileRepository, cityRepository, regionRepository, countryLookup: countryRepository };
   // VAT on top of commissions (feature 023).
   const taxSettingsRepository = new TaxSettingsRepository(db);
   const vatRates = createVatRateResolver(taxSettingsRepository, { cityRepository, regionRepository }, logger);
@@ -362,15 +372,15 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   const invoicingDocumentRepository = new InvoicingDocumentRepository(db);
   await invoicingDocumentRepository.ensureIndexes();
   await invoicingDocumentRepository.ensureAdminIndexes();
-  await walletRepository.ensureAdminIndexes();
+  await operatingBalanceRepository.ensureAdminIndexes();
   const invoicingSettingsRepository = new InvoicingSettingsRepository(db);
   const billableMovementScanner = new BillableMovementScanner(db);
   const invoicingProviders = new InvoicingProviderRegistry([new SiigoInvoicingProvider(config.invoicing.siigoBaseUrl)]);
   const invoicingSecrets = new EnvInvoicingSecrets(process.env);
-  // Wallet top-ups (feature 022). Secrets come from the environment (Secret Manager), never the database.
-  const topUpRepository = new TopUpRepository(db);
-  await topUpRepository.ensureIndexes();
-  await topUpRepository.ensureAdminIndexes();
+  // Operating balance deposits (feature 022). Secrets come from the environment (Secret Manager), never the database.
+  const depositRepository = new DepositRepository(db);
+  await depositRepository.ensureIndexes();
+  await depositRepository.ensureAdminIndexes();
   const paymentGatewaySettingsRepository = new PaymentGatewaySettingsRepository(db);
   const paymentGatewayRegistry = new PaymentGatewayRegistry([new WompiGateway()]);
   const paymentSecrets = new EnvPaymentSecrets(process.env);
@@ -397,6 +407,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   const auditLogger = new PinoAuditLogger();
   const idGenerator = new UuidIdGenerator();
   const clock = new SystemClock();
+  const closedAccounts = new ClosedAccountsService(accountClosureRepository, clock);
   const adminTokenIssuer = new JwtAdminTokenIssuer({
     signingKey: config.jwt.signingKey,
     accessTokenLifetimeSeconds: config.admin.accessTokenLifetimeSeconds,
@@ -404,9 +415,9 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   const staffAccessResolver = new StaffAccessResolver(adminSessionStore, staffMemberRepository, staffRoleRepository, clock);
   const adminAuditLog = new MongoAdminAuditLog(db);
   await adminAuditLog.ensureIndexes();
-  const walletStore = new MongoWalletStore(() => connectionProvider.startSession(), db, () => clock.now());
-  const walletLedger = new WalletLedger(walletStore, walletMovementRepository, idGenerator, clock);
-  const topUpStore = new MongoTopUpStore(() => connectionProvider.startSession(), db, () => idGenerator.newId());
+  const operatingBalanceStore = new MongoOperatingBalanceStore(() => connectionProvider.startSession(), db, () => clock.now());
+  const operatingBalanceLedger = new OperatingBalanceLedger(operatingBalanceStore, balanceMovementRepository, idGenerator, clock);
+  const depositStore = new MongoDepositStore(() => connectionProvider.startSession(), db, () => idGenerator.newId());
   const refreshTokenLifetimeMs = config.jwt.refreshTokenLifetimeDays * 24 * 60 * 60 * 1000;
   const mongoHealthCheck = new MongoHealthCheck(db);
 
@@ -441,9 +452,9 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     cityRepository,
     logger,
     enabled: config.invoicing.enabled,
-    movements: walletMovementRepository,
+    movements: balanceMovementRepository,
     users: userRepository,
-    walletContext,
+    operatingBalanceContext,
     idGenerator,
     clock,
   };
@@ -509,6 +520,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         idGenerator,
         refreshTokenLifetimeMs,
         blockedUsers: userBlockRepository,
+        closedAccounts,
       },
     }),
   );
@@ -525,7 +537,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   const notificationRepository = new MongoNotificationRepository(db);
   await notificationRepository.ensureIndexes();
   const offerPushState = new MongoOfferPushStateStore(db);
-  const offerEligibility = new OfferEligibilityService({ goalkeeperProfileRepository, walletRepository, commissionResolver, bookingRepository, vatRates });
+  const offerEligibility = new OfferEligibilityService({ goalkeeperProfileRepository, operatingBalanceRepository, commissionResolver, bookingRepository, vatRates });
   const offerSender = new OfferSender({
     notifications: notificationRepository,
     pushState: offerPushState,
@@ -558,7 +570,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     requestRepository,
     bookingRepository,
     store: lifecycleStore,
-    walletContext,
+    operatingBalanceContext,
     relay: eventRelay,
     idGenerator: idGenerator,
     logger: logger,
@@ -735,6 +747,37 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   const goalkeeperAdminReader = new GoalkeeperAdminReader(db);
   registerHandlers(
     mediator,
+    accountClosureHandlerRegistrations({
+      closures: accountClosureRepository,
+      userSearch: userAdminReader,
+      users: userRepository,
+      profiles: goalkeeperProfileRepository,
+      balanceContext: operatingBalanceContext,
+      balances: operatingBalanceRepository,
+      movements: balanceMovementRepository,
+      ledger: operatingBalanceLedger,
+      blockers: new ClosureBlockersReader({
+        bookings: bookingRepository,
+        requests: requestRepository,
+        zones: zoneRepository,
+        deposits: depositRepository,
+        cases: caseRepository,
+        clock,
+      }),
+      notices: { notifications: notificationRepository, pushNotifier, idGenerator, clock },
+      devices: deviceRepository,
+      suggestDepositAmount: async (goalkeeperId, debt) => {
+        const context = await resolveGoalkeeperOperatingBalanceContext(operatingBalanceContext, goalkeeperId);
+        if (context.kind !== 'ok') return null;
+        const settings = await usableSettings(paymentGatewaySettingsRepository, context.countryId, context.currency);
+        return settings ? suggestDepositAmount(settings.options(), debt) : null;
+      },
+      idGenerator,
+      clock,
+    }),
+  );
+  registerHandlers(
+    mediator,
     usersHandlerRegistrations({
       users: userRepository,
       contacts: userRepository,
@@ -747,6 +790,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       cities: cityRepository,
       clock,
       reader: userAdminReader,
+      closures: accountClosureRepository,
     }),
   );
   registerHandlers(
@@ -787,8 +831,8 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   registerHandlers(
     mediator,
     financeHandlerRegistrations({
-      topUpReader: new TopUpAdminReader(db),
-      walletReader: new WalletAdminReader(db),
+      depositReader: new DepositAdminReader(db),
+      operatingBalanceReader: new OperatingBalanceAdminReader(db),
       cities: cityRepository,
       regions: regionRepository,
       documentReader: new InvoicingDocumentAdminReader(db),
@@ -805,7 +849,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     bookingExpiryJob,
     new BookingCompletionJob({ bookingRepository, store: lifecycleStore, relay: eventRelay, idGenerator, logger }),
     new NoShowWatchJob({
-      walletContext,
+      operatingBalanceContext,
       bookingSettingsRepository,
       logger: logger,
       bookingRepository,
@@ -842,12 +886,12 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       logger: logger,
       windowResolver: () => createCheckInWindowResolver({ cityRepository, regionRepository, bookingSettingsRepository, logger: logger }),
     }),
-    new TopUpReconcileJob({
-      walletContext,
-      store: topUpStore,
+    new DepositReconcileJob({
+      operatingBalanceContext,
+      store: depositStore,
       notices: { notifications: notificationRepository, pushNotifier, idGenerator: idGenerator, clock },
       logger: logger,
-      topUpRepository,
+      depositRepository,
       gateways: paymentGatewayRegistry,
       secrets: paymentSecrets,
       countryLookup: countryRepository,
@@ -868,6 +912,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         auditLogger,
         refreshTokenLifetimeMs,
         userBlockRepository,
+        closedAccounts,
       ),
     },
     {
@@ -880,6 +925,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         idGenerator,
         refreshTokenLifetimeMs,
         userBlockRepository,
+        closedAccounts,
       ),
     },
     {
@@ -970,22 +1016,22 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       handler: new DeleteImageCommandHandler(imageStorageProvider, imageRepository),
     },
     {
-      requestType: GetGoalkeeperWalletQuery,
-      handler: new GetGoalkeeperWalletQueryHandler(walletContext, walletRepository, commissionResolver, clock, vatRates),
+      requestType: GetGoalkeeperOperatingBalanceQuery,
+      handler: new GetGoalkeeperOperatingBalanceQueryHandler(operatingBalanceContext, operatingBalanceRepository, commissionResolver, clock, vatRates),
     },
     {
-      requestType: GetTopUpOptionsQuery,
-      handler: new GetTopUpOptionsQueryHandler(walletContext, paymentGatewaySettingsRepository, termsAcceptanceRepository, config.legal),
+      requestType: GetDepositOptionsQuery,
+      handler: new GetDepositOptionsQueryHandler(operatingBalanceContext, paymentGatewaySettingsRepository, termsAcceptanceRepository, config.legal),
     },
     {
-      requestType: StartTopUpCommand,
-      handler: new StartTopUpCommandHandler({
-        context: walletContext,
+      requestType: StartDepositCommand,
+      handler: new StartDepositCommandHandler({
+        context: operatingBalanceContext,
         settingsRepository: paymentGatewaySettingsRepository,
         termsRepository: termsAcceptanceRepository,
         gateways: paymentGatewayRegistry,
         secrets: paymentSecrets,
-        topUpRepository,
+        depositRepository,
         idGenerator,
         clock,
         logger,
@@ -995,20 +1041,20 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     {
       requestType: ApplyGatewayEventCommand,
       handler: new ApplyGatewayEventCommandHandler({
-        walletContext,
-        store: topUpStore,
+        operatingBalanceContext,
+        store: depositStore,
         notices: { notifications: notificationRepository, pushNotifier, idGenerator: idGenerator, clock },
         logger: logger,
         gateways: paymentGatewayRegistry,
         secrets: paymentSecrets,
-        topUpRepository,
+        depositRepository,
         countryLookup: countryRepository,
         clock,
       }),
     },
-    { requestType: ListTopUpsQuery, handler: new ListTopUpsQueryHandler(goalkeeperProfileRepository, topUpRepository) },
-    { requestType: GetTopUpQuery, handler: new GetTopUpQueryHandler(topUpRepository) },
-    { requestType: GetTopUpByReferenceQuery, handler: new GetTopUpByReferenceQueryHandler(topUpRepository) },
+    { requestType: ListDepositsQuery, handler: new ListDepositsQueryHandler(goalkeeperProfileRepository, depositRepository) },
+    { requestType: GetDepositQuery, handler: new GetDepositQueryHandler(depositRepository) },
+    { requestType: GetDepositByReferenceQuery, handler: new GetDepositByReferenceQueryHandler(depositRepository) },
     {
       requestType: SetGatewaySettingsCommand,
       handler: new SetGatewaySettingsCommandHandler(countryRepository, paymentGatewaySettingsRepository, paymentSecrets, clock, logger),
@@ -1028,14 +1074,14 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     },
     { requestType: GetInvoicingSettingsQuery, handler: new GetInvoicingSettingsQueryHandler(invoicingSettingsRepository, invoicingDeps.secrets, countryRepository) },
     {
-      // "Conciliar ahora" (admin spec 007): the sweep's ask for one top-up, by a member.
-      requestType: ReconcileTopUpCommand,
-      handler: new ReconcileTopUpCommandHandler({
-        walletContext,
-        store: topUpStore,
+      // "Conciliar ahora" (admin spec 007): the sweep's ask for one deposit, by a member.
+      requestType: ReconcileDepositCommand,
+      handler: new ReconcileDepositCommandHandler({
+        operatingBalanceContext,
+        store: depositStore,
         notices: { notifications: notificationRepository, pushNotifier, idGenerator: idGenerator, clock },
         logger: logger,
-        topUpRepository,
+        depositRepository,
         gateways: paymentGatewayRegistry,
         secrets: paymentSecrets,
         countryLookup: countryRepository,
@@ -1051,8 +1097,8 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       handler: new AcceptCurrentTermsCommandHandler(termsAcceptanceRepository, idGenerator, clock, config.legal),
     },
     {
-      requestType: RecordWalletAdjustmentCommand,
-      handler: new RecordWalletAdjustmentCommandHandler(walletContext, walletLedger, walletRepository, {
+      requestType: RecordOperatingBalanceAdjustmentCommand,
+      handler: new RecordOperatingBalanceAdjustmentCommandHandler(operatingBalanceContext, operatingBalanceLedger, operatingBalanceRepository, {
         notifications: notificationRepository,
         pushNotifier,
         idGenerator,
@@ -1066,8 +1112,8 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     {
       requestType: AcceptBookingCommand,
       handler: new AcceptBookingCommandHandler({
-        walletContext,
-        walletRepository: walletRepository,
+        operatingBalanceContext,
+        operatingBalanceRepository: operatingBalanceRepository,
         bookingRepository,
         requestRepository,
         zoneRepository,
@@ -1087,7 +1133,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       handler: new ListAvailableBookingsQueryHandler({
         vatRates,
         goalkeeperProfileRepository,
-        walletRepository: walletRepository,
+        operatingBalanceRepository: operatingBalanceRepository,
         commissionResolver,
         bookingRepository,
         requestRepository: requestRepository,
@@ -1114,11 +1160,11 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     {
       // The goalkeeper's month in numbers (feature 026).
       requestType: GetGoalkeeperMonthStatsQuery,
-      handler: new GetGoalkeeperMonthStatsQueryHandler({ context: walletContext, bookingRepository, clock }),
+      handler: new GetGoalkeeperMonthStatsQueryHandler({ context: operatingBalanceContext, bookingRepository, clock }),
     },
     {
-      requestType: ListWalletMovementsQuery,
-      handler: new ListWalletMovementsQueryHandler(goalkeeperProfileRepository, walletRepository, walletMovementRepository),
+      requestType: ListBalanceMovementsQuery,
+      handler: new ListBalanceMovementsQueryHandler(goalkeeperProfileRepository, operatingBalanceRepository, balanceMovementRepository),
     },
     {
       requestType: GetGoalkeeperRegistrationQuery,
@@ -1196,7 +1242,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         bookingRepository,
         userRepository,
         store: lifecycleStore,
-        walletContext,
+        operatingBalanceContext,
         relay: eventRelay,
         idGenerator: idGenerator,
         clock,
@@ -1210,7 +1256,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       handler: new CancelBookingsByAdminCommandHandler({
         bookingRepository,
         store: lifecycleStore,
-        walletContext,
+        operatingBalanceContext,
         relay: eventRelay,
         idGenerator: idGenerator,
         clock,
@@ -1224,12 +1270,12 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         goalkeeperProfileRepository,
         incidents: goalkeeperIncidentRepository,
         clock,
-        adminDetails: new WithdrawalAdminDetails({ bookings: bookingRepository, zones: zoneRepository, cities: cityRepository, movements: walletMovementRepository }),
+        adminDetails: new WithdrawalAdminDetails({ bookings: bookingRepository, zones: zoneRepository, cities: cityRepository, movements: balanceMovementRepository }),
       }),
     },
     {
       requestType: ReverseWithdrawalPenaltyCommand,
-      handler: new ReverseWithdrawalPenaltyCommandHandler({ walletContext, store: lifecycleStore, idGenerator: idGenerator, clock, audit: auditLogger, logger: logger }),
+      handler: new ReverseWithdrawalPenaltyCommandHandler({ operatingBalanceContext, store: lifecycleStore, idGenerator: idGenerator, clock, audit: auditLogger, logger: logger }),
     },
     {
       requestType: CheckInToBookingCommand,
@@ -1252,7 +1298,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     {
       requestType: RateBookingCommand,
       handler: new RateBookingCommandHandler({
-        walletContext,
+        operatingBalanceContext,
         bookingSettingsRepository,
         logger: logger,
         bookingRepository,
@@ -1273,7 +1319,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     {
       requestType: WithdrawFromBookingCommand,
       handler: new WithdrawFromBookingCommandHandler({
-        walletContext,
+        operatingBalanceContext,
         bookingSettingsRepository,
         store: lifecycleStore,
         bookingRepository,

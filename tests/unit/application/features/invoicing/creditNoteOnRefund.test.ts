@@ -95,7 +95,7 @@ describe('a credit note for each refund (US2)', () => {
 
     await harness.handler().handle(await harness.refund());
 
-    expect(harness.wallet.store.movements().filter((movement) => movement.type === 'commission_vat_refund')).toEqual([]);
+    expect(harness.operatingBalance.store.movements().filter((movement) => movement.type === 'commission_vat_refund')).toEqual([]);
     expect(harness.documents.all()[1]).toMatchObject({ kind: 'credit_note', base: 7000, vat: 0, total: 7000 });
   });
 });

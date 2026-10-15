@@ -13,9 +13,9 @@ describe('GetSystemJobsQueryHandler (admin spec 008, research §8)', () => {
     await locks.tryAcquire('booking-expiry', minutesAgo(1), 55);
     await locks.release('booking-expiry', minutesAgo(1));
     await locks.tryAcquire('offer-reminders', new Date(NOW.getTime() - 10_000), 55);
-    await locks.tryAcquire('top-up-reconcile', minutesAgo(10), 55);
-    await locks.release('top-up-reconcile', minutesAgo(10));
-    const handler = new GetSystemJobsQueryHandler({ jobs: [job('booking-expiry'), job('offer-reminders'), job('top-up-reconcile'), job('invoicing-issuer')], locks, clock: { now: () => NOW } });
+    await locks.tryAcquire('deposit-reconcile', minutesAgo(10), 55);
+    await locks.release('deposit-reconcile', minutesAgo(10));
+    const handler = new GetSystemJobsQueryHandler({ jobs: [job('booking-expiry'), job('offer-reminders'), job('deposit-reconcile'), job('invoicing-issuer')], locks, clock: { now: () => NOW } });
 
     const result = await handler.handle(new GetSystemJobsQuery());
 
@@ -26,7 +26,7 @@ describe('GetSystemJobsQueryHandler (admin spec 008, research §8)', () => {
       jobs: [
         { name: 'booking-expiry', leaseSeconds: 55, lastStartedAt: minutesAgo(1), running: false, leaseUntil: null, late: false },
         { name: 'offer-reminders', leaseSeconds: 55, lastStartedAt: new Date(NOW.getTime() - 10_000), running: true, leaseUntil: new Date(NOW.getTime() + 45_000), late: false },
-        { name: 'top-up-reconcile', leaseSeconds: 55, lastStartedAt: minutesAgo(10), running: false, leaseUntil: null, late: true },
+        { name: 'deposit-reconcile', leaseSeconds: 55, lastStartedAt: minutesAgo(10), running: false, leaseUntil: null, late: true },
         { name: 'invoicing-issuer', leaseSeconds: 55, lastStartedAt: null, running: false, leaseUntil: null, late: true },
       ],
     });

@@ -7,14 +7,14 @@ import type { DomainEvent } from '../../../../../src/domain/events/domainEvent.j
 import { FakeBookingLifecycleStore } from '../../../../fakes/fakeBookingLifecycleStore.js';
 import { FakeOutboxStore } from '../../../../fakes/fakeOutboxStore.js';
 import { FakeProcessedEventStore } from '../../../../fakes/fakeProcessedEventStore.js';
-import { FakeWalletStore } from '../../../../fakes/fakeWalletStore.js';
+import { FakeOperatingBalanceStore } from '../../../../fakes/fakeOperatingBalanceStore.js';
 import { offerHarness } from '../notifications/offerHarness.js';
 import { CancelAllJob } from '../../../../../src/application/features/bookingLifecycle/jobs/cancelAllJob.js';
 import { GoalkeeperCancellationNoticeHandler } from '../../../../../src/application/features/bookingLifecycle/handlers/goalkeeperCancellationNoticeHandler.js';
-import { WalletLedger, type LedgerOwner } from '../../../../../src/application/features/wallet/common/walletLedger.js';
+import { OperatingBalanceLedger, type LedgerOwner } from '../../../../../src/application/features/operatingBalance/common/operatingBalanceLedger.js';
 import { FakeCountryRepository } from '../../../../fakes/fakeCountryRepository.js';
 import { FakeRegionRepository } from '../../../../fakes/fakeRegionRepository.js';
-import { buildGoalkeeperProfile, COLOMBIA_INVOICING, seedWalletWorld } from '../../../../fixtures/walletFixtures.js';
+import { buildGoalkeeperProfile, COLOMBIA_INVOICING, seedOperatingBalanceWorld } from '../../../../fixtures/operatingBalanceFixtures.js';
 import { CancelBookingsByClientCommand } from '../../../../../src/application/features/bookingLifecycle/commands/cancelBookingsByClient/cancelBookingsByClientCommand.js';
 import { CancelBookingsByAdminCommand } from '../../../../../src/application/features/bookingLifecycle/commands/cancelBookingsByAdmin/cancelBookingsByAdminCommand.js';
 import { CancelBookingsByAdminCommandHandler } from '../../../../../src/application/features/bookingLifecycle/commands/cancelBookingsByAdmin/cancelBookingsByAdminCommandHandler.js';
@@ -58,9 +58,9 @@ import { FakeGoalkeeperIncidentRepository } from '../../../../fakes/fakeGoalkeep
  */
 export function lifecycleHarness() {
   const h = offerHarness();
-  const wallet = new FakeWalletStore(() => h.clock.now());
+  const operatingBalance = new FakeOperatingBalanceStore(() => h.clock.now());
   const outbox = new FakeOutboxStore();
-  const store = new FakeBookingLifecycleStore(h.bookingRepository, h.requestRepository, wallet, outbox, h.goalkeeperProfileRepository);
+  const store = new FakeBookingLifecycleStore(h.bookingRepository, h.requestRepository, operatingBalance, outbox, h.goalkeeperProfileRepository);
   const relayed: DomainEvent[] = [];
   const relay: IEventRelay = { relay: async (events) => void relayed.push(...events) };
   let counter = 0;
@@ -78,18 +78,18 @@ export function lifecycleHarness() {
     clock: h.clock,
     logger: h.silent,
   });
-  // Wallets: goalkeepers live in Cali (Colombia, COP), so their ledger owner resolves.
+  // Operating balances: goalkeepers live in Cali (Colombia, COP), so their ledger owner resolves.
   const regionRepository = new FakeRegionRepository();
   const countryRepository = new FakeCountryRepository();
-  seedWalletWorld({ cityRepository: h.cityRepository, regionRepository, countryRepository });
-  const walletContext = { goalkeeperProfileRepository: h.goalkeeperProfileRepository, cityRepository: h.cityRepository, regionRepository, countryLookup: countryRepository };
-  const ledger = new WalletLedger(wallet, wallet, idGenerator, h.clock);
+  seedOperatingBalanceWorld({ cityRepository: h.cityRepository, regionRepository, countryRepository });
+  const operatingBalanceContext = { goalkeeperProfileRepository: h.goalkeeperProfileRepository, cityRepository: h.cityRepository, regionRepository, countryLookup: countryRepository };
+  const ledger = new OperatingBalanceLedger(operatingBalance, operatingBalance, idGenerator, h.clock);
   const owner = (goalkeeperId: string): LedgerOwner => ({ goalkeeperId, currency: 'COP', invoicing: COLOMBIA_INVOICING });
   const cancelAllJob = new CancelAllJob({
     requestRepository: h.requestRepository,
     bookingRepository: h.bookingRepository,
     store,
-    walletContext,
+    operatingBalanceContext,
     relay,
     idGenerator,
     logger: h.silent,
@@ -114,7 +114,7 @@ export function lifecycleHarness() {
     await ledger.chargeCommission(owner(goalkeeperId), { bookingId: booking.id, requestId: booking.requestId, amount: booking.commission });
     h.bookingRepository.seed(booking.assign(goalkeeperId, h.clock.now()));
   };
-  const balanceOf = async (goalkeeperId: string) => (await wallet.findByGoalkeeperId(goalkeeperId))?.balance ?? 0;
+  const balanceOf = async (goalkeeperId: string) => (await operatingBalance.findByGoalkeeperId(goalkeeperId))?.balance ?? 0;
   // Client cancellation (feature 017).
   const audit = new FakeBookingAuditLogger();
   const clientCancel = new CancelBookingsByClientCommandHandler({
@@ -122,7 +122,7 @@ export function lifecycleHarness() {
     bookingRepository: h.bookingRepository,
     userRepository: new FakeUserRepository(),
     store,
-    walletContext,
+    operatingBalanceContext,
     relay,
     idGenerator,
     clock: h.clock,
@@ -136,7 +136,7 @@ export function lifecycleHarness() {
   const adminCanceller = new CancelBookingsByAdminCommandHandler({
     bookingRepository: h.bookingRepository,
     store,
-    walletContext,
+    operatingBalanceContext,
     relay,
     idGenerator,
     clock: h.clock,
@@ -151,7 +151,7 @@ export function lifecycleHarness() {
   const warnings: Record<string, unknown>[] = [];
   const lifecycleLogger = { info: () => undefined, warn: (entry: Record<string, unknown>) => void warnings.push(entry) };
   const withdrawer = new WithdrawFromBookingCommandHandler({
-    walletContext,
+    operatingBalanceContext,
     bookingSettingsRepository,
     store,
     bookingRepository: h.bookingRepository,
@@ -263,7 +263,7 @@ export function lifecycleHarness() {
   // Ratings, no-shows and cases (feature 021).
   const ratingRepository = new FakeRatingRepository(() => store.ratings());
   const caseRepository = new FakeCaseRepository(store.cases);
-  const penaltyDeps = { walletContext, bookingSettingsRepository, logger: lifecycleLogger };
+  const penaltyDeps = { operatingBalanceContext, bookingSettingsRepository, logger: lifecycleLogger };
   const rater = new RateBookingCommandHandler({ ...penaltyDeps, bookingRepository: h.bookingRepository, store, relay, idGenerator, clock: h.clock, audit });
   /** The user (the booking's client or goalkeeper) rates it. */
   const rate = (bookingId: string, userId: string, answer: boolean, stars = 4, comment?: string) =>
@@ -303,7 +303,7 @@ export function lifecycleHarness() {
   const listCases = (status: 'open' | 'resolved' | null = null, page = 1, pageSize = 20) => listCasesHandler.handle(new ListCasesQuery(status, page, pageSize));
   const resolver = new ResolveCaseCommandHandler(caseRepository, ratingRepository, h.clock, audit);
   const resolveCase = (caseId: string, note: string, adminId = 'admin-1') => resolver.handle(new ResolveCaseCommand(adminId, caseId, note));
-  const reverser = new ReverseWithdrawalPenaltyCommandHandler({ walletContext, store, idGenerator, clock: h.clock, audit, logger: lifecycleLogger });
+  const reverser = new ReverseWithdrawalPenaltyCommandHandler({ operatingBalanceContext, store, idGenerator, clock: h.clock, audit, logger: lifecycleLogger });
   /** An administrator reverses the goalkeeper's withdrawal: `refund` the money and/or `lift` the suspensions. */
   const reverse = (goalkeeperId: string, withdrawalId: string, what: { refund?: boolean; lift?: boolean }, reason = 'Incapacidad médica') =>
     reverser.handle(new ReverseWithdrawalPenaltyCommand('admin-1', goalkeeperId, withdrawalId, what.refund ?? false, what.lift ?? false, reason));
@@ -313,7 +313,7 @@ export function lifecycleHarness() {
   const request = (id: string) => h.requestRepository.all().find((item) => item.id === id)!;
   return {
     ...h,
-    wallet,
+    operatingBalance,
     outbox,
     store,
     relayed,
@@ -328,7 +328,7 @@ export function lifecycleHarness() {
     cancel,
     adminCancel,
     audit,
-    walletContext,
+    operatingBalanceContext,
     bookingSettingsRepository,
     warnings,
     withdraw,

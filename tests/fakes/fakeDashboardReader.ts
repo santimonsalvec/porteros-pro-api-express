@@ -20,8 +20,8 @@ export function zeroAreas(days: readonly string[] = []): DashboardAreas {
     registrations: { inProgress: 0 },
     cases: { open: 0 },
     invoicing: { rejected: 0, stale: 0 },
-    topUps: { pending: 0 },
-    wallets: { byCurrency: [] },
+    deposits: { pending: 0 },
+    operatingBalances: { byCurrency: [] },
   };
 }
 
@@ -51,6 +51,6 @@ export class FakeDashboardReader implements IDashboardReader {
   registrations = (context: DashboardReadContext) => this.answer('registrations', context);
   cases = (context: DashboardReadContext) => this.answer('cases', context);
   invoicing = (context: DashboardReadContext) => this.answer('invoicing', context);
-  topUps = (context: DashboardReadContext) => this.answer('topUps', context);
-  wallets = (context: DashboardReadContext) => this.answer('wallets', context);
+  deposits = (context: DashboardReadContext) => this.answer('deposits', context);
+  operatingBalances = (context: DashboardReadContext) => this.answer('operatingBalances', context);
 }

@@ -1,5 +1,5 @@
-import type { ITaxSettingsRepository } from '../../src/application/features/wallet/common/ports.js';
-import { TaxSetting } from '../../src/domain/wallet/taxSetting.js';
+import type { ITaxSettingsRepository } from '../../src/application/features/operatingBalance/common/ports.js';
+import { TaxSetting } from '../../src/domain/operatingBalance/taxSetting.js';
 
 export class FakeTaxSettingsRepository implements ITaxSettingsRepository {
   private readonly state = new Map<string, TaxSetting>();

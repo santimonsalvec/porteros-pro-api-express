@@ -23,7 +23,7 @@ describe('CancelBookingsByAdminCommand (admin spec 006, US5)', () => {
       });
     }
     expect(await h.balanceOf('gk-1')).toBe(20000);
-    const refunds = h.wallet.movements().filter((movement) => movement.type === 'commission_refund');
+    const refunds = h.operatingBalance.movements().filter((movement) => movement.type === 'commission_refund');
     expect(refunds).toHaveLength(1);
     expect(refunds[0]).toMatchObject({ amount: 7000, cancellation: { by: 'admin', reason: 'admin_cancelled' }, actor: { kind: 'admin', userId: 'staff-user-1' } });
     expect(h.relayed.map((event) => [event.type, (event.payload as { by: string; reason: string }).by])).toEqual([
@@ -41,7 +41,7 @@ describe('CancelBookingsByAdminCommand (admin spec 006, US5)', () => {
 
     expect(await h.adminCancel(request.id, bookings[0]!.id)).toMatchObject({ outcome: 'cancelled', refunds: 1 });
     expect(await h.adminCancel(request.id, bookings[0]!.id)).toEqual({ outcome: 'replayed' });
-    expect(h.wallet.movements().filter((movement) => movement.type === 'commission_refund')).toHaveLength(1);
+    expect(h.operatingBalance.movements().filter((movement) => movement.type === 'commission_refund')).toHaveLength(1);
     expect(h.relayed).toHaveLength(1);
   });
 
@@ -58,7 +58,7 @@ describe('CancelBookingsByAdminCommand (admin spec 006, US5)', () => {
     expect(await h.adminCancel(request.id, bookings[0]!.id)).toEqual({ outcome: 'not_cancellable', status: 'expired' });
   });
 
-  it("answers temporarily unavailable, changing nothing, when the goalkeeper's wallet can't be resolved", async () => {
+  it("answers temporarily unavailable, changing nothing, when the goalkeeper's operatingBalance can't be resolved", async () => {
     const h = lifecycleHarness();
     const { request, bookings } = h.match('r1', 1);
     h.assign(bookings[0]!, 'gk-without-profile');

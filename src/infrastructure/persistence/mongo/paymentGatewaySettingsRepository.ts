@@ -39,7 +39,7 @@ export function gatewaySettingsFromDocument(doc: Document): PaymentGatewaySettin
   });
 }
 
-/** Each country's top-up gateway (feature 022), one document per country (`_id` = countryId). No secrets. */
+/** Each country's deposit gateway (feature 022), one document per country (`_id` = countryId). No secrets. */
 export class PaymentGatewaySettingsRepository implements IPaymentGatewaySettingsRepository {
   private readonly collection: Collection<Document>;
 

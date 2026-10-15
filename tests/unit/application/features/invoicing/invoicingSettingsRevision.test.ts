@@ -10,10 +10,10 @@ import { InvoicingHarness } from './invoicingHarness.js';
 
 function setup() {
   const harness = new InvoicingHarness();
-  const setter = new SetInvoicingSettingsCommandHandler(harness.wallet.countries, harness.settings, harness.secrets, harness.clock, harness.logger);
+  const setter = new SetInvoicingSettingsCommandHandler(harness.operatingBalance.countries, harness.settings, harness.secrets, harness.clock, harness.logger);
   const save = (revision: number | null, config: Record<string, unknown> = COLOMBIA_SIIGO_CONFIG) =>
     setter.handle(new SetInvoicingSettingsCommand('admin-1', 'country-co', 'siigo', config, revision));
-  const read = () => new GetInvoicingSettingsQueryHandler(harness.settings, harness.secrets, harness.wallet.countries).handle(new GetInvoicingSettingsQuery('country-co'));
+  const read = () => new GetInvoicingSettingsQueryHandler(harness.settings, harness.secrets, harness.operatingBalance.countries).handle(new GetInvoicingSettingsQuery('country-co'));
   return { harness, save, read };
 }
 

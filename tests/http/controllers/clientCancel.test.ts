@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
-import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../walletTestHelpers.js';
+import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../operatingBalanceTestHelpers.js';
 
 /** `createRequestAsClient` books 15:00 in Bogotá (20:00Z): free cancellation until 19:00Z. */
 const cancelBooking = (context: TestApp, token: string, requestId: string, bookingId: string, body: object = {}) =>
@@ -19,7 +19,7 @@ async function setUp() {
   context.clock.set(MATCH_NOW);
   const client = await signInClient(context, 'sub-1001');
   const goalkeeper = await signInGoalkeeper(context, 'sub-1002');
-  await context.walletLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: 'k-1002' });
+  await context.operatingBalanceLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo de pruebas', operationKey: 'k-1002' });
   await request(context.app).post('/devices').set('Authorization', `Bearer ${goalkeeper.token}`).send({ token: 'phone-1002', platform: 'android' });
   const created = await createRequestAsClient(context, client.token, { goalkeeperCount: 2 });
   const [first, second] = created.bookings.map((booking) => booking.bookingId);
@@ -60,9 +60,9 @@ describe('client cancellation — US2: a taken booking', () => {
     const response = await cancelBooking(context, client.token, requestId, first);
 
     expect(response.status).toBe(200);
-    const wallet = await request(context.app).get('/goalkeepers/me/wallet').set('Authorization', `Bearer ${goalkeeper.token}`);
-    expect(wallet.body.balance).toBe(20000);
-    const refunds = context.walletStore.movements().filter((movement) => movement.type === 'commission_refund');
+    const operatingBalance = await request(context.app).get('/goalkeepers/me/operating-balance').set('Authorization', `Bearer ${goalkeeper.token}`);
+    expect(operatingBalance.body.balance).toBe(20000);
+    const refunds = context.operatingBalanceStore.movements().filter((movement) => movement.type === 'commission_refund');
     expect(refunds).toHaveLength(1);
     expect(refunds[0]!.cancellation).toMatchObject({ by: 'client' });
     const notices = context.notificationRepository.all().filter((item) => item.userId === goalkeeper.userId && item.type === 'booking.cancelled');
@@ -81,7 +81,7 @@ describe('client cancellation — US2: a taken booking', () => {
 
     expect(response.status).toBe(409);
     expect(response.body).toMatchObject({ error: 'cancellation_window_closed', bookingId: first, freeCancellationUntil: '2026-09-21T19:00:00.000Z' });
-    expect(context.walletStore.movements().filter((movement) => movement.type === 'commission_refund')).toHaveLength(0);
+    expect(context.operatingBalanceStore.movements().filter((movement) => movement.type === 'commission_refund')).toHaveLength(0);
   });
 });
 
@@ -107,7 +107,7 @@ describe('client cancellation — US3: the whole request', () => {
 
     expect(response.status).toBe(200);
     expect(response.body.status).toBe('cancelled');
-    expect(context.walletStore.movements().filter((movement) => movement.type === 'commission_refund')).toHaveLength(1);
+    expect(context.operatingBalanceStore.movements().filter((movement) => movement.type === 'commission_refund')).toHaveLength(1);
     await createRequestAsClient(context, client.token, { goalkeeperCount: 1 });
   });
 

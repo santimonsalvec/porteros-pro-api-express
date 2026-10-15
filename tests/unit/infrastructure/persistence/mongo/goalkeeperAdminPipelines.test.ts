@@ -7,12 +7,12 @@ const BASE = { now: NOW, page: 1, pageSize: 20 };
 const matches = (pipeline: Document[]) => pipeline.filter((step) => '$match' in step).map((step) => step.$match);
 
 describe('goalkeepersListPipeline (admin spec 005, research §5)', () => {
-  it('without filters, joins the wallet and pages the newest activations first', () => {
+  it('without filters, joins the operatingBalance and pages the newest activations first', () => {
     const pipeline = goalkeepersListPipeline(BASE);
 
     expect(matches(pipeline)).toEqual([]);
-    expect(pipeline).toContainEqual(expect.objectContaining({ $lookup: expect.objectContaining({ from: 'wallets', localField: 'userId', foreignField: '_id' }) }));
-    expect(pipeline).toContainEqual({ $addFields: { balance: { $ifNull: [{ $first: '$wallet.balance' }, 0] }, currency: { $first: '$wallet.currency' } } });
+    expect(pipeline).toContainEqual(expect.objectContaining({ $lookup: expect.objectContaining({ from: 'operatingBalances', localField: 'userId', foreignField: '_id' }) }));
+    expect(pipeline).toContainEqual({ $addFields: { balance: { $ifNull: [{ $first: '$operatingBalance.balance' }, 0] }, currency: { $first: '$operatingBalance.currency' } } });
     expect(pipeline).toContainEqual({ $sort: { activatedAt: -1, _id: -1 } });
     const facet = pipeline.find((step) => '$facet' in step)!.$facet;
     expect(facet.total).toEqual([{ $count: 'count' }]);
@@ -33,7 +33,7 @@ describe('goalkeepersListPipeline (admin spec 005, research §5)', () => {
     });
   });
 
-  it('filters the balance after the wallet join', () => {
+  it('filters the balance after the operatingBalance join', () => {
     const pipeline = goalkeepersListPipeline({ ...BASE, balanceBelow: 10000 });
 
     expect(matches(pipeline)).toEqual([{ balance: { $lt: 10000 } }]);

@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
-import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../walletTestHelpers.js';
+import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../operatingBalanceTestHelpers.js';
 
 const get = (context: TestApp, token: string, path: string) => request(context.app).get(path).set('Authorization', `Bearer ${token}`);
 const accept = (context: TestApp, token: string, bookingId: string) =>
@@ -13,7 +13,7 @@ async function setUp(startsAtLocal = '2026-09-21T17:00:00') {
   context.clock.set(MATCH_NOW);
   const client = await signInClient(context, 'sub-1901');
   const g = await signInGoalkeeper(context, 'sub-1902');
-  await context.walletLedger.adjust(ownerOf(g.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo', operationKey: 'k-g' });
+  await context.operatingBalanceLedger.adjust(ownerOf(g.userId), { adminUserId: 'admin-1', amount: 20000, reason: 'Saldo', operationKey: 'k-g' });
   const created = await createRequestAsClient(context, client.token, { goalkeeperCount: 1, startsAt: startsAtLocal });
   const bookingId = created.bookings[0]!.bookingId;
   return { context, client, g, bookingId, requestId: created.requestId };

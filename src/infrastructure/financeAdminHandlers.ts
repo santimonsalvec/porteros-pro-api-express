@@ -11,21 +11,21 @@ import { ListDocumentsForAdminQueryHandler } from '../application/features/invoi
 import type { IUserRepository } from '../application/features/auth/common/ports.js';
 import type { ICountryLookup } from '../application/features/goalkeeperRequests/common/ports.js';
 import type { ICityRepository, IRegionRepository } from '../application/features/locations/common/ports.js';
-import type { IWalletAdminReader } from '../application/features/wallet/common/adminPorts.js';
-import { ListWalletsAdminQuery } from '../application/features/wallet/queries/listWalletsAdmin/listWalletsAdminQuery.js';
-import { ListWalletsAdminQueryHandler } from '../application/features/wallet/queries/listWalletsAdmin/listWalletsAdminQueryHandler.js';
-import type { ITopUpAdminReader } from '../application/features/payments/common/adminPorts.js';
-import { ExportTopUpsQuery } from '../application/features/payments/queries/exportTopUps/exportTopUpsQuery.js';
-import { ExportTopUpsQueryHandler } from '../application/features/payments/queries/exportTopUps/exportTopUpsQueryHandler.js';
-import { GetTopUpAdminQuery } from '../application/features/payments/queries/getTopUpAdmin/getTopUpAdminQuery.js';
-import { GetTopUpAdminQueryHandler } from '../application/features/payments/queries/getTopUpAdmin/getTopUpAdminQueryHandler.js';
-import { ListTopUpsAdminQuery } from '../application/features/payments/queries/listTopUpsAdmin/listTopUpsAdminQuery.js';
-import { ListTopUpsAdminQueryHandler } from '../application/features/payments/queries/listTopUpsAdmin/listTopUpsAdminQueryHandler.js';
+import type { IOperatingBalanceAdminReader } from '../application/features/operatingBalance/common/adminPorts.js';
+import { ListOperatingBalancesAdminQuery } from '../application/features/operatingBalance/queries/listOperatingBalancesAdmin/listOperatingBalancesAdminQuery.js';
+import { ListOperatingBalancesAdminQueryHandler } from '../application/features/operatingBalance/queries/listOperatingBalancesAdmin/listOperatingBalancesAdminQueryHandler.js';
+import type { IDepositAdminReader } from '../application/features/payments/common/adminPorts.js';
+import { ExportDepositsQuery } from '../application/features/deposits/queries/exportDeposits/exportDepositsQuery.js';
+import { ExportDepositsQueryHandler } from '../application/features/deposits/queries/exportDeposits/exportDepositsQueryHandler.js';
+import { GetDepositAdminQuery } from '../application/features/deposits/queries/getDepositAdmin/getDepositAdminQuery.js';
+import { GetDepositAdminQueryHandler } from '../application/features/deposits/queries/getDepositAdmin/getDepositAdminQueryHandler.js';
+import { ListDepositsAdminQuery } from '../application/features/deposits/queries/listDepositsAdmin/listDepositsAdminQuery.js';
+import { ListDepositsAdminQueryHandler } from '../application/features/deposits/queries/listDepositsAdmin/listDepositsAdminQueryHandler.js';
 
 /** What the admin's finance reads need (porteros-pro-admin spec 007). */
 export interface FinanceHandlerDependencies {
-  topUpReader: ITopUpAdminReader;
-  walletReader: IWalletAdminReader;
+  depositReader: IDepositAdminReader;
+  operatingBalanceReader: IOperatingBalanceAdminReader;
   cities: Pick<ICityRepository, 'getByIds'>;
   regions: Pick<IRegionRepository, 'getByIds'>;
   documentReader: IInvoicingDocumentAdminReader;
@@ -38,19 +38,19 @@ export interface FinanceHandlerDependencies {
 }
 
 export function financeHandlerRegistrations(deps: FinanceHandlerDependencies): HandlerRegistration[] {
-  const topUps = { reader: deps.topUpReader, users: deps.users, countries: deps.countries };
+  const deposits = { reader: deps.depositReader, users: deps.users, countries: deps.countries };
   const documents = { ...deps, reader: deps.documentReader };
   return [
     {
-      requestType: ListWalletsAdminQuery,
-      handler: new ListWalletsAdminQueryHandler({ reader: deps.walletReader, users: deps.users, cities: deps.cities, regions: deps.regions, countries: deps.countries }),
+      requestType: ListOperatingBalancesAdminQuery,
+      handler: new ListOperatingBalancesAdminQueryHandler({ reader: deps.operatingBalanceReader, users: deps.users, cities: deps.cities, regions: deps.regions, countries: deps.countries }),
     },
     // The list existed (feature 023); spec 007 adds filters and reads through the admin reader.
     { requestType: ListDocumentsForAdminQuery, handler: new ListDocumentsForAdminQueryHandler(documents) },
     { requestType: GetDocumentAdminQuery, handler: new GetDocumentAdminQueryHandler(documents) },
     { requestType: ExportDocumentsQuery, handler: new ExportDocumentsQueryHandler(documents) },
-    { requestType: ListTopUpsAdminQuery, handler: new ListTopUpsAdminQueryHandler(topUps) },
-    { requestType: GetTopUpAdminQuery, handler: new GetTopUpAdminQueryHandler(topUps) },
-    { requestType: ExportTopUpsQuery, handler: new ExportTopUpsQueryHandler(topUps) },
+    { requestType: ListDepositsAdminQuery, handler: new ListDepositsAdminQueryHandler(deposits) },
+    { requestType: GetDepositAdminQuery, handler: new GetDepositAdminQueryHandler(deposits) },
+    { requestType: ExportDepositsQuery, handler: new ExportDepositsQueryHandler(deposits) },
   ];
 }

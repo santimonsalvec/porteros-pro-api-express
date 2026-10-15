@@ -7,7 +7,7 @@ export type GatewayName = (typeof SUPPORTED_GATEWAYS)[number];
 
 export type GatewayEnvironment = 'sandbox' | 'production';
 
-/** What a top-up costs at the gateway: a percentage, a fixed part, and VAT on both (research.md §9). */
+/** What a deposit costs at the gateway: a percentage, a fixed part, and VAT on both (research.md §9). */
 export interface GatewayCosts {
   /** Basis points of the amount (265 = 2.65 %). */
   percentBps: number;
@@ -23,7 +23,7 @@ export interface GatewayPublicConfig {
   environment: GatewayEnvironment;
 }
 
-export interface TopUpOption {
+export interface DepositOption {
   amount: number;
   cost: number;
   net: number;
@@ -42,7 +42,7 @@ export interface PaymentGatewaySettingsProps {
   revision?: number;
 }
 
-export const MAX_TOP_UP_AMOUNTS = 10;
+export const MAX_DEPOSIT_AMOUNTS = 10;
 const BPS_MAX = 10_000;
 const PUBLIC_KEY_PREFIX: Record<GatewayEnvironment, string> = { sandbox: 'pub_test_', production: 'pub_prod_' };
 
@@ -81,8 +81,8 @@ export function settingsProblems(props: Omit<PaymentGatewaySettingsProps, 'updat
   const costsValid = Boolean(costs) && isBps(costs.percentBps) && isBps(costs.vatBps) && Number.isInteger(costs.fixed) && costs.fixed >= 0;
   if (!costsValid) problems.push('costs: percentBps and vatBps must be integers 0–10000, fixed an integer ≥ 0');
   const amounts = props.amounts;
-  if (!Array.isArray(amounts) || amounts.length === 0 || amounts.length > MAX_TOP_UP_AMOUNTS) {
-    problems.push(`amounts: between 1 and ${MAX_TOP_UP_AMOUNTS} values`);
+  if (!Array.isArray(amounts) || amounts.length === 0 || amounts.length > MAX_DEPOSIT_AMOUNTS) {
+    problems.push(`amounts: between 1 and ${MAX_DEPOSIT_AMOUNTS} values`);
   } else if (!amounts.every((amount) => Number.isInteger(amount) && amount > 0)) {
     problems.push('amounts: every amount must be a positive integer');
   } else if (new Set(amounts).size !== amounts.length) {
@@ -95,7 +95,7 @@ export function settingsProblems(props: Omit<PaymentGatewaySettingsProps, 'updat
 }
 
 /**
- * Which gateway a country uses for top-ups, with its public configuration, costs and the amounts
+ * Which gateway a country uses for deposits, with its public configuration, costs and the amounts
  * offered (feature 022). One per country. Amounts are kept sorted ascending.
  */
 export class PaymentGatewaySettings extends Entity<string> {
@@ -143,8 +143,8 @@ export class PaymentGatewaySettings extends Entity<string> {
     return costFor(amount, this.costs);
   }
 
-  /** What the goalkeeper is offered: each amount with its cost and what reaches the wallet. */
-  options(): TopUpOption[] {
+  /** What the goalkeeper is offered: each amount with its cost and what reaches the operating balance. */
+  options(): DepositOption[] {
     return this.amounts.map((amount) => {
       const cost = this.costFor(amount);
       return { amount, cost, net: amount - cost };

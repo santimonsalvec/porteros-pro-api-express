@@ -1,6 +1,6 @@
 import type { IBookingRepository } from '../../goalkeeperRequests/common/ports.js';
 import type { ICityRepository } from '../../locations/common/ports.js';
-import type { IWalletMovementRepository } from '../../wallet/common/ports.js';
+import type { IBalanceMovementRepository } from '../../operatingBalance/common/ports.js';
 import type { IZoneRepository } from '../../zones/common/ports.js';
 
 /** What the admin view adds to a withdrawal (admin spec 005, research §13). */
@@ -26,7 +26,7 @@ export class WithdrawalAdminDetails implements IWithdrawalAdminDetails {
       bookings: Pick<IBookingRepository, 'findById'>;
       zones: Pick<IZoneRepository, 'getManyByIds'>;
       cities: Pick<ICityRepository, 'getByIds'>;
-      movements: Pick<IWalletMovementRepository, 'findByCauseKey'>;
+      movements: Pick<IBalanceMovementRepository, 'findByCauseKey'>;
     },
   ) {}
 

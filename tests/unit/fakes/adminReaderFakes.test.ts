@@ -10,9 +10,9 @@ import { FakeGoalkeeperRequestRepository } from '../../fakes/fakeGoalkeeperReque
 import { FakeBookingRepository } from '../../fakes/fakeBookingRepository.js';
 import { FakeUserAdminReader } from '../../fakes/fakeUserAdminReader.js';
 import { FakeGoalkeeperAdminReader } from '../../fakes/fakeGoalkeeperAdminReader.js';
-import type { FakeWalletStore } from '../../fakes/fakeWalletStore.js';
+import type { FakeOperatingBalanceStore } from '../../fakes/fakeOperatingBalanceStore.js';
 import type { FakeBookingLifecycleStore } from '../../fakes/fakeBookingLifecycleStore.js';
-import { buildGoalkeeperProfile } from '../../fixtures/walletFixtures.js';
+import { buildGoalkeeperProfile } from '../../fixtures/operatingBalanceFixtures.js';
 import { buildBooking } from '../../fixtures/offerFixtures.js';
 import { buildRequest } from '../../fixtures/quoteFixtures.js';
 
@@ -71,7 +71,7 @@ describe('the admin reader fakes (admin spec 005)', () => {
     const profiles = new FakeGoalkeeperProfileRepository();
     profiles.seed(buildGoalkeeperProfile('g1', { cityId: 'med', zoneIds: ['z1'], suspendedUntil: new Date('2026-10-20'), availableForOffers: false }));
     profiles.seed(buildGoalkeeperProfile('g2', { cityId: 'cali', zoneIds: ['z2'] }));
-    const wallets = { wallets: () => [{ goalkeeperId: 'g2', balance: 50000, currency: 'COP' }] } as unknown as FakeWalletStore;
+    const operatingBalances = { operatingBalances: () => [{ goalkeeperId: 'g2', balance: 50000, currency: 'COP' }] } as unknown as FakeOperatingBalanceStore;
     const bookings = new FakeBookingRepository();
     bookings.seed(buildBooking({ id: 'b2', goalkeeperId: 'g1', status: 'assigned', assignedAt: NOW, startsAt: new Date('2026-10-14T00:00:00.000Z') }));
     bookings.seed(buildBooking({ id: 'b1', goalkeeperId: 'g1', status: 'assigned', assignedAt: NOW, startsAt: new Date('2026-10-13T00:00:00.000Z') }));
@@ -79,7 +79,7 @@ describe('the admin reader fakes (admin spec 005)', () => {
       ratings: () => [{ subjectId: 'g1', side: 'client', stars: 5 }, { subjectId: 'g1', side: 'client', stars: 4 }, { subjectId: 'g1', side: 'goalkeeper', stars: 1 }],
       incidents: () => [{ goalkeeperId: 'g1', kind: 'withdrawal' }, { goalkeeperId: 'g1', kind: 'no_show' }, { goalkeeperId: 'g2', kind: 'no_show' }],
     } as unknown as FakeBookingLifecycleStore;
-    const reader = new FakeGoalkeeperAdminReader({ profiles, wallets, lifecycle, bookings });
+    const reader = new FakeGoalkeeperAdminReader({ profiles, operatingBalances, lifecycle, bookings });
     const ids = async (filter: Partial<Parameters<typeof reader.list>[0]>) => (await reader.list({ now: NOW, page: 1, pageSize: 20, ...filter })).items.map((item) => item.userId).sort();
 
     expect(await ids({})).toEqual(['g1', 'g2']);

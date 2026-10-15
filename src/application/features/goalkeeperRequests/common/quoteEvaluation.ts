@@ -2,7 +2,7 @@ import type { City } from '../../../../domain/locations/city.js';
 import type { MatchTier } from '../../../../domain/pricing/tieredRate.js';
 import type { Zone } from '../../../../domain/zones/zone.js';
 import type { IRegionRepository } from '../../locations/common/ports.js';
-import type { ICommissionResolver } from '../../wallet/common/ports.js';
+import type { ICommissionResolver } from '../../operatingBalance/common/ports.js';
 import { SLOT_STEP_MINUTES } from './bookingLimits.js';
 import { computeAmounts, selectSurchargeTier, selectUnitRate } from './pricing.js';
 import type { IBookingSettingsRepository, ICountryLookup, IRentalRateRepository } from './ports.js';

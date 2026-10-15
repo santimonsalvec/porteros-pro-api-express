@@ -2,7 +2,7 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 import { pricingStaff } from '../pricingTestHelpers.js';
-import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper } from '../walletTestHelpers.js';
+import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper } from '../operatingBalanceTestHelpers.js';
 import { POINTS } from '../../fixtures/quoteFixtures.js';
 
 type Context = Awaited<ReturnType<typeof buildTestApp>>;
@@ -64,7 +64,7 @@ describe('admin commission writes reach the bookings (admin spec 004)', () => {
     const { editor } = await pricingStaff(context);
     const client = await signInClient(context, 'sub-0405');
     const goalkeeper = await signInGoalkeeper(context, 'sub-0406');
-    await context.walletLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 30000, reason: 'Saldo de pruebas', operationKey: 'k-e1' });
+    await context.operatingBalanceLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 30000, reason: 'Saldo de pruebas', operationKey: 'k-e1' });
     const available = () => request(context.app).get('/goalkeepers/me/available-bookings').set('Authorization', `Bearer ${goalkeeper.token}`);
 
     const created = await editor.post('/admin/commissions', { scope: 'zone', refId: 'zone-cali-norte', amount: 9000 });

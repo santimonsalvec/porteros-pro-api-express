@@ -79,7 +79,7 @@ describe('auditTrail with answers that are not JSON', () => {
   it('keeps res.locals.auditRequest, redacted, on a read', async () => {
     const { log, trail } = setup();
     const res = fakeResponse();
-    const exportSpec = { permission: 'topups.read' as const, action: 'topUps.export', resourceType: 'topUps', resourceId: () => 'export' };
+    const exportSpec = { permission: 'deposits.read' as const, action: 'deposits.export', resourceType: 'deposits', resourceId: () => 'export' };
 
     await run(trail.auditedRead(exportSpec), res, (r) => {
       r.locals.auditRequest = { status: 'pending', countryId: 'country-co', rows: 2, email: 'ana@example.com' };
@@ -93,14 +93,14 @@ describe('auditTrail with answers that are not JSON', () => {
   it('keeps res.locals.auditRequest on a write instead of the body', async () => {
     const { log, trail } = setup();
     const res = fakeResponse();
-    const writeSpec = { permission: 'topups.reconcile' as const, action: 'topUp.reconcile', resourceType: 'topUp', resourceId: () => 'top-1' };
+    const writeSpec = { permission: 'deposits.reconcile' as const, action: 'deposit.reconcile', resourceType: 'deposit', resourceId: () => 'top-1' };
 
     await run(trail.audited(writeSpec), res, (r) => {
-      r.locals.auditRequest = { topUpId: 'top-1', answer: 'APPROVED' };
-      r.status(200).json({ topUpId: 'top-1', status: 'approved' });
+      r.locals.auditRequest = { depositId: 'top-1', answer: 'APPROVED' };
+      r.status(200).json({ depositId: 'top-1', status: 'approved' });
     });
 
-    expect(log.entries[0]).toMatchObject({ kind: 'write', request: { topUpId: 'top-1', answer: 'APPROVED' } });
+    expect(log.entries[0]).toMatchObject({ kind: 'write', request: { depositId: 'top-1', answer: 'APPROVED' } });
   });
 
   it('leaves request null on a read without auditRequest', async () => {

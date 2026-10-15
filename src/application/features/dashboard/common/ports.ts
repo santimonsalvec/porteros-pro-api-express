@@ -56,11 +56,11 @@ export interface InvoicingArea {
   stale: number;
 }
 
-export interface TopUpsArea {
+export interface DepositsArea {
   pending: number;
 }
 
-export interface WalletsArea {
+export interface OperatingBalancesArea {
   /** One row per currency: amounts of different currencies are never added (FR-006). */
   byCurrency: { currency: string; balanceTotal: number; debtTotal: number; negativeCount: number }[];
 }
@@ -82,8 +82,8 @@ export interface IDashboardReader {
   registrations(context: DashboardReadContext): Promise<RegistrationsArea>;
   cases(context: DashboardReadContext): Promise<CasesArea>;
   invoicing(context: DashboardReadContext): Promise<InvoicingArea>;
-  topUps(context: DashboardReadContext): Promise<TopUpsArea>;
-  wallets(context: DashboardReadContext): Promise<WalletsArea>;
+  deposits(context: DashboardReadContext): Promise<DepositsArea>;
+  operatingBalances(context: DashboardReadContext): Promise<OperatingBalancesArea>;
 }
 
 /** The dashboard's logging, so the application never imports pino. Never given personal data. */

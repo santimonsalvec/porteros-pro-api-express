@@ -23,7 +23,7 @@ Las configuraciones técnicas (nube, llaves, variables de despliegue) están en 
 9. [Comisión de la plataforma](#9-comisión-de-la-plataforma-commissionsettings)
 10. [IVA sobre la comisión](#10-iva-sobre-la-comisión-taxsettings)
 11. [Ofertas y recordatorios a porteros](#11-ofertas-y-recordatorios-a-porteros)
-12. [Recargas: pasarela, montos y costos](#12-recargas-pasarela-montos-y-costos-paymentgatewaysettings)
+12. [Depósitos: pasarela, montos y costos](#12-depositos-pasarela-montos-y-costos-paymentgatewaysettings)
 13. [Facturación electrónica](#13-facturación-electrónica-invoicingsettings)
 14. [Términos y condiciones](#14-términos-y-condiciones)
 15. [Operación diaria del administrador](#15-operación-diaria-del-administrador)
@@ -38,7 +38,7 @@ Las configuraciones técnicas (nube, llaves, variables de despliegue) están en 
 | Lugar | Qué se configura ahí | Quién lo cambia | Cuándo aplica |
 |---|---|---|---|
 | **Colecciones de MongoDB sembradas** | La carga en bloque de regiones y ciudades de un país | El responsable de los datos, con `mongosh` o Atlas | De inmediato, en la siguiente operación |
-| **Administrador web** (`porteros-pro-admin`) y sus endpoints `/admin/...` | Países, regiones, ciudades y zonas (Geografía), tipos de documento y superficies (Catálogos), la página Preparación (§17), tarifas, comisiones, reglas de reserva, IVA y el simulador (Precios y reglas, §4–§10), pasarela de recargas por país, proveedor de facturación por país, ajustes de billetera, reversión de penalidades, casos, facturas | Un miembro del equipo con el permiso de esa acción (§18) | De inmediato, solo a operaciones posteriores |
+| **Administrador web** (`porteros-pro-admin`) y sus endpoints `/admin/...` | Países, regiones, ciudades y zonas (Geografía), tipos de documento y superficies (Catálogos), la página Preparación (§17), tarifas, comisiones, reglas de reserva, IVA y el simulador (Precios y reglas, §4–§10), pasarela de depósitos por país, proveedor de facturación por país, ajustes de saldo operativo, reversión de penalidades, casos, facturas | Un miembro del equipo con el permiso de esa acción (§18) | De inmediato, solo a operaciones posteriores |
 | **Variables de entorno** (App Hosting) | Recordatorios de ofertas, versión de términos, activación de la facturación, modos técnicos | Quien despliega | Al reiniciar el backend |
 
 El administrador web (`porteros-pro-admin`) ya existe, pero en esta entrega solo tiene el ingreso y el armazón: sus pantallas llegan por entregas. Mientras tanto, los endpoints se usan con el token de una sesión del administrador (`POST /auth/admin/sign-in`). Cada endpoint exige un permiso (§18), y cada cambio queda en el registro de auditoría `adminAuditLog`.
@@ -69,14 +69,14 @@ Desde la spec 003 del administrador estos datos se editan en **Geografía** y **
 
 ### 3.1 Países (`countries`)
 
-Pantalla: **Geografía → Países** (un país no se borra). El código ISO se guarda en mayúsculas y es único; cambiarlo pide confirmación porque los secretos de la pasarela y de la facturación se buscan por él. **La moneda se puede poner o corregir mientras el país no tenga billeteras, recargas ni reservas; después queda bloqueada** (`currency_locked`).
+Pantalla: **Geografía → Países** (un país no se borra). El código ISO se guarda en mayúsculas y es único; cambiarlo pide confirmación porque los secretos de la pasarela y de la facturación se buscan por él. **La moneda se puede poner o corregir mientras el país no tenga saldos operativos, depósitos ni reservas; después queda bloqueada** (`currency_locked`).
 
 | Campo | Obligatorio | Descripción |
 |---|---|---|
 | `name` | Sí | Nombre visible |
 | `dialCode` | Sí | Indicativo telefónico, por ejemplo `+57` |
 | `countryCode` | Sí | Código ISO de dos letras (`CO`). También forma el nombre de los secretos de la pasarela y del proveedor de facturación (`WOMPI_CO_…`, `SIIGO_CO_…`) |
-| `currency` | Sí, para operar | Código ISO 4217 (`COP`). **Sin moneda el país no puede cotizar** y sus porteros no tienen billetera (`wallet_not_configured`) |
+| `currency` | Sí, para operar | Código ISO 4217 (`COP`). **Sin moneda el país no puede cotizar** y sus porteros no tienen saldo operativo (`operating_balance_not_configured`) |
 
 ### 3.2 Regiones (`regions`)
 
@@ -85,7 +85,7 @@ Pantalla: **Geografía → Regiones** (crear y editar en un diálogo). Desde el 
 | Campo | Descripción |
 |---|---|
 | `name` | Nombre (departamento, estado) |
-| `countryId` | El `_id` del país. **Sin él, las ciudades de la región no tienen país**: no cotizan ni tienen billetera |
+| `countryId` | El `_id` del país. **Sin él, las ciudades de la región no tienen país**: no cotizan ni tienen saldo operativo |
 
 ### 3.3 Ciudades (`cities`)
 
@@ -343,7 +343,7 @@ db.commissionSettings.insertMany([
 
 ## 10. IVA sobre la comisión (`taxSettings`)
 
-- **Regla:** el IVA se cobra **encima** de la comisión (y de una penalidad en dinero, si existiera), como un movimiento aparte de la billetera, en la misma operación. La comisión es lo que gana la plataforma. Una devolución reintegra también el IVA, con la tarifa con la que se cobró.
+- **Regla:** el IVA se cobra **encima** de la comisión (y de una penalidad en dinero, si existiera), como un movimiento aparte de el saldo operativo, en la misma operación. La comisión es lo que gana la plataforma. Una devolución reintegra también el IVA, con la tarifa con la que se cobró.
 - **Dónde:** administrador → **Precios y reglas → IVA** (se escribe en porcentaje; se guarda en puntos básicos). Por debajo usa el endpoint de administración, **por país**:
 
 ```bash
@@ -375,12 +375,12 @@ curl "$API/admin/tax-settings/<countryCoId>" -H "Authorization: Bearer $TA"
 
 - **Interruptor del portero:** `PUT /api/goalkeepers/me/offers-availability`. Apagado, el portero no recibe ofertas, no ve partidos y no puede aceptar.
 
-## 12. Recargas: pasarela, montos y costos (`paymentGatewaySettings`)
+## 12. Depósitos: pasarela, montos y costos (`paymentGatewaySettings`)
 
 - **Regla:**
-  - El portero recarga su billetera solo con los **montos definidos para su país**, a través de la **pasarela configurada para el país**.
-  - El **costo de la pasarela lo paga el portero**: antes de pagar ve el monto, el costo y el neto; al aprobarse se acreditan el monto (`top_up`) y se descuenta el costo (`gateway_fee`).
-  - Una recarga cubre primero la deuda.
+  - El portero deposita en su saldo operativo solo con los **montos definidos para su país**, a través de la **pasarela configurada para el país**.
+  - El **costo de la pasarela lo paga el portero**: antes de pagar ve el monto, el costo y el neto; al aprobarse se acreditan el monto (`deposit`) y se descuenta el costo (`gateway_fee`).
+  - Un depósito cubre primero la deuda.
   - El saldo **no se puede retirar**.
 - **Dónde:** administrador → **Configuración → Pasarela de pagos**, **por país**. El formulario muestra el costo y el neto de cada monto, si las credenciales del país están cargadas y avisa que los secretos van en Secret Manager. Cada guardado exige la `revision` leída (`null` crea la del país): si otra persona guardó antes, se rechaza con `409 stale_revision` (admin spec 007). Por debajo usa `GET|PUT /admin/payment-gateways/{countryId}` (`payments.settings.manage`).
 
@@ -395,10 +395,10 @@ curl "$API/admin/tax-settings/<countryCoId>" -H "Authorization: Bearer $TA"
 | `amounts` | 1 a 10 enteros > 0, distintos | Montos ofrecidos (se ordenan). Cada uno debe dejar un neto ≥ 1 |
 
 - **Cálculo del costo:** `(monto × porcentaje + fijo) × (1 + IVA)`, redondeado hacia arriba. Con los valores de ejemplo, 20.000 → costo 1.464 → neto 18.536.
-- **Cambiar la pasarela o el entorno** no afecta las recargas en curso: cada una se confirma con la pasarela y el entorno con que empezó.
-- **Sin configuración:** el país no tiene recargas (`top_ups_unavailable`).
-- **Secretos:** van en Secret Manager (`WOMPI_{PAÍS}_PRIVATE_KEY`, `_EVENTS_SECRET`, `_INTEGRITY_SECRET`). Sin ellos, iniciar una recarga responde `gateway_unavailable`. Ver `docs/payments.md`.
-- **Conciliación (fija):** una recarga sin confirmación se consulta a los 15 min, 1 h, 6 h y 24 h y vence a las 48 h. Un pago tardío igual se acredita.
+- **Cambiar la pasarela o el entorno** no afecta los depósitos en curso: cada una se confirma con la pasarela y el entorno con que empezó.
+- **Sin configuración:** el país no tiene depósitos (`deposits_unavailable`).
+- **Secretos:** van en Secret Manager (`WOMPI_{PAÍS}_PRIVATE_KEY`, `_EVENTS_SECRET`, `_INTEGRITY_SECRET`). Sin ellos, iniciar un depósito responde `gateway_unavailable`. Ver `docs/payments.md`.
+- **Conciliación (fija):** un depósito sin confirmación se consulta a los 15 min, 1 h, 6 h y 24 h y vence a las 48 h. Un pago tardío igual se acredita.
 
 ## 13. Facturación electrónica (`invoicingSettings`)
 
@@ -430,7 +430,7 @@ Ver `docs/invoicing.md` para la operación.
 
 ## 14. Términos y condiciones
 
-- **Regla:** para recargar, el portero debe haber aceptado la **versión vigente** de los términos. Al publicar una versión nueva, todos deben aceptarla de nuevo (`POST /api/profile/terms/accept`) antes de su próxima recarga.
+- **Regla:** para depósitor, el portero debe haber aceptado la **versión vigente** de los términos. Al publicar una versión nueva, todos deben aceptarla de nuevo (`POST /api/profile/terms/accept`) antes de su próxima depósito.
 - **Dónde:** variables de entorno `LEGAL_TERMS_VERSION` y `LEGAL_PRIVACY_POLICY_VERSION` (por defecto `1.0`). Cambiarla exige un nuevo despliegue.
 
 ---
@@ -439,8 +439,8 @@ Ver `docs/invoicing.md` para la operación.
 
 | Acción | Endpoint (permiso) | Detalle |
 |---|---|---|
-| Ver la billetera de un portero | `GET /admin/goalkeepers/{userId}/wallet` y `…/wallet/movements` (`wallets.read`) | Movimientos con actor, clave de causa y datos de facturación |
-| Ajuste manual (crédito o débito) | `POST /admin/goalkeepers/{userId}/wallet/adjustments` con `{ amount, reason, operationKey }` (`wallets.adjust`) | `amount` ≠ 0 (negativo = débito, no deja saldo negativo); `reason` de 3–500 caracteres; `operationKey` es un UUID que evita duplicados. Los ajustes **no** se facturan |
+| Ver el saldo operativo de un portero | `GET /admin/goalkeepers/{userId}/operating-balance` y `…/operating-balance/movements` (`operating_balances.read`) | Movimientos con actor, clave de causa y datos de facturación |
+| Ajuste manual (crédito o débito) | `POST /admin/goalkeepers/{userId}/operating-balance/adjustments` con `{ amount, reason, operationKey }` (`operating_balances.adjust`) | `amount` ≠ 0 (negativo = débito, no deja saldo negativo); `reason` de 3–500 caracteres; `operationKey` es un UUID que evita duplicados. Los ajustes **no** se facturan |
 | Ver retiros e inasistencias | `GET /admin/goalkeepers/{userId}/withdrawals` (`goalkeepers.read`) | Con sus penalidades; en el admin, cada caso trae la ciudad del partido (`match`) y la comisión cobrada (`commission`) |
 | Revertir una penalidad | `POST /admin/goalkeepers/{userId}/withdrawals/{id}/reversal` con `{ refund, liftSuspension, reason }` (`goalkeepers.penalties.reverse`) | `refund: true` devuelve la comisión (y su IVA, con nota crédito); `liftSuspension: true` levanta la suspensión. El incidente deja de contar para el límite semanal |
 | Levantar una suspensión completa | Desde el admin (Porteros → aviso de suspensión): una reversión por caso con penalidad vigente, en serie, con `liftSuspension: true` y `refund` solo si se marca la casilla y el caso tiene comisión sin devolver | Sin ruta nueva. Cada caso queda perdonado y en la auditoría con el motivo. Si una falla, se reintentan solo las demás |
@@ -454,16 +454,16 @@ Ver `docs/invoicing.md` para la operación.
 | Casos (PQRS) | `GET /admin/cases?status=open` (también `countryId`, `type`, `from`, `to`, `order=oldest`), `GET /admin/cases/{id}`, `POST /admin/cases/{id}/resolve` con `{ note }` (`cases.read; resolver: cases.resolve`) | Se abren cuando el cliente dice "no llegó" o el portero "no me pagaron". El detalle trae la reserva y el check-in sin la foto |
 | Ver una solicitud de principio a fin | `GET /admin/requests` (estado, país, ciudad, zona, fechas del partido, cliente, portero) y `GET /admin/requests/{id}` (`requests.read`) | Hechos para la línea de tiempo: cotización, cada reserva con su aceptación, check-in, cierre o cancelación (quién y por qué), dinero, retiros, calificaciones y casos |
 | Ver la foto de un check-in | `GET /admin/requests/{id}/bookings/{bookingId}/check-in-photo` (`requests.read`) o `GET /admin/cases/{id}/check-in-photo` (`cases.read`) | Lectura sensible: queda en la auditoría quién la miró, sin la foto |
-| Cancelar como administrador | `POST /admin/requests/{id}/cancel` o `…/bookings/{bookingId}/cancel` con `{ reason }` (`requests.cancel`) | Sin plazo de cancelación gratis: a cada portero asignado se le devuelve la comisión completa (y su IVA) una sola vez. No cuenta como retiro ni inasistencia de nadie (sin penalidad ni suspensión). El cliente y el portero reciben "PorterosPRO canceló tu partido…" **sin el motivo**, que es interno (queda en la reserva y en la auditoría; el movimiento de billetera dice `admin_cancelled`). Las ofertas pendientes se retiran como siempre. Repetir la misma cancelación no hace nada |
+| Cancelar como administrador | `POST /admin/requests/{id}/cancel` o `…/bookings/{bookingId}/cancel` con `{ reason }` (`requests.cancel`) | Sin plazo de cancelación gratis: a cada portero asignado se le devuelve la comisión completa (y su IVA) una sola vez. No cuenta como retiro ni inasistencia de nadie (sin penalidad ni suspensión). El cliente y el portero reciben "PorterosPRO canceló tu partido…" **sin el motivo**, que es interno (queda en la reserva y en la auditoría; el movimiento de saldo operativo dice `admin_cancelled`). Las ofertas pendientes se retiran como siempre. Repetir la misma cancelación no hace nada |
 | Calificaciones | `GET /admin/ratings` (portero, cliente, sentido, estrellas, fechas) (`ratings.read`) | Con el partido y el caso que abrió cada una; los comentarios nunca van a los logs |
 | "¿Le llegó el aviso?" | `GET /admin/notifications?userId=…` (`notifications.read`) | Todos los avisos guardados (90 días), también los que el usuario borró, con su envío: las ofertas registran cuándo se enviaron y sus recordatorios; los demás se envían al crearse. El sistema no sabe si el teléfono lo mostró |
 | Aviso de prueba a un usuario | `POST /admin/users/{userId}/test-push` (`notifications.send`) | El mismo aviso de prueba de la app, a los dispositivos de ese usuario, con el mismo límite (compartido) por minuto |
 | Facturas con problemas | Finanzas → Facturación: `GET /admin/invoicing/documents` (estado, tipo, país, fechas, `stale=true`), `GET …/{id}` y `POST …/{id}/retry` (`invoicing.read; reintentar: invoicing.retry`) | Corregir los datos (códigos DANE, documento del portero) y reintentar. La lista sigue del más antiguo al más reciente y dice si la emisión está encendida (`issuingEnabled`) |
 | Descargar el PDF o el XML de un documento | `GET /admin/invoicing/documents/{id}/pdf` o `…/xml` (`invoicing.read`) | Lectura sensible: queda en la auditoría quién lo descargó, sin el archivo. Un 404 `file_not_available` dice que el proveedor no entrega ese archivo |
-| Ver las billeteras | Finanzas → Billeteras: `GET /admin/wallets` (país, `negative=true`, orden por saldo) (`wallets.read`) | Solo los porteros con al menos un movimiento; cada fila abre la pestaña Billetera del portero |
-| "Recargué y no me llegó el saldo" | Finanzas → Recargas: `GET /admin/top-ups` (estado, país, portero, fechas) y `GET …/{id}` (`topups.read`) | El detalle trae cada consulta a la pasarela (`checkLog`: cuándo, quién —barrido o miembro—, qué respondió y qué cambió), la próxima consulta y el vencimiento |
-| Conciliar una recarga ya | `POST /admin/top-ups/{id}/reconcile` (`topups.reconcile`) | La misma consulta del barrido, sin mover su calendario. Acredita una aprobación una sola vez; dos consultas a la vez por la misma recarga no ocurren (turno de 30 s, `409 reconcile_in_progress`) |
-| Exportar para contabilidad | `GET /admin/top-ups/export` y `GET /admin/invoicing/documents/export`, con los filtros de su lista | CSV en UTF-8 con BOM y `;`, hasta 10 000 filas (si hay más, `422 export_too_large`); sin documento ni correo del comprador. Cada exportación queda en la auditoría con los filtros y las filas |
+| Ver los saldos operativos | Finanzas → Saldos operativos: `GET /admin/operating-balances` (país, `negative=true`, orden por saldo) (`operating_balances.read`) | Solo los porteros con al menos un movimiento; cada fila abre la pestaña Saldo operativo del portero |
+| "Deposité y no me llegó el saldo" | Finanzas → Depósitos: `GET /admin/deposits` (estado, país, portero, fechas) y `GET …/{id}` (`deposits.read`) | El detalle trae cada consulta a la pasarela (`checkLog`: cuándo, quién —barrido o miembro—, qué respondió y qué cambió), la próxima consulta y el vencimiento |
+| Conciliar un depósito ya | `POST /admin/deposits/{id}/reconcile` (`deposits.reconcile`) | La misma consulta del barrido, sin mover su calendario. Acredita una aprobación una sola vez; dos consultas a la vez por la misma depósito no ocurren (turno de 30 s, `409 reconcile_in_progress`) |
+| Exportar para contabilidad | `GET /admin/deposits/export` y `GET /admin/invoicing/documents/export`, con los filtros de su lista | CSV en UTF-8 con BOM y `;`, hasta 10 000 filas (si hay más, `422 export_too_large`); sin documento ni correo del comprador. Cada exportación queda en la auditoría con los filtros y las filas |
 
 ## 16. Reglas fijas del sistema (no configurables)
 
@@ -475,7 +475,7 @@ Ver `docs/invoicing.md` para la operación.
 | Validez de una cotización | 3 min |
 | Aviso "te quedan 10 minutos" del check-in | 10 min antes del cierre de la ventana |
 | Calificaciones | Una por lado y por reserva, privadas; vencen a los 7 días del partido |
-| Conciliación de recargas | 15 min, 1 h, 6 h y 24 h; vencen a las 48 h |
+| Conciliación de depósitos | 15 min, 1 h, 6 h y 24 h; vencen a las 48 h |
 | Reintentos de facturación | 1, 5, 15 y 60 min, 3, 6, 12 y 24 h; luego cada 24 h. Aviso si un documento lleva más de 24 h pendiente |
 | Red de seguridad de facturación | Crea el documento de cualquier cobro de más de 10 min sin documento (mira 7 días atrás) |
 | Devolución por retiro o inasistencia | Nunca: la comisión no se devuelve |

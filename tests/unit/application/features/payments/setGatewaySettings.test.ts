@@ -10,7 +10,7 @@ const COSTS = { percentBps: 265, fixed: 700, vatBps: 1900 };
 const SANDBOX = { publicKey: 'pub_test_new', environment: 'sandbox' as const };
 
 function setter(harness: PaymentsHarness) {
-  return new SetGatewaySettingsCommandHandler(harness.wallet.countries, harness.settings, harness.secrets, harness.clock, harness.logger);
+  return new SetGatewaySettingsCommandHandler(harness.operatingBalance.countries, harness.settings, harness.secrets, harness.clock, harness.logger);
 }
 
 describe('SetGatewaySettingsCommandHandler', () => {
@@ -35,7 +35,7 @@ describe('SetGatewaySettingsCommandHandler', () => {
         updatedAt: harness.clock.now().toISOString(),
       },
     });
-    expect(await new GetGatewaySettingsQueryHandler(harness.settings, harness.secrets, harness.wallet.countries).handle(new GetGatewaySettingsQuery('country-co'))).toMatchObject({
+    expect(await new GetGatewaySettingsQueryHandler(harness.settings, harness.secrets, harness.operatingBalance.countries).handle(new GetGatewaySettingsQuery('country-co'))).toMatchObject({
       outcome: 'success',
       settings: { publicConfig: SANDBOX },
     });
@@ -59,7 +59,7 @@ describe('SetGatewaySettingsCommandHandler', () => {
 
   it('refuses an unknown country, and a country without a currency', async () => {
     const harness = new PaymentsHarness();
-    harness.wallet.countries.seed(new Country({ id: 'country-xx', name: 'Sin moneda', dialCode: '+0', countryCode: 'XX' }));
+    harness.operatingBalance.countries.seed(new Country({ id: 'country-xx', name: 'Sin moneda', dialCode: '+0', countryCode: 'XX' }));
 
     expect(await setter(harness).handle(new SetGatewaySettingsCommand('admin-1', 'nowhere', 'wompi', SANDBOX, COSTS, [20000], 0))).toEqual({
       outcome: 'country_not_found',
@@ -70,17 +70,17 @@ describe('SetGatewaySettingsCommandHandler', () => {
     });
   });
 
-  it('leaves a pending top-up on the gateway and environment it started with', async () => {
+  it('leaves a pending deposit on the gateway and environment it started with', async () => {
     const harness = new PaymentsHarness();
     harness.goalkeeper();
-    const { topUp } = await harness.start();
+    const { deposit } = await harness.start();
 
     await setter(harness).handle(
       new SetGatewaySettingsCommand('admin-1', 'country-co', 'wompi', { publicKey: 'pub_prod_live', environment: 'production' }, COSTS, [30000], 0),
     );
 
-    expect(await harness.topUps.getById(topUp.topUpId)).toMatchObject({ gateway: 'wompi', environment: 'sandbox', status: 'pending', amount: 20000 });
-    expect(await harness.deliver(harness.event(topUp.reference, 'APPROVED'))).toEqual({ outcome: 'applied' });
+    expect(await harness.deposits.getById(deposit.depositId)).toMatchObject({ gateway: 'wompi', environment: 'sandbox', status: 'pending', amount: 20000 });
+    expect(await harness.deliver(harness.event(deposit.reference, 'APPROVED'))).toEqual({ outcome: 'applied' });
   });
 });
 
@@ -109,7 +109,7 @@ describe('SetGatewaySettingsCommandHandler revision (admin spec 007, FR-025)', (
     const harness = new PaymentsHarness();
     const loaded = await save(harness, 0);
     harness.secrets.secrets.clear();
-    const missing = await new GetGatewaySettingsQueryHandler(harness.settings, harness.secrets, harness.wallet.countries).handle(new GetGatewaySettingsQuery('country-co'));
+    const missing = await new GetGatewaySettingsQueryHandler(harness.settings, harness.secrets, harness.operatingBalance.countries).handle(new GetGatewaySettingsQuery('country-co'));
 
     expect(loaded).toMatchObject({ settings: { credentialsPresent: true } });
     expect(missing).toMatchObject({ settings: { credentialsPresent: false, revision: 1 } });
@@ -121,6 +121,6 @@ describe('GetGatewaySettingsQueryHandler', () => {
   it('answers not found for a country without settings', async () => {
     const harness = new PaymentsHarness();
 
-    expect(await new GetGatewaySettingsQueryHandler(harness.settings, harness.secrets, harness.wallet.countries).handle(new GetGatewaySettingsQuery('country-mx'))).toEqual({ outcome: 'not_found' });
+    expect(await new GetGatewaySettingsQueryHandler(harness.settings, harness.secrets, harness.operatingBalance.countries).handle(new GetGatewaySettingsQuery('country-mx'))).toEqual({ outcome: 'not_found' });
   });
 });

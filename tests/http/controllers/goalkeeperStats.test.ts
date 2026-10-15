@@ -4,9 +4,9 @@ import { Booking } from '../../../src/domain/bookings/booking.js';
 import { GoalkeeperPrice } from '../../../src/domain/bookings/goalkeeperPrice.js';
 import { City } from '../../../src/domain/locations/city.js';
 import { buildRequest, buildRequestBookings } from '../../fixtures/quoteFixtures.js';
-import { buildGoalkeeperProfile } from '../../fixtures/walletFixtures.js';
+import { buildGoalkeeperProfile } from '../../fixtures/operatingBalanceFixtures.js';
 import { buildTestApp } from '../testAppFactory.js';
-import { signInClient, signInGoalkeeper, type TestApp } from '../walletTestHelpers.js';
+import { signInClient, signInGoalkeeper, type TestApp } from '../operatingBalanceTestHelpers.js';
 
 function stats(context: TestApp, token: string) {
   return request(context.app).get('/goalkeepers/me/stats').set('Authorization', `Bearer ${token}`);
@@ -72,7 +72,7 @@ describe("GET /goalkeepers/me/stats — US1: the goalkeeper's month in numbers",
     expect(notGoalkeeper.body.error).toBe('goalkeeper_not_found');
   });
 
-  it('422 wallet_not_configured without currency, 422 time_zone_not_configured without time zone', async () => {
+  it('422 operating_balance_not_configured without currency, 422 time_zone_not_configured without time zone', async () => {
     const context = await buildTestApp();
     context.cityRepository.seed(
       new City({ id: 'city-palmira', name: 'Palmira', regionId: 'region-valle', zoneCityId: null }),
@@ -90,7 +90,7 @@ describe("GET /goalkeepers/me/stats — US1: the goalkeeper's month in numbers",
     const timeZone = await stats(context, noTimeZone.token);
 
     expect(currency.status).toBe(422);
-    expect(currency.body.error).toBe('wallet_not_configured');
+    expect(currency.body.error).toBe('operating_balance_not_configured');
     expect(timeZone.status).toBe(422);
     expect(timeZone.body.error).toBe('time_zone_not_configured');
   });

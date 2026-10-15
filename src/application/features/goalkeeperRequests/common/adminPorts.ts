@@ -40,7 +40,7 @@ export interface RequestListRecord {
   createdAt: Date;
 }
 
-/** What the wallet says about one booking's commission, read by its cause keys. */
+/** What the operating balance says about one booking's commission, read by its cause keys. */
 export interface BookingMoneyRecord {
   charged: number;
   chargedVat: number;

@@ -6,8 +6,8 @@ import type { IIdGenerator } from '../../../auth/common/ports.js';
 import type { IEventRelay } from '../../../events/common/ports.js';
 import type { IBookingAuditLogger, IBookingRepository } from '../../../goalkeeperRequests/common/ports.js';
 import { assignedGoalkeeperIds } from '../../../goalkeeperRequests/common/requestResponse.js';
-import type { GoalkeeperWalletContextDependencies } from '../../../wallet/common/goalkeeperWalletContext.js';
-import type { LedgerOwner } from '../../../wallet/common/walletLedger.js';
+import type { GoalkeeperOperatingBalanceContextDependencies } from '../../../operatingBalance/common/goalkeeperOperatingBalanceContext.js';
+import type { LedgerOwner } from '../../../operatingBalance/common/operatingBalanceLedger.js';
 import type { AdminCancelResult, IBookingLifecycleStore, ILifecycleLogger } from '../../common/ports.js';
 import { addLedgerOwner } from '../../common/resolveOwners.js';
 import { CancelBookingsByAdminCommand, type CancelBookingsByAdminResult } from './cancelBookingsByAdminCommand.js';
@@ -15,7 +15,7 @@ import { CancelBookingsByAdminCommand, type CancelBookingsByAdminResult } from '
 export interface CancelBookingsByAdminDependencies {
   bookingRepository: Pick<IBookingRepository, 'findByRequestIds'>;
   store: IBookingLifecycleStore;
-  walletContext: GoalkeeperWalletContextDependencies;
+  operatingBalanceContext: GoalkeeperOperatingBalanceContextDependencies;
   relay: IEventRelay;
   idGenerator: IIdGenerator;
   clock: IClock;
