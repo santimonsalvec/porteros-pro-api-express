@@ -13,8 +13,7 @@ Los errores siguen la forma existente: `{ error: string, message: string, ...det
 Requiere autenticación. Lista las sedes `enabled`, ordenadas por nombre.
 
 ```json
-200 { "markets": [ { "id": "…", "name": "Medellín", "countryId": "…", "timeZone": "America/Bogota",
-                     "mapCenter": { "lat": 6.2518, "lng": -75.5636, "zoom": 12 } } ] }
+200 { "markets": [ { "id": "…", "name": "Medellín", "countryId": "…", "timeZone": "America/Bogota" } ] }
 ```
 
 ### A2. `GET /zones?marketId=` · Cambia (antes `?cityId=`)
@@ -158,8 +157,8 @@ Sin permiso propio (cualquier miembro activo).
 |---|---|---|---|---|
 | `GET /admin/markets` | `markets.read` | market | `?status=`. Lista `{ id, name, country, status, zoneCount, readiness: { ready, missingCount } }` | |
 | `GET /admin/markets/:id` | `markets.read` | market | Sede, `enabled*`/`disabled*` y `revision` | `404` |
-| `POST /admin/markets` | `markets.manage` + alcance de país o plataforma | country | `{ name, countryId, timeZone, mapCenter }` → `201 { marketId }` | `country_not_found`, `country_without_currency`, `invalid_time_zone`, `market_name_taken`, `scope_denied` |
-| `PATCH /admin/markets/:id` | `markets.manage` | market | `{ revision, name?, timeZone?, mapCenter? }` | `stale`, `market_name_taken`, `invalid_time_zone`, `country_immutable` si llega `countryId` |
+| `POST /admin/markets` | `markets.manage` + alcance de país o plataforma | country | `{ name, countryId, timeZone }` → `201 { marketId }` | `country_not_found`, `country_without_currency`, `invalid_time_zone`, `market_name_taken`, `scope_denied` |
+| `PATCH /admin/markets/:id` | `markets.manage` | market | `{ revision, name?, timeZone? }` | `stale`, `market_name_taken`, `invalid_time_zone`, `country_immutable` si llega `countryId` |
 | `POST /admin/markets/:id/enable` | `markets.lifecycle` + alcance de país o plataforma | country | `{ revision }` | `not_ready` + `{ items }` (los faltantes del readiness), `already_enabled`, `stale` |
 | `POST /admin/markets/:id/disable` | `markets.lifecycle` + alcance de país o plataforma | country | `{ revision, reason }` | `not_enabled`, `stale` |
 | `POST /admin/markets/:id/delete` | `markets.lifecycle` + alcance de país o plataforma | country | `{ revision }` | `in_use` + `{ kind, count }`, `stale` |

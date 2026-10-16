@@ -5,23 +5,14 @@ import { readRevision } from '../common/revision.js';
 export const MARKET_STATUSES = ['draft', 'enabled', 'disabled'] as const;
 export type MarketStatus = (typeof MARKET_STATUSES)[number];
 
-export interface MapCenter {
-  lat: number;
-  lng: number;
-  zoom: number;
-}
-
 export const MARKET_NAME_MIN = 2;
 export const MARKET_NAME_MAX = 60;
-export const MAP_ZOOM_MIN = 3;
-export const MAP_ZOOM_MAX = 20;
 
 export interface MarketProps {
   id: string;
   name: string;
   countryId: string;
   timeZone: string;
-  mapCenter: MapCenter;
   status: MarketStatus;
   enabledAt: Date | null;
   enabledBy: string | null;
@@ -44,15 +35,12 @@ export function nameKeyOf(name: string): string {
  * The fields that break the market's rules, by name; empty when they are all valid. The time
  * zone is only checked for presence here: whether the runtime knows it is the command's check.
  */
-export function marketFieldIssues(fields: { name: string; countryId: string; timeZone: string; mapCenter: MapCenter }): string[] {
+export function marketFieldIssues(fields: { name: string; countryId: string; timeZone: string }): string[] {
   const issues: string[] = [];
   const name = fields.name.trim();
   if (name.length < MARKET_NAME_MIN || name.length > MARKET_NAME_MAX) issues.push('name');
   if (fields.countryId.trim() === '') issues.push('countryId');
   if (fields.timeZone.trim() === '') issues.push('timeZone');
-  const { lat, lng, zoom } = fields.mapCenter;
-  const inRange = (value: number, min: number, max: number) => Number.isFinite(value) && value >= min && value <= max;
-  if (!inRange(lat, -90, 90) || !inRange(lng, -180, 180) || !inRange(zoom, MAP_ZOOM_MIN, MAP_ZOOM_MAX)) issues.push('mapCenter');
   return issues;
 }
 
@@ -64,7 +52,6 @@ export class Market extends Entity<string> {
   readonly name: string;
   readonly countryId: string;
   readonly timeZone: string;
-  readonly mapCenter: MapCenter;
   readonly status: MarketStatus;
   readonly enabledAt: Date | null;
   readonly enabledBy: string | null;
@@ -80,7 +67,6 @@ export class Market extends Entity<string> {
     this.name = props.name.trim();
     this.countryId = props.countryId;
     this.timeZone = props.timeZone;
-    this.mapCenter = { ...props.mapCenter };
     this.status = props.status;
     this.enabledAt = props.enabledAt;
     this.enabledBy = props.enabledBy;
@@ -93,7 +79,7 @@ export class Market extends Entity<string> {
   }
 
   static create(
-    params: { id: string; name: string; countryId: string; timeZone: string; mapCenter: MapCenter; createdBy: string },
+    params: { id: string; name: string; countryId: string; timeZone: string; createdBy: string },
     now: Date,
   ): Market {
     return new Market({
@@ -123,7 +109,6 @@ export class Market extends Entity<string> {
       name: this.name,
       countryId: this.countryId,
       timeZone: this.timeZone,
-      mapCenter: { ...this.mapCenter },
       status: this.status,
       enabledAt: this.enabledAt,
       enabledBy: this.enabledBy,
@@ -148,12 +133,11 @@ export class Market extends Entity<string> {
   }
 
   /** The editable fields; the country is not one of them. */
-  withEdits(edits: { name?: string; timeZone?: string; mapCenter?: MapCenter }, now: Date = this.updatedAt): Market {
+  withEdits(edits: { name?: string; timeZone?: string }, now: Date = this.updatedAt): Market {
     return new Market({
       ...this.toProps(),
       name: edits.name ?? this.name,
       timeZone: edits.timeZone ?? this.timeZone,
-      mapCenter: edits.mapCenter ?? this.mapCenter,
       updatedAt: now,
     });
   }

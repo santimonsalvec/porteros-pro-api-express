@@ -1460,12 +1460,12 @@ export const openapiSpec = {
     },
     '/markets': {
       get: {
-        summary: 'The enabled markets, by name, with their time zone and map centre (spec 031)',
+        summary: 'The enabled markets, by name, with their country and time zone (spec 031)',
         tags: ['Zones'],
         security: [{ bearerAuth: [] }],
         responses: {
           '200': {
-            description: '`{ markets: [{ id, name, countryId, timeZone, mapCenter: { lat, lng, zoom } }] }`',
+            description: '`{ markets: [{ id, name, countryId, timeZone }] }`',
             content: { 'application/json': { schema: { type: 'object' } } },
           },
           '401': { description: 'Not signed in' },

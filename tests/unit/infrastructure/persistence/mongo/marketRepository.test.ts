@@ -11,7 +11,7 @@ function repositoryWith(collection: ReturnType<typeof createFakeCollection>) {
 
 const now = new Date('2026-10-15T12:00:00Z');
 const market = Market.create(
-  { id: 'mkt-1', name: 'Medellín', countryId: 'co', timeZone: 'America/Bogota', mapCenter: { lat: 6.25, lng: -75.56, zoom: 12 }, createdBy: 's-1' },
+  { id: 'mkt-1', name: 'Medellín', countryId: 'co', timeZone: 'America/Bogota', createdBy: 's-1' },
   now,
 );
 const stored = {
@@ -20,7 +20,6 @@ const stored = {
   nameKey: 'medellin',
   countryId: 'co',
   timeZone: 'America/Bogota',
-  mapCenter: { lat: 6.25, lng: -75.56, zoom: 12 },
   status: 'enabled',
   enabledAt: now,
   enabledBy: 's-1',
@@ -62,7 +61,7 @@ describe('MarketRepository (mocked driver, spec 031)', () => {
     const repository = repositoryWith(collection);
 
     const one = await repository.getById('mkt-1');
-    expect(one).toMatchObject({ id: 'mkt-1', status: 'enabled', revision: 3, mapCenter: { lat: 6.25, lng: -75.56, zoom: 12 } });
+    expect(one).toMatchObject({ id: 'mkt-1', status: 'enabled', revision: 3 });
     expect(await repository.getByIds([])).toEqual([]);
     expect(await repository.getByIds(['mkt-1'])).toHaveLength(1);
     expect(collection.find).toHaveBeenCalledWith({ _id: { $in: ['mkt-1'] } });

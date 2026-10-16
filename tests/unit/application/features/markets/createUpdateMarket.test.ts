@@ -8,7 +8,7 @@ import { FixedClock } from '../../../../fakes/fakeClock.js';
 import { FakeCountryRepository } from '../../../../fakes/fakeCountryRepository.js';
 import { FakeMarketRepository } from '../../../../fakes/fakeMarketRepository.js';
 
-const MEDELLIN = { name: 'Medellín', countryId: 'co', timeZone: 'America/Bogota', mapCenter: { lat: 6.25, lng: -75.56, zoom: 12 } };
+const MEDELLIN = { name: 'Medellín', countryId: 'co', timeZone: 'America/Bogota' };
 
 let markets: FakeMarketRepository;
 let countries: FakeCountryRepository;
@@ -42,9 +42,9 @@ describe('CreateMarketCommandHandler (spec 031, FR-001)', () => {
   });
 
   it('refuses broken fields', async () => {
-    expect(await create({ name: 'M', mapCenter: { lat: 99, lng: 0, zoom: 12 } })).toEqual({
+    expect(await create({ name: 'M' })).toEqual({
       outcome: 'invalid',
-      fieldErrors: { name: 'invalid', mapCenter: 'invalid' },
+      fieldErrors: { name: 'invalid' },
     });
   });
 
@@ -62,8 +62,8 @@ describe('UpdateMarketCommandHandler (spec 031, FR-001a)', () => {
     await create();
   });
 
-  it('edits the name, time zone and map centre, and bumps the revision', async () => {
-    expect(await update({ name: 'Medellín centro', timeZone: 'America/Lima', mapCenter: { lat: 6.2, lng: -75.5, zoom: 13 } })).toEqual({ outcome: 'saved' });
+  it('edits the name and time zone, and bumps the revision', async () => {
+    expect(await update({ name: 'Medellín centro', timeZone: 'America/Lima' })).toEqual({ outcome: 'saved' });
     expect(markets.markets.get('mkt-1')).toMatchObject({ name: 'Medellín centro', timeZone: 'America/Lima', countryId: 'co', revision: 1 });
   });
 

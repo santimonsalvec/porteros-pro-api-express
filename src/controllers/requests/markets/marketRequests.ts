@@ -2,14 +2,12 @@ import { z } from 'zod';
 import { MARKET_STATUSES } from '../../../domain/markets/market.js';
 import { optionalReasonField } from '../geography/geographyRequests.js';
 
-const mapCenter = z.object({ lat: z.number(), lng: z.number(), zoom: z.number().int() }).strict();
-
 /** `GET /admin/markets` (spec 031, contract §C). */
 export const listMarketsQuerySchema = z.object({ status: z.enum(MARKET_STATUSES).optional(), countryId: z.string().min(1).optional() }).strict();
 
 /** `POST /admin/markets`: the command checks the country, the time zone and the name. */
 export const createMarketRequestSchema = z
-  .object({ name: z.string().trim(), countryId: z.string().trim().min(1), timeZone: z.string().trim().min(1), mapCenter })
+  .object({ name: z.string().trim(), countryId: z.string().trim().min(1), timeZone: z.string().trim().min(1) })
   .strict();
 
 /** `PATCH /admin/markets/:marketId`: what changes, plus the revision read. `countryId` is refused by the command. */
@@ -18,7 +16,6 @@ export const updateMarketRequestSchema = z
     revision: z.number().int().min(0),
     name: z.string().trim().optional(),
     timeZone: z.string().trim().min(1).optional(),
-    mapCenter: mapCenter.optional(),
     countryId: z.string().trim().min(1).optional(),
   })
   .strict();

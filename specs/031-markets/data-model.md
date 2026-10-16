@@ -12,13 +12,14 @@ Convenciones del repositorio:
 
 ## 1. `markets` (nueva)
 
+> 2026-10-16: se quitó `mapCenter`. Nadie lo usaba: el editor de zonas se encuadra solo en las zonas de la sede. Las sedes guardadas antes pueden tenerlo y se ignora.
+
 | Campo | Tipo | Reglas |
 |---|---|---|
 | `_id` | string | UUIDv7 |
 | `name` | string | 2–60 caracteres, recortado. Único por país, sin distinguir mayúsculas (`country_name_unique`) |
 | `countryId` | string | País existente con moneda. **Inmutable** (FR-001a) |
 | `timeZone` | string | IANA válido (`isValidTimeZone`) |
-| `mapCenter` | `{ lat: number; lng: number; zoom: number }` | lat −90..90, lng −180..180, zoom 3..20 |
 | `status` | `'draft' \| 'enabled' \| 'disabled'` | Nace `draft` |
 | `enabledAt`, `enabledBy` | Date \| null, string \| null | Última habilitación (staffId) |
 | `disabledAt`, `disabledBy` | Date \| null, string \| null | Última deshabilitación |

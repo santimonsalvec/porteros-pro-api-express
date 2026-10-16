@@ -107,11 +107,11 @@ describe('redactForAudit', () => {
     });
     expect(
       redactForAudit('market', {
-        id: 'mkt', name: 'Medellín', countryId: 'co', timeZone: 'America/Bogota', mapCenter: { lat: 6.25, lng: -75.56, zoom: 12 },
+        id: 'mkt', name: 'Medellín', countryId: 'co', timeZone: 'America/Bogota',
         status: 'enabled', enabledAt: '2026-10-15T00:00:00.000Z', enabledBy: 's-1', disabledAt: null, disabledBy: null, revision: 2, reason: 'r', secret: 'x',
       }),
     ).toEqual({
-      id: 'mkt', name: 'Medellín', countryId: 'co', timeZone: 'America/Bogota', mapCenter: { lat: 6.25, lng: -75.56, zoom: 12 },
+      id: 'mkt', name: 'Medellín', countryId: 'co', timeZone: 'America/Bogota',
       status: 'enabled', enabledAt: '2026-10-15T00:00:00.000Z', enabledBy: 's-1', disabledAt: null, disabledBy: null, revision: 2, reason: 'r',
     });
     const geometry = { type: 'Polygon', coordinates: [[[-75.6, 6.2], [-75.5, 6.2], [-75.5, 6.3], [-75.6, 6.2]]] };

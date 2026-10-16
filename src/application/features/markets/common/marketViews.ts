@@ -1,4 +1,4 @@
-import type { Market, MapCenter, MarketStatus } from '../../../../domain/markets/market.js';
+import type { Market, MarketStatus } from '../../../../domain/markets/market.js';
 import type { IAdminCountryRepository, IAdminZoneRepository, IReadinessSummary, ReadinessSummary } from '../../geography/common/ports.js';
 
 /** A market as the admin shows it (contracts/markets-api.md §C). */
@@ -7,7 +7,6 @@ export interface MarketView {
   name: string;
   country: { id: string; name: string; currency: string | null } | null;
   timeZone: string;
-  mapCenter: MapCenter;
   status: MarketStatus;
   enabledAt: string | null;
   enabledBy: string | null;
@@ -43,7 +42,6 @@ export async function toMarketViews(markets: readonly Market[], deps: MarketView
       name: market.name,
       country: country ? { id: country.id, name: country.name, currency: country.currency } : null,
       timeZone: market.timeZone,
-      mapCenter: market.mapCenter,
       status: market.status,
       enabledAt: iso(market.enabledAt),
       enabledBy: market.enabledBy,

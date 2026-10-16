@@ -175,13 +175,13 @@ export const geographyPaths = {
       tags: ['Admin markets'],
       security: [{ adminBearerAuth: [] }],
       parameters: query('status', 'countryId'),
-      responses: { '200': json('`{ items: [{ id, name, country, timeZone, mapCenter, status, zoneCount, readiness, revision }] }`'), '400': validation(), ...COMMON },
+      responses: { '200': json('`{ items: [{ id, name, country, timeZone, status, zoneCount, readiness, revision }] }`'), '400': validation(), ...COMMON },
     },
     post: {
       summary: 'Creates a market in draft (markets.manage); audited',
       tags: ['Admin markets'],
       security: [{ adminBearerAuth: [] }],
-      requestBody: body('`{ name, countryId, timeZone, mapCenter: { lat, lng, zoom } }`'),
+      requestBody: body('`{ name, countryId, timeZone }`'),
       responses: {
         '201': json('`{ marketId, market }`'),
         '400': validation(),
@@ -200,11 +200,11 @@ export const geographyPaths = {
       responses: { '200': json('The market'), ...COMMON, '404': error('`market_not_found`') },
     },
     patch: {
-      summary: "Edits a market's name, time zone or map centre with the `revision` read (markets.manage); audited. The country never changes",
+      summary: "Edits a market's name or time zone with the `revision` read (markets.manage); audited. The country never changes",
       tags: ['Admin markets'],
       security: [{ adminBearerAuth: [] }],
       parameters: pathId('marketId'),
-      requestBody: body('`{ revision, name?, timeZone?, mapCenter? }`'),
+      requestBody: body('`{ revision, name?, timeZone? }`'),
       responses: {
         '200': json('The market, with its new revision'),
         '400': validation(),

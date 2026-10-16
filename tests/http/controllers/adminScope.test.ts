@@ -163,7 +163,7 @@ describe('a member who holds only Medellín (spec 031, US8)', () => {
     // The markets' country, as the admin's country store holds it.
     context.countryRepository.seed(context.quoteCountryRepository.countries.get('country-co')!);
     const post = (token: string, path: string, body: object) => request(context.app).post(path).set('Authorization', `Bearer ${token}`).send(body);
-    const RIONEGRO = { name: 'Rionegro', countryId: 'country-co', timeZone: 'America/Bogota', mapCenter: { lat: 6.15, lng: -75.37, zoom: 12 } };
+    const RIONEGRO = { name: 'Rionegro', countryId: 'country-co', timeZone: 'America/Bogota' };
 
     expect((await post(operator.token, '/admin/markets', RIONEGRO)).body.error).toBe('scope_denied');
     expect((await post(operator.token, '/admin/markets/city-medellin/disable', { revision: 0, reason: 'Cierre' })).body.error).toBe('scope_denied');

@@ -5,7 +5,7 @@ import { seedRole, signInStaff } from '../adminTestHelpers.js';
 import { signInClient } from '../operatingBalanceTestHelpers.js';
 import { RentalRate } from '../../../src/domain/pricing/rentalRate.js';
 
-const RIONEGRO = { name: 'Rionegro', countryId: 'country-co', timeZone: 'America/Bogota', mapCenter: { lat: 6.15, lng: -75.37, zoom: 12 } };
+const RIONEGRO = { name: 'Rionegro', countryId: 'country-co', timeZone: 'America/Bogota' };
 
 async function marketStaff(context: Awaited<ReturnType<typeof buildTestApp>>) {
   // The markets' country, as the admin's country store holds it.
@@ -46,7 +46,7 @@ describe('/admin/markets (spec 031, contract §C)', () => {
     const created = await editor.post('/admin/markets', RIONEGRO);
     const id = created.body.marketId as string;
     const read = await editor.get(`/admin/markets/${id}`);
-    const edited = await editor.patch(`/admin/markets/${id}`, { revision: 0, name: 'Rionegro (Oriente)', mapCenter: { lat: 6.16, lng: -75.38, zoom: 13 } });
+    const edited = await editor.patch(`/admin/markets/${id}`, { revision: 0, name: 'Rionegro (Oriente)' });
 
     expect(created.status).toBe(201);
     expect(read.body).toMatchObject({ id, name: 'Rionegro', status: 'draft', timeZone: 'America/Bogota', zoneCount: 0, readiness: null, revision: 0 });

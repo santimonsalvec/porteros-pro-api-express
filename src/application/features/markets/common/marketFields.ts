@@ -1,11 +1,10 @@
-import { marketFieldIssues, type MapCenter } from '../../../../domain/markets/market.js';
+import { marketFieldIssues } from '../../../../domain/markets/market.js';
 import { isValidTimeZone } from '../../goalkeeperRequests/common/zonedTime.js';
 
 export interface MarketFields {
   name: string;
   countryId: string;
   timeZone: string;
-  mapCenter: MapCenter;
 }
 
 /** The field errors of a market's fields, `null` when they are valid (FR-001). */

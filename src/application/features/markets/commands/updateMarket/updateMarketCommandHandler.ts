@@ -17,7 +17,7 @@ export class UpdateMarketCommandHandler implements ICommandHandler<UpdateMarketC
     if (!stored) return { outcome: 'not_found' };
     if (edits.countryId !== undefined && edits.countryId !== stored.countryId) return { outcome: 'country_immutable' };
 
-    const edited = stored.withEdits({ name: edits.name, timeZone: edits.timeZone, mapCenter: edits.mapCenter }, this.deps.clock.now());
+    const edited = stored.withEdits({ name: edits.name, timeZone: edits.timeZone }, this.deps.clock.now());
     const fieldErrors = marketFieldErrors(edited);
     if (fieldErrors) return { outcome: 'invalid', fieldErrors };
 

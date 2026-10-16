@@ -45,7 +45,6 @@ describe('GET /markets (spec 031, A1)', () => {
       name: 'Cali',
       countryId: 'country-co',
       timeZone: 'America/Bogota',
-      mapCenter: expect.objectContaining({ lat: expect.any(Number), lng: expect.any(Number), zoom: expect.any(Number) }),
     });
     expect((await request(context.app).get('/markets')).status).toBe(401);
   });

@@ -76,7 +76,6 @@ export function testMarket(overrides: Partial<{ id: string; name: string; countr
     name: overrides.name ?? 'Medellín',
     countryId: overrides.countryId ?? 'co',
     timeZone: overrides.timeZone ?? 'America/Bogota',
-    mapCenter: { lat: 6.25, lng: -75.56, zoom: 12 },
     status,
     enabledAt: status === 'draft' ? null : now,
     enabledBy: status === 'draft' ? null : 'staff-1',

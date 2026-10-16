@@ -11,7 +11,6 @@ const create = () =>
       name: '  Medellín  ',
       countryId: 'co',
       timeZone: 'America/Bogota',
-      mapCenter: { lat: 6.25, lng: -75.56, zoom: 12 },
       createdBy: 'staff-1',
     },
     now,
@@ -31,7 +30,7 @@ describe('Market.create', () => {
 });
 
 describe('marketFieldIssues', () => {
-  const valid = { name: 'Medellín', countryId: 'co', timeZone: 'America/Bogota', mapCenter: { lat: 6.25, lng: -75.56, zoom: 12 } };
+  const valid = { name: 'Medellín', countryId: 'co', timeZone: 'America/Bogota' };
 
   it('accepts valid fields', () => {
     expect(marketFieldIssues(valid)).toEqual([]);
@@ -42,10 +41,6 @@ describe('marketFieldIssues', () => {
     [{ name: 'x'.repeat(61) }, 'name'],
     [{ countryId: '' }, 'countryId'],
     [{ timeZone: ' ' }, 'timeZone'],
-    [{ mapCenter: { lat: 91, lng: 0, zoom: 12 } }, 'mapCenter'],
-    [{ mapCenter: { lat: 0, lng: -181, zoom: 12 } }, 'mapCenter'],
-    [{ mapCenter: { lat: 0, lng: 0, zoom: 2 } }, 'mapCenter'],
-    [{ mapCenter: { lat: 0, lng: 0, zoom: 21 } }, 'mapCenter'],
   ])('reports %j', (change, field) => {
     expect(marketFieldIssues({ ...valid, ...change })).toContain(field);
   });
@@ -81,11 +76,10 @@ describe('Market transitions', () => {
 });
 
 describe('Market.withEdits', () => {
-  it('changes name, time zone and map centre, never the country', () => {
-    const edited = create().withEdits({ name: 'Medellín centro', timeZone: 'America/Lima', mapCenter: { lat: 1, lng: 2, zoom: 10 } });
+  it('changes name and time zone, never the country', () => {
+    const edited = create().withEdits({ name: 'Medellín centro', timeZone: 'America/Lima' });
     expect(edited.name).toBe('Medellín centro');
     expect(edited.timeZone).toBe('America/Lima');
-    expect(edited.mapCenter).toEqual({ lat: 1, lng: 2, zoom: 10 });
     expect(edited.countryId).toBe('co');
   });
 });

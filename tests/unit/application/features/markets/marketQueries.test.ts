@@ -39,7 +39,7 @@ describe('GetMarketQueryHandler', () => {
 
     expect(await handler.handle(new GetMarketQuery('med'))).toMatchObject({
       outcome: 'ok',
-      market: { id: 'med', name: 'Medellín', timeZone: 'America/Bogota', mapCenter: { lat: 6.25, lng: -75.56, zoom: 12 }, status: 'enabled', enabledBy: 'staff-1', revision: 0 },
+      market: { id: 'med', name: 'Medellín', timeZone: 'America/Bogota', status: 'enabled', enabledBy: 'staff-1', revision: 0 },
     });
     expect(await handler.handle(new GetMarketQuery('nope'))).toEqual({ outcome: 'not_found' });
   });

@@ -41,7 +41,7 @@ const ALLOWED_FIELDS: Readonly<Record<string, readonly string[]>> = {
   city: ['id', 'name', 'region', 'country', 'countryCode', 'daneStateCode', 'daneCityCode', 'revision', 'reason'],
   // Where the service operates (spec 031): reference data, nothing personal or secret.
   market: [
-    'id', 'name', 'countryId', 'timeZone', 'mapCenter', 'lat', 'lng', 'zoom', 'status', 'enabledAt', 'enabledBy',
+    'id', 'name', 'countryId', 'timeZone', 'status', 'enabledAt', 'enabledBy',
     'disabledAt', 'disabledBy', 'revision', 'reason',
   ],
   zone: [

@@ -13,7 +13,6 @@ export class ListEnabledMarketsQueryHandler implements IQueryHandler<ListEnabled
         name: market.name,
         countryId: market.countryId,
         timeZone: market.timeZone,
-        mapCenter: { ...market.mapCenter },
       })),
     };
   }

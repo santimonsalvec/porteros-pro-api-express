@@ -68,7 +68,6 @@ export class MarketRepository implements IAdminMarketRepository {
       name: props.name,
       nameKey: market.nameKey,
       timeZone: props.timeZone,
-      mapCenter: props.mapCenter,
       status: props.status,
       enabledAt: props.enabledAt,
       enabledBy: props.enabledBy,
@@ -95,13 +94,11 @@ export class MarketRepository implements IAdminMarketRepository {
 const dateOrNull = (value: unknown) => (value instanceof Date ? value : null);
 
 function fromDocument(doc: Document): Market {
-  const center = (doc.mapCenter ?? {}) as { lat?: number; lng?: number; zoom?: number };
   return Market.fromStored({
     id: String(doc._id),
     name: String(doc.name),
     countryId: String(doc.countryId),
     timeZone: String(doc.timeZone),
-    mapCenter: { lat: Number(center.lat), lng: Number(center.lng), zoom: Number(center.zoom) },
     status: doc.status as MarketStatus,
     enabledAt: dateOrNull(doc.enabledAt),
     enabledBy: (doc.enabledBy as string | null | undefined) ?? null,
