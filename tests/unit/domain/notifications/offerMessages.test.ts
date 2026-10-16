@@ -27,17 +27,17 @@ describe('offer messages', () => {
   });
 
   it.each([
-    ['futbol_11', 'competitive', 'Partido disponible · Fútbol 11', 'Torneo'],
-    ['micro_futsal', 'recreational', 'Partido disponible · Micro / Futsal', 'Amateur'],
-    ['futbol_medio', 'competitive', 'Partido disponible · Fútbol medio', 'Torneo'],
-    ['any', 'recreational', 'Partido disponible · Abierto', 'Amateur'],
-  ])('names the %s modality, the surface and the %s level (feature 024)', (modality, level, title, levelLabel) => {
-    const format = new MatchFormat({ modality, level, surfaceId: 'synthetic_grass', surfaceName: 'Grama sintética' });
+    ['futbol_11', 'Partido disponible · Fútbol 11'],
+    ['micro_futsal', 'Partido disponible · Micro / Futsal'],
+    ['futbol_medio', 'Partido disponible · Fútbol medio'],
+    ['any', 'Partido disponible · Abierto'],
+  ])('names the %s modality and the surface (feature 024)', (modality, title) => {
+    const format = new MatchFormat({ modality, surfaceId: 'synthetic_grass', surfaceName: 'Grama sintética' });
 
     const message = singleOfferMessage({ ...match, format });
 
     expect(message.title).toBe(title);
-    expect(message.body).toBe(`Bello · dom 4 oct, 3:00 p. m. · 90 min · Grama sintética · ${levelLabel}`);
+    expect(message.body).toBe('Bello · dom 4 oct, 3:00 p. m. · 90 min · Grama sintética');
     expect(validatePushMessage(message)).toEqual({ ok: true });
   });
 

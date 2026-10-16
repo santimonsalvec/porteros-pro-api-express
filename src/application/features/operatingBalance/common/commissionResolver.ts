@@ -9,7 +9,7 @@ type CommissionLevels = Map<string, CommissionSetting[][]>;
 
 /**
  * A zone's effective commission: its own, else its anchor market's, else its country's (FR-009);
- * `null` when none is configured (FR-010). Within each level the modality/level tiers apply
+ * `null` when none is configured (FR-010). Within each level the modality tiers apply
  * (feature 024). Resolves any number of zones with one settings read.
  */
 export class CommissionResolver implements ICommissionResolver {
@@ -20,7 +20,7 @@ export class CommissionResolver implements ICommissionResolver {
   ) {}
 
   /**
-   * The lowest commission any match in each zone could carry, over every modality and level:
+   * The lowest commission any match in each zone could carry, over every modality:
    * the balance a goalkeeper needs to see at least some offers there.
    */
   async resolveForZones(zoneIds: string[]): Promise<Map<string, number | null>> {

@@ -24,7 +24,7 @@ export interface AvailableBookingItem {
   timeZone: string;
   durationMinutes: number;
   goalkeeperCount: number;
-  /** Modality, level and surface (feature 024); `null` for requests created before it. */
+  /** Modality and surface (feature 024); `null` for requests created before it. */
   matchFormat: MatchFormatResponse | null;
   /** What the client pays the goalkeeper for this booking (rate + surcharge − discount). */
   earnings: number;

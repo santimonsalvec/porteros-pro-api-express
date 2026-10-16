@@ -4,7 +4,7 @@ import { GetServiceQuoteQueryHandler } from '../../../../../src/application/feat
 import { parseStartsAt } from '../../../../../src/application/features/goalkeeperRequests/common/startsAt.js';
 import { GetPricingPreviewQuery } from '../../../../../src/application/features/pricing/queries/getPricingPreview/getPricingPreviewQuery.js';
 import { GetPricingPreviewQueryHandler } from '../../../../../src/application/features/pricing/queries/getPricingPreview/getPricingPreviewQueryHandler.js';
-import type { MatchLevel, Modality } from '../../../../../src/domain/bookings/matchFormat.js';
+import type { Modality } from '../../../../../src/domain/bookings/matchFormat.js';
 import { RentalRate } from '../../../../../src/domain/pricing/rentalRate.js';
 import { CommissionSetting } from '../../../../../src/domain/operatingBalance/commissionSetting.js';
 import { FakeMatchSurfaceRepository } from '../../../../fakes/fakeMatchSurfaceRepository.js';
@@ -21,25 +21,25 @@ const ZONES = {
   caliCentro: 'zone-cali-centro',
 } as const;
 
-const CASES: [keyof typeof ZONES, string, 60 | 90 | 120, Modality, MatchLevel][] = [
-  ['caliNorte', '2026-09-21T13:30', 60, 'futbol_11', 'competitive'],
-  ['caliNorte', '2026-09-21T14:00', 90, 'micro_futsal', 'recreational'],
-  ['caliNorte', '2026-09-21T16:00', 120, 'any', 'recreational'],
-  ['caliSur', '2026-09-21T14:30', 60, 'futbol_11', 'competitive'],
-  ['caliSur', '2026-09-22T09:00', 90, 'futbol_11', 'competitive'],
-  ['caliSur', '2026-09-21T15:00', 120, 'futbol_medio', 'recreational'],
-  ['caliCentro', '2026-09-21T15:00', 60, 'futbol_11', 'competitive'],
-  ['caliCentro', '2026-09-21T15:00', 60, 'futbol_11', 'recreational'],
-  ['caliCentro', '2026-09-21T13:00', 60, 'any', 'recreational'],
-  ['caliCentro', '2026-09-21T12:00', 60, 'any', 'recreational'],
-  ['caliCentro', '2026-09-21T15:15', 60, 'any', 'recreational'],
-  ['caliCentro', '2026-09-25T15:00', 60, 'any', 'recreational'],
+const CASES: [keyof typeof ZONES, string, 60 | 90 | 120, Modality][] = [
+  ['caliNorte', '2026-09-21T13:30', 60, 'futbol_11'],
+  ['caliNorte', '2026-09-21T14:00', 90, 'micro_futsal'],
+  ['caliNorte', '2026-09-21T16:00', 120, 'any'],
+  ['caliSur', '2026-09-21T14:30', 60, 'futbol_11'],
+  ['caliSur', '2026-09-22T09:00', 90, 'futbol_11'],
+  ['caliSur', '2026-09-21T15:00', 120, 'futbol_medio'],
+  ['caliCentro', '2026-09-21T15:00', 60, 'futbol_11'],
+  ['caliCentro', '2026-09-21T15:00', 60, 'micro_futsal'],
+  ['caliCentro', '2026-09-21T13:00', 60, 'any'],
+  ['caliCentro', '2026-09-21T12:00', 60, 'any'],
+  ['caliCentro', '2026-09-21T15:15', 60, 'any'],
+  ['caliCentro', '2026-09-25T15:00', 60, 'any'],
 ];
 
 describe('the simulator matches the quote', () => {
-  it.each(CASES)('%s at %s, %i min, %s %s', async (point, startsAtLocal, durationMinutes, modality, level) => {
+  it.each(CASES)('%s at %s, %i min, %s', async (point, startsAtLocal, durationMinutes, modality) => {
     const world = previewWorld();
-    world.rentalRateRepository.seed(new RentalRate({ id: 'f11', scope: 'market', refId: 'city-cali', durationMinutes: 60, amount: 50000, modality: 'futbol_11', level: 'competitive' }));
+    world.rentalRateRepository.seed(new RentalRate({ id: 'f11', scope: 'market', refId: 'city-cali', durationMinutes: 60, amount: 50000, modality: 'futbol_11' }));
     world.commissionSettingRepository.seed(new CommissionSetting({ id: 'c-sur', scope: 'zone', refId: 'zone-cali-sur', amount: 9000 }));
     const quote = await new GetServiceQuoteQueryHandler(
       world.zoneRepository,
@@ -51,10 +51,10 @@ describe('the simulator matches the quote', () => {
       world.clock,
       new FakeMatchSurfaceRepository(),
     ).handle(
-      new GetServiceQuoteQuery({ ...POINTS[point], startsAt: parseStartsAt(`${startsAtLocal}:00`)!, goalkeeperCount: 1, durationMinutes, modality, level, surfaceId: 'synthetic_grass' }),
+      new GetServiceQuoteQuery({ ...POINTS[point], startsAt: parseStartsAt(`${startsAtLocal}:00`)!, goalkeeperCount: 1, durationMinutes, modality, surfaceId: 'synthetic_grass' }),
     );
     const result = await new GetPricingPreviewQueryHandler(world).handle(
-      new GetPricingPreviewQuery({ zoneId: ZONES[point], durationMinutes, modality, level, startsAtLocal, quoteFromLocal: null }),
+      new GetPricingPreviewQuery({ zoneId: ZONES[point], durationMinutes, modality, startsAtLocal, quoteFromLocal: null }),
     );
     if (result.outcome !== 'ok') throw new Error(`preview failed: ${result.outcome}`);
     const { preview } = result;

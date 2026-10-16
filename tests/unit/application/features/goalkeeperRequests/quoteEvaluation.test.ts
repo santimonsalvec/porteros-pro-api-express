@@ -46,7 +46,7 @@ const evaluate = (startsAt: string, nowMs = now, overrides: Partial<Parameters<t
     startsAt: parseStartsAt(startsAt)!,
     goalkeeperCount: 1,
     durationMinutes: 60,
-    match: { modality: 'futbol_11', level: 'competitive' },
+    match: { modality: 'futbol_11' },
     nowMs,
     ...overrides,
   });

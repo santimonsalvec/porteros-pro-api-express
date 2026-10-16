@@ -88,7 +88,7 @@ describe('GET /goalkeeper-requests/config', () => {
     const quote = await request(context.app)
       .post('/goalkeeper-requests/quote')
       .set('Authorization', `Bearer ${token}`)
-      .send({ ...POINTS.caliNorte, startsAt: config.body.earliestStartsAt, goalkeeperCount: 1, durationMinutes: config.body.durationOptions[0], modality: 'any', level: 'recreational', surfaceId: config.body.surfaces[0].id });
+      .send({ ...POINTS.caliNorte, startsAt: config.body.earliestStartsAt, goalkeeperCount: 1, durationMinutes: config.body.durationOptions[0], modality: 'any', surfaceId: config.body.surfaces[0].id });
 
     expect(quote.status).toBe(200);
     expect(quote.body.currency).toBe(config.body.currency);

@@ -286,4 +286,4 @@ export function buildRequestBookings(request: GoalkeeperRequest, ids?: string[])
 }
 
 /** The match-format fields every quote body needs since feature 024 (priced by the general rate here). */
-export const QUOTE_FORMAT_FIELDS = { modality: 'futbol_11', level: 'competitive', surfaceId: 'synthetic_grass' } as const;
+export const QUOTE_FORMAT_FIELDS = { modality: 'futbol_11', surfaceId: 'synthetic_grass' } as const;

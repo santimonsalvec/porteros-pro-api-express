@@ -33,7 +33,7 @@ export class GetServiceQuoteQueryHandler implements IQueryHandler<GetServiceQuot
   ) {}
 
   async handle(query: GetServiceQuoteQuery): Promise<GetServiceQuoteResult> {
-    const { latitude, longitude, startsAt, goalkeeperCount, durationMinutes, modality, level, surfaceId } = query.input;
+    const { latitude, longitude, startsAt, goalkeeperCount, durationMinutes, modality, surfaceId } = query.input;
     // One reading of "now" for the whole evaluation, so every rule sees the same moment.
     const nowMs = this.clock.now().getTime();
 
@@ -41,7 +41,7 @@ export class GetServiceQuoteQueryHandler implements IQueryHandler<GetServiceQuot
     //     its current name is kept as the request's snapshot.
     const surface = await this.matchSurfaceRepository.findById(surfaceId);
     if (!surface?.active) return { outcome: 'unknown_surface', surfaceId };
-    const format = new MatchFormat({ modality, level, surfaceId: surface.id, surfaceName: surface.name });
+    const format = new MatchFormat({ modality, surfaceId: surface.id, surfaceName: surface.name });
 
     // (1)(2) Which active zone contains the point, and the market that owns it: it supplies
     //        the time zone, the rate fallback and the settings scope.
@@ -58,7 +58,7 @@ export class GetServiceQuoteQueryHandler implements IQueryHandler<GetServiceQuot
         bookingSettingsRepository: this.bookingSettingsRepository,
         commissionResolver: this.commissionResolver,
       },
-      { zone, market, timeZone, startsAt, goalkeeperCount, durationMinutes, match: { modality, level }, nowMs },
+      { zone, market, timeZone, startsAt, goalkeeperCount, durationMinutes, match: { modality }, nowMs },
     );
     if (priced.outcome !== 'priced') return priced;
 

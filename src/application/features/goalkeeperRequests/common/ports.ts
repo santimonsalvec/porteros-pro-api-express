@@ -20,7 +20,7 @@ export interface IMatchSurfaceRepository {
 
 /** Minimal, read-only — mirrors `IZoneRepository`'s reference-data shape. */
 export interface IRentalRateRepository {
-  /** Every zone-scope and market-scope rate for that duration, one per modality/level tier (024). */
+  /** Every zone-scope and market-scope rate for that duration, one per modality tier (024). */
   findForDuration(
     zoneId: string,
     marketId: string,

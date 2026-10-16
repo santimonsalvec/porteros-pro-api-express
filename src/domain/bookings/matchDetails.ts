@@ -16,7 +16,7 @@ export class MatchDetails {
   readonly timeZone: string;
   readonly goalkeeperCount: 1 | 2;
   readonly durationMinutes: 60 | 90 | 120;
-  /** Modality, level and surface (feature 024); `null` on requests created before it. */
+  /** Modality and surface (feature 024); `null` on requests created before it. */
   readonly format: MatchFormat | null;
 
   constructor(params: {

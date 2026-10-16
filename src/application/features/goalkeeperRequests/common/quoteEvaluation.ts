@@ -114,7 +114,7 @@ export async function evaluateQuoteInArea(deps: QuoteEvaluationDependencies, inp
   if (daysAhead > bookingWindowDays - 1) return { outcome: 'outside_booking_window', bookingWindowDays };
 
   // (7) The unit rate: the zone's own rates, else the market's — decided per duration, since
-  //     the repository already filtered on the requested one, then by modality + level →
+  //     the repository already filtered on the requested one, then by modality →
   //     modality → general within each (feature 024). None ⇒ refused, never free.
   const rate = selectUnitRate(rates, match);
   if (!rate) return { outcome: 'rate_not_configured', zoneId: zone.id, marketId: market.id, durationMinutes };

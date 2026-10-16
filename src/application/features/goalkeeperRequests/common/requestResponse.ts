@@ -43,7 +43,7 @@ export interface RequestResponse {
   timeZone: string;
   goalkeeperCount: number;
   durationMinutes: number;
-  /** Modality, level and surface (feature 024); `null` for requests created before it. */
+  /** Modality and surface (feature 024); `null` for requests created before it. */
   matchFormat: MatchFormatResponse | null;
   unitRate: number;
   subtotal: number;

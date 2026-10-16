@@ -8,7 +8,7 @@ import { signInClient } from '../operatingBalanceTestHelpers.js';
 type Context = Awaited<ReturnType<typeof buildTestApp>>;
 
 const NOW = '2026-09-21T18:30:00.000Z';
-const QUOTE = { startsAt: '2026-09-21T15:00:00', goalkeeperCount: 1, durationMinutes: 90, modality: 'any', level: 'recreational', surfaceId: 'synthetic_grass' };
+const QUOTE = { startsAt: '2026-09-21T15:00:00', goalkeeperCount: 1, durationMinutes: 90, modality: 'any', surfaceId: 'synthetic_grass' };
 
 const get = (context: Context, token: string, path: string) => request(context.app).get(path).set('Authorization', `Bearer ${token}`);
 const post = (context: Context, token: string, path: string, body: object) => request(context.app).post(path).set('Authorization', `Bearer ${token}`).send(body);

@@ -2,7 +2,7 @@ import { IQuery } from '../../../../common/mediator/types.js';
 import type { DurationMinutes, GoalkeeperCount } from '../../common/bookingLimits.js';
 import type { MissingSetting } from '../../common/resolveBookingSettings.js';
 import type { ParsedStartsAt } from '../../common/startsAt.js';
-import type { MatchFormat, MatchLevel, Modality } from '../../../../../domain/bookings/matchFormat.js';
+import type { MatchFormat, Modality } from '../../../../../domain/bookings/matchFormat.js';
 import type { MatchFormatResponse } from '../../common/matchFormatResponse.js';
 
 export type { MissingSetting } from '../../common/resolveBookingSettings.js';
@@ -13,9 +13,8 @@ export interface ServiceQuoteInput {
   startsAt: ParsedStartsAt;
   goalkeeperCount: GoalkeeperCount;
   durationMinutes: DurationMinutes;
-  /** What kind of match (feature 024): prices by modality and level; the surface never does. */
+  /** What kind of match (feature 024): prices by modality; the surface never does. */
   modality: Modality;
-  level: MatchLevel;
   surfaceId: string;
 }
 

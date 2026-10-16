@@ -1,6 +1,6 @@
 import { Entity } from '../common/entity.js';
 import { readRevision } from '../common/revision.js';
-import type { MatchLevel, PricedModality } from '../bookings/matchFormat.js';
+import type { PricedModality } from '../bookings/matchFormat.js';
 import { InvalidConfigurationError } from './invalidConfigurationError.js';
 import { parseTier } from './tier.js';
 
@@ -19,8 +19,6 @@ export class RentalRate extends Entity<string> {
   readonly amount: number;
   /** The modality this rate is for; `null` = every modality (the general rate, feature 024). */
   readonly modality: PricedModality | null;
-  /** The level this rate is for; `null` = every level. Only set together with `modality`. */
-  readonly level: MatchLevel | null;
 
   /** Optimistic-concurrency counter of the admin web (absent = 0). */
   readonly revision: number;
@@ -31,7 +29,6 @@ export class RentalRate extends Entity<string> {
     durationMinutes: number;
     amount: number;
     modality?: string | null;
-    level?: string | null;
     revision?: number;
   }) {
     super(params.id);
@@ -52,9 +49,7 @@ export class RentalRate extends Entity<string> {
     this.refId = params.refId;
     this.durationMinutes = params.durationMinutes as RentalDurationMinutes;
     this.amount = params.amount;
-    const tier = parseTier(params.modality, params.level, where);
-    this.modality = tier.modality;
-    this.level = tier.level;
+    this.modality = parseTier(params.modality, where).modality;
     this.revision = readRevision(params.revision, where);
   }
 }

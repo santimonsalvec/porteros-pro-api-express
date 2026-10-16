@@ -37,7 +37,7 @@ describe('MatchDetails', () => {
 
   it('has no format unless given one (requests before feature 024)', () => {
     expect(new MatchDetails(valid).format).toBeNull();
-    const format = new MatchFormat({ modality: 'any', level: 'recreational', surfaceId: 'dirt', surfaceName: 'Arena' });
+    const format = new MatchFormat({ modality: 'any', surfaceId: 'dirt', surfaceName: 'Arena' });
     expect(new MatchDetails({ ...valid, format }).format).toBe(format);
   });
 });

@@ -83,7 +83,7 @@ describe('POST /goalkeeper-requests/bookings — Story 1: book at exactly the qu
       timeZone: 'America/Bogota',
       goalkeeperCount: 2,
       durationMinutes: 90,
-      matchFormat: { modality: 'futbol_11', level: 'competitive', surface: { id: 'synthetic_grass', name: 'Grama sintética' } },
+      matchFormat: { modality: 'futbol_11', surface: { id: 'synthetic_grass', name: 'Grama sintética' } },
       unitRate: 55000,
       subtotal: 110000,
       unitSurcharge: 5000,

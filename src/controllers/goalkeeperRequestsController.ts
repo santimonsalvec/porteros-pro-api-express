@@ -94,7 +94,6 @@ export function createGoalkeeperRequestsController(deps: GoalkeeperRequestsContr
         goalkeeperCount: body.goalkeeperCount,
         durationMinutes: body.durationMinutes,
         modality: body.modality,
-        level: body.level,
         surfaceId: body.surfaceId,
       }),
     );

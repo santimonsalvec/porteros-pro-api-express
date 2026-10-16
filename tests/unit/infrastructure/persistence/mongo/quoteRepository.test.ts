@@ -90,10 +90,10 @@ describe('QuoteRepository (mocked driver)', () => {
   });
 
   it('stores the match format and reads it back (feature 024)', () => {
-    const format = new MatchFormat({ modality: 'futbol_11', level: 'competitive', surfaceId: 'synthetic_grass', surfaceName: 'Grama sintética' });
+    const format = new MatchFormat({ modality: 'futbol_11', surfaceId: 'synthetic_grass', surfaceName: 'Grama sintética' });
     const doc = quoteToDocument(buildStoredQuote({ format }));
 
-    expect(doc.match.format).toEqual({ modality: 'futbol_11', level: 'competitive', surfaceId: 'synthetic_grass', surfaceName: 'Grama sintética' });
+    expect(doc.match.format).toEqual({ modality: 'futbol_11', surfaceId: 'synthetic_grass', surfaceName: 'Grama sintética' });
     expect(quoteFromDocument(doc).match.format).toEqual(format);
   });
 

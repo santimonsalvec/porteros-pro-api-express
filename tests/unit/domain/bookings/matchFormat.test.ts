@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MatchFormat, isModality, isPricedModality } from '../../../../src/domain/bookings/matchFormat.js';
 
-const valid = { modality: 'futbol_11', level: 'competitive', surfaceId: 'synthetic_grass', surfaceName: 'Grama sintética' };
+const valid = { modality: 'futbol_11', surfaceId: 'synthetic_grass', surfaceName: 'Grama sintética' };
 
 describe('MatchFormat', () => {
   it('accepts every modality, including any', () => {
@@ -12,7 +12,6 @@ describe('MatchFormat', () => {
 
   it.each([
     ['an unknown modality', { modality: 'futbol_5' }],
-    ['an unknown level', { level: 'pro' }],
     ['an empty surface id', { surfaceId: '' }],
     ['a blank surface name', { surfaceName: '  ' }],
   ])('rejects %s', (_label, override) => {

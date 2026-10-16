@@ -18,7 +18,7 @@ function rate(scope: 'zone' | 'market', amount: number): RentalRate {
   return new RentalRate({ id: `${scope}-rate`, scope, refId: `${scope}-1`, durationMinutes: 60, amount });
 }
 
-const F11: MatchTier = { modality: 'futbol_11', level: 'competitive' };
+const F11: MatchTier = { modality: 'futbol_11' };
 
 describe('selectUnitRate', () => {
   it('prefers the zone rate over the city rate', () => {

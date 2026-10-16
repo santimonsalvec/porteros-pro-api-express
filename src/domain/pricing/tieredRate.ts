@@ -1,31 +1,25 @@
-import {
-  MATCH_LEVELS,
-  PRICED_MODALITIES,
-  type MatchLevel,
-  type Modality,
-} from '../bookings/matchFormat.js';
+import { PRICED_MODALITIES, type Modality } from '../bookings/matchFormat.js';
 import type { PriceTier } from './tier.js';
 
-/** What a match is priced by: its modality and level (the surface never changes the price). */
+/** What a match is priced by: its modality (the surface never changes the price). */
 export interface MatchTier {
   modality: Modality;
-  level: MatchLevel;
 }
 
-/** Every modality/level a client can choose: 3 modalities × 2 levels, plus `any` (level ignored). */
+/** Every modality a client can choose: the 3 priced ones, plus `any`. */
 export const ALL_MATCH_TIERS: readonly MatchTier[] = [
-  ...PRICED_MODALITIES.flatMap((modality) => MATCH_LEVELS.map((level) => ({ modality, level }))),
-  { modality: 'any', level: 'recreational' },
+  ...PRICED_MODALITIES.map((modality) => ({ modality })),
+  { modality: 'any' },
 ];
 
 /**
- * The tiers to try, most specific first: modality + level → modality → general. `any` only
- * ever uses the general tier, whatever the level (feature 024, contract §5).
+ * The tiers to try, most specific first: modality → general. `any` only ever uses the general
+ * tier (feature 024, contract §5).
  */
 export function candidatesFor(match: MatchTier): PriceTier[] {
-  const general: PriceTier = { modality: null, level: null };
+  const general: PriceTier = { modality: null };
   if (match.modality === 'any') return [general];
-  return [{ modality: match.modality, level: match.level }, { modality: match.modality, level: null }, general];
+  return [{ modality: match.modality }, general];
 }
 
 /**
@@ -37,7 +31,7 @@ export function resolveTiered<T extends PriceTier>(levels: readonly (readonly T[
   const candidates = candidatesFor(match);
   for (const documents of levels) {
     for (const tier of candidates) {
-      const found = documents.find((document) => document.modality === tier.modality && document.level === tier.level);
+      const found = documents.find((document) => document.modality === tier.modality);
       if (found) return found;
     }
   }

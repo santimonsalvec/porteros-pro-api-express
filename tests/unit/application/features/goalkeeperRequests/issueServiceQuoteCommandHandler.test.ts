@@ -24,9 +24,9 @@ const priced = {
   startsAt: '2026-09-21T20:00:00.000Z',
   startsAtLocal: '2026-09-21T15:00:00-05:00',
   timeZone: 'America/Bogota',
-  matchFormat: { modality: 'futbol_11' as const, level: 'competitive' as const, surface: { id: 'synthetic_grass', name: 'Grama sintética' } },
+  matchFormat: { modality: 'futbol_11' as const, surface: { id: 'synthetic_grass', name: 'Grama sintética' } },
 };
-const format = new MatchFormat({ modality: 'futbol_11', level: 'competitive', surfaceId: 'synthetic_grass', surfaceName: 'Grama sintética' });
+const format = new MatchFormat({ modality: 'futbol_11', surfaceId: 'synthetic_grass', surfaceName: 'Grama sintética' });
 const success: Extract<GetServiceQuoteResult, { outcome: 'success' }> = {
   outcome: 'success',
   quote: priced,

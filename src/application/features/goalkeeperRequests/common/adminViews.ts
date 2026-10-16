@@ -107,7 +107,7 @@ export interface RequestDetail {
     longitude: number;
     durationMinutes: number;
     goalkeeperCount: number;
-    format: { modality: string; level: string; surfaceName: string } | null;
+    format: { modality: string; surfaceName: string } | null;
   };
   pricing: { unitRate: number; unitSurcharge: number; subtotal: number; surcharge: number; total: number; currency: string };
   commission: number;

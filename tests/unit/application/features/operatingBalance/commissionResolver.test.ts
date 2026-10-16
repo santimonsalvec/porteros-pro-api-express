@@ -60,28 +60,24 @@ describe('CommissionResolver — US3: zone, then anchor city, then country', () 
   });
 });
 
-describe('CommissionResolver — feature 024: modality and level tiers', () => {
+describe('CommissionResolver — feature 024: modality tiers', () => {
   beforeEach(() => {
     settings.seed(new CommissionSetting({ id: 'c-med-f11', scope: 'market', refId: 'city-medellin', amount: 10000, modality: 'futbol_11' }));
-    settings.seed(
-      new CommissionSetting({ id: 'c-med-f11-c', scope: 'market', refId: 'city-medellin', amount: 12000, modality: 'futbol_11', level: 'competitive' }),
-    );
     settings.seed(new CommissionSetting({ id: 'c-co-micro', scope: 'country', refId: 'country-co', amount: 5000, modality: 'micro_futsal' }));
   });
 
   it.each([
-    ['Fútbol 11 competitive in a city zone', 'zone-poblado', { modality: 'futbol_11', level: 'competitive' }, 12000],
-    ['Fútbol 11 recreational in a city zone', 'zone-poblado', { modality: 'futbol_11', level: 'recreational' }, 10000],
-    ['Micro, which the city does not price, falls to the city general', 'zone-poblado', { modality: 'micro_futsal', level: 'recreational' }, 8000],
-    ['any uses the general commission', 'zone-poblado', { modality: 'any', level: 'competitive' }, 8000],
-    ['the zone general beats the city Fútbol 11 (geography first)', 'zone-laureles', { modality: 'futbol_11', level: 'competitive' }, 9000],
-    ['Micro in Cali uses the country Micro commission', 'zone-cali-norte', { modality: 'micro_futsal', level: 'competitive' }, 5000],
+    ['Fútbol 11 in a city zone', 'zone-poblado', { modality: 'futbol_11' }, 10000],
+    ['Micro, which the city does not price, falls to the city general', 'zone-poblado', { modality: 'micro_futsal' }, 8000],
+    ['any uses the general commission', 'zone-poblado', { modality: 'any' }, 8000],
+    ['the zone general beats the city Fútbol 11 (geography first)', 'zone-laureles', { modality: 'futbol_11' }, 9000],
+    ['Micro in Cali uses the country Micro commission', 'zone-cali-norte', { modality: 'micro_futsal' }, 5000],
   ] as const)('resolves %s', async (_label, zoneId, match, amount) => {
     expect(await resolver.resolveForMatch(zoneId, match)).toBe(amount);
   });
 
   it('answers null for a match in an unconfigured zone', async () => {
-    expect(await resolver.resolveForMatch('zone-cdmx', { modality: 'futbol_11', level: 'competitive' })).toBeNull();
+    expect(await resolver.resolveForMatch('zone-cdmx', { modality: 'futbol_11' })).toBeNull();
   });
 
   it('gives each zone the lowest commission any match there could carry', async () => {
@@ -92,15 +88,15 @@ describe('CommissionResolver — feature 024: modality and level tiers', () => {
 });
 
 describe('CommissionResolver.resolveSettingForMatch (admin spec 004, the simulator)', () => {
-  const recreational = { modality: 'futbol_11' as const, level: 'recreational' as const };
+  const futbol11 = { modality: 'futbol_11' as const };
 
   it('answers the winning document, so the simulator can say where the commission comes from', async () => {
-    expect((await resolver.resolveSettingForMatch('zone-laureles', recreational))?.id).toBe('c-lau');
-    expect((await resolver.resolveSettingForMatch('zone-poblado', recreational))?.id).toBe('c-med');
-    expect((await resolver.resolveSettingForMatch('zone-cali-norte', recreational))?.id).toBe('c-co');
+    expect((await resolver.resolveSettingForMatch('zone-laureles', futbol11))?.id).toBe('c-lau');
+    expect((await resolver.resolveSettingForMatch('zone-poblado', futbol11))?.id).toBe('c-med');
+    expect((await resolver.resolveSettingForMatch('zone-cali-norte', futbol11))?.id).toBe('c-co');
   });
 
   it('answers null where nothing applies', async () => {
-    expect(await resolver.resolveSettingForMatch('zone-cdmx', recreational)).toBeNull();
+    expect(await resolver.resolveSettingForMatch('zone-cdmx', futbol11)).toBeNull();
   });
 });

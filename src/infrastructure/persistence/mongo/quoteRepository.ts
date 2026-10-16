@@ -22,7 +22,6 @@ export function matchToDocument(match: MatchDetails): Document {
     format: match.format
       ? {
           modality: match.format.modality,
-          level: match.format.level,
           surfaceId: match.format.surfaceId,
           surfaceName: match.format.surfaceName,
         }
@@ -35,7 +34,6 @@ function formatFromDocument(doc: Document | null | undefined): MatchFormat | nul
   if (!doc) return null;
   return new MatchFormat({
     modality: doc.modality as string,
-    level: doc.level as string,
     surfaceId: doc.surfaceId as string,
     surfaceName: doc.surfaceName as string,
   });

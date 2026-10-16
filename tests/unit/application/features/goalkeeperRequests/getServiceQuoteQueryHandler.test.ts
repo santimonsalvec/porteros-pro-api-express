@@ -88,7 +88,7 @@ describe('GetServiceQuoteQueryHandler — Story 1: price a booking', () => {
         startsAt: '2026-09-21T20:00:00.000Z',
         startsAtLocal: '2026-09-21T15:00:00-05:00',
         timeZone: 'America/Bogota',
-        matchFormat: { modality: 'futbol_11', level: 'competitive', surface: { id: 'synthetic_grass', name: 'Grama sintética' } },
+        matchFormat: { modality: 'futbol_11', surface: { id: 'synthetic_grass', name: 'Grama sintética' } },
       },
       area: {
         zoneId: 'zone-cali-norte',
@@ -96,28 +96,26 @@ describe('GetServiceQuoteQueryHandler — Story 1: price a booking', () => {
         freeCancellationMinutes: null,
         commission: 7000,
         travelBufferMinutes: null,
-        format: new MatchFormat({ modality: 'futbol_11', level: 'competitive', surfaceId: 'synthetic_grass', surfaceName: 'Grama sintética' }),
+        format: new MatchFormat({ modality: 'futbol_11', surfaceId: 'synthetic_grass', surfaceName: 'Grama sintética' }),
       },
     });
   });
 
-  describe('feature 024: modality, level and surface', () => {
-    const zoneRate = (id: string, amount: number, modality?: string, level?: string) =>
-      new RentalRate({ id, scope: 'zone', refId: 'zone-cali-norte', durationMinutes: 60, amount, modality, level });
+  describe('feature 024: modality and surface', () => {
+    const zoneRate = (id: string, amount: number, modality?: string) =>
+      new RentalRate({ id, scope: 'zone', refId: 'zone-cali-norte', durationMinutes: 60, amount, modality });
 
     beforeEach(() => {
       h.rentalRateRepository.seed(zoneRate('f11', 70000, 'futbol_11'));
-      h.rentalRateRepository.seed(zoneRate('f11-c', 80000, 'futbol_11', 'competitive'));
       h.commissionSettingRepository.seed(
         new CommissionSetting({ id: 'c-f11', scope: 'market', refId: 'city-cali', amount: 10000, modality: 'futbol_11' }),
       );
     });
 
     it.each([
-      ['the modality + level rate', { modality: 'futbol_11', level: 'competitive' }, 80000, 10000],
-      ['the modality rate for a level without its own', { modality: 'futbol_11', level: 'recreational' }, 70000, 10000],
-      ['the general rate for a modality without its own', { modality: 'micro_futsal', level: 'competitive' }, 40000, 7000],
-      ['the general rate for any', { modality: 'any', level: 'competitive' }, 40000, 7000],
+      ['the modality rate', { modality: 'futbol_11' }, 70000, 10000],
+      ['the general rate for a modality without its own', { modality: 'micro_futsal' }, 40000, 7000],
+      ['the general rate for any', { modality: 'any' }, 40000, 7000],
     ] as const)('prices with %s', async (_label, match, unitRate, commission) => {
       const result = await h.quote('2026-09-21T15:00:00', match);
 
@@ -136,8 +134,8 @@ describe('GetServiceQuoteQueryHandler — Story 1: price a booking', () => {
       const synthetic = await h.quote('2026-09-21T15:00:00', { surfaceId: 'synthetic_grass' });
       const dirt = await h.quote('2026-09-21T15:00:00', { surfaceId: 'dirt' });
 
-      expect(synthetic).toMatchObject({ quote: { unitRate: 80000 } });
-      expect(dirt).toMatchObject({ quote: { unitRate: 80000, matchFormat: { surface: { id: 'dirt', name: 'Arena' } } } });
+      expect(synthetic).toMatchObject({ quote: { unitRate: 70000 } });
+      expect(dirt).toMatchObject({ quote: { unitRate: 70000, matchFormat: { surface: { id: 'dirt', name: 'Arena' } } } });
     });
 
     it.each([

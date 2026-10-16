@@ -49,7 +49,7 @@ export class GetRequestAdminQueryHandler implements IQueryHandler<GetRequestAdmi
           longitude: request.match.longitude,
           durationMinutes: request.match.durationMinutes,
           goalkeeperCount: request.match.goalkeeperCount,
-          format: format ? { modality: format.modality, level: format.level, surfaceName: format.surfaceName } : null,
+          format: format ? { modality: format.modality, surfaceName: format.surfaceName } : null,
         },
         pricing: {
           unitRate: request.pricing.unitRate,

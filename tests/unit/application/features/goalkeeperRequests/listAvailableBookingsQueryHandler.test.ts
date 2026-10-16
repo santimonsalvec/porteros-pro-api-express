@@ -83,14 +83,13 @@ describe('ListAvailableBookingsQueryHandler — US1: a goalkeeper sees the match
   });
 
   it('carries the match format of each request (feature 024)', async () => {
-    const format = new MatchFormat({ modality: 'futbol_medio', level: 'recreational', surfaceId: 'synthetic_grass', surfaceName: 'Grama sintética' });
+    const format = new MatchFormat({ modality: 'futbol_medio', surfaceId: 'synthetic_grass', surfaceName: 'Grama sintética' });
     h.seedRequest('formato', inHours(5), { goalkeeperCount: 1, format });
 
     const result = await list();
 
     expect(result.outcome === 'success' && result.items.find((item) => item.requestId === 'formato')?.matchFormat).toEqual({
       modality: 'futbol_medio',
-      level: 'recreational',
       surface: { id: 'synthetic_grass', name: 'Grama sintética' },
     });
   });

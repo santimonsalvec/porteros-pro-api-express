@@ -220,17 +220,16 @@ export const openapiSpec = {
       },
       MatchFormat: {
         type: 'object',
-        description: 'What kind of match (feature 024). The modality and level can change the price; the surface never does.',
+        description: 'What kind of match (feature 024). The modality can change the price; the surface never does.',
         properties: {
           modality: { type: 'string', enum: ['micro_futsal', 'futbol_medio', 'futbol_11', 'any'] },
-          level: { type: 'string', enum: ['recreational', 'competitive'] },
           surface: {
             type: 'object',
             properties: { id: { type: 'string', example: 'synthetic_grass' }, name: { type: 'string', example: 'Grama sintética' } },
             required: ['id', 'name'],
           },
         },
-        required: ['modality', 'level', 'surface'],
+        required: ['modality', 'surface'],
       },
       AvailableBookingsPage: {
         type: 'object',
@@ -603,18 +602,17 @@ export const openapiSpec = {
           modality: {
             type: 'string',
             enum: ['micro_futsal', 'futbol_medio', 'futbol_11', 'any'],
-            description: 'Feature 024. Prices by modality + level, then modality, then the general rate, within each geographic level (zone, then market); any always uses the general rate',
+            description: 'Feature 024. Prices by modality, then the general rate, within each geographic level (zone, then market); any always uses the general rate',
           },
-          level: { type: 'string', enum: ['recreational', 'competitive'] },
           surfaceId: { type: 'string', example: 'synthetic_grass', description: 'An active surface of GET /config; an unknown or inactive one answers validation_failed with fieldErrors.surfaceId' },
         },
-        required: ['latitude', 'longitude', 'startsAt', 'goalkeeperCount', 'durationMinutes', 'modality', 'level', 'surfaceId'],
+        required: ['latitude', 'longitude', 'startsAt', 'goalkeeperCount', 'durationMinutes', 'modality', 'surfaceId'],
       },
       ServiceQuoteResponse: {
         type: 'object',
         description: 'Amounts are integers in whole units of the country\u2019s currency.',
         properties: {
-          unitRate: { type: 'integer', example: 55000, description: 'Price per goalkeeper (zone rates, else market rates; by modality + level, modality, then general within each)' },
+          unitRate: { type: 'integer', example: 55000, description: 'Price per goalkeeper (zone rates, else market rates; by modality, then general within each)' },
           goalkeeperCount: { type: 'integer', enum: [1, 2] },
           subtotal: { type: 'integer', example: 110000, description: 'unitRate x goalkeeperCount' },
           unitSurcharge: { type: 'integer', example: 5000, description: 'Lead-time surcharge per goalkeeper; 0 when none applies' },

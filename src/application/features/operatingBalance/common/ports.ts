@@ -44,7 +44,7 @@ export interface ICommissionSettingRepository {
 }
 
 /**
- * The effective commission (zone → market → country, then modality + level → modality →
+ * The effective commission (zone → market → country, then modality →
  * general within each), `null` when none is configured.
  */
 export interface ICommissionResolver {

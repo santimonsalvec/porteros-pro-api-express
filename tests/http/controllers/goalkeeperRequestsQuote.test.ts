@@ -56,7 +56,7 @@ describe('POST /goalkeeper-requests/quote — Story 1: price a booking', () => {
       startsAt: '2026-09-21T20:00:00.000Z',
       startsAtLocal: '2026-09-21T15:00:00-05:00',
       timeZone: 'America/Bogota',
-      matchFormat: { modality: 'futbol_11', level: 'competitive', surface: { id: 'synthetic_grass', name: 'Grama sintética' } },
+      matchFormat: { modality: 'futbol_11', surface: { id: 'synthetic_grass', name: 'Grama sintética' } },
       quoteId: expect.any(String),
       expiresAt: '2026-09-21T18:03:00.000Z', // the fixed clock (18:00Z) + 3 minutes
       // Feature 016: "cancel all" can be chosen until start − 60 min.
@@ -200,20 +200,18 @@ describe('POST /goalkeeper-requests/quote — Story 3: refusals', () => {
       expectNoPrice(response.body);
     });
 
-    it('lists all eight inputs when the body is empty', async () => {
+    it('lists all seven inputs when the body is empty', async () => {
       const response = await refused('sub-0202', {});
 
       expect(response.status).toBe(400);
       expect(Object.keys(response.body.fieldErrors).sort()).toEqual(
-        ['durationMinutes', 'goalkeeperCount', 'latitude', 'level', 'longitude', 'modality', 'startsAt', 'surfaceId'],
+        ['durationMinutes', 'goalkeeperCount', 'latitude', 'longitude', 'modality', 'startsAt', 'surfaceId'],
       );
     });
 
     it.each([
       ['no modality', { modality: undefined }, 'modality', 'Elige la modalidad del partido.'],
       ['an unknown modality', { modality: 'futbol_5' }, 'modality', 'Elige la modalidad del partido.'],
-      ['no level', { level: undefined }, 'level', 'Elige el nivel del partido.'],
-      ['an unknown level', { level: 'pro' }, 'level', 'Elige el nivel del partido.'],
       ['no surface', { surfaceId: undefined }, 'surfaceId', 'Elige la superficie.'],
       ['a blank surface', { surfaceId: '  ' }, 'surfaceId', 'Elige la superficie.'],
       ['an unknown surface', { surfaceId: 'lava' }, 'surfaceId', 'Esa superficie ya no está disponible. Elige otra.'],
