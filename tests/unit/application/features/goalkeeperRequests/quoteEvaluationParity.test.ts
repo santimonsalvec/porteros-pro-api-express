@@ -39,12 +39,11 @@ const CASES: [keyof typeof ZONES, string, 60 | 90 | 120, Modality, MatchLevel][]
 describe('the simulator matches the quote', () => {
   it.each(CASES)('%s at %s, %i min, %s %s', async (point, startsAtLocal, durationMinutes, modality, level) => {
     const world = previewWorld();
-    world.rentalRateRepository.seed(new RentalRate({ id: 'f11', scope: 'city', refId: 'city-cali', durationMinutes: 60, amount: 50000, modality: 'futbol_11', level: 'competitive' }));
+    world.rentalRateRepository.seed(new RentalRate({ id: 'f11', scope: 'market', refId: 'city-cali', durationMinutes: 60, amount: 50000, modality: 'futbol_11', level: 'competitive' }));
     world.commissionSettingRepository.seed(new CommissionSetting({ id: 'c-sur', scope: 'zone', refId: 'zone-cali-sur', amount: 9000 }));
     const quote = await new GetServiceQuoteQueryHandler(
       world.zoneRepository,
-      world.cityRepository,
-      world.regionRepository,
+      world.marketRepository,
       world.countryRepository,
       world.rentalRateRepository,
       world.bookingSettingsRepository,

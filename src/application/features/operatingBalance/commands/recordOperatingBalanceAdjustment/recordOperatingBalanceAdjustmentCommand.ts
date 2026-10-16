@@ -9,7 +9,7 @@ export type RecordOperatingBalanceAdjustmentResult =
   /** A debit would leave the balance below zero (only penalties may). */
   | { outcome: 'insufficient_funds'; balance: number }
   | { outcome: 'not_a_goalkeeper' }
-  | { outcome: 'operating_balance_not_configured'; cityId: string };
+  | { outcome: 'operating_balance_not_configured'; marketId: string };
 
 /** An administrator credits or debits a goalkeeper's operating balance by hand, with a reason (FR-017). */
 export class RecordOperatingBalanceAdjustmentCommand extends ICommand<RecordOperatingBalanceAdjustmentResult> {

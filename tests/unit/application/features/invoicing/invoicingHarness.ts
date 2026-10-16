@@ -10,6 +10,8 @@ import { commissionCharged, commissionRefunded, type BillingEvent } from '../../
 import { User } from '../../../../../src/domain/users/user.js';
 import type { BalanceMovement } from '../../../../../src/domain/operatingBalance/balanceMovement.js';
 import { FakeBillableMovementScanner } from '../../../../fakes/fakeBillableMovementScanner.js';
+import { FakeCityRepository } from '../../../../fakes/fakeCityRepository.js';
+import { City } from '../../../../../src/domain/locations/city.js';
 import { FakeInvoicingDocumentRepository } from '../../../../fakes/fakeInvoicingDocumentRepository.js';
 import { FakeInvoicingProvider, FakeInvoicingProviderRegistry } from '../../../../fakes/fakeInvoicingProvider.js';
 import { FakeInvoicingSecrets } from '../../../../fakes/fakeInvoicingSecrets.js';
@@ -39,11 +41,15 @@ export class InvoicingHarness {
 
   constructor() {
     this.settings.seed();
+    this.municipalities.seed(new City({ id: 'mun-cali', name: 'Cali', regionId: 'valle', daneStateCode: '76', daneCityCode: '001' }));
   }
 
   get clock() {
     return this.operatingBalance.clock;
   }
+
+  /** The municipalities of the buyers' billing data (spec 031). */
+  readonly municipalities = new FakeCityRepository();
 
   get deps() {
     return {
@@ -52,7 +58,7 @@ export class InvoicingHarness {
       providers: this.providers,
       secrets: this.secrets,
       countryLookup: this.operatingBalance.countries,
-      cityRepository: this.operatingBalance.cities,
+      cityRepository: this.municipalities,
       logger: this.logger,
       enabled: this.enabled,
       movements: this.operatingBalance.store,

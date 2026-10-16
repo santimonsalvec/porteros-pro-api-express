@@ -10,10 +10,10 @@ export interface ZoneGeometry {
   coordinates: unknown[];
 }
 
-/** A service zone of an anchor city: seeded by the data owner, edited in the admin web (spec 003). */
+/** A service zone of a market (spec 031): drawn in the admin web, never moved to another market. */
 export class Zone extends Entity<string> {
-  /** Always an anchor city's id — never a satellite city's id. */
-  readonly cityId: string;
+  /** The market it belongs to; it never changes (FR-002a). */
+  readonly marketId: string;
   readonly name: string;
   readonly slug: string;
   readonly geometry: ZoneGeometry;
@@ -24,7 +24,7 @@ export class Zone extends Entity<string> {
 
   constructor(params: {
     id: string;
-    cityId: string;
+    marketId: string;
     name: string;
     slug: string;
     geometry: ZoneGeometry;
@@ -33,7 +33,7 @@ export class Zone extends Entity<string> {
     revision?: number;
   }) {
     super(params.id);
-    this.cityId = params.cityId;
+    this.marketId = params.marketId;
     this.name = params.name;
     this.slug = params.slug;
     this.geometry = params.geometry;

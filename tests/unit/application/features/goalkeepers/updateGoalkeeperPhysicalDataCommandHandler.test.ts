@@ -21,7 +21,7 @@ function buildHandler() {
       documentPhotoBId: 'img-b',
       heightCm: 185,
       weightKg: 78,
-      cityId: 'city-envigado',
+      marketId: 'city-envigado',
       zoneIds: ['zone-bello'],
       activatedAt: new Date('2026-08-30'),
     }),

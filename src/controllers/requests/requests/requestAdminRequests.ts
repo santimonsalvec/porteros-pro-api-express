@@ -17,8 +17,7 @@ export const listRequestsQuerySchema = z
   .object({
     ...pageQuery,
     status: z.enum(['searching', 'partially_assigned', 'assigned', 'completed', 'cancelled', 'expired', 'closed']).optional(),
-    countryId: id.optional(),
-    cityId: id.optional(),
+    // The country and the market come from X-Scope (spec 031, contract B1).
     zoneId: id.optional(),
     from: instant.optional(),
     to: instant.optional(),

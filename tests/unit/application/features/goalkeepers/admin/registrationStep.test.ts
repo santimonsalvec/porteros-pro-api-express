@@ -20,9 +20,11 @@ describe('where a registration in progress stands (admin spec 005, US7)', () => 
     expect(registrationStep(identified)).toBe('physicalData');
     identified.physicalData = { heightCm: 180, weightKg: 80 };
     expect(registrationStep(identified)).toBe('availability');
-    identified.availability = { cityId: 'med', zoneIds: ['z1'] };
+    identified.availability = { marketId: 'med', zoneIds: ['z1'] };
+    expect(registrationStep(identified)).toBe('billing');
+    identified.saveBilling({ cityId: 'mun-med', address: 'Calle 10 # 20-30' });
     expect(registrationStep(identified)).toBe('ready');
-    expect(completeSections(identified)).toEqual(['identification', 'physicalData', 'availability']);
+    expect(completeSections(identified)).toEqual(['identification', 'physicalData', 'availability', 'billing']);
   });
 
   it('lists which sections are complete even out of order', () => {

@@ -74,7 +74,7 @@ describe('GET /goalkeeper-requests/bookings — Story 1: the client sees their b
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
-      items: [{ ...confirmed.body, zoneName: 'Norte', cityName: 'Cali' }],
+      items: [{ ...confirmed.body, zoneName: 'Norte', marketName: 'Cali' }],
       page: 1,
       pageSize: 20,
       totalItems: 1,

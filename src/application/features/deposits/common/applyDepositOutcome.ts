@@ -44,7 +44,7 @@ export async function applyDepositOutcome(
     status,
     gatewayTransactionId: outcome?.transactionId ?? null,
     charged: outcome ? { amountInCents: outcome.amountInCents, currency: outcome.currency } : null,
-    owner: { goalkeeperId: context.profile.userId, currency: context.currency, invoicing: context.invoicing },
+    owner: { goalkeeperId: context.profile.userId, currency: context.currency, invoicing: context.invoicing, marketId: context.profile.marketId },
     now,
   });
   if (result.kind === 'mismatch') {

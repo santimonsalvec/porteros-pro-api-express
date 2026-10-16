@@ -496,6 +496,7 @@ export class FakeBookingLifecycleStore implements IBookingLifecycleStore {
       goalkeeperId,
       bookingId: args.booking.id,
       requestId: args.booking.requestId,
+      marketId: this.requests.all().find((request) => request.id === args.booking.requestId)?.match.marketId ?? '',
       startsAt: args.booking.startsAt,
       occurredAt: now,
       noticeMinutes: args.noticeMinutes,

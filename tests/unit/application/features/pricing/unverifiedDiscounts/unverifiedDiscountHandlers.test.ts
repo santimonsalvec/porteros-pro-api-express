@@ -31,15 +31,15 @@ describe('ListUnverifiedDiscountsQuery (admin spec 030, contracts D1)', () => {
       id: 'co',
       name: 'Colombia',
       setting: { id: 'country-co', discountBps: 1000, verifiedPriorityMinutes: null, revision: 0 },
-      effective: { discountBps: 1000, discountOrigin: 'country', verifiedPriorityMinutes: 15, priorityOrigin: 'default' },
+      effective: { discountBps: 1000, discountOrigin: 'country', verifiedPriorityMinutes: 15, priorityOrigin: 'platform' },
     });
-    expect(result.view.cities.find((city) => city.id === 'med')).toEqual({
+    expect(result.view.markets.find((market) => market.id === 'med')).toEqual({
       id: 'med',
       name: 'Medellín',
       setting: null,
-      effective: { discountBps: 1000, discountOrigin: 'country', verifiedPriorityMinutes: 15, priorityOrigin: 'default' },
+      effective: { discountBps: 1000, discountOrigin: 'country', verifiedPriorityMinutes: 15, priorityOrigin: 'platform' },
     });
-    expect(result.view.zones.find((zone) => zone.id === 'poblado')).toMatchObject({ cityId: 'med', setting: { discountBps: 1500 }, effective: { discountBps: 1500, discountOrigin: 'zone' } });
+    expect(result.view.zones.find((zone) => zone.id === 'poblado')).toMatchObject({ marketId: 'med', setting: { discountBps: 1500 }, effective: { discountBps: 1500, discountOrigin: 'zone' } });
     expect(result.view.zones.find((zone) => zone.id === 'bello')).toMatchObject({ setting: null, effective: { discountBps: 1000, discountOrigin: 'country' } });
   });
 
@@ -60,8 +60,8 @@ describe('the unverified discount commands (contracts D2–D4)', () => {
 
   it('a level may set only the verified-only window, and needs at least one value', async () => {
     expect(await create({ discountBps: null, verifiedPriorityMinutes: 30 })).toEqual({ outcome: 'saved', id: 'new-1' });
-    expect(await create({ scope: 'city', refId: 'med', discountBps: null, verifiedPriorityMinutes: null })).toEqual({ outcome: 'invalid', fieldErrors: { discountBps: expect.any(String) } });
-    expect(await create({ scope: 'city', refId: 'med', discountBps: null, verifiedPriorityMinutes: 1441 })).toEqual({
+    expect(await create({ scope: 'market', refId: 'med', discountBps: null, verifiedPriorityMinutes: null })).toEqual({ outcome: 'invalid', fieldErrors: { discountBps: expect.any(String) } });
+    expect(await create({ scope: 'market', refId: 'med', discountBps: null, verifiedPriorityMinutes: 1441 })).toEqual({
       outcome: 'invalid',
       fieldErrors: { verifiedPriorityMinutes: expect.any(String) },
     });
@@ -70,12 +70,11 @@ describe('the unverified discount commands (contracts D2–D4)', () => {
   it('refuses above the 30 % ceiling, fractions and targets that are not a level', async () => {
     expect(await create({ discountBps: 3001 })).toEqual({ outcome: 'invalid', fieldErrors: { discountBps: expect.any(String) } });
     expect(await create({ discountBps: 10.5 })).toEqual({ outcome: 'invalid', fieldErrors: { discountBps: expect.any(String) } });
-    expect(await create({ scope: 'city', refId: 'env' })).toEqual({ outcome: 'city_not_anchor', anchorCityId: 'med' });
     expect(await create({ scope: 'zone', refId: 'nowhere' })).toEqual({ outcome: 'zone_not_found' });
   });
 
   it('updates and deletes at the revision read', async () => {
-    const setting = kit.discounts.seed('city', 'med', 1000);
+    const setting = kit.discounts.seed('market', 'med', 1000);
     const update = new UpdateUnverifiedDiscountCommandHandler(kit);
     const remove = new DeleteUnverifiedDiscountCommandHandler(kit);
 

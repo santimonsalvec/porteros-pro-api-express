@@ -24,8 +24,8 @@ export interface PenaltyConfigDependencies {
 export async function resolvePenaltyConfig(deps: PenaltyConfigDependencies, goalkeeperId: string): Promise<GoalkeeperPenaltyConfig> {
   const context = await resolveGoalkeeperOperatingBalanceContext(deps.operatingBalanceContext, goalkeeperId);
   const countryId = context.kind === 'ok' ? context.countryId : null;
-  const cityId = context.kind === 'ok' ? context.profile.cityId : context.kind === 'operating_balance_not_configured' ? context.cityId : null;
-  const configured = cityId !== null ? (await deps.bookingSettingsRepository.findFor(cityId, countryId)).country?.goalkeeperPenalties ?? {} : {};
+  const marketId = context.kind === 'ok' ? context.profile.marketId : context.kind === 'operating_balance_not_configured' ? context.marketId : null;
+  const configured = marketId !== null ? (await deps.bookingSettingsRepository.findFor(marketId, countryId)).country?.goalkeeperPenalties ?? {} : {};
 
   const config: GoalkeeperPenaltyConfig = { ...DEFAULT_GOALKEEPER_PENALTIES };
   const defaulted: string[] = [];

@@ -1,3 +1,4 @@
+import type { StaffScope } from '../../../../domain/staff/staffScope.js';
 import type { StaffMember, StaffStatus } from '../../../../domain/staff/staffMember.js';
 import type { StaffRole } from '../../../../domain/staff/staffRole.js';
 import type { IStaffMemberRepository, IStaffRoleRepository } from './ports.js';
@@ -14,6 +15,20 @@ export interface StaffMemberView {
   lastSignInAt: Date | null;
   invitedBy: { staffId: string | null; label: string };
   createdAt: Date;
+  /** Where the member may work (spec 031), each with its name (`null` for the platform or one gone). */
+  scopes: StaffScopeView[];
+}
+
+export interface StaffScopeView {
+  kind: StaffScope['kind'];
+  id: string | null;
+  name: string | null;
+}
+
+/** The names of the countries and markets the scopes name (spec 031). */
+export interface ScopePlaces {
+  markets: { getById(id: string): Promise<{ name: string } | null> };
+  countries: { getById(id: string): Promise<{ name: string } | null> };
 }
 
 /** A role as the admin web shows it, with how many members have it. */
@@ -32,9 +47,26 @@ const SCRIPT_LABEL = 'Script de operación';
 /** Members as views, resolving each role's name and who invited them, with few reads. */
 export async function toStaffMemberViews(
   members: readonly StaffMember[],
-  deps: { members: IStaffMemberRepository; roles: IStaffRoleRepository },
+  deps: { members: IStaffMemberRepository; roles: IStaffRoleRepository; places?: ScopePlaces },
   now: Date,
 ): Promise<StaffMemberView[]> {
+  const names = new Map<string, string | null>();
+  const nameOf = async (scope: StaffScope): Promise<string | null> => {
+    if (scope.kind === 'platform' || !deps.places) return null;
+    const key = `${scope.kind}:${scope.id}`;
+    if (!names.has(key)) {
+      const place = scope.kind === 'market' ? await deps.places.markets.getById(scope.id) : await deps.places.countries.getById(scope.id);
+      names.set(key, place?.name ?? null);
+    }
+    return names.get(key)!;
+  };
+  const scopeViews = new Map<string, StaffScopeView[]>();
+  for (const member of members) {
+    scopeViews.set(
+      member.id,
+      await Promise.all(member.scopes.map(async (scope) => ({ kind: scope.kind, id: scope.kind === 'platform' ? null : scope.id, name: await nameOf(scope) }))),
+    );
+  }
   const roles = new Map<string, StaffRole | null>();
   const inviters = new Map<string, StaffMember | null>();
   for (const member of members) {
@@ -59,6 +91,7 @@ export async function toStaffMemberViews(
         ? { staffId: null, label: SCRIPT_LABEL }
         : { staffId: member.invitedBy, label: inviter?.email ?? member.invitedBy },
       createdAt: member.createdAt,
+      scopes: scopeViews.get(member.id) ?? [],
     };
   });
 }

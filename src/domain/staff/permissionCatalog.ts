@@ -91,11 +91,20 @@ export const PERMISSION_AREAS = [
     ],
   },
   {
+    id: 'markets',
+    name: 'Sedes',
+    permissions: [
+      { id: 'markets.read', description: 'Ver las sedes y su lista de chequeo' },
+      { id: 'markets.manage', description: 'Crear sedes y editar su nombre, zona horaria y mapa' },
+      { id: 'markets.lifecycle', description: 'Habilitar, deshabilitar y eliminar sedes' },
+    ],
+  },
+  {
     id: 'geography',
     name: 'Geografía',
     permissions: [
-      { id: 'geography.read', description: 'Ver países, regiones, ciudades y zonas' },
-      { id: 'geography.manage', description: 'Crear y editar países, regiones, ciudades y zonas' },
+      { id: 'geography.read', description: 'Ver países, departamentos, municipios y zonas' },
+      { id: 'geography.manage', description: 'Crear y editar países, departamentos, municipios y zonas' },
     ],
   },
   {

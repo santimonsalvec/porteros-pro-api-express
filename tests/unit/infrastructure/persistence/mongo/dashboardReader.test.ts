@@ -12,8 +12,8 @@ const windows = {
   week: { from: new Date('2026-10-12T05:00:00.000Z'), to: new Date('2026-10-19T05:00:00.000Z') },
   days: DAYS,
 };
-const PLATFORM: DashboardScope = { countryId: null, cityId: null, cityIds: null, timeZone: 'America/Bogota', timeZoneSource: 'platform', timeZoneFallback: null };
-const MEDELLIN: DashboardScope = { ...PLATFORM, countryId: 'co', cityId: 'medellin', cityIds: ['medellin'], timeZoneSource: 'city' };
+const PLATFORM: DashboardScope = { countryId: null, marketId: null, marketIds: null, timeZone: 'America/Bogota', timeZoneSource: 'platform', timeZoneFallback: null };
+const MEDELLIN: DashboardScope = { ...PLATFORM, countryId: 'co', marketId: 'medellin', marketIds: ['medellin'], timeZoneSource: 'market' };
 
 function contextFor(scope: DashboardScope, goalkeeperIds: string[] | null = null): DashboardReadContext {
   return { scope, windows, now: NOW, goalkeeperIds: async () => goalkeeperIds };
@@ -40,7 +40,7 @@ describe('MongoDashboardReader, operations areas (admin spec 008, US1)', () => {
     const area = await reader.requests(contextFor({ ...MEDELLIN, timeZone: 'America/Bogota' }));
 
     const pipeline = collection('goalkeeperRequests').aggregate.mock.calls[0]![0] as Document[];
-    expect(pipeline[0]).toEqual({ $match: { startsAt: { $gte: windows.week.from, $lt: windows.week.to }, 'match.cityId': { $in: ['medellin'] } } });
+    expect(pipeline[0]).toEqual({ $match: { startsAt: { $gte: windows.week.from, $lt: windows.week.to }, 'match.marketId': { $in: ['medellin'] } } });
     expect(JSON.stringify(pipeline)).toContain('"timezone":"America/Bogota"');
     expect(area.requests.today.byStatus.assigned).toBe(2);
     expect(area.requests.week.total).toBe(4);
@@ -50,7 +50,7 @@ describe('MongoDashboardReader, operations areas (admin spec 008, US1)', () => {
   it('counts the active goalkeepers of the scope, zeros without any', async () => {
     collection('goalkeeperProfiles').aggregate.mockReturnValueOnce(toArrayResult([{ _id: null, active: 4, available: 2, suspended: 1, blocked: 1 }]));
     expect(await reader.goalkeepers(contextFor(MEDELLIN))).toEqual({ active: 4, available: 2, suspended: 1, blocked: 1 });
-    expect((collection('goalkeeperProfiles').aggregate.mock.calls[0]![0] as Document[])[0]).toEqual({ $match: { cityId: { $in: ['medellin'] } } });
+    expect((collection('goalkeeperProfiles').aggregate.mock.calls[0]![0] as Document[])[0]).toEqual({ $match: { marketId: { $in: ['medellin'] } } });
 
     collection('goalkeeperProfiles').aggregate.mockReturnValueOnce(toArrayResult([]));
     expect(await reader.goalkeepers(contextFor(PLATFORM))).toEqual({ active: 0, available: 0, suspended: 0, blocked: 0 });
@@ -58,8 +58,8 @@ describe('MongoDashboardReader, operations areas (admin spec 008, US1)', () => {
 
   it("finds the scope's goalkeepers by their profile's city", async () => {
     collection('goalkeeperProfiles').distinct.mockResolvedValue(['gk-1', 'gk-2']);
-    expect(await reader.goalkeeperIdsInCities(['medellin'])).toEqual(['gk-1', 'gk-2']);
-    expect(collection('goalkeeperProfiles').distinct).toHaveBeenCalledWith('userId', { cityId: { $in: ['medellin'] } });
+    expect(await reader.goalkeeperIdsInMarkets(['medellin'])).toEqual(['gk-1', 'gk-2']);
+    expect(collection('goalkeeperProfiles').distinct).toHaveBeenCalledWith('userId', { marketId: { $in: ['medellin'] } });
   });
 
   it('counts the registrations in progress: all of them without a scope, those of its cities with one', async () => {
@@ -68,7 +68,7 @@ describe('MongoDashboardReader, operations areas (admin spec 008, US1)', () => {
     expect(collection('goalkeeperRegistrations').countDocuments).toHaveBeenLastCalledWith({ status: 'in_progress' });
 
     await reader.registrations(contextFor(MEDELLIN));
-    expect(collection('goalkeeperRegistrations').countDocuments).toHaveBeenLastCalledWith({ status: 'in_progress', 'availability.cityId': { $in: ['medellin'] } });
+    expect(collection('goalkeeperRegistrations').countDocuments).toHaveBeenLastCalledWith({ status: 'in_progress', 'availability.marketId': { $in: ['medellin'] } });
   });
 
   it('counts the open cases; with a scope, those whose request is in its cities', async () => {
@@ -81,21 +81,21 @@ describe('MongoDashboardReader, operations areas (admin spec 008, US1)', () => {
     collection('cases').countDocuments.mockResolvedValue(1);
     expect(await reader.cases(contextFor(MEDELLIN))).toEqual({ open: 1 });
     expect(collection('cases').distinct).toHaveBeenCalledWith('requestId', { status: 'open' });
-    expect(collection('goalkeeperRequests').distinct).toHaveBeenCalledWith('_id', { _id: { $in: ['r-1', 'r-2'] }, 'match.cityId': { $in: ['medellin'] } });
+    expect(collection('goalkeeperRequests').distinct).toHaveBeenCalledWith('_id', { _id: { $in: ['r-1', 'r-2'] }, 'match.marketId': { $in: ['medellin'] } });
     expect(collection('cases').countDocuments).toHaveBeenLastCalledWith({ status: 'open', requestId: { $in: ['r-1'] } });
   });
 
   it('counts nothing for a country without cities, without reading', async () => {
-    const empty = { ...MEDELLIN, cityId: null, cityIds: [] };
+    const empty = { ...MEDELLIN, marketId: null, marketIds: [] };
     expect(await reader.cases(contextFor(empty))).toEqual({ open: 0 });
     expect(await reader.registrations(contextFor(empty))).toEqual({ inProgress: 0 });
-    expect(await reader.goalkeeperIdsInCities([])).toEqual([]);
+    expect(await reader.goalkeeperIdsInMarkets([])).toEqual([]);
     expect(collection('cases').distinct).not.toHaveBeenCalled();
   });
 
   it('counts the rejected and the stale documents: by country, or by the goalkeepers of a city', async () => {
     collection('invoicingDocuments').countDocuments.mockResolvedValueOnce(2).mockResolvedValueOnce(1);
-    expect(await reader.invoicing(contextFor({ ...MEDELLIN, cityId: null, cityIds: ['medellin'] }))).toEqual({ rejected: 2, stale: 1 });
+    expect(await reader.invoicing(contextFor({ ...MEDELLIN, marketId: null, marketIds: ['medellin'] }))).toEqual({ rejected: 2, stale: 1 });
     const [rejected, stale] = collection('invoicingDocuments').countDocuments.mock.calls.map((call) => call[0]);
     expect(rejected).toEqual({ status: 'rejected', countryId: 'co' });
     expect(stale).toEqual({
@@ -113,7 +113,7 @@ describe('MongoDashboardReader, operations areas (admin spec 008, US1)', () => {
     collection('deposits').countDocuments.mockResolvedValue(3);
     expect(await reader.deposits(contextFor(PLATFORM))).toEqual({ pending: 3 });
     expect(collection('deposits').countDocuments).toHaveBeenLastCalledWith({ status: 'pending' });
-    await reader.deposits(contextFor({ ...MEDELLIN, cityId: null }));
+    await reader.deposits(contextFor({ ...MEDELLIN, marketId: null }));
     expect(collection('deposits').countDocuments).toHaveBeenLastCalledWith({ status: 'pending', countryId: 'co' });
     await reader.deposits(contextFor(MEDELLIN, ['gk-1']));
     expect(collection('deposits').countDocuments).toHaveBeenLastCalledWith({ status: 'pending', goalkeeperId: { $in: ['gk-1'] } });

@@ -130,6 +130,6 @@ describe('the admin request list indexes (admin spec 006, data-model)', () => {
     await repositoryWith(collection).ensureIndexes();
 
     expect(collection.createIndex).toHaveBeenCalledWith({ startsAt: -1, _id: -1 }, { name: 'startsAt_id' });
-    expect(collection.createIndex).toHaveBeenCalledWith({ 'match.cityId': 1, startsAt: -1 }, { name: 'city_startsAt' });
+    expect(collection.createIndex).toHaveBeenCalledWith({ 'match.marketId': 1, startsAt: -1 }, { name: 'market_startsAt' });
   });
 });

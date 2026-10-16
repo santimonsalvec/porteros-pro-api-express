@@ -2,7 +2,7 @@ import { validate as isUuid } from 'uuid';
 import type { IClock } from '../../../../common/clock.js';
 import type { ICommandHandler } from '../../../../common/mediator/types.js';
 import type { IIdGenerator, IUserRepository } from '../../../auth/common/ports.js';
-import type { ICityRepository } from '../../../locations/common/ports.js';
+import type { IMarketRepository } from '../../../markets/common/ports.js';
 import {
   resolveGoalkeeperOperatingBalanceContext,
   type GoalkeeperOperatingBalanceContextDependencies,
@@ -35,7 +35,7 @@ export interface AcceptBookingDependencies {
   bookingRepository: IBookingRepository;
   requestRepository: IGoalkeeperRequestRepository;
   zoneRepository: IZoneRepository;
-  cityRepository: ICityRepository;
+  marketRepository: IMarketRepository;
   userRepository: IUserRepository;
   store: IBookingAcceptanceStore;
   idGenerator: IIdGenerator;
@@ -92,7 +92,8 @@ export class AcceptBookingCommandHandler implements ICommandHandler<AcceptBookin
       return this.finish(command, { outcome: 'insufficient_funds', missingAmount: missingFor(balance, booking.commission, vatRateBps) }, booking);
     }
 
-    const owner = { goalkeeperId, currency: context.currency, invoicing: context.invoicing };
+    // The booking's zone is one of the goalkeeper's, so its market is theirs (spec 031).
+    const owner = { goalkeeperId, currency: context.currency, invoicing: context.invoicing, marketId: context.profile.marketId };
     const result = await this.deps.store.accept({
       bookingId,
       goalkeeperId,

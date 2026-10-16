@@ -30,7 +30,7 @@ export type IssueServiceQuoteResult =
       /** True when the area has no travel margin and the default was stored. Not serialized. */
       travelBufferDefaulted: boolean;
       /** The anchor city of the quote, for the warning above. Not serialized. */
-      cityId: string;
+      marketId: string;
     }
   | Exclude<GetServiceQuoteResult, { outcome: 'success' }>;
 

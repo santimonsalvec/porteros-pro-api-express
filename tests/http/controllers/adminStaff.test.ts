@@ -6,6 +6,8 @@ import { signInClient, type TestApp } from '../operatingBalanceTestHelpers.js';
 import { StaffMember } from '../../../src/domain/staff/staffMember.js';
 import { logger } from '../../../src/infrastructure/observability/logger.js';
 
+const PLATFORM = [{ kind: 'platform' }];
+
 const as = (context: TestApp, token: string) => ({
   get: (path: string) => request(context.app).get(path).set('Authorization', `Bearer ${token}`),
   post: (path: string, body: object = {}) => request(context.app).post(path).set('Authorization', `Bearer ${token}`).send(body),
@@ -84,8 +86,8 @@ describe('administering members (spec 002, US2)', () => {
     await seedRole(context, 'finanzas', ['operating_balances.read']);
     const api = as(context, owner.token);
 
-    const invited = await api.post('/admin/staff', { email: ' Luis@Example.com ', roleId: 'soporte' });
-    const renewed = await api.post('/admin/staff', { email: 'luis@example.com', roleId: 'finanzas' });
+    const invited = await api.post('/admin/staff', { email: ' Luis@Example.com ', roleId: 'soporte', scopes: PLATFORM });
+    const renewed = await api.post('/admin/staff', { email: 'luis@example.com', roleId: 'finanzas', scopes: PLATFORM });
     const changed = await api.patch(`/admin/staff/${invited.body.staffId}`, { roleId: 'soporte', reason: 'Pasa a casos' });
     const disabled = await api.post(`/admin/staff/${invited.body.staffId}/disable`, { reason: 'Salió del equipo' });
     const enabled = await api.post(`/admin/staff/${invited.body.staffId}/enable`, { reason: 'Volvió' });
@@ -110,9 +112,9 @@ describe('administering members (spec 002, US2)', () => {
     const owner = await team(context);
     const api = as(context, owner.token);
 
-    const member = await api.post('/admin/staff', { email: 'dueno@porteros.pro', roleId: 'soporte' });
-    const role = await api.post('/admin/staff', { email: 'x@example.com', roleId: 'nope' });
-    const email = await api.post('/admin/staff', { email: 'nope', roleId: 'soporte' });
+    const member = await api.post('/admin/staff', { email: 'dueno@porteros.pro', roleId: 'soporte', scopes: PLATFORM });
+    const role = await api.post('/admin/staff', { email: 'x@example.com', roleId: 'nope', scopes: PLATFORM });
+    const email = await api.post('/admin/staff', { email: 'nope', roleId: 'soporte', scopes: PLATFORM });
     const self = await api.post(`/admin/staff/${owner.staffId}/disable`, { reason: 'Prueba' });
     const lastOwner = await api.patch(`/admin/staff/${owner.staffId}`, { roleId: 'soporte', reason: 'Prueba' });
     const missing = await api.post('/admin/staff/missing/disable', { reason: 'Prueba' });
@@ -134,7 +136,7 @@ describe('administering members (spec 002, US2)', () => {
     const manager = await signInStaff(context, { key: 'gestor', roleId: 'gestor' });
     const api = as(context, manager.token);
 
-    expect((await api.post('/admin/staff', { email: 'socio@example.com', roleId: 'owner' })).body.error).toBe('owner_requires_owner');
+    expect((await api.post('/admin/staff', { email: 'socio@example.com', roleId: 'owner', scopes: PLATFORM })).body.error).toBe('owner_requires_owner');
     expect((await api.post(`/admin/staff/${owner.staffId}/disable`, { reason: 'Prueba' })).body.error).toBe('owner_requires_owner');
     expect((await api.patch(`/admin/staff/${owner.staffId}`, { roleId: 'soporte', reason: 'Prueba' })).body.error).toBe('owner_requires_owner');
     expect((await api.patch('/admin/staff/staff-ana', { roleId: 'owner', reason: 'Prueba' })).body.error).toBe('owner_requires_owner');
@@ -160,7 +162,7 @@ describe('administering members (spec 002, US2)', () => {
     const reader = await signInStaff(context, { key: 'lector', roleId: 'lector' });
     const api = as(context, reader.token);
 
-    expect((await api.post('/admin/staff', { email: 'a@b.co', roleId: 'soporte' })).status).toBe(403);
+    expect((await api.post('/admin/staff', { email: 'a@b.co', roleId: 'soporte', scopes: PLATFORM })).status).toBe(403);
     expect((await api.patch('/admin/staff/staff-ana', { roleId: 'soporte', reason: 'Prueba' })).status).toBe(403);
     expect((await api.post('/admin/staff/staff-ana/disable', { reason: 'Prueba' })).status).toBe(403);
     expect((await api.post('/admin/staff/staff-ana/enable', { reason: 'Prueba' })).status).toBe(403);
@@ -204,7 +206,7 @@ describe('an audit entry the log cannot take (spec 002)', () => {
     context.adminAuditLog.failNext = 10;
 
     const disabled = await as(context, owner.token).post('/admin/staff/staff-ana/disable', { reason: 'Salió del equipo' });
-    const invited = await as(context, owner.token).post('/admin/staff', { email: 'luis@example.com', roleId: 'soporte' });
+    const invited = await as(context, owner.token).post('/admin/staff', { email: 'luis@example.com', roleId: 'soporte', scopes: PLATFORM });
 
     expect([disabled.status, invited.status]).toEqual([200, 201]);
     const logged = error.mock.calls.map(([value]) => value as { audit?: string }).filter((value) => value.audit === 'admin_audit_unwritten');
@@ -213,5 +215,44 @@ describe('an audit entry the log cannot take (spec 002)', () => {
     expect(logged[1]).toMatchObject({ entry: { action: 'staff.invite', resourceId: 'l***@example.com' } });
     for (const address of ['dueno@porteros.pro', 'ana@example.com', 'luis@example.com']) expect(JSON.stringify(logged)).not.toContain(address);
     error.mockRestore();
+  });
+});
+
+describe('members with scopes (spec 031, contract F)', () => {
+  it('invites with scopes, shows them with their names, and changes them', async () => {
+    const context = await buildTestApp();
+    const owner = await team(context);
+    const api = as(context, owner.token);
+
+    const invited = await api.post('/admin/staff', { email: 'med@example.com', roleId: 'soporte', scopes: [{ kind: 'market', id: 'city-medellin' }] });
+    const changed = await api.patch(`/admin/staff/${invited.body.staffId}`, { scopes: [{ kind: 'country', id: 'country-co' }], reason: 'Pasa a todo el país' });
+
+    expect([invited.status, invited.body.scopes]).toEqual([201, [{ kind: 'market', id: 'city-medellin', name: 'Medellín' }]]);
+    expect([changed.status, changed.body.scopes, changed.body.role.id]).toEqual([200, [{ kind: 'country', id: 'country-co', name: 'Colombia' }], 'soporte']);
+  });
+
+  it('refuses no scopes, an unknown one and a body without role nor scopes', async () => {
+    const context = await buildTestApp();
+    const owner = await team(context);
+    const api = as(context, owner.token);
+
+    const none = await api.post('/admin/staff', { email: 'a@example.com', roleId: 'soporte', scopes: [] });
+    const missing = await api.post('/admin/staff', { email: 'a@example.com', roleId: 'soporte' });
+    const unknown = await api.post('/admin/staff', { email: 'a@example.com', roleId: 'soporte', scopes: [{ kind: 'market', id: 'nope' }] });
+    const unknownCountry = await api.post('/admin/staff', { email: 'a@example.com', roleId: 'soporte', scopes: [{ kind: 'country', id: 'nope' }] });
+    const duplicate = await api.post('/admin/staff', {
+      email: 'a@example.com',
+      roleId: 'soporte',
+      scopes: [{ kind: 'market', id: 'city-medellin' }, { kind: 'market', id: 'city-medellin' }],
+    });
+    const invited = await api.post('/admin/staff', { email: 'b@example.com', roleId: 'soporte', scopes: PLATFORM });
+    const empty = await api.patch(`/admin/staff/${invited.body.staffId}`, { reason: 'Nada' });
+
+    expect([none.status, none.body.error]).toEqual([400, 'scopes_required']);
+    expect([missing.status, missing.body.fieldErrors?.scopes]).toEqual([400, 'scopes_required']);
+    expect([unknown.status, unknown.body.error]).toEqual([400, 'scope_not_found']);
+    expect([unknownCountry.status, unknownCountry.body.error]).toEqual([400, 'scope_not_found']);
+    expect([duplicate.status, duplicate.body.error]).toEqual([400, 'scope_not_found']);
+    expect(empty.status).toBe(400);
   });
 });

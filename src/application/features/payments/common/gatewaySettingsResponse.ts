@@ -1,10 +1,13 @@
-import type { PaymentGatewaySettings, DepositOption } from '../../../../domain/payments/gatewaySettings.js';
+import type { PaymentGatewaySettings, DepositOption, GatewayScope } from '../../../../domain/payments/gatewaySettings.js';
 import type { ICountryLookup } from '../../goalkeeperRequests/common/ports.js';
 import type { IPaymentSecrets } from './ports.js';
 
 /** A country's gateway settings as administrators see them (contracts §7). Never a secret. */
 export interface GatewaySettingsResponse {
   countryId: string;
+  /** `country`, or `market` for a market's override (spec 031). */
+  scope: GatewayScope;
+  refId: string;
   gateway: string;
   publicConfig: { publicKey: string; environment: string };
   currency: string;
@@ -22,6 +25,8 @@ export interface GatewaySettingsResponse {
 export function toGatewaySettingsResponse(settings: PaymentGatewaySettings, credentialsPresent: boolean): GatewaySettingsResponse {
   return {
     countryId: settings.countryId,
+    scope: settings.scope,
+    refId: settings.refId,
     gateway: settings.gateway,
     publicConfig: { ...settings.publicConfig },
     currency: settings.currency,

@@ -9,11 +9,11 @@ export class ListPricingAreasQueryHandler implements IQueryHandler<ListPricingAr
     const geography = await PricingGeography.load(this.deps);
     return {
       countries: geography.countries().map((country) => ({ id: country.id, name: country.name, currency: country.currency })),
-      cities: geography.zoneOwners().map((city) => ({
-        id: city.id,
-        name: city.name,
-        countryId: geography.countryOf(city.id)?.id ?? null,
-        zones: geography.zones(city.id).map((zone) => ({ id: zone.id, name: zone.name, active: zone.active })),
+      markets: geography.markets().map((market) => ({
+        id: market.id,
+        name: market.name,
+        countryId: geography.countryOf(market.id)?.id ?? null,
+        zones: geography.zones(market.id).map((zone) => ({ id: zone.id, name: zone.name, active: zone.active })),
       })),
     };
   }

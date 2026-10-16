@@ -46,18 +46,32 @@ export const reasonRequestSchema = z.object({
     .max(300, 'Must be 3–300 characters.'),
 });
 
+/** One place a member may work (spec 031, contract F). */
+const scopeField = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('platform') }).strict(),
+  z.object({ kind: z.literal('country'), id: z.string().trim().min(1) }).strict(),
+  z.object({ kind: z.literal('market'), id: z.string().trim().min(1) }).strict(),
+]);
+/** At least one; the command answers `scopes_required` for an empty list. */
+const scopesField = z.array(scopeField, { required_error: 'scopes_required', invalid_type_error: 'scopes must be a list' });
+
 /** `POST /admin/staff`: the domain normalizes and validates the email. */
 export const inviteRequestSchema = z
   .object({
     email: z.string({ required_error: 'email is required', invalid_type_error: 'email must be a string' }).max(254),
     roleId: z.string({ required_error: 'roleId is required', invalid_type_error: 'roleId must be a string' }).min(1),
+    scopes: scopesField,
   })
   .strict();
 
-/** `PATCH /admin/staff/:staffId`. */
+/** `PATCH /admin/staff/:staffId`: a new role, new scopes, or both. */
 export const changeRoleRequestSchema = reasonRequestSchema
-  .extend({ roleId: z.string({ required_error: 'roleId is required', invalid_type_error: 'roleId must be a string' }).min(1) })
-  .strict();
+  .extend({
+    roleId: z.string({ invalid_type_error: 'roleId must be a string' }).min(1).optional(),
+    scopes: scopesField.optional(),
+  })
+  .strict()
+  .refine((body) => body.roleId !== undefined || body.scopes !== undefined, { message: 'Send roleId, scopes or both.', path: ['roleId'] });
 
 const isoDate = z
   .string()

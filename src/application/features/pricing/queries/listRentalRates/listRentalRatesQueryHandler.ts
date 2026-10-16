@@ -15,15 +15,15 @@ export class ListRentalRatesQueryHandler implements IQueryHandler<ListRentalRate
       durationMinutes: filters.durationMinutes,
       modality: filters.modality,
     });
-    const geography = await PricingGeography.load(this.deps, records.filter((record) => record.scope === 'city').map((record) => record.refId));
+    const geography = await PricingGeography.load(this.deps);
     const rows = records
       .map((record) => ({ view: rentalRateView(record, geography.target(record.scope, record.refId)), order: geography.zone(record.refId)?.displayOrder ?? -1 }))
       .filter(({ view }) => filters.countryId === undefined || view.countryId === filters.countryId)
       .sort(
         (a, b) =>
-          compareNames(a.view.cityName, b.view.cityName) ||
+          compareNames(a.view.marketName, b.view.marketName) ||
           a.view.durationMinutes - b.view.durationMinutes ||
-          (a.view.scope === 'city' ? -1 : a.order) - (b.view.scope === 'city' ? -1 : b.order) ||
+          (a.view.scope === 'market' ? -1 : a.order) - (b.view.scope === 'market' ? -1 : b.order) ||
           compareTiers(a.view, b.view) ||
           a.view.id.localeCompare(b.view.id),
       )
@@ -32,13 +32,13 @@ export class ListRentalRatesQueryHandler implements IQueryHandler<ListRentalRate
     return pageOf(rows.slice(start, start + pageSize), page, pageSize, rows.length);
   }
 
-  /** A city filter reads its own rates and its zones'; a zone filter, only that zone's. */
-  private async refsFor({ cityId, zoneId }: RentalRateFilters): Promise<RefFilter> {
+  /** A market filter reads its own rates and its zones'; a zone filter, only that zone's. */
+  private async refsFor({ marketId, zoneId }: RentalRateFilters): Promise<RefFilter> {
     if (zoneId !== undefined) return [{ scope: 'zone', refIds: [zoneId] }];
-    if (cityId === undefined) return null;
-    const zones = await this.deps.zones.summariesByCities([cityId]);
+    if (marketId === undefined) return null;
+    const zones = await this.deps.zones.summariesByMarkets([marketId]);
     return [
-      { scope: 'city', refIds: [cityId] },
+      { scope: 'market', refIds: [marketId] },
       { scope: 'zone', refIds: zones.map((zone) => zone.id) },
     ];
   }

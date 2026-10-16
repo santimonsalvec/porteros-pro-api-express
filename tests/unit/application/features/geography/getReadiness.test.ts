@@ -12,6 +12,7 @@ import { FakeInvoicingSettingsRepository } from '../../../../fakes/fakeInvoicing
 import { FakePaymentGatewaySettingsRepository } from '../../../../fakes/fakePaymentGatewaySettingsRepository.js';
 import { FakeRentalRateRepository } from '../../../../fakes/fakeRentalRateRepository.js';
 import { FakeTaxSettingsRepository } from '../../../../fakes/fakeTaxSettingsRepository.js';
+import { testMarket } from '../../../../fakes/fakeMarketRepository.js';
 import { geographyKit } from './geographyTestKit.js';
 
 function setup() {
@@ -29,55 +30,50 @@ function setup() {
   deps.bookingSettings.seed(
     new BookingSettings({ id: 'bs', scope: 'country', refId: 'co', bookingWindowDays: 30, minNoticeMinutes: 60, leadTimeSurcharge: { tiers: [{ fromMinutes: 0, toMinutes: null, amount: 0 }] } }),
   );
-  deps.rentalRates.seed(new RentalRate({ id: 'r', scope: 'city', refId: 'med', durationMinutes: 60, amount: 40000 }));
+  deps.rentalRates.seed(new RentalRate({ id: 'r', scope: 'market', refId: 'med', durationMinutes: 60, amount: 40000 }));
   deps.commissions.seed(new CommissionSetting({ id: 'c', scope: 'country', refId: 'co', amount: 7000 }));
   return { deps, get: (query: GetReadinessQuery) => new GetReadinessQueryHandler(deps).handle(query) };
 }
 
-describe('GetReadinessQueryHandler', () => {
-  it("a country's dashboard: its items, only its operating cities, and how many are available", async () => {
-    const { get } = setup();
+describe('GetReadinessQueryHandler (spec 031)', () => {
+  it("a country's dashboard: its items and every market with its summary", async () => {
+    const { deps, get } = setup();
+    deps.markets.seed(testMarket({ id: 'bog', name: 'Bogotá', countryId: 'co', status: 'draft' }));
 
     const result = await get(GetReadinessQuery.ofCountry('co'));
 
     expect(result.outcome).toBe('country');
     if (result.outcome !== 'country') return;
     expect(result.dashboard.country).toMatchObject({ countryId: 'co', name: 'Colombia', ready: false });
-    expect(result.dashboard.cities).toEqual([
-      { cityId: 'env', name: 'Envigado', regionName: 'Antioquia', ready: false, missingCount: 1 },
-      { cityId: 'med', name: 'Medellín', regionName: 'Antioquia', ready: true, missingCount: 0 },
+    expect(result.dashboard.markets).toEqual([
+      { marketId: 'bog', name: 'Bogotá', status: 'draft', ready: false, missingCount: 2 },
+      { marketId: 'med', name: 'Medellín', status: 'enabled', ready: true, missingCount: 0 },
     ]);
-    expect(result.dashboard.availableCityCount).toBe(1);
   });
 
-  it("an operating city: its items and its country's", async () => {
+  it("a market: its items, its status and its country's", async () => {
     const { get } = setup();
 
-    const result = await get(GetReadinessQuery.ofCity('med'));
+    const result = await get(GetReadinessQuery.ofMarket('med'));
 
-    expect(result).toMatchObject({ outcome: 'city', readiness: { cityId: 'med', name: 'Medellín', state: 'operating', ready: true, country: { countryId: 'co' } } });
-    expect(result.outcome === 'city' && result.readiness.items.length).toBeGreaterThan(5);
+    expect(result).toMatchObject({ outcome: 'market', readiness: { marketId: 'med', name: 'Medellín', status: 'enabled', ready: true, country: { countryId: 'co' } } });
+    expect(result.outcome === 'market' && result.readiness.items.length).toBeGreaterThan(5);
   });
 
-  it('an available city has no checklist', async () => {
-    const { get } = setup();
-    expect(await get(GetReadinessQuery.ofCity('ita'))).toMatchObject({ outcome: 'city', readiness: { state: 'available', items: [], ready: false } });
-  });
-
-  it('says when the country or the city does not exist', async () => {
+  it('says when the country or the market does not exist', async () => {
     const { get } = setup();
     expect(await get(GetReadinessQuery.ofCountry('pe'))).toEqual({ outcome: 'country_not_found' });
-    expect(await get(GetReadinessQuery.ofCity('nope'))).toEqual({ outcome: 'city_not_found' });
+    expect(await get(GetReadinessQuery.ofMarket('nope'))).toEqual({ outcome: 'market_not_found' });
   });
 });
 
 describe('ReadinessSummarizer', () => {
-  it('sums up each operating city for the city list', async () => {
+  it('sums up each market for the market list', async () => {
     const { deps } = setup();
-    const cities = await deps.cities.getByIds(['med', 'env']);
+    const markets = [deps.markets.markets.get('med')!, testMarket({ id: 'bog', name: 'Bogotá', countryId: 'co' })];
 
-    const summaries = await new ReadinessSummarizer(deps).summarize(cities);
+    const summaries = await new ReadinessSummarizer(deps).summarize(markets);
 
-    expect(summaries).toEqual(new Map([['med', { ready: true, missingCount: 0 }], ['env', { ready: false, missingCount: 1 }]]));
+    expect(summaries).toEqual(new Map([['med', { ready: true, missingCount: 0 }], ['bog', { ready: false, missingCount: 2 }]]));
   });
 });

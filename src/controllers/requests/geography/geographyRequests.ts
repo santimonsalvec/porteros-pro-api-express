@@ -67,24 +67,18 @@ export const listCitiesQuerySchema = z.object({
   countryId: z.string().min(1).optional(),
   regionId: z.string().min(1).optional(),
   q: searchField,
-  anchor: booleanQuery.optional(),
-  state: z.enum(['operating', 'available']).optional(),
-  /** `false` leaves out the readiness summary (pickers). */
-  readiness: booleanQuery.default('true'),
   ...pageQuery,
 });
 
 const cityFields = {
   name: name(80),
   regionId: id('regionId'),
-  timeZone: optionalText(64).default(null),
-  zoneCityId: optionalText(100).default(null),
   daneStateCode: optionalText(2).default(null),
   daneCityCode: optionalText(5).default(null),
 };
 
-/** `POST /admin/cities`: the command checks the region, time zone, DANE codes and anchor. */
-export const createCityRequestSchema = z.object({ ...cityFields, acknowledgeWarnings: acknowledgeWarningsField }).strict();
+/** `POST /admin/cities`: a municipality of the billing catalog; the command checks the region and DANE codes. */
+export const createCityRequestSchema = z.object(cityFields).strict();
 
 /** `PATCH /admin/cities/:cityId`: only what changes, plus the revision read. */
 export const updateCityRequestSchema = z
@@ -92,11 +86,8 @@ export const updateCityRequestSchema = z
     revision: revisionField,
     name: cityFields.name.optional(),
     regionId: cityFields.regionId.optional(),
-    timeZone: optionalText(64).optional(),
-    zoneCityId: optionalText(100).optional(),
     daneStateCode: optionalText(2).optional(),
     daneCityCode: optionalText(5).optional(),
-    acknowledgeWarnings: acknowledgeWarningsField,
   })
   .strict();
 
@@ -115,27 +106,26 @@ const slug = z
 const displayOrder = z.number({ required_error: 'displayOrder is required', invalid_type_error: 'displayOrder must be a number' }).int().min(0).max(9999);
 
 /** `GET /admin/zones`. */
-export const listZonesQuerySchema = z.object({ cityId: id('cityId') });
+export const listZonesQuerySchema = z.object({ marketId: id('marketId') });
 
 /** `POST /admin/zones/validate`. */
 export const validateZoneRequestSchema = z
-  .object({ cityId: id('cityId'), geometry, zoneId: z.string().min(1).optional(), displayOrder: displayOrder.optional() })
+  .object({ marketId: id('marketId'), geometry, zoneId: z.string().min(1).optional(), active: z.boolean().optional() })
   .strict();
 
 /** `POST /admin/zones`. */
 export const createZoneRequestSchema = z
   .object({
-    cityId: id('cityId'),
+    marketId: id('marketId'),
     name: name(80),
     slug,
     geometry,
     active: z.boolean({ required_error: 'active is required' }),
     displayOrder,
-    acknowledgeWarnings: acknowledgeWarningsField,
   })
   .strict();
 
-/** `PATCH /admin/zones/:zoneId`: the city of a zone never changes. */
+/** `PATCH /admin/zones/:zoneId`: the market of a zone never changes (FR-002a). */
 export const updateZoneRequestSchema = z
   .object({
     revision: revisionField,
@@ -145,15 +135,15 @@ export const updateZoneRequestSchema = z
     active: z.boolean().optional(),
     displayOrder: displayOrder.optional(),
     reason: optionalReasonField,
-    acknowledgeWarnings: acknowledgeWarningsField,
+    marketId: id('marketId').optional(),
   })
   .strict();
 
-/** `GET /admin/readiness`: a country's dashboard or one city, never both. */
+/** `GET /admin/readiness`: a country's dashboard or one market, never both. */
 export const readinessQuerySchema = z
-  .object({ countryId: z.string().min(1).optional(), cityId: z.string().min(1).optional() })
-  .refine((query) => (query.countryId === undefined) !== (query.cityId === undefined), {
-    message: 'Send either countryId or cityId.',
+  .object({ countryId: z.string().min(1).optional(), marketId: z.string().min(1).optional() })
+  .refine((query) => (query.countryId === undefined) !== (query.marketId === undefined), {
+    message: 'Send either countryId or marketId.',
     path: ['countryId'],
   });
 

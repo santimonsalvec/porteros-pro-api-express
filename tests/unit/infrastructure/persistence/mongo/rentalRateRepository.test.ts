@@ -10,7 +10,7 @@ function repositoryWith(collection: ReturnType<typeof createFakeCollection>) {
 }
 
 const zoneDoc = { _id: 'rate-zone', scope: 'zone', refId: 'zone-1', durationMinutes: 60, amount: 45000 };
-const cityDoc = { _id: 'rate-city', scope: 'city', refId: 'city-1', durationMinutes: 60, amount: 40000 };
+const cityDoc = { _id: 'rate-city', scope: 'market', refId: 'city-1', durationMinutes: 60, amount: 40000 };
 
 describe('RentalRateRepository (mocked driver)', () => {
   it('queries the zone and city rows for the duration in a single find', async () => {
@@ -25,7 +25,7 @@ describe('RentalRateRepository (mocked driver)', () => {
       durationMinutes: 60,
       $or: [
         { scope: 'zone', refId: 'zone-1' },
-        { scope: 'city', refId: 'city-1' },
+        { scope: 'market', refId: 'city-1' },
       ],
     });
   });
@@ -38,7 +38,7 @@ describe('RentalRateRepository (mocked driver)', () => {
     const found = await repository.findForDuration('zone-1', 'city-1', 60);
 
     expect(found.zone.map((rate) => rate.amount)).toEqual([45000]);
-    expect(found.city.map((rate) => rate.amount)).toEqual([40000]);
+    expect(found.market.map((rate) => rate.amount)).toEqual([40000]);
   });
 
   it('keeps every modality/level variant of a level (feature 024)', async () => {
@@ -49,7 +49,7 @@ describe('RentalRateRepository (mocked driver)', () => {
 
     const found = await repository.findForDuration('zone-1', 'city-1', 60);
 
-    expect(found.city).toEqual([
+    expect(found.market).toEqual([
       expect.objectContaining({ modality: null, level: null, amount: 40000 }),
       expect.objectContaining({ modality: 'futbol_11', level: 'competitive', amount: 70000 }),
     ]);
@@ -63,7 +63,7 @@ describe('RentalRateRepository (mocked driver)', () => {
     const found = await repository.findForDuration('zone-1', 'city-1', 60);
 
     expect(found.zone).toEqual([]);
-    expect(found.city.map((rate) => rate.amount)).toEqual([40000]);
+    expect(found.market.map((rate) => rate.amount)).toEqual([40000]);
   });
 
   it('returns empty lists when nothing is configured', async () => {
@@ -71,7 +71,7 @@ describe('RentalRateRepository (mocked driver)', () => {
     collection.find.mockReturnValue(toArrayResult([]));
     const repository = repositoryWith(collection);
 
-    expect(await repository.findForDuration('zone-1', 'city-1', 90)).toEqual({ zone: [], city: [] });
+    expect(await repository.findForDuration('zone-1', 'city-1', 90)).toEqual({ zone: [], market: [] });
   });
 
   it('throws on a malformed rate instead of skipping it', async () => {
@@ -100,29 +100,29 @@ describe('RentalRateRepository (mocked driver)', () => {
 describe('RentalRateRepository.pricedDurations (admin readiness)', () => {
   it('reads which durations have a rate, for many cities and zones in one query', async () => {
     const collection = createFakeCollection();
-    collection.find.mockReturnValue(toArrayResult([{ scope: 'city', refId: 'med', durationMinutes: 60 }, { scope: 'zone', refId: 'z1', durationMinutes: 90 }]));
+    collection.find.mockReturnValue(toArrayResult([{ scope: 'market', refId: 'med', durationMinutes: 60 }, { scope: 'zone', refId: 'z1', durationMinutes: 90 }]));
 
-    const priced = await repositoryWith(collection).pricedDurations({ cityIds: ['med'], zoneIds: ['z1', 'z2'] });
+    const priced = await repositoryWith(collection).pricedDurations({ marketIds: ['med'], zoneIds: ['z1', 'z2'] });
 
     expect(collection.find).toHaveBeenCalledWith(
-      { $or: [{ scope: 'city', refId: { $in: ['med'] } }, { scope: 'zone', refId: { $in: ['z1', 'z2'] } }] },
+      { $or: [{ scope: 'market', refId: { $in: ['med'] } }, { scope: 'zone', refId: { $in: ['z1', 'z2'] } }] },
       { projection: { scope: 1, refId: 1, durationMinutes: 1 } },
     );
     expect(priced).toEqual([
-      { scope: 'city', refId: 'med', durationMinutes: 60 },
+      { scope: 'market', refId: 'med', durationMinutes: 60 },
       { scope: 'zone', refId: 'z1', durationMinutes: 90 },
     ]);
   });
 
   it('asks nothing for no refs', async () => {
     const collection = createFakeCollection();
-    expect(await repositoryWith(collection).pricedDurations({ cityIds: [], zoneIds: [] })).toEqual([]);
+    expect(await repositoryWith(collection).pricedDurations({ marketIds: [], zoneIds: [] })).toEqual([]);
     expect(collection.find).not.toHaveBeenCalled();
   });
 });
 
 describe('RentalRateRepository — admin web (spec 004 of the admin)', () => {
-  const stored = { _id: 'r1', scope: 'city', refId: 'city-1', durationMinutes: 90, amount: 55000, revision: 2 };
+  const stored = { _id: 'r1', scope: 'market', refId: 'city-1', durationMinutes: 90, amount: 55000, revision: 2 };
 
   it('finds the rates of the given refs, duration and modality', async () => {
     const collection = createFakeCollection();
@@ -131,7 +131,7 @@ describe('RentalRateRepository — admin web (spec 004 of the admin)', () => {
 
     const found = await repository.find({
       refs: [
-        { scope: 'city', refIds: ['city-1'] },
+        { scope: 'market', refIds: ['city-1'] },
         { scope: 'zone', refIds: ['zone-1', 'zone-2'] },
       ],
       durationMinutes: 90,
@@ -140,14 +140,14 @@ describe('RentalRateRepository — admin web (spec 004 of the admin)', () => {
 
     expect(collection.find).toHaveBeenCalledWith({
       $or: [
-        { scope: 'city', refId: { $in: ['city-1'] } },
+        { scope: 'market', refId: { $in: ['city-1'] } },
         { scope: 'zone', refId: { $in: ['zone-1', 'zone-2'] } },
       ],
       durationMinutes: 90,
       modality: 'futbol_11',
     });
     expect(found).toEqual([
-      { id: 'r1', scope: 'city', refId: 'city-1', durationMinutes: 90, modality: null, level: null, amount: 55000, revision: 2, invalid: false },
+      { id: 'r1', scope: 'market', refId: 'city-1', durationMinutes: 90, modality: null, level: null, amount: 55000, revision: 2, invalid: false },
     ]);
   });
 
@@ -195,17 +195,17 @@ describe('RentalRateRepository — admin web (spec 004 of the admin)', () => {
     collection.insertOne.mockRejectedValue(Object.assign(new Error('E11000'), { code: 11000 }));
     collection.findOne.mockResolvedValue({ _id: 'r1' });
     const result = await repositoryWith(collection).create({
-      id: 'r2', scope: 'city', refId: 'city-1', durationMinutes: 90, modality: null, level: null, amount: 1,
+      id: 'r2', scope: 'market', refId: 'city-1', durationMinutes: 90, modality: null, level: null, amount: 1,
     });
     expect(result).toEqual({ outcome: 'duplicate', existingId: 'r1' });
-    expect(collection.findOne).toHaveBeenCalledWith({ scope: 'city', refId: 'city-1', durationMinutes: 90, modality: null, level: null }, { projection: { _id: 1 } });
+    expect(collection.findOne).toHaveBeenCalledWith({ scope: 'market', refId: 'city-1', durationMinutes: 90, modality: null, level: null }, { projection: { _id: 1 } });
   });
 
   it('rethrows any other write error', async () => {
     const collection = createFakeCollection();
     collection.insertOne.mockRejectedValue(new Error('down'));
     await expect(
-      repositoryWith(collection).create({ id: 'r2', scope: 'city', refId: 'c', durationMinutes: 60, modality: null, level: null, amount: 1 }),
+      repositoryWith(collection).create({ id: 'r2', scope: 'market', refId: 'c', durationMinutes: 60, modality: null, level: null, amount: 1 }),
     ).rejects.toThrow('down');
   });
 

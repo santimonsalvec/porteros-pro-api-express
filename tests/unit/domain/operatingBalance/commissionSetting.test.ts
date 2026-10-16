@@ -5,7 +5,7 @@ import { InvalidConfigurationError } from '../../../../src/domain/pricing/invali
 const base = { id: 'c-1', scope: 'country', refId: 'country-co', amount: 7000 };
 
 describe('CommissionSetting', () => {
-  it.each(['country', 'city', 'zone'])('accepts a %s-level commission', (scope) => {
+  it.each(['country', 'market', 'zone'])('accepts a %s-level commission', (scope) => {
     expect(new CommissionSetting({ ...base, scope })).toMatchObject({ scope, amount: 7000 });
   });
 

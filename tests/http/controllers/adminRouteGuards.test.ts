@@ -20,8 +20,10 @@ const ROUTES: [Method, string, Permission][] = [
   ['get', '/admin/cases', 'cases.read'],
   ['get', '/admin/cases/c-1', 'cases.read'],
   ['post', '/admin/cases/c-1/resolve', 'cases.resolve'],
-  ['get', '/admin/payment-gateways/country-co', 'payments.settings.manage'],
-  ['put', '/admin/payment-gateways/country-co', 'payments.settings.manage'],
+  ['get', '/admin/payment-gateways/country/country-co', 'payments.settings.manage'],
+  ['get', '/admin/payment-gateways?countryId=country-co', 'payments.settings.manage'],
+  ['put', '/admin/payment-gateways/country/country-co', 'payments.settings.manage'],
+  ['post', '/admin/payment-gateways/market/city-cali/delete', 'payments.settings.manage'],
   ['get', '/admin/tax-settings/country-co', 'pricing.read'],
   ['put', '/admin/tax-settings/country-co', 'pricing.manage'],
   ['get', '/admin/invoicing/settings/country-co', 'invoicing.settings.manage'],
@@ -61,7 +63,7 @@ describe('admin route permissions (spec 001, US2)', () => {
     const response = await call(context, 'get', '/admin/permissions', member.token);
 
     expect(response.status).toBe(200);
-    expect(response.body.areas).toHaveLength(18);
+    expect(response.body.areas).toHaveLength(19);
   });
 
   it('a disabled member is out within 30 seconds and cannot refresh', async () => {

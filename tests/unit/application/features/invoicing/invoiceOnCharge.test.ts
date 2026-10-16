@@ -25,6 +25,8 @@ describe('invoicing a commission charge (US1)', () => {
       status: 'issued',
       goalkeeperId: 'gk-1',
       countryId: 'country-co',
+      // Spec 031: the market of the movement it bills.
+      marketId: movements[0]!.marketId,
       sourceEventId: event.id,
       sourceMovementId: movements[0]!.id,
       vatMovementId: movements[1]!.id,
@@ -33,11 +35,31 @@ describe('invoicing a commission charge (US1)', () => {
       vat: 1330,
       total: 8330,
       vatRateBps: 1900,
-      buyer: { documentType: 'CC', documentNumber: '1020304050', firstName: 'Ana', lastName: 'Portera', email: 'gk-1@example.com', cityId: 'city-cali' },
+      buyer: {
+        documentType: 'CC',
+        documentNumber: '1020304050',
+        firstName: 'Ana',
+        lastName: 'Portera',
+        email: 'gk-1@example.com',
+        cityId: 'mun-cali',
+        address: 'Calle 5 # 10-20',
+        addressComplement: 'Apto 301',
+      },
       provider: { name: 'siigo', number: 'FV-1-1', cufe: 'cufe-1' },
     });
     expect(harness.provider.invoices()).toHaveLength(1);
     expect(harness.provider.invoices()[0]!.context).toMatchObject({ countryCode: 'CO', credentials: TEST_INVOICING_CREDENTIALS, config: { vatTaxId: 13156 } });
+  });
+
+  it("bills the goalkeeper's own address, and a later change leaves the issued document as it was (spec 031)", async () => {
+    const harness = new InvoicingHarness();
+    const { event } = await charged(harness);
+    await harness.handler().handle(event);
+
+    await harness.operatingBalance.profiles.updateBilling('gk-1', { cityId: 'mun-cali', address: 'Carrera 100 # 1-1', addressComplement: null });
+
+    expect(harness.documents.all()[0]!.buyer).toMatchObject({ address: 'Calle 5 # 10-20', addressComplement: 'Apto 301' });
+    expect(harness.provider.invoices()[0]!.buyer).toMatchObject({ cityName: 'Cali', stateCode: '76', cityCode: '001', address: 'Calle 5 # 10-20' });
   });
 
   it('never creates or sends a second document when the event is delivered again', async () => {

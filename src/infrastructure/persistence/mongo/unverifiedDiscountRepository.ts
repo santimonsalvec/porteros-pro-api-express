@@ -6,7 +6,7 @@ import { idFilter } from './idFilter.js';
 
 const DUPLICATE_KEY = 11000;
 
-/** How goalkeepers without the seal are treated, per country, anchor city or zone (admin spec 030). */
+/** How goalkeepers without the seal are treated, per country, market or zone (admin spec 030). */
 export class UnverifiedDiscountRepository implements IUnverifiedDiscountRepository {
   private readonly collection: Collection<Document>;
 
@@ -18,10 +18,10 @@ export class UnverifiedDiscountRepository implements IUnverifiedDiscountReposito
     await this.collection.createIndex({ scope: 1, refId: 1 }, { name: 'scope_ref_unique', unique: true });
   }
 
-  async findFor(refs: { zoneIds: string[]; cityIds: string[]; countryIds: string[] }): Promise<UnverifiedDiscountSetting[]> {
+  async findFor(refs: { zoneIds: string[]; marketIds: string[]; countryIds: string[] }): Promise<UnverifiedDiscountSetting[]> {
     const or = [
       ...(refs.zoneIds.length > 0 ? [{ scope: 'zone', refId: { $in: refs.zoneIds } }] : []),
-      ...(refs.cityIds.length > 0 ? [{ scope: 'city', refId: { $in: refs.cityIds } }] : []),
+      ...(refs.marketIds.length > 0 ? [{ scope: 'market', refId: { $in: refs.marketIds } }] : []),
       ...(refs.countryIds.length > 0 ? [{ scope: 'country', refId: { $in: refs.countryIds } }] : []),
     ];
     if (or.length === 0) return [];

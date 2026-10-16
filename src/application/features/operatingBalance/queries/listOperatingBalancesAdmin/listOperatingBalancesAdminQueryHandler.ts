@@ -3,40 +3,36 @@ import type { IUserRepository } from '../../../auth/common/ports.js';
 import { pageOf } from '../../../geography/common/views.js';
 import { personNames } from '../../../goalkeeperRequests/common/adminNames.js';
 import type { ICountryLookup } from '../../../goalkeeperRequests/common/ports.js';
-import type { ICityRepository, IRegionRepository } from '../../../locations/common/ports.js';
+import type { IMarketRepository } from '../../../markets/common/ports.js';
 import type { IOperatingBalanceAdminReader } from '../../common/adminPorts.js';
 import { ListOperatingBalancesAdminQuery, type ListOperatingBalancesAdminResult } from './listOperatingBalancesAdminQuery.js';
 
 export interface ListOperatingBalancesAdminDependencies {
   reader: IOperatingBalanceAdminReader;
   users: Pick<IUserRepository, 'getByIds'>;
-  cities: Pick<ICityRepository, 'getByIds'>;
-  regions: Pick<IRegionRepository, 'getByIds'>;
+  markets: Pick<IMarketRepository, 'getByIds'>;
   countries: ICountryLookup;
 }
 
-/** The goalkeepers' operating balances, with where each one plays (city → region → country). */
+/** The goalkeepers' operating balances, with where each one plays (market → country). */
 export class ListOperatingBalancesAdminQueryHandler implements IQueryHandler<ListOperatingBalancesAdminQuery, ListOperatingBalancesAdminResult> {
   constructor(private readonly deps: ListOperatingBalancesAdminDependencies) {}
 
   async handle({ criteria }: ListOperatingBalancesAdminQuery): Promise<ListOperatingBalancesAdminResult> {
     const { items, totalItems } = await this.deps.reader.list(criteria);
-    const cityIds = [...new Set(items.flatMap((item) => (item.cityId ? [item.cityId] : [])))];
-    const [people, cities] = await Promise.all([personNames(this.deps, items.map((item) => item.goalkeeperId)), cityIds.length > 0 ? this.deps.cities.getByIds(cityIds) : []]);
-    const regionIds = [...new Set(cities.map((city) => city.regionId))];
-    const regions = regionIds.length > 0 ? await this.deps.regions.getByIds(regionIds) : [];
-    const countryIds = [...new Set(regions.flatMap((region) => (region.countryId ? [region.countryId] : [])))];
+    const marketIds = [...new Set(items.flatMap((item) => (item.marketId ? [item.marketId] : [])))];
+    const [people, markets] = await Promise.all([personNames(this.deps, items.map((item) => item.goalkeeperId)), marketIds.length > 0 ? this.deps.markets.getByIds(marketIds) : []]);
+    const countryIds = [...new Set(markets.map((market) => market.countryId))];
     const countries = await Promise.all(countryIds.map((id) => this.deps.countries.getById(id)));
 
-    const cityById = new Map(cities.map((city) => [city.id, city]));
-    const countryOfRegion = new Map(regions.map((region) => [region.id, region.countryId]));
+    const marketById = new Map(markets.map((market) => [market.id, market]));
     const countryName = new Map(countries.filter((country) => country !== null).map((country) => [country.id, country.name]));
     const rows = items.map((item) => {
-      const city = item.cityId ? cityById.get(item.cityId) : undefined;
-      const countryId = city ? (countryOfRegion.get(city.regionId) ?? null) : null;
+      const market = item.marketId ? marketById.get(item.marketId) : undefined;
+      const countryId = market?.countryId ?? null;
       return {
         goalkeeper: people(item.goalkeeperId),
-        cityName: city?.name ?? null,
+        marketName: market?.name ?? null,
         countryId,
         countryName: countryId ? (countryName.get(countryId) ?? null) : null,
         balance: item.balance,

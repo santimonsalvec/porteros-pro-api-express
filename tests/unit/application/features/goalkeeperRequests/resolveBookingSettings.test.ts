@@ -24,12 +24,12 @@ function country(fields: Partial<ConstructorParameters<typeof BookingSettings>[0
 }
 
 function city(fields: Partial<ConstructorParameters<typeof BookingSettings>[0]> = {}): BookingSettings {
-  return new BookingSettings({ id: 'city-doc', scope: 'city', refId: 'city-a', ...fields });
+  return new BookingSettings({ id: 'city-doc', scope: 'market', refId: 'city-a', ...fields });
 }
 
 describe('resolveBookingSettings', () => {
   it('uses the country values when the city defines none', () => {
-    const resolved = resolveBookingSettings({ city: null, country: country() });
+    const resolved = resolveBookingSettings({ market: null, country: country() });
     expect(resolved).toEqual({
       bookingWindowDays: 2,
       minNoticeMinutes: 30,
@@ -41,12 +41,12 @@ describe('resolveBookingSettings', () => {
   });
 
   it('lets a city value win over the country value', () => {
-    const resolved = resolveBookingSettings({ city: city({ bookingWindowDays: 4 }), country: country() });
+    const resolved = resolveBookingSettings({ market: city({ bookingWindowDays: 4 }), country: country() });
     expect(resolved.bookingWindowDays).toBe(4);
   });
 
   it('resolves each setting independently — a partial city override inherits the rest', () => {
-    const resolved = resolveBookingSettings({ city: city({ leadTimeSurcharge: mxn }), country: country() });
+    const resolved = resolveBookingSettings({ market: city({ leadTimeSurcharge: mxn }), country: country() });
     expect(resolved.leadTimeSurcharge).toBe(mxn);
     expect(resolved.bookingWindowDays).toBe(2);
     expect(resolved.minNoticeMinutes).toBe(30);
@@ -55,11 +55,11 @@ describe('resolveBookingSettings', () => {
 
   it('can be satisfied entirely by the city when there is no country document', () => {
     const full = city({ bookingWindowDays: 3, minNoticeMinutes: 45, leadTimeSurcharge: cop });
-    expect(resolveBookingSettings({ city: full, country: null }).missing).toEqual([]);
+    expect(resolveBookingSettings({ market: full, country: null }).missing).toEqual([]);
   });
 
   it('reports every setting defined at neither level, by name', () => {
-    expect(resolveBookingSettings({ city: null, country: null })).toEqual({
+    expect(resolveBookingSettings({ market: null, country: null })).toEqual({
       bookingWindowDays: null,
       minNoticeMinutes: null,
       leadTimeSurcharge: null,
@@ -70,28 +70,28 @@ describe('resolveBookingSettings', () => {
   });
 
   it('reports only the settings that are absent', () => {
-    const resolved = resolveBookingSettings({ city: null, country: country({ bookingWindowDays: null }) });
+    const resolved = resolveBookingSettings({ market: null, country: country({ bookingWindowDays: null }) });
     expect(resolved.missing).toEqual(['bookingWindowDays']);
     expect(resolved.minNoticeMinutes).toBe(30);
   });
 
   it('treats a minimum notice of 0 as defined, not missing', () => {
-    const resolved = resolveBookingSettings({ city: city({ minNoticeMinutes: 0 }), country: country() });
+    const resolved = resolveBookingSettings({ market: city({ minNoticeMinutes: 0 }), country: country() });
     expect(resolved.minNoticeMinutes).toBe(0);
     expect(resolved.missing).toEqual([]);
   });
 
   it('resolves the free-cancellation period city first, then country, never reporting it missing', () => {
-    expect(resolveBookingSettings({ city: city({ freeCancellationMinutes: 90 }), country: country({ freeCancellationMinutes: 60 }) }).freeCancellationMinutes).toBe(90);
-    expect(resolveBookingSettings({ city: city(), country: country({ freeCancellationMinutes: 60 }) }).freeCancellationMinutes).toBe(60);
-    const absent = resolveBookingSettings({ city: null, country: country() });
+    expect(resolveBookingSettings({ market: city({ freeCancellationMinutes: 90 }), country: country({ freeCancellationMinutes: 60 }) }).freeCancellationMinutes).toBe(90);
+    expect(resolveBookingSettings({ market: city(), country: country({ freeCancellationMinutes: 60 }) }).freeCancellationMinutes).toBe(60);
+    const absent = resolveBookingSettings({ market: null, country: country() });
     expect(absent.freeCancellationMinutes).toBeNull();
     expect(absent.missing).toEqual([]);
   });
 
   it('resolves the travel margin city first, then country, never reporting it missing', () => {
-    expect(resolveBookingSettings({ city: city({ travelBufferMinutes: 45 }), country: country({ travelBufferMinutes: 30 }) }).travelBufferMinutes).toBe(45);
-    expect(resolveBookingSettings({ city: null, country: country({ travelBufferMinutes: 30 }) }).travelBufferMinutes).toBe(30);
-    expect(resolveBookingSettings({ city: null, country: country() }).missing).toEqual([]);
+    expect(resolveBookingSettings({ market: city({ travelBufferMinutes: 45 }), country: country({ travelBufferMinutes: 30 }) }).travelBufferMinutes).toBe(45);
+    expect(resolveBookingSettings({ market: null, country: country({ travelBufferMinutes: 30 }) }).travelBufferMinutes).toBe(30);
+    expect(resolveBookingSettings({ market: null, country: country() }).missing).toEqual([]);
   });
 });

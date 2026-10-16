@@ -30,8 +30,8 @@ export function candidatesFor(match: MatchTier): PriceTier[] {
 
 /**
  * Geography first: `levels` holds the documents of each geographic level, most specific first
- * (zone, city, country). Each level is tried with every candidate tier before moving to the next,
- * so a zone's general price beats its city's Fútbol 11 price. `null` when nothing matches.
+ * (zone, market, country). Each level is tried with every candidate tier before moving to the next,
+ * so a zone's general price beats its market's Fútbol 11 price. `null` when nothing matches.
  */
 export function resolveTiered<T extends PriceTier>(levels: readonly (readonly T[])[], match: MatchTier): T | null {
   const candidates = candidatesFor(match);

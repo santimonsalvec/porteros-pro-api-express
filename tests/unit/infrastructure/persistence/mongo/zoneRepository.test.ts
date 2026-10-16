@@ -11,7 +11,7 @@ function repositoryWith(collection: ReturnType<typeof createFakeCollection>) {
 
 const doc = {
   _id: 'zone-bello',
-  cityId: 'city-medellin',
+  marketId: 'city-medellin',
   name: 'Bello',
   slug: 'medellin-co-bello',
   geometry: { type: 'Polygon', coordinates: [] },
@@ -25,9 +25,9 @@ describe('ZoneRepository (mocked driver)', () => {
     collection.find.mockReturnValue(toArrayCursor([doc]));
     const repository = repositoryWith(collection);
 
-    const found = await repository.getActiveByCityId('city-medellin');
+    const found = await repository.getActiveByMarketId('city-medellin');
 
-    expect(collection.find).toHaveBeenCalledWith({ cityId: 'city-medellin', active: true });
+    expect(collection.find).toHaveBeenCalledWith({ marketId: 'city-medellin', active: true });
     expect(found[0]?.slug).toBe('medellin-co-bello');
   });
 
@@ -47,19 +47,19 @@ describe('ZoneRepository (mocked driver)', () => {
     collection.distinct.mockResolvedValue(['city-medellin']);
     const repository = repositoryWith(collection);
 
-    const found = await repository.hasActiveZonesForCityIds(['city-medellin', 'city-bogota']);
+    const found = await repository.hasActiveZonesForMarketIds(['city-medellin', 'city-bogota']);
 
-    expect(collection.distinct).toHaveBeenCalledWith('cityId', { cityId: { $in: ['city-medellin', 'city-bogota'] }, active: true });
+    expect(collection.distinct).toHaveBeenCalledWith('marketId', { marketId: { $in: ['city-medellin', 'city-bogota'] }, active: true });
     expect(found).toEqual(new Set(['city-medellin']));
   });
 
-  it('ensureIndexes creates the cityId/active/displayOrder index', async () => {
+  it('ensureIndexes creates the marketId/active/displayOrder index', async () => {
     const collection = createFakeCollection();
     const repository = repositoryWith(collection);
 
     await repository.ensureIndexes();
 
-    expect(collection.createIndex).toHaveBeenCalledWith({ cityId: 1, active: 1, displayOrder: 1 }, expect.any(Object));
+    expect(collection.createIndex).toHaveBeenCalledWith({ marketId: 1, active: 1, displayOrder: 1 }, expect.any(Object));
   });
 
   it('finds the active zone containing a point with $geoIntersects in [longitude, latitude] order, lowest displayOrder then _id first', async () => {
@@ -87,6 +87,22 @@ describe('ZoneRepository (mocked driver)', () => {
     expect(await repository.findActiveContainingPoint(0, 0)).toBeNull();
   });
 
+  it('finds an inactive zone containing the point, for the "temporarily unavailable" answer (spec 031)', async () => {
+    const collection = createFakeCollection();
+    const cursor = toArrayCursor([{ ...doc, active: false }]);
+    collection.find.mockReturnValue(cursor);
+    const repository = repositoryWith(collection);
+
+    const found = await repository.findAnyContainingPoint(6.2442, -75.5812);
+
+    expect(collection.find).toHaveBeenCalledWith({
+      active: false,
+      geometry: { $geoIntersects: { $geometry: { type: 'Point', coordinates: [-75.5812, 6.2442] } } },
+    });
+    expect(cursor.limit).toHaveBeenCalledWith(1);
+    expect([found?.id, found?.active]).toEqual(['zone-bello', false]);
+  });
+
   it('never creates a 2dsphere index from ensureIndexes (an invalid polygon would fail the build at startup)', async () => {
     const collection = createFakeCollection();
     const repository = repositoryWith(collection);
@@ -105,9 +121,9 @@ describe('ZoneRepository admin methods (spec 003)', () => {
     const cursor = toArrayCursor([doc]);
     collection.find.mockReturnValue(cursor);
 
-    const zones = await repositoryWith(collection).listByCity('city-medellin');
+    const zones = await repositoryWith(collection).listByMarket('city-medellin');
 
-    expect(collection.find).toHaveBeenCalledWith({ cityId: 'city-medellin' });
+    expect(collection.find).toHaveBeenCalledWith({ marketId: 'city-medellin' });
     expect(cursor.sort).toHaveBeenCalledWith({ displayOrder: 1, _id: 1 });
     expect(zones.map((zone) => zone.id)).toEqual(['zone-bello']);
   });
@@ -122,9 +138,9 @@ describe('ZoneRepository admin methods (spec 003)', () => {
     expect((await repository.getById('zone-bello'))?.slug).toBe('medellin-co-bello');
     await repository.findBySlug('medellin-co-bello');
     expect(collection.findOne).toHaveBeenLastCalledWith({ slug: 'medellin-co-bello' });
-    expect(await repository.countByCity(['city-medellin'])).toEqual(new Map([['city-medellin', 12]]));
+    expect(await repository.countByMarket(['city-medellin'])).toEqual(new Map([['city-medellin', 12]]));
     expect(await repository.zoneOwnerIds()).toEqual(['city-medellin']);
-    expect(collection.distinct).toHaveBeenCalledWith('cityId');
+    expect(collection.distinct).toHaveBeenCalledWith('marketId');
   });
 
   it('creates at revision 0, updates at the revision read (the city never changes) and deletes', async () => {
@@ -136,7 +152,7 @@ describe('ZoneRepository admin methods (spec 003)', () => {
 
     await repository.create(zone);
     expect(collection.insertOne).toHaveBeenCalledWith({
-      _id: 'z9', cityId: doc.cityId, name: doc.name, slug: doc.slug, geometry: doc.geometry, active: doc.active, displayOrder: doc.displayOrder, revision: 0,
+      _id: 'z9', marketId: doc.marketId, name: doc.name, slug: doc.slug, geometry: doc.geometry, active: doc.active, displayOrder: doc.displayOrder, revision: 0,
     });
     await repository.update(zone);
     expect(collection.updateOne).toHaveBeenCalledWith(
@@ -154,24 +170,24 @@ describe('ZoneRepository admin methods (spec 003)', () => {
   });
 });
 
-describe('ZoneRepository.summariesByCities (admin lists and readiness)', () => {
+describe('ZoneRepository.summariesByMarkets (admin lists and readiness)', () => {
   it('reads the zones of many cities in one query, without their polygons', async () => {
     const collection = createFakeCollection();
     const cursor = toArrayCursor([{ ...doc, geometry: undefined, revision: 2 }]);
     collection.find.mockReturnValue(cursor);
 
-    const zones = await repositoryWith(collection).summariesByCities(['city-medellin', 'city-cali']);
+    const zones = await repositoryWith(collection).summariesByMarkets(['city-medellin', 'city-cali']);
 
-    expect(collection.find).toHaveBeenCalledWith({ cityId: { $in: ['city-medellin', 'city-cali'] } }, { projection: { geometry: 0 } });
+    expect(collection.find).toHaveBeenCalledWith({ marketId: { $in: ['city-medellin', 'city-cali'] } }, { projection: { geometry: 0 } });
     expect(cursor.sort).toHaveBeenCalledWith({ displayOrder: 1, _id: 1 });
     expect(zones).toEqual([
-      { id: 'zone-bello', cityId: 'city-medellin', name: 'Bello', slug: 'medellin-co-bello', active: true, displayOrder: 1, revision: 2 },
+      { id: 'zone-bello', marketId: 'city-medellin', name: 'Bello', slug: 'medellin-co-bello', active: true, displayOrder: 1, revision: 2 },
     ]);
   });
 
   it('asks nothing for no cities', async () => {
     const collection = createFakeCollection();
-    expect(await repositoryWith(collection).summariesByCities([])).toEqual([]);
+    expect(await repositoryWith(collection).summariesByMarkets([])).toEqual([]);
     expect(collection.find).not.toHaveBeenCalled();
   });
 });

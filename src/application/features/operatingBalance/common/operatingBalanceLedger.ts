@@ -16,6 +16,8 @@ export interface LedgerOwner {
   goalkeeperId: string;
   currency: string;
   invoicing: InvoicingSnapshot;
+  /** The goalkeeper's market now (spec 031): where what is not a booking's is attributed. */
+  marketId: string;
 }
 
 export type RefundResult = AppendResult | { kind: 'nothing_to_refund' };
@@ -29,7 +31,7 @@ const SYSTEM: MovementActor = { kind: 'system', userId: null };
  */
 export function commissionChargeDraft(
   owner: LedgerOwner,
-  args: { bookingId: string; requestId: string; amount: number },
+  args: { bookingId: string; requestId: string; amount: number; marketId?: string },
   id: string,
   occurredAt: Date,
 ): MovementDraft {
@@ -46,6 +48,7 @@ export function commissionChargeDraft(
     cancellation: null,
     reason: null,
     invoicing: owner.invoicing,
+    marketId: args.marketId ?? owner.marketId,
   };
 }
 
@@ -56,7 +59,7 @@ export function commissionChargeDraft(
  */
 export function commissionRefundDraft(
   owner: LedgerOwner,
-  args: { bookingId: string; requestId: string; amount: number; cancellation: CancellationDetails },
+  args: { bookingId: string; requestId: string; amount: number; cancellation: CancellationDetails; marketId?: string },
   id: string,
   occurredAt: Date,
   /** Who records it: the system, or the administrator reversing a withdrawal (feature 018). */
@@ -75,6 +78,7 @@ export function commissionRefundDraft(
     cancellation: args.cancellation,
     reason: null,
     invoicing: owner.invoicing,
+    marketId: args.marketId ?? owner.marketId,
   };
 }
 
@@ -84,7 +88,7 @@ export function commissionRefundDraft(
  */
 export function commissionVatDraft(
   owner: LedgerOwner,
-  args: { bookingId: string; requestId: string; base: number; rateBps: number },
+  args: { bookingId: string; requestId: string; base: number; rateBps: number; marketId?: string },
   id: string,
   occurredAt: Date,
 ): MovementDraft | null {
@@ -104,13 +108,14 @@ export function commissionVatDraft(
     reason: null,
     invoicing: owner.invoicing,
     taxRateBps: args.rateBps,
+    marketId: args.marketId ?? owner.marketId,
   };
 }
 
 /** Gives back the VAT charged with a booking's commission, at the rate it was charged (feature 023). */
 export function commissionVatRefundDraft(
   owner: LedgerOwner,
-  args: { bookingId: string; requestId: string; amount: number; rateBps: number },
+  args: { bookingId: string; requestId: string; amount: number; rateBps: number; marketId?: string },
   id: string,
   occurredAt: Date,
   actor: MovementActor = SYSTEM,
@@ -129,6 +134,7 @@ export function commissionVatRefundDraft(
     reason: null,
     invoicing: owner.invoicing,
     taxRateBps: args.rateBps,
+    marketId: args.marketId ?? owner.marketId,
   };
 }
 
@@ -138,11 +144,21 @@ export function commissionVatRefundDraft(
  */
 export function penaltyChargeDrafts(
   owner: LedgerOwner,
-  args: { penaltyEventId: string; amount: number; rateBps: number; references: MovementReferences },
+  args: { penaltyEventId: string; amount: number; rateBps: number; references: MovementReferences; marketId?: string },
   ids: [string, string],
   occurredAt: Date,
 ): MovementDraft[] {
-  const common = { goalkeeperId: owner.goalkeeperId, currency: owner.currency, occurredAt, actor: SYSTEM, references: args.references, cancellation: null, reason: null, invoicing: owner.invoicing };
+  const common = {
+    goalkeeperId: owner.goalkeeperId,
+    currency: owner.currency,
+    occurredAt,
+    actor: SYSTEM,
+    references: args.references,
+    cancellation: null,
+    reason: null,
+    invoicing: owner.invoicing,
+    marketId: args.marketId ?? owner.marketId,
+  };
   const drafts: MovementDraft[] = [{ ...common, id: ids[0], type: 'penalty', amount: -args.amount, causeKey: `penalty:${args.penaltyEventId}` }];
   const vat = vatFor(args.amount, args.rateBps);
   if (vat > 0) {
@@ -181,7 +197,7 @@ export class OperatingBalanceLedger {
   ): Promise<RefundResult> {
     const charge = await this.movements.findByCauseKey(`commission:${args.bookingId}`);
     if (!charge) return { kind: 'nothing_to_refund' };
-    const draft = commissionRefundDraft(owner, { ...args, amount: -charge.amount }, this.idGenerator.newId(), this.clock.now());
+    const draft = commissionRefundDraft(owner, { ...args, amount: -charge.amount, marketId: charge.marketId }, this.idGenerator.newId(), this.clock.now());
     const known = await this.movements.findByCauseKey(draft.causeKey);
     if (known) return { kind: 'duplicate', movement: known };
     assertMovementShape(draft);
@@ -214,6 +230,7 @@ export class OperatingBalanceLedger {
       causeKey: `penalty_reversal:${penalty.id}`,
       references: { ...penalty.references, penaltyMovementId: penalty.id },
       actor: args.actor,
+      marketId: penalty.marketId,
     });
   }
 
@@ -278,6 +295,8 @@ export class OperatingBalanceLedger {
       cancellation?: CancellationDetails;
       reason?: string;
       actor?: MovementActor;
+      /** What a reversal gives back keeps the original's market (spec 031). */
+      marketId?: string;
     },
   ): Promise<AppendResult> {
     const known = await this.movements.findByCauseKey(movement.causeKey);
@@ -296,6 +315,7 @@ export class OperatingBalanceLedger {
       cancellation: movement.cancellation ?? null,
       reason: movement.reason ?? null,
       invoicing: owner.invoicing,
+      marketId: movement.marketId ?? owner.marketId,
     };
     // Fail fast on a malformed movement, before opening a transaction.
     assertMovementShape(draft);

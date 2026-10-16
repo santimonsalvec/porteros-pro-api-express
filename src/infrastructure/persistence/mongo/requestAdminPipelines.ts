@@ -79,7 +79,7 @@ const ROW_PROJECTION = {
   clientId: 1,
   startsAt: 1,
   zoneId: 1,
-  'match.cityId': 1,
+  'match.marketId': 1,
   'match.timeZone': 1,
   'match.goalkeeperCount': 1,
   'pricing.total': 1,
@@ -104,7 +104,7 @@ export function requestsListPipeline(filter: RequestListFilter): Document[] {
     own.startsAt = { ...(filter.from ? { $gte: filter.from } : {}), ...(filter.to ? { $lt: filter.to } : {}) };
   }
   if (filter.zoneId !== undefined) own.zoneId = filter.zoneId;
-  if (filter.cityIds !== undefined) own['match.cityId'] = { $in: [...filter.cityIds] };
+  if (filter.marketIds !== undefined) own['match.marketId'] = { $in: [...filter.marketIds] };
   if (filter.clientId !== undefined) own.clientId = filter.clientId;
   if (filter.requestIds !== undefined) own._id = { $in: [...filter.requestIds] };
   if (Object.keys(own).length > 0) pipeline.push({ $match: own });

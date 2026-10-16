@@ -4,7 +4,7 @@ import type { DepositResponse } from '../../common/depositResponses.js';
 export type StartDepositResult =
   | { outcome: 'started'; deposit: DepositResponse; checkoutUrl: string }
   | { outcome: 'not_a_goalkeeper' }
-  | { outcome: 'operating_balance_not_configured'; cityId: string }
+  | { outcome: 'operating_balance_not_configured'; marketId: string }
   | { outcome: 'invalid_amount'; amounts: number[] }
   | { outcome: 'terms_not_accepted'; termsVersion: string }
   | { outcome: 'deposits_unavailable' }

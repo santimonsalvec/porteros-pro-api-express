@@ -1,10 +1,11 @@
 import { ICommand } from '../../../../common/mediator/types.js';
-import type { GatewayCosts, GatewayPublicConfig } from '../../../../../domain/payments/gatewaySettings.js';
+import type { GatewayCosts, GatewayPublicConfig, GatewayScope } from '../../../../../domain/payments/gatewaySettings.js';
 import type { GatewaySettingsResponse } from '../../common/gatewaySettingsResponse.js';
 
 export type SetGatewaySettingsResult =
   | { outcome: 'saved'; settings: GatewaySettingsResponse }
   | { outcome: 'country_not_found' }
+  | { outcome: 'market_not_found' }
   /** Someone saved since `revision` was read, or a create met settings that exist (admin spec 007). */
   | { outcome: 'stale' }
   /** Each problem keyed by its field (`gateway`, `publicConfig.publicKey`, `amounts`, …). */
@@ -18,7 +19,9 @@ export type SetGatewaySettingsResult =
 export class SetGatewaySettingsCommand extends ICommand<SetGatewaySettingsResult> {
   constructor(
     public readonly adminUserId: string,
-    public readonly countryId: string,
+    /** A country's settings, or a market's override in its country's currency (spec 031). */
+    public readonly scope: GatewayScope,
+    public readonly refId: string,
     public readonly gateway: string,
     public readonly publicConfig: GatewayPublicConfig,
     public readonly costs: GatewayCosts,

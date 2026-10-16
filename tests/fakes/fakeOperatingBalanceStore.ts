@@ -56,6 +56,12 @@ export class FakeOperatingBalanceStore implements IOperatingBalanceStore, IOpera
     return { kind: 'recorded', movement, operatingBalance };
   }
 
+  /** What a market change to another country does to an empty balance (spec 031). */
+  changeCurrency(goalkeeperId: string, currency: string, now: Date): void {
+    const current = this.operatingBalanceState.get(goalkeeperId);
+    if (current) this.operatingBalanceState.set(goalkeeperId, OperatingBalance.rehydrate({ ...current, currency, updatedAt: now }));
+  }
+
   async findByGoalkeeperIds(goalkeeperIds: readonly string[]): Promise<OperatingBalance[]> {
     return this.operatingBalances().filter((operatingBalance) => goalkeeperIds.includes(operatingBalance.goalkeeperId));
   }

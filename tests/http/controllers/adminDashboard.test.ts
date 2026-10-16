@@ -1,5 +1,5 @@
+import { testMarket } from '../../fakes/fakeMarketRepository.js';
 import { describe, expect, it } from 'vitest';
-import { City } from '../../../src/domain/locations/city.js';
 import { Country } from '../../../src/domain/countries/country.js';
 import { Region } from '../../../src/domain/locations/region.js';
 import { adminGet, memberWith } from '../financeTestHelpers.js';
@@ -15,8 +15,8 @@ async function world() {
   context.countryRepository.seed(new Country({ id: 'country-mx', name: 'México', dialCode: '+52', countryCode: 'MX', currency: 'MXN' }));
   context.regionRepository.seed(new Region({ id: 'region-antioquia-co', name: 'Antioquia', countryId: 'country-co' }));
   context.regionRepository.seed(new Region({ id: 'region-cdmx', name: 'Ciudad de México', countryId: 'country-mx' }));
-  context.cityRepository.seed(new City({ id: 'city-medellin-co', name: 'Medellín', regionId: 'region-antioquia-co', zoneCityId: null, timeZone: 'America/Bogota' }));
-  context.cityRepository.seed(new City({ id: 'city-cdmx', name: 'Ciudad de México', regionId: 'region-cdmx', zoneCityId: null, timeZone: 'America/Mexico_City' }));
+  context.marketRepository.seed(testMarket({ id: 'city-medellin-co', name: 'Medellín', countryId: 'country-co', timeZone: 'America/Bogota' }));
+  context.marketRepository.seed(testMarket({ id: 'city-cdmx', name: 'Ciudad de México', countryId: 'country-mx', timeZone: 'America/Mexico_City' }));
   const owner = await signInStaff(context, { key: 'owner', userId: 'owner-user' });
   return { context, owner };
 }
@@ -33,17 +33,16 @@ describe('the admin dashboard summary (spec 008 of the admin)', () => {
     expect(context.adminAuditLog.entries).toContainEqual(expect.objectContaining({ outcome: 'denied', permission: 'dashboard.read' }));
   });
 
-  it('refuses a malformed or impossible scope', async () => {
+  it('refuses a malformed or impossible scope (spec 031: X-Scope)', async () => {
     const { context, owner } = await world();
-    const codes = async (query: string) => {
-      const response = await adminGet(context, `/admin/dashboard/summary?${query}`, owner.token);
+    const codes = async (scope: string, query = '') => {
+      const response = await adminGet(context, `/admin/dashboard/summary${query}`, owner.token, scope);
       return [response.status, response.body.error?.code ?? response.body.error];
     };
-    expect(await codes('cityId=city-medellin-co')).toEqual([400, 'validation_failed']);
-    expect(await codes('countryId=country-co&color=red')).toEqual([400, 'validation_failed']);
-    expect(await codes('countryId=country-mx&cityId=city-medellin-co')).toEqual([400, 'city_not_in_country']);
-    expect(await codes('countryId=nope')).toEqual([404, 'country_not_found']);
-    expect(await codes('countryId=country-co&cityId=nope')).toEqual([404, 'city_not_found']);
+    expect(await codes('country:country-co', '?countryId=country-co')).toEqual([400, 'validation_failed']);
+    expect(await codes('city:city-medellin-co')).toEqual([400, 'invalid_scope']);
+    expect(await codes('country:nope')).toEqual([404, 'scope_not_found']);
+    expect(await codes('market:nope')).toEqual([404, 'scope_not_found']);
   });
 
   it('answers no areas to a member who can only see the dashboard, and audits no read', async () => {
@@ -51,16 +50,16 @@ describe('the admin dashboard summary (spec 008 of the admin)', () => {
     const member = await memberWith(context, 'panel', ['dashboard.read']);
     context.adminAuditLog.entries.length = 0;
 
-    const response = await adminGet(context, '/admin/dashboard/summary?countryId=country-co&cityId=city-medellin-co', member.token);
+    const response = await adminGet(context, '/admin/dashboard/summary', member.token, 'market:city-medellin-co');
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
       computedAt: expect.any(String),
       scope: {
         countryId: 'country-co',
-        cityId: 'city-medellin-co',
+        marketId: 'city-medellin-co',
         timeZone: 'America/Bogota',
-        timeZoneSource: 'city',
+        timeZoneSource: 'market',
         timeZoneFallback: null,
         today: { from: expect.any(String), to: expect.any(String) },
         week: { from: expect.any(String), to: expect.any(String) },
@@ -70,7 +69,7 @@ describe('the admin dashboard summary (spec 008 of the admin)', () => {
     expect(context.adminAuditLog.entries).toEqual([]);
   });
 
-  it('lists the countries and cities of the filter to anyone with dashboard.read', async () => {
+  it('lists the countries and markets of the filter to anyone with dashboard.read', async () => {
     const { context } = await world();
     const member = await memberWith(context, 'panel', ['dashboard.read']);
     const other = await memberWith(context, 'casos', ['cases.read']);
@@ -79,7 +78,7 @@ describe('the admin dashboard summary (spec 008 of the admin)', () => {
 
     expect(response.status).toBe(200);
     expect(response.body.countries).toEqual(expect.arrayContaining([{ id: 'country-co', name: 'Colombia', countryCode: 'CO' }]));
-    expect(response.body.cities).toEqual(
+    expect(response.body.markets).toEqual(
       expect.arrayContaining([
         { id: 'city-medellin-co', name: 'Medellín', countryId: 'country-co' },
         { id: 'city-cdmx', name: 'Ciudad de México', countryId: 'country-mx' },
@@ -128,7 +127,7 @@ describe('the admin dashboard summary (spec 008 of the admin)', () => {
       ],
     };
 
-    const response = await adminGet(context, '/admin/dashboard/summary?countryId=country-co', member.token);
+    const response = await adminGet(context, '/admin/dashboard/summary', member.token, 'country:country-co');
 
     expect(response.status).toBe(200);
     expect(Object.keys(response.body.areas).sort()).toEqual(['deposits', 'invoicing', 'operatingBalances']);

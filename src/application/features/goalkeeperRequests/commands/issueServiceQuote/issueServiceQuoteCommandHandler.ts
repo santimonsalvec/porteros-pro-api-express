@@ -43,7 +43,7 @@ export class IssueServiceQuoteCommandHandler implements ICommandHandler<
       latitude: command.input.latitude,
       longitude: command.input.longitude,
       zoneId: area.zoneId,
-      cityId: area.cityId,
+      marketId: area.marketId,
       startsAt: new Date(priced.startsAt),
       startsAtLocal: priced.startsAtLocal,
       timeZone: priced.timeZone,
@@ -93,7 +93,7 @@ export class IssueServiceQuoteCommandHandler implements ICommandHandler<
       },
       freeCancellationDefaulted: area.freeCancellationMinutes === null,
       travelBufferDefaulted: area.travelBufferMinutes === null,
-      cityId: area.cityId,
+      marketId: area.marketId,
     };
   }
 }

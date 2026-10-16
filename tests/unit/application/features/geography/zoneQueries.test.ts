@@ -11,11 +11,11 @@ import { DeleteZoneCommandHandler } from '../../../../../src/application/feature
 import { geographyKit } from './geographyTestKit.js';
 
 describe('zone lists, shapes and detail', () => {
-  it('lists every zone of an anchor city without polygons, marking the ones in use', async () => {
+  it('lists every zone of a market without polygons, marking the ones in use', async () => {
     const kit = geographyKit();
     kit.zones.items.set(
       'z-broken',
-      new Zone({ id: 'z-broken', cityId: 'med', name: 'Rota', slug: 'rota', geometry: { type: 'Polygon', coordinates: [[[0, 0]]] }, active: false, displayOrder: 5 }),
+      new Zone({ id: 'z-broken', marketId: 'med', name: 'Rota', slug: 'rota', geometry: { type: 'Polygon', coordinates: [[[0, 0]]] }, active: false, displayOrder: 5 }),
     );
     kit.usage.use('z-laureles', 'zone_in_use');
 
@@ -23,10 +23,10 @@ describe('zone lists, shapes and detail', () => {
 
     expect(result).toEqual({
       outcome: 'ok',
-      city: { id: 'med', name: 'Medellín' },
+      market: { id: 'med', name: 'Medellín' },
       items: [
-        { id: 'z-laureles', cityId: 'med', name: 'Laureles', slug: 'laureles', active: true, displayOrder: 1, inUse: true, revision: 0 },
-        { id: 'z-broken', cityId: 'med', name: 'Rota', slug: 'rota', active: false, displayOrder: 5, inUse: false, revision: 0 },
+        { id: 'z-laureles', marketId: 'med', name: 'Laureles', slug: 'laureles', active: true, displayOrder: 1, inUse: true, revision: 0 },
+        { id: 'z-broken', marketId: 'med', name: 'Rota', slug: 'rota', active: false, displayOrder: 5, inUse: false, revision: 0 },
       ],
     });
   });
@@ -38,7 +38,7 @@ describe('zone lists, shapes and detail', () => {
       return [-75.55 + 0.03 * Math.cos(angle), 6.2 + 0.03 * Math.sin(angle)];
     });
     detailed.push(detailed[0]!);
-    kit.zones.items.set('z-big', new Zone({ id: 'z-big', cityId: 'med', name: 'Grande', slug: 'grande', geometry: { type: 'Polygon', coordinates: [detailed] }, active: true, displayOrder: 2 }));
+    kit.zones.items.set('z-big', new Zone({ id: 'z-big', marketId: 'med', name: 'Grande', slug: 'grande', geometry: { type: 'Polygon', coordinates: [detailed] }, active: true, displayOrder: 2 }));
 
     const result = await new ListZoneShapesQueryHandler(kit).handle(new ListZoneShapesQuery('med'));
 
@@ -51,13 +51,9 @@ describe('zone lists, shapes and detail', () => {
     expect((result.items[1]!.geometry.coordinates as number[][][])[0]!.length).toBeLessThan(300);
   });
 
-  it('names the anchor of a satellite city, and an unknown city', async () => {
+  it('says when the market does not exist', async () => {
     const kit = geographyKit();
-    expect(await new ListZonesQueryHandler(kit).handle(new ListZonesQuery('env'))).toEqual({
-      outcome: 'zone_city_not_anchor',
-      anchorCity: { id: 'med', name: 'Medellín' },
-    });
-    expect(await new ListZonesQueryHandler(kit).handle(new ListZonesQuery('nope'))).toEqual({ outcome: 'city_not_found' });
+    expect(await new ListZonesQueryHandler(kit).handle(new ListZonesQuery('nope'))).toEqual({ outcome: 'market_not_found' });
   });
 
   it('reads one zone as the list shows it', async () => {

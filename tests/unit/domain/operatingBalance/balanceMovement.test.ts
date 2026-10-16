@@ -23,6 +23,7 @@ function props(overrides: Partial<BalanceMovementProps> = {}): BalanceMovementPr
     cancellation: null,
     reason: null,
     invoicing: COLOMBIA_INVOICING,
+    marketId: 'city-cali',
     ...overrides,
   };
 }
@@ -81,5 +82,12 @@ describe('BalanceMovement', () => {
     expect(isGuardedDebit('commission_vat', -1330)).toBe(true);
     expect(isGuardedDebit('admin_adjustment', 10000)).toBe(false);
     expect(isGuardedDebit('deposit', 20000)).toBe(false);
+  });
+});
+
+describe('BalanceMovement market (spec 031, FR-043)', () => {
+  it('needs the market it happened in', () => {
+    expect(BalanceMovement.rehydrate(props()).marketId).toBe('city-cali');
+    expect(() => BalanceMovement.rehydrate(props({ marketId: '' }))).toThrow(/marketId/);
   });
 });

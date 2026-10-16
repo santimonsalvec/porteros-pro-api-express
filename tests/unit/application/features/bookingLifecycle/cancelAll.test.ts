@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { buildGoalkeeperProfile } from '../../../../fixtures/operatingBalanceFixtures.js';
 import { lifecycleHarness } from './lifecycleHarness.js';
 
 const minutes = (n: number) => n * 60_000;
@@ -114,6 +115,36 @@ describe('CancelAllJob', () => {
 
     await h.goalkeeperProfileRepository.updateAvailability('gk-1', 'city-cali', profile.zoneIds);
     expect(await h.cancelAllJob.run(h.clock.now())).toMatch(/1 cancelled/);
+  });
+
+  it('leaves an assigned booking without its commission charge for a person to look at (skipped)', async () => {
+    const h = lifecycleHarness();
+    const { bookings } = h.match('r1', 2, 2, 'cancel_all');
+    h.goalkeeperProfileRepository.seed(buildGoalkeeperProfile('gk-1'));
+    h.bookingRepository.seed(bookings[0]!.assign('gk-1', h.clock.now())); // assigned, never charged
+    h.clock.advance(minutes(60));
+
+    expect(await h.cancelAllJob.run(h.clock.now())).toMatch(/0 cancelled, 0 kept, 0 refunds, 1 skipped, 0 failed/);
+    expect(bookings.map((booking) => h.current(booking.id).status)).toEqual(['assigned', 'pending_assignment']);
+    expect(h.relayed).toHaveLength(0);
+  });
+
+  it('counts a request whose evaluation throws as failed and goes on with the others', async () => {
+    const h = lifecycleHarness();
+    const first = h.match('r1', 2, 2, 'cancel_all');
+    const second = h.match('r2', 2, 2, 'cancel_all');
+    await h.acceptAndPay(first.bookings[0]!, 'gk-1');
+    await h.acceptAndPay(second.bookings[0]!, 'gk-2');
+    const cancelAll = h.store.cancelAll.bind(h.store);
+    h.store.cancelAll = async (args) => {
+      if (args.requestId === 'r1') throw new Error('boom');
+      return cancelAll(args);
+    };
+    h.clock.advance(minutes(60));
+
+    expect(await h.cancelAllJob.run(h.clock.now())).toMatch(/1 cancelled, 0 kept, 1 refunds, 0 skipped, 1 failed/);
+    expect(h.current(first.bookings[0]!.id).status).toBe('assigned');
+    expect(h.current(second.bookings[0]!.id).status).toBe('cancelled');
   });
 
   it('cancels a request whose other booking had already expired, leaving it expired', async () => {

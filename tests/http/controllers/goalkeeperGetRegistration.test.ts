@@ -30,7 +30,7 @@ describe('GET /goalkeepers/me', () => {
     expect(response.body.status).toBe('not_started');
     expect(response.body.sections.identification.complete).toBe(false);
     expect(response.body.heightCm).toBeNull();
-    expect(response.body.cityId).toBeNull();
+    expect(response.body.marketId).toBeNull();
     expect(response.body.serviceZoneIds).toEqual([]);
   });
 
@@ -39,13 +39,13 @@ describe('GET /goalkeepers/me', () => {
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-5');
     const claims = await tokenIssuer.verifyAccessToken(accessToken);
     const registration = GoalkeeperRegistration.createEmpty('reg-5', claims!.sub);
-    registration.saveAvailability({ cityId: 'city-envigado', zoneIds: ['zone-bello', 'zone-copacabana'] });
+    registration.saveAvailability({ marketId: 'city-envigado', zoneIds: ['zone-bello', 'zone-copacabana'] });
     goalkeeperRegistrationRepository.seed(registration);
 
     const response = await request(app).get('/goalkeepers/me').set('Authorization', `Bearer ${accessToken}`);
 
     expect(response.status).toBe(200);
-    expect(response.body.cityId).toBe('city-envigado');
+    expect(response.body.marketId).toBe('city-envigado');
     expect(response.body.serviceZoneIds).toEqual(['zone-bello', 'zone-copacabana']);
     expect(response.body.sections.availability.complete).toBe(true);
   });

@@ -17,6 +17,7 @@ export function incidentToDocument(incident: GoalkeeperIncident): Document {
     goalkeeperId: incident.goalkeeperId,
     bookingId: incident.bookingId,
     requestId: incident.requestId,
+    marketId: incident.marketId,
     startsAt: incident.startsAt,
     occurredAt: incident.occurredAt,
     noticeMinutes: incident.noticeMinutes,
@@ -42,6 +43,7 @@ export function incidentFromDocument(doc: Document): GoalkeeperIncident {
     goalkeeperId: doc.goalkeeperId as string,
     bookingId: doc.bookingId as string,
     requestId: doc.requestId as string,
+    marketId: doc.marketId as string,
     startsAt: new Date(doc.startsAt as Date),
     occurredAt: new Date(doc.occurredAt as Date),
     noticeMinutes: doc.noticeMinutes as number,
@@ -79,6 +81,8 @@ export class GoalkeeperIncidentRepository implements IGoalkeeperIncidentReposito
   async ensureIndexes(): Promise<void> {
     await this.collection.createIndex({ goalkeeperId: 1, occurredAt: -1, _id: -1 }, { name: 'goalkeeper_occurred' });
     await this.collection.createIndex({ kind: 1, bookingId: 1 }, { name: 'kind_booking_unique', unique: true });
+    // Spec 031: a market's incidents, which stay there when a goalkeeper leaves.
+    await this.collection.createIndex({ marketId: 1, occurredAt: -1 }, { name: 'market_occurred' });
   }
 
   async listForGoalkeeper(goalkeeperId: string, skip: number, limit: number): Promise<GoalkeeperIncident[]> {

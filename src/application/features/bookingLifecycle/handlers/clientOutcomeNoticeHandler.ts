@@ -15,7 +15,7 @@ import type { IPushNotifier } from '../../devices/common/ports.js';
 import type { IProcessedEventStore } from '../../events/common/ports.js';
 import { runOnce } from '../../events/common/runOnce.js';
 import type { IBookingRepository, IGoalkeeperRequestRepository } from '../../goalkeeperRequests/common/ports.js';
-import type { ICityRepository } from '../../locations/common/ports.js';
+import type { IMarketRepository } from '../../markets/common/ports.js';
 import type { INotificationRepository } from '../../notifications/common/ports.js';
 import type { IZoneRepository } from '../../zones/common/ports.js';
 import type { ILifecycleLogger } from '../common/ports.js';
@@ -26,7 +26,7 @@ export interface ClientOutcomeNoticeDependencies {
   requestRepository: IGoalkeeperRequestRepository;
   bookingRepository: IBookingRepository;
   zoneRepository: IZoneRepository;
-  cityRepository: ICityRepository;
+  marketRepository: IMarketRepository;
   notifications: INotificationRepository;
   pushNotifier: IPushNotifier;
   processed: IProcessedEventStore;
@@ -70,13 +70,13 @@ export class ClientOutcomeNoticeHandler implements INotificationHandler<DomainEv
     // Not final while a booking is still searching: the notice waits for the outcome.
     if (bookings.some((booking) => booking.status === 'pending_assignment')) return;
 
-    const [zones, cities] = await Promise.all([
+    const [zones, markets] = await Promise.all([
       this.deps.zoneRepository.getManyByIds([request.match.zoneId]),
-      this.deps.cityRepository.getByIds([request.match.cityId]),
+      this.deps.marketRepository.getByIds([request.match.marketId]),
     ]);
     const match = {
       zoneName: zones[0]?.name ?? null,
-      cityName: cities[0]?.name ?? null,
+      marketName: markets[0]?.name ?? null,
       startsAt: request.match.startsAt,
       timeZone: request.match.timeZone,
     };
@@ -114,12 +114,12 @@ export class ClientOutcomeNoticeHandler implements INotificationHandler<DomainEv
     if (!request) return;
     const all = await this.deps.bookingRepository.findByRequestIds([event.requestId]);
     const remaining = all.filter((booking) => booking.status === 'pending_assignment' || booking.status === 'assigned').length;
-    const [zones, cities] = await Promise.all([
+    const [zones, markets] = await Promise.all([
       this.deps.zoneRepository.getManyByIds([request.match.zoneId]),
-      this.deps.cityRepository.getByIds([request.match.cityId]),
+      this.deps.marketRepository.getByIds([request.match.marketId]),
     ]);
     const message = adminCancelledMessage(
-      { zoneName: zones[0]?.name ?? null, cityName: cities[0]?.name ?? null, startsAt: request.match.startsAt, timeZone: request.match.timeZone },
+      { zoneName: zones[0]?.name ?? null, marketName: markets[0]?.name ?? null, startsAt: request.match.startsAt, timeZone: request.match.timeZone },
       event.requestId,
       event.bookingId,
       { remaining },

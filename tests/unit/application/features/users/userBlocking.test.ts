@@ -6,7 +6,7 @@ import { UnblockUserCommandHandler } from '../../../../../src/application/featur
 import { GetBlockImpactQuery } from '../../../../../src/application/features/users/queries/getBlockImpact/getBlockImpactQuery.js';
 import { GetBlockImpactQueryHandler } from '../../../../../src/application/features/users/queries/getBlockImpact/getBlockImpactQueryHandler.js';
 import { User } from '../../../../../src/domain/users/user.js';
-import type { City } from '../../../../../src/domain/locations/city.js';
+import type { Market } from '../../../../../src/domain/markets/market.js';
 import type { Zone } from '../../../../../src/domain/zones/zone.js';
 import { FakeUserRepository } from '../../../../fakes/fakeUserRepository.js';
 import { FakeUserBlockRepository } from '../../../../fakes/fakeUserBlockRepository.js';
@@ -35,8 +35,8 @@ describe('blocking a user (admin spec 005, US8)', () => {
       clock: { now: () => NOW },
       userReader: { openRequests: async () => ({ total: 1, items: [{ id: 'r1', startsAt: LATER, zoneId: 'z1' }] }) },
       goalkeeperReader: { upcomingBookings: async () => ({ total: 3, items: [{ id: 'b1', requestId: 'r9', startsAt: LATER, zoneId: 'gone' }] }) },
-      zones: { getManyByIds: async (ids) => (ids.includes('z1') ? [{ id: 'z1', cityId: 'med' } as Zone] : []) },
-      cities: { getByIds: async (ids) => (ids.includes('med') ? [{ id: 'med', name: 'Medellín', timeZone: 'America/Bogota' } as City] : []) },
+      zones: { getManyByIds: async (ids) => (ids.includes('z1') ? [{ id: 'z1', marketId: 'med' } as Zone] : []) },
+      markets: { getByIds: async (ids) => (ids.includes('med') ? [{ id: 'med', name: 'Medellín', timeZone: 'America/Bogota' } as unknown as Market] : []) },
     };
   });
 
@@ -85,8 +85,8 @@ describe('blocking a user (admin spec 005, US8)', () => {
       impact: {
         isGoalkeeper: true,
         availableForOffers: true,
-        openRequests: { total: 1, items: [{ id: 'r1', startsAt: LATER.toISOString(), cityName: 'Medellín', timeZone: 'America/Bogota' }] },
-        upcomingBookings: { total: 3, items: [{ id: 'b1', requestId: 'r9', startsAt: LATER.toISOString(), cityName: null, timeZone: null }] },
+        openRequests: { total: 1, items: [{ id: 'r1', startsAt: LATER.toISOString(), marketName: 'Medellín', timeZone: 'America/Bogota' }] },
+        upcomingBookings: { total: 3, items: [{ id: 'b1', requestId: 'r9', startsAt: LATER.toISOString(), marketName: null, timeZone: null }] },
       },
     });
     expect(await new GetBlockImpactQueryHandler(deps).handle(new GetBlockImpactQuery('client'))).toMatchObject({ impact: { isGoalkeeper: false, availableForOffers: null } });

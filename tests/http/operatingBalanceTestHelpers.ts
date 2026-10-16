@@ -37,7 +37,7 @@ export async function signInAdmin(context: TestApp): Promise<{ token: string; us
 }
 
 export function ownerOf(goalkeeperId: string): LedgerOwner {
-  return { goalkeeperId, currency: 'COP', invoicing: COLOMBIA_INVOICING };
+  return { goalkeeperId, currency: 'COP', invoicing: COLOMBIA_INVOICING, marketId: 'city-cali' };
 }
 
 /** 13:30 in Bogotá: a quote for 15:00 local (20:00Z) has 90 minutes of notice and its search ends at 19:30Z. */

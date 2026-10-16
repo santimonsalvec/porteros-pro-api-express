@@ -7,7 +7,7 @@ export interface PricingPreviewInput {
   durationMinutes: number;
   modality: Modality;
   level: MatchLevel;
-  /** `YYYY-MM-DDTHH:mm` in the city's time zone. */
+  /** `YYYY-MM-DDTHH:mm` in the market's time zone. */
   startsAtLocal: string;
   /** The moment to quote from, same form; `null` = now (FR-013a). */
   quoteFromLocal: string | null;
@@ -29,7 +29,7 @@ export interface PreviewTarget {
 }
 
 export interface PriceOrigin {
-  scope: 'zone' | 'city' | 'country';
+  scope: 'zone' | 'market' | 'country';
   refId: string;
   name: string;
 }
@@ -38,7 +38,7 @@ type Tier = { modality: string | null; level: string | null };
 
 export interface PricingPreview {
   zone: { id: string; name: string; active: boolean };
-  city: { id: string; name: string };
+  market: { id: string; name: string };
   country: { id: string; name: string } | null;
   timeZone: string;
   startsAt: string;
@@ -63,7 +63,7 @@ export type GetPricingPreviewResult =
   | { outcome: 'ok'; preview: PricingPreview }
   | { outcome: 'not_found' }
   | { outcome: 'invalid'; fieldErrors: Record<string, string> }
-  | { outcome: 'time_zone_not_configured'; cityId: string };
+  | { outcome: 'time_zone_not_configured'; marketId: string };
 
 /**
  * What a quote in this zone would charge and which rules would apply, with where each value comes

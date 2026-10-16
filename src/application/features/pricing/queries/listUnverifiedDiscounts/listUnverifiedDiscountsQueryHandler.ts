@@ -20,9 +20,9 @@ export class ListUnverifiedDiscountsQueryHandler implements IQueryHandler<ListUn
     const geography = await PricingGeography.load(this.deps);
     const country = (await this.deps.countries.getById(countryId)) ?? null;
     if (!country) return { outcome: 'not_found' };
-    const cities = geography.citiesOf(countryId).filter((city) => geography.zones(city.id).length > 0);
-    const zones = cities.flatMap((city) => geography.zones(city.id));
-    const settings = await this.deps.discounts.findFor({ zoneIds: zones.map((zone) => zone.id), cityIds: cities.map((city) => city.id), countryIds: [countryId] });
+    const markets = geography.marketsOf(countryId).filter((market) => geography.zones(market.id).length > 0);
+    const zones = markets.flatMap((market) => geography.zones(market.id));
+    const settings = await this.deps.discounts.findFor({ zoneIds: zones.map((zone) => zone.id), marketIds: markets.map((market) => market.id), countryIds: [countryId] });
     const at = (scope: string, refId: string) => settings.find((setting) => setting.scope === scope && setting.refId === refId);
     const countrySetting = at('country', countryId);
     return {
@@ -31,19 +31,19 @@ export class ListUnverifiedDiscountsQueryHandler implements IQueryHandler<ListUn
         maxBps: MAX_UNVERIFIED_DISCOUNT_BPS,
         maxPriorityMinutes: MAX_VERIFIED_PRIORITY_MINUTES,
         country: { id: country.id, name: country.name, setting: view(countrySetting), effective: terms([undefined, undefined, countrySetting]) },
-        cities: cities.map((city) => ({
-          id: city.id,
-          name: city.name,
-          setting: view(at('city', city.id)),
-          effective: terms([undefined, at('city', city.id), countrySetting]),
+        markets: markets.map((market) => ({
+          id: market.id,
+          name: market.name,
+          setting: view(at('market', market.id)),
+          effective: terms([undefined, at('market', market.id), countrySetting]),
         })),
         zones: zones.map((zone) => ({
           id: zone.id,
           name: zone.name,
-          cityId: zone.cityId,
+          marketId: zone.marketId,
           active: zone.active,
           setting: view(at('zone', zone.id)),
-          effective: terms([at('zone', zone.id), at('city', zone.cityId), countrySetting]),
+          effective: terms([at('zone', zone.id), at('market', zone.marketId), countrySetting]),
         })),
       },
     };

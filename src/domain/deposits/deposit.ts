@@ -57,6 +57,8 @@ export interface DepositProps {
   id: string;
   goalkeeperId: string;
   countryId: string;
+  /** Where the goalkeeper played when it started (spec 031, FR-043); written once. */
+  marketId: string;
   gateway: GatewayName;
   environment: GatewayEnvironment;
   reference: string;
@@ -102,6 +104,7 @@ export function nextCheckAfter(deposit: Pick<DepositProps, 'createdAt'>, now: Da
 export class Deposit extends Entity<string> {
   readonly goalkeeperId: string;
   readonly countryId: string;
+  readonly marketId: string;
   /** Fixed at start: a later change of the country's gateway never moves an in-flight deposit. */
   readonly gateway: GatewayName;
   /** Also fixed at start: reconciliation asks the same environment the payment was made in. */
@@ -130,6 +133,7 @@ export class Deposit extends Entity<string> {
     if (props.environment !== 'sandbox' && props.environment !== 'production') throw new Error('Deposit: environment must be sandbox or production');
     this.goalkeeperId = props.goalkeeperId;
     this.countryId = props.countryId;
+    this.marketId = props.marketId;
     this.gateway = props.gateway;
     this.environment = props.environment;
     this.reference = props.reference;
@@ -150,6 +154,7 @@ export class Deposit extends Entity<string> {
     id: string;
     goalkeeperId: string;
     countryId: string;
+    marketId: string;
     gateway: GatewayName;
     environment: GatewayEnvironment;
     amount: number;
@@ -161,6 +166,7 @@ export class Deposit extends Entity<string> {
       id: args.id,
       goalkeeperId: args.goalkeeperId,
       countryId: args.countryId,
+      marketId: args.marketId,
       gateway: args.gateway,
       environment: args.environment,
       reference: newDepositReference(args.id),
@@ -187,6 +193,7 @@ export class Deposit extends Entity<string> {
       id: this.id,
       goalkeeperId: this.goalkeeperId,
       countryId: this.countryId,
+      marketId: this.marketId,
       gateway: this.gateway,
       environment: this.environment,
       reference: this.reference,

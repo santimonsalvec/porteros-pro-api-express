@@ -1,3 +1,4 @@
+import { withinAllowed } from '../../../markets/common/marketRestriction.js';
 import type { IQueryHandler } from '../../../../common/mediator/types.js';
 import { requestStatusFromCounts } from '../../../../../domain/bookings/requestStatus.js';
 import { pageOf } from '../../../geography/common/views.js';
@@ -12,7 +13,8 @@ export class ListRequestsAdminQueryHandler implements IQueryHandler<ListRequests
   constructor(private readonly deps: RequestsAdminDependencies) {}
 
   async handle({ criteria }: ListRequestsAdminQuery): Promise<ListRequestsAdminResult> {
-    const cityIds = criteria.cityId ? [criteria.cityId] : criteria.countryId ? await this.deps.reader.cityIdsOfCountry(criteria.countryId) : undefined;
+    const selected = criteria.marketId ? [criteria.marketId] : criteria.countryId ? await this.deps.reader.marketIdsOfCountry(criteria.countryId) : undefined;
+    const marketIds = withinAllowed(selected, criteria.marketIds);
     let requestIds: string[] | undefined;
     if (criteria.goalkeeperId) {
       requestIds = await this.deps.reader.requestIdsOfGoalkeeper(criteria.goalkeeperId, MAX_GOALKEEPER_REQUESTS + 1);
@@ -21,7 +23,7 @@ export class ListRequestsAdminQueryHandler implements IQueryHandler<ListRequests
     const { items, totalItems } = await this.deps.reader.list({
       status: criteria.status,
       zoneId: criteria.zoneId,
-      cityIds,
+      marketIds,
       clientId: criteria.clientId,
       requestIds,
       from: criteria.from,
@@ -31,11 +33,11 @@ export class ListRequestsAdminQueryHandler implements IQueryHandler<ListRequests
     });
     const [people, places] = await Promise.all([
       personNames(this.deps, items.map((item) => item.clientId)),
-      placeNames(this.deps, items.map((item) => item.cityId), items.map((item) => item.zoneId)),
+      placeNames(this.deps, items.map((item) => item.marketId), items.map((item) => item.zoneId)),
     ]);
     const rows = items.map((item) => ({
       requestId: item.requestId,
-      match: { startsAt: item.startsAt.toISOString(), timeZone: item.timeZone, city: places.city(item.cityId), zone: places.zone(item.zoneId) },
+      match: { startsAt: item.startsAt.toISOString(), timeZone: item.timeZone, market: places.market(item.marketId), zone: places.zone(item.zoneId) },
       client: people(item.clientId),
       goalkeepersRequested: item.goalkeeperCount,
       goalkeepersAssigned: item.counts.assigned + item.counts.completed,

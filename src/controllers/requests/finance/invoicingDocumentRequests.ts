@@ -1,13 +1,14 @@
 import { z } from 'zod';
 import { pageQuery } from '../geography/geographyRequests.js';
-import { FROM_BEFORE_TO, fromBeforeTo, idField, instantField } from './financeFilters.js';
+import { FROM_BEFORE_TO, fromBeforeTo, instantField } from './financeFilters.js';
 
 const DOCUMENT_STATUSES = ['pending', 'awaiting_authority', 'issued', 'rejected'] as const;
 
 const filters = {
   status: z.enum(DOCUMENT_STATUSES).optional(),
   kind: z.enum(['invoice', 'credit_note']).optional(),
-  countryId: idField.optional(),
+  // The country comes from X-Scope (spec 031, contract B1); `marketId` narrows it.
+  marketId: z.string().trim().min(1).max(100).optional(),
   from: instantField.optional(),
   to: instantField.optional(),
   stale: z.enum(['true']).transform(() => true).optional(),

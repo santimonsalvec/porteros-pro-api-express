@@ -21,6 +21,7 @@ function deposit(overrides: Partial<DepositProps> = {}): Deposit {
     id: 't-1',
     goalkeeperId: 'gk-1',
     countryId: 'country-co',
+    marketId: 'city-cali',
     gateway: 'wompi',
     environment: 'production',
     reference: 'PPR-1',

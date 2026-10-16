@@ -26,7 +26,7 @@ export class GetRequestAdminQueryHandler implements IQueryHandler<GetRequestAdmi
     const goalkeeperIds = bookings.flatMap((booking) => (booking.goalkeeperId ? [booking.goalkeeperId] : []));
     const [people, places, members] = await Promise.all([
       personNames(this.deps, [request.clientId, ...goalkeeperIds]),
-      placeNames(this.deps, [request.match.cityId], [request.zoneId]),
+      placeNames(this.deps, [request.match.marketId], [request.zoneId]),
       this.members(record),
     ]);
     const offersForgotten = record.offersSent === 0 && this.deps.clock.now().getTime() - request.createdAt.getTime() > OFFERS_KEPT_MS;
@@ -43,7 +43,7 @@ export class GetRequestAdminQueryHandler implements IQueryHandler<GetRequestAdmi
         match: {
           startsAt: request.startsAt.toISOString(),
           timeZone: request.match.timeZone,
-          city: places.city(request.match.cityId),
+          market: places.market(request.match.marketId),
           zone: places.zone(request.zoneId),
           latitude: request.match.latitude,
           longitude: request.match.longitude,

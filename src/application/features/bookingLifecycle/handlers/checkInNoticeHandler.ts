@@ -8,7 +8,7 @@ import type { IPushNotifier } from '../../devices/common/ports.js';
 import type { IProcessedEventStore } from '../../events/common/ports.js';
 import { runOnce } from '../../events/common/runOnce.js';
 import type { IGoalkeeperRequestRepository } from '../../goalkeeperRequests/common/ports.js';
-import type { ICityRepository } from '../../locations/common/ports.js';
+import type { IMarketRepository } from '../../markets/common/ports.js';
 import type { INotificationRepository } from '../../notifications/common/ports.js';
 import type { IZoneRepository } from '../../zones/common/ports.js';
 import { notifyOnce } from '../common/notifyOnce.js';
@@ -19,7 +19,7 @@ export const CHECK_IN_NOTICE_EVENT_TYPES = ['goalkeeper.checked_in'] as const;
 export interface CheckInNoticeDependencies {
   requestRepository: IGoalkeeperRequestRepository;
   zoneRepository: IZoneRepository;
-  cityRepository: ICityRepository;
+  marketRepository: IMarketRepository;
   notifications: INotificationRepository;
   pushNotifier: IPushNotifier;
   processed: IProcessedEventStore;
@@ -41,11 +41,11 @@ export class CheckInNoticeHandler implements INotificationHandler<DomainEvent> {
   private async notify(event: DomainEvent, payload: GoalkeeperCheckedInPayload): Promise<void> {
     const [request] = await this.deps.requestRepository.findByIds([event.requestId]);
     if (!request) return;
-    const [zones, cities] = await Promise.all([
+    const [zones, markets] = await Promise.all([
       this.deps.zoneRepository.getManyByIds([request.match.zoneId]),
-      this.deps.cityRepository.getByIds([request.match.cityId]),
+      this.deps.marketRepository.getByIds([request.match.marketId]),
     ]);
-    const match = { zoneName: zones[0]?.name ?? null, cityName: cities[0]?.name ?? null, startsAt: request.match.startsAt, timeZone: request.match.timeZone };
+    const match = { zoneName: zones[0]?.name ?? null, marketName: markets[0]?.name ?? null, startsAt: request.match.startsAt, timeZone: request.match.timeZone };
     const message = goalkeeperArrivedMessage(match, event.requestId, event.bookingId);
     const reached = await notifyOnce(this.deps, { userId: payload.clientId, message, dedupeKey: `goalkeeper-arrived:${event.bookingId}` });
     if (reached === null) return;

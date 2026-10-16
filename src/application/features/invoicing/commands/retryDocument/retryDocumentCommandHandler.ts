@@ -12,7 +12,7 @@ export interface RetryDocumentDependencies extends IssueDocumentDependencies {
 }
 
 /**
- * Puts a rejected document back to pending with the buyer's current name, email, city and
+ * Puts a rejected document back to pending with the buyer's current name, email, address and
  * document (US4 scenario 2), then tries it at once. Only a rejected document can be retried.
  */
 export class RetryDocumentCommandHandler implements ICommandHandler<RetryDocumentCommand, RetryDocumentResult> {
@@ -32,7 +32,10 @@ export class RetryDocumentCommandHandler implements ICommandHandler<RetryDocumen
         firstName: user?.firstName ?? document.buyer.firstName,
         lastName: user?.lastName ?? document.buyer.lastName,
         email: user?.email ?? document.buyer.email,
-        cityId: profile?.cityId ?? document.buyer.cityId,
+        // A rejected document was never issued: it takes the current billing address (spec 031).
+        ...(profile?.billing.cityId
+          ? { cityId: profile.billing.cityId, address: profile.billing.address, addressComplement: profile.billing.addressComplement }
+          : { cityId: document.buyer.cityId, address: document.buyer.address, addressComplement: document.buyer.addressComplement }),
       },
       now,
     );

@@ -6,7 +6,7 @@ import { User } from '../../../../../src/domain/users/user.js';
 import { CommissionSetting } from '../../../../../src/domain/operatingBalance/commissionSetting.js';
 import { Zone } from '../../../../../src/domain/zones/zone.js';
 import { FakeBookingRepository } from '../../../../fakes/fakeBookingRepository.js';
-import { FakeCityRepository } from '../../../../fakes/fakeCityRepository.js';
+import { FakeMarketRepository } from '../../../../fakes/fakeMarketRepository.js';
 import { FixedClock } from '../../../../fakes/fakeClock.js';
 import { FakeCommissionSettingRepository } from '../../../../fakes/fakeCommissionSettingRepository.js';
 import { FakeCountryRepository } from '../../../../fakes/fakeCountryRepository.js';
@@ -26,7 +26,7 @@ const HOUR = 60 * 60 * 1000;
 export const inHours = (hours: number) => new Date(new Date(NOW).getTime() + hours * HOUR);
 
 const zone = (id: string, name: string) =>
-  new Zone({ id, cityId: 'city-cali', name, slug: id, geometry: { type: 'Polygon', coordinates: [] }, active: true, displayOrder: 1 });
+  new Zone({ id, marketId: 'city-cali', name, slug: id, geometry: { type: 'Polygon', coordinates: [] }, active: true, displayOrder: 1 });
 
 /**
  * The Cali world for goalkeeper bookings: zones Norte and Sur (enabled for `gk-1`) and Centro
@@ -34,7 +34,7 @@ const zone = (id: string, name: string) =>
  */
 export class GoalkeeperBookingHarness {
   readonly profiles = new FakeGoalkeeperProfileRepository();
-  readonly cities = new FakeCityRepository();
+  readonly markets = new FakeMarketRepository();
   readonly regions = new FakeRegionRepository();
   readonly countries = new FakeCountryRepository();
   readonly zones = new FakeZoneRepository();
@@ -46,10 +46,10 @@ export class GoalkeeperBookingHarness {
   readonly clock = new FixedClock(NOW);
   private counter = 0;
   readonly ledger = new OperatingBalanceLedger(this.operatingBalance, this.operatingBalance, { newId: () => `m-${++this.counter}` }, this.clock);
-  readonly commissionResolver = new CommissionResolver(this.settings, this.zones, this.cities, this.regions);
+  readonly commissionResolver = new CommissionResolver(this.settings, this.zones, this.markets);
 
   constructor() {
-    seedOperatingBalanceWorld({ cityRepository: this.cities, regionRepository: this.regions, countryRepository: this.countries });
+    seedOperatingBalanceWorld({ marketRepository: this.markets, countryRepository: this.countries });
     this.zones.seed(zone('zone-cali-norte', 'Norte'));
     this.zones.seed(zone('zone-cali-sur', 'Sur'));
     this.zones.seed(zone('zone-cali-centro', 'Centro'));
@@ -67,7 +67,7 @@ export class GoalkeeperBookingHarness {
   }
 
   owner(goalkeeperId = 'gk-1'): LedgerOwner {
-    return { goalkeeperId, currency: 'COP', invoicing: COLOMBIA_INVOICING };
+    return { goalkeeperId, currency: 'COP', invoicing: COLOMBIA_INVOICING, marketId: 'city-cali' };
   }
 
   credit(amount: number, goalkeeperId = 'gk-1') {

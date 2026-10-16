@@ -10,7 +10,7 @@ import { loadContacts } from '../../../goalkeeperRequests/common/contacts.js';
 import { loadBookingItemContext, loadCheckInWindows, toAgendaItem } from '../../../goalkeeperRequests/common/goalkeeperBookingResponse.js';
 import type { IBookingAuditLogger, IBookingRepository, IGoalkeeperRequestRepository } from '../../../goalkeeperRequests/common/ports.js';
 import type { IImageRepository } from '../../../images/common/ports.js';
-import type { ICityRepository } from '../../../locations/common/ports.js';
+import type { IMarketRepository } from '../../../markets/common/ports.js';
 import type { IZoneRepository } from '../../../zones/common/ports.js';
 import type { CheckInWindowResolver } from '../../common/checkInWindowResolver.js';
 import type { IBookingLifecycleStore } from '../../common/ports.js';
@@ -22,7 +22,7 @@ export interface CheckInToBookingDependencies {
   bookingRepository: IBookingRepository;
   requestRepository: IGoalkeeperRequestRepository;
   zoneRepository: IZoneRepository;
-  cityRepository: ICityRepository;
+  marketRepository: IMarketRepository;
   userRepository: IUserRepository;
   /** A fresh resolver per check-in (it caches per city). */
   windowResolver: () => CheckInWindowResolver;

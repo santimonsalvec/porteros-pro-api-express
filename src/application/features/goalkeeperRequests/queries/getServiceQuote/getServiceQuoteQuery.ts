@@ -54,7 +54,7 @@ export type GetServiceQuoteResult =
        */
       area: {
         zoneId: string;
-        cityId: string;
+        marketId: string;
         freeCancellationMinutes: number | null;
         /** The platform commission for one goalkeeper, fixed for the whole flow (012). */
         commission: number;
@@ -65,13 +65,14 @@ export type GetServiceQuoteResult =
     }
   | { outcome: 'unknown_surface'; surfaceId: string }
   | { outcome: 'location_not_covered' }
-  | { outcome: 'time_zone_not_configured'; cityId: string }
+  /** The point is in a market out of service now (spec 031, FR-011). */
+  | { outcome: 'market_unavailable'; marketId: string; marketName: string }
   | { outcome: 'invalid_start_time'; reason: InvalidStartTimeReason }
   | { outcome: 'start_time_in_past' }
-  | { outcome: 'service_not_configured'; cityId: string; missing: MissingSetting[] }
+  | { outcome: 'service_not_configured'; marketId: string; missing: MissingSetting[] }
   | { outcome: 'insufficient_notice'; minNoticeMinutes: number }
   | { outcome: 'outside_booking_window'; bookingWindowDays: number }
-  | { outcome: 'rate_not_configured'; zoneId: string; cityId: string; durationMinutes: number };
+  | { outcome: 'rate_not_configured'; zoneId: string; marketId: string; durationMinutes: number };
 
 export class GetServiceQuoteQuery extends IQuery<GetServiceQuoteResult> {
   constructor(public readonly input: ServiceQuoteInput) {

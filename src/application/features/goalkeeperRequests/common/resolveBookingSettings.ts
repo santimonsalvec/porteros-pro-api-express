@@ -1,4 +1,5 @@
 import type { BookingSettings, LeadTimeSurcharge } from '../../../../domain/pricing/bookingSettings.js';
+import { resolveLayered, type SettingLevel } from '../../../../domain/settings/layered.js';
 import { FREE_CANCELLATION_MINUTES_DEFAULT, TRAVEL_BUFFER_MINUTES_DEFAULT } from './bookingLimits.js';
 
 export type MissingSetting = 'bookingWindowDays' | 'minNoticeMinutes' | 'leadTimeSurcharge' | 'currency' | 'commission';
@@ -15,7 +16,7 @@ export interface ResolvedBookingSettings {
   missing: MissingSetting[];
 }
 
-export type SettingOrigin = 'city' | 'country' | 'default';
+export type SettingOrigin = Extract<SettingLevel, 'market' | 'country' | 'platform'>;
 
 /** One setting's effective value and where it comes from; `origin: null` when it is missing. */
 export interface ResolvedSetting<T> {
@@ -31,19 +32,15 @@ export interface BookingSettingsWithOrigin {
   travelBufferMinutes: ResolvedSetting<number>;
 }
 
-type Docs = { city: BookingSettings | null; country: BookingSettings | null };
+type Docs = { market: BookingSettings | null; country: BookingSettings | null };
 type InheritedField = keyof BookingSettingsWithOrigin;
 
 function inherited<Field extends InheritedField>(docs: Docs, field: Field, fallback: number | null = null) {
-  const cityValue = docs.city?.[field] ?? null;
-  if (cityValue !== null) return { value: cityValue, origin: 'city' as const };
-  const countryValue = docs.country?.[field] ?? null;
-  if (countryValue !== null) return { value: countryValue, origin: 'country' as const };
-  return fallback === null ? { value: null, origin: null } : { value: fallback, origin: 'default' as const };
+  return resolveLayered<BookingSettings[Field]>({ market: docs.market?.[field], country: docs.country?.[field] }, fallback as BookingSettings[Field] | null);
 }
 
 /**
- * Each setting on its own: the city's value if it defines one, otherwise its country's. The free
+ * Each setting on its own: the market's value if it defines one, otherwise its country's. The free
  * cancellation and the travel buffer then fall back to their defaults; the other three are missing
  * (the admin's simulator and booking-rule screens show where every value comes from).
  */
@@ -58,10 +55,10 @@ export function resolveBookingSettingsWithOrigin(docs: Docs): BookingSettingsWit
 }
 
 /** A value that only a default supplies counts as "not configured" here: the caller applies it. */
-const configured = <T>(setting: ResolvedSetting<T>): T | null => (setting.origin === 'default' ? null : setting.value);
+const configured = <T>(setting: ResolvedSetting<T>): T | null => (setting.origin === 'platform' ? null : setting.value);
 
 /**
- * Each of the three settings resolves on its own: the city's value if it defines one,
+ * Each of the three settings resolves on its own: the market's value if it defines one,
  * otherwise its country's, otherwise it is missing. There are no built-in defaults —
  * a missing setting makes the area unquotable rather than assumed (FR-025).
  */

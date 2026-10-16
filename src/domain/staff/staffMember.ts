@@ -1,5 +1,6 @@
 import { Entity } from '../common/entity.js';
 import { normalizeEmail } from '../common/email.js';
+import { PLATFORM_SCOPE, scopesIssue, type StaffScope } from './staffScope.js';
 
 export type StaffStatus = 'invited' | 'active' | 'disabled';
 
@@ -17,6 +18,8 @@ export interface StaffMemberProps {
   displayName: string | null;
   userId: string | null;
   roleIds: readonly string[];
+  /** Where the member may work (spec 031); `platform` when absent. */
+  scopes?: readonly StaffScope[];
   status: StaffStatus;
   invitedBy: string;
   invitedAt: Date;
@@ -35,6 +38,7 @@ export class StaffMember extends Entity<string> {
   readonly displayName: string | null;
   readonly userId: string | null;
   readonly roleIds: readonly string[];
+  readonly scopes: readonly StaffScope[];
   readonly status: StaffStatus;
   readonly invitedBy: string;
   readonly invitedAt: Date;
@@ -50,6 +54,10 @@ export class StaffMember extends Entity<string> {
     this.displayName = props.displayName;
     this.userId = props.userId;
     this.roleIds = [...props.roleIds];
+    const scopes = props.scopes ?? [PLATFORM_SCOPE];
+    const issue = scopesIssue(scopes);
+    if (issue) throw new Error(`A staff member's scopes are invalid: ${issue}`);
+    this.scopes = scopes.map((scope) => ({ ...scope }));
     this.status = props.status;
     this.invitedBy = props.invitedBy;
     this.invitedAt = new Date(props.invitedAt);
@@ -59,7 +67,7 @@ export class StaffMember extends Entity<string> {
     this.updatedAt = new Date(props.updatedAt);
   }
 
-  static invite(params: { id: string; email: string; roleId: string; invitedBy: string }, now: Date): StaffMember {
+  static invite(params: { id: string; email: string; roleId: string; invitedBy: string; scopes?: readonly StaffScope[] }, now: Date): StaffMember {
     const email = normalizeStaffEmail(params.email);
     if (!email) throw new Error('Invalid staff email');
     return new StaffMember({
@@ -68,6 +76,7 @@ export class StaffMember extends Entity<string> {
       displayName: null,
       userId: null,
       roleIds: [params.roleId],
+      scopes: params.scopes,
       status: 'invited',
       invitedBy: params.invitedBy,
       invitedAt: now,
@@ -95,9 +104,14 @@ export class StaffMember extends Entity<string> {
     return this.status === 'invited' && this.inviteExpiresAt !== null && now < this.inviteExpiresAt;
   }
 
-  reinvite(roleId: string, invitedBy: string, now: Date): StaffMember {
+  reinvite(roleId: string, invitedBy: string, now: Date, scopes: readonly StaffScope[] = this.scopes): StaffMember {
     if (this.status !== 'invited') throw new StaffMemberTransitionError(`Staff member ${this.id} is ${this.status}`);
-    return this.with({ roleIds: [roleId], invitedBy, invitedAt: now, inviteExpiresAt: expiryFrom(now), updatedAt: now });
+    return this.with({ roleIds: [roleId], scopes, invitedBy, invitedAt: now, inviteExpiresAt: expiryFrom(now), updatedAt: now });
+  }
+
+  /** Where the member may work from now on (spec 031). */
+  changeScopes(scopes: readonly StaffScope[], now: Date): StaffMember {
+    return this.with({ scopes, updatedAt: now });
   }
 
   activate(userId: string, displayName: string | null, now: Date): StaffMember {
@@ -136,6 +150,7 @@ export class StaffMember extends Entity<string> {
       displayName: this.displayName,
       userId: this.userId,
       roleIds: this.roleIds,
+      scopes: this.scopes,
       status: this.status,
       invitedBy: this.invitedBy,
       invitedAt: this.invitedAt,

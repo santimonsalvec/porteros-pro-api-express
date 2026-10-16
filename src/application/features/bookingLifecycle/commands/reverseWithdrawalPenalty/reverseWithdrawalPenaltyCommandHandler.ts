@@ -54,8 +54,8 @@ export class ReverseWithdrawalPenaltyCommandHandler implements ICommandHandler<R
     const context = await resolveGoalkeeperOperatingBalanceContext(this.deps.operatingBalanceContext, command.goalkeeperId);
     if (context.kind === 'not_a_goalkeeper') return { outcome: 'not_a_goalkeeper' };
     let owner: LedgerOwner | null = null;
-    if (context.kind === 'ok') owner = { goalkeeperId: command.goalkeeperId, currency: context.currency, invoicing: context.invoicing };
-    else if (command.refund) return { outcome: 'operating_balance_not_configured', cityId: context.cityId };
+    if (context.kind === 'ok') owner = { goalkeeperId: command.goalkeeperId, currency: context.currency, invoicing: context.invoicing, marketId: context.profile.marketId };
+    else if (command.refund) return { outcome: 'operating_balance_not_configured', marketId: context.marketId };
 
     const result = await this.deps.store.reverseWithdrawal({
       goalkeeperId: command.goalkeeperId,

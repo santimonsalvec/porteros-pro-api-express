@@ -21,8 +21,8 @@ export interface UnverifiedDiscountsView {
   maxBps: number;
   maxPriorityMinutes: number;
   country: { id: string; name: string; setting: DiscountSettingView | null; effective: EffectiveTerms };
-  cities: { id: string; name: string; setting: DiscountSettingView | null; effective: EffectiveTerms }[];
-  zones: { id: string; name: string; cityId: string; active: boolean; setting: DiscountSettingView | null; effective: EffectiveTerms }[];
+  markets: { id: string; name: string; setting: DiscountSettingView | null; effective: EffectiveTerms }[];
+  zones: { id: string; name: string; marketId: string; active: boolean; setting: DiscountSettingView | null; effective: EffectiveTerms }[];
 }
 
 export type ListUnverifiedDiscountsResult = { outcome: 'ok'; view: UnverifiedDiscountsView } | { outcome: 'not_found' };

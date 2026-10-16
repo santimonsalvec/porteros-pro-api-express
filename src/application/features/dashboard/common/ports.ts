@@ -3,18 +3,18 @@ import type { RequestStatus } from '../../../../domain/bookings/requestStatus.js
 import type { DashboardScope } from './scope.js';
 import type { DashboardWindows } from './windows.js';
 
-/** A city as the dashboard's scope needs it: its country (through its region) and its clock. */
-export interface DashboardGeographyCity {
+/** A market as the dashboard's scope needs it: its country and its clock (spec 031). */
+export interface DashboardGeographyMarket {
   id: string;
-  countryId: string | null;
-  timeZone: string | null;
+  countryId: string;
+  timeZone: string;
 }
 
 /** The geography the dashboard's scope reads (admin spec 008, research §2). */
 export interface IDashboardGeography {
   countryExists(countryId: string): Promise<boolean>;
-  getCity(cityId: string): Promise<DashboardGeographyCity | null>;
-  citiesOfCountry(countryId: string): Promise<DashboardGeographyCity[]>;
+  getMarket(marketId: string): Promise<DashboardGeographyMarket | null>;
+  marketsOfCountry(countryId: string): Promise<DashboardGeographyMarket[]>;
 }
 
 
@@ -76,7 +76,7 @@ export interface DashboardReadContext {
 
 /** One read per dashboard area (admin spec 008, research §1–§5). */
 export interface IDashboardReader {
-  goalkeeperIdsInCities(cityIds: readonly string[]): Promise<string[]>;
+  goalkeeperIdsInMarkets(marketIds: readonly string[]): Promise<string[]>;
   requests(context: DashboardReadContext): Promise<RequestsArea>;
   goalkeepers(context: DashboardReadContext): Promise<GoalkeepersArea>;
   registrations(context: DashboardReadContext): Promise<RegistrationsArea>;

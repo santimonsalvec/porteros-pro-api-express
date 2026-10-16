@@ -1,5 +1,5 @@
 import { effectiveDiscount, effectivePriority, VERIFIED_PRIORITY_MINUTES_DEFAULT } from '../../../../domain/pricing/unverifiedDiscount.js';
-import type { ICityRepository, IRegionRepository } from '../../locations/common/ports.js';
+import type { IMarketRepository } from '../../markets/common/ports.js';
 import type { IZoneRepository } from '../../zones/common/ports.js';
 import type { IUnverifiedDiscountRepository } from './ports.js';
 
@@ -13,15 +13,14 @@ const DEFAULT_TERMS: UnverifiedTerms = { discountBps: 0, verifiedPriorityMinutes
 
 /**
  * A zone's terms for goalkeepers without the seal (admin spec 030), field by field: its own, else
- * its anchor city's, else its country's, else the default (no discount, 15 minutes). Any number
+ * its anchor market's, else its country's, else the default (no discount, 15 minutes). Any number
  * of zones with one settings read, as the commission resolver does.
  */
 export class UnverifiedDiscountResolver {
   constructor(
     private readonly settings: IUnverifiedDiscountRepository,
     private readonly zoneRepository: IZoneRepository,
-    private readonly cityRepository: ICityRepository,
-    private readonly regionRepository: IRegionRepository,
+    private readonly marketRepository: Pick<IMarketRepository, 'getByIds'>,
   ) {}
 
   async forZone(zoneId: string): Promise<UnverifiedTerms> {
@@ -32,19 +31,17 @@ export class UnverifiedDiscountResolver {
     const result = new Map(zoneIds.map((zoneId) => [zoneId, DEFAULT_TERMS]));
     if (zoneIds.length === 0) return result;
     const zones = await this.zoneRepository.getManyByIds([...zoneIds]);
-    const cities = await this.cityRepository.getByIds([...new Set(zones.map((zone) => zone.cityId))]);
-    const regions = await this.regionRepository.getByIds([...new Set(cities.map((city) => city.regionId))]);
-    const countryOfRegion = new Map(regions.map((region) => [region.id, region.countryId]));
-    const countryOfCity = new Map(cities.map((city) => [city.id, countryOfRegion.get(city.regionId) ?? null]));
+    const markets = await this.marketRepository.getByIds([...new Set(zones.map((zone) => zone.marketId))]);
+    const countryOfMarket = new Map<string, string | null>(markets.map((market) => [market.id, market.countryId]));
     const settings = await this.settings.findFor({
       zoneIds: zones.map((zone) => zone.id),
-      cityIds: cities.map((city) => city.id),
-      countryIds: [...new Set([...countryOfCity.values()].filter((id): id is string => id !== null))],
+      marketIds: markets.map((market) => market.id),
+      countryIds: [...new Set([...countryOfMarket.values()].filter((id): id is string => id !== null))],
     });
     const at = (scope: string, refId: string | null) => (refId === null ? undefined : settings.find((setting) => setting.scope === scope && setting.refId === refId));
     for (const zone of zones) {
-      const country = countryOfCity.get(zone.cityId) ?? null;
-      const levels = [at('zone', zone.id), at('city', zone.cityId), at('country', country)] as const;
+      const country = countryOfMarket.get(zone.marketId) ?? null;
+      const levels = [at('zone', zone.id), at('market', zone.marketId), at('country', country)] as const;
       result.set(zone.id, { discountBps: effectiveDiscount(levels).discountBps, verifiedPriorityMinutes: effectivePriority(levels).verifiedPriorityMinutes });
     }
     return result;

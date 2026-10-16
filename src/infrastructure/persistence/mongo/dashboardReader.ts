@@ -18,8 +18,8 @@ import { INVOICING_DOCUMENTS_COLLECTION } from './invoicingDocumentRepository.js
 import { DEPOSITS_COLLECTION } from './depositRepository.js';
 import { OPERATING_BALANCES_COLLECTION } from './operatingBalanceRepository.js';
 
-/** `{ field: { $in: cityIds } }`, or nothing for the whole platform. */
-const inCities = (field: string, cityIds: readonly string[] | null): Document => (cityIds === null ? {} : { [field]: { $in: [...cityIds] } });
+/** `{ field: { $in: marketIds } }`, or nothing for the whole platform. */
+const inMarkets = (field: string, marketIds: readonly string[] | null): Document => (marketIds === null ? {} : { [field]: { $in: [...marketIds] } });
 
 /** The dashboard's reads (admin spec 008, research §3–§5), one per area. A country without cities counts nothing. */
 export class MongoDashboardReader implements IDashboardReader {
@@ -41,34 +41,34 @@ export class MongoDashboardReader implements IDashboardReader {
     this.casesCollection = db.collection(CASES_COLLECTION);
   }
 
-  async goalkeeperIdsInCities(cityIds: readonly string[]): Promise<string[]> {
-    if (cityIds.length === 0) return [];
-    return (await this.profiles.distinct('userId', { cityId: { $in: [...cityIds] } })).map(String);
+  async goalkeeperIdsInMarkets(marketIds: readonly string[]): Promise<string[]> {
+    if (marketIds.length === 0) return [];
+    return (await this.profiles.distinct('userId', { marketId: { $in: [...marketIds] } })).map(String);
   }
 
   async requests({ scope, windows }: DashboardReadContext): Promise<RequestsArea> {
-    const [facet] = await this.requestsCollection.aggregate<MatchesFacet>(matchesPipeline(windows, scope.cityIds, scope.timeZone)).toArray();
+    const [facet] = await this.requestsCollection.aggregate<MatchesFacet>(matchesPipeline(windows, scope.marketIds, scope.timeZone)).toArray();
     return toRequestsArea(facet, windows.days);
   }
 
   async goalkeepers({ scope, now }: DashboardReadContext): Promise<GoalkeepersArea> {
-    const [group] = await this.profiles.aggregate<GoalkeepersArea>(goalkeepersSummaryPipeline(scope.cityIds, now)).toArray();
+    const [group] = await this.profiles.aggregate<GoalkeepersArea>(goalkeepersSummaryPipeline(scope.marketIds, now)).toArray();
     return toGoalkeepersArea(group);
   }
 
   /** Without a scope every one counts, also those that have not picked a city yet. */
   async registrations({ scope }: DashboardReadContext): Promise<RegistrationsArea> {
-    if (scope.cityIds?.length === 0) return { inProgress: 0 };
-    return { inProgress: await this.registrationsCollection.countDocuments({ status: 'in_progress', ...inCities('availability.cityId', scope.cityIds) }) };
+    if (scope.marketIds?.length === 0) return { inProgress: 0 };
+    return { inProgress: await this.registrationsCollection.countDocuments({ status: 'in_progress', ...inMarkets('availability.marketId', scope.marketIds) }) };
   }
 
   /** Cases don't store their place: the scope goes through their requests, as the case list does (spec 006). */
   async cases({ scope }: DashboardReadContext): Promise<CasesArea> {
-    if (scope.cityIds === null) return { open: await this.casesCollection.countDocuments({ status: 'open' }) };
-    if (scope.cityIds.length === 0) return { open: 0 };
+    if (scope.marketIds === null) return { open: await this.casesCollection.countDocuments({ status: 'open' }) };
+    if (scope.marketIds.length === 0) return { open: 0 };
     const requestIds = await this.casesCollection.distinct('requestId', { status: 'open' });
     if (requestIds.length === 0) return { open: 0 };
-    const inScope = await this.requestsCollection.distinct('_id', { _id: { $in: requestIds }, ...inCities('match.cityId', scope.cityIds) });
+    const inScope = await this.requestsCollection.distinct('_id', { _id: { $in: requestIds }, ...inMarkets('match.marketId', scope.marketIds) });
     if (inScope.length === 0) return { open: 0 };
     return { open: await this.casesCollection.countDocuments({ status: 'open', requestId: { $in: inScope } }) };
   }
@@ -101,7 +101,7 @@ export class MongoDashboardReader implements IDashboardReader {
    * goalkeepers (`null` when that city has none, so nothing is read).
    */
   private async moneyScope({ scope, goalkeeperIds }: DashboardReadContext): Promise<{ countryId?: string; goalkeepers: Document } | null> {
-    if (scope.cityId === null) return { countryId: scope.countryId ?? undefined, goalkeepers: {} };
+    if (scope.marketId === null) return { countryId: scope.countryId ?? undefined, goalkeepers: {} };
     const ids = (await goalkeeperIds()) ?? [];
     return ids.length === 0 ? null : { goalkeepers: { goalkeeperId: { $in: ids } } };
   }

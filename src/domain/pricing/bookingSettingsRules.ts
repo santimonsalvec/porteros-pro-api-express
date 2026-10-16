@@ -13,7 +13,13 @@ export interface BookingSettingsFields {
   goalkeeperPenalties?: Partial<Record<keyof GoalkeeperPenaltyConfig, number | null>> | null;
   checkInWindow?: Partial<Record<keyof CheckInWindowConfig, number | null>> | null;
   noShowGraceMinutes?: number | null;
+  /** How often an open offer is pushed again, and how many times (spec 031, FR-017). */
+  offerReminderIntervalMinutes?: number | null;
+  offerMaxReminders?: number | null;
 }
+
+/** The values only a country may set: company policy, the same across its markets (FR-014). */
+export const COUNTRY_ONLY_FIELDS = ['goalkeeperPenalties'] as const;
 
 const TIERS = 'leadTimeSurcharge.tiers';
 
@@ -72,9 +78,19 @@ function rangeIssue(path: string, value: number | null | undefined, range: Range
   return issue(path, 'out_of_range', message);
 }
 
-/** Every rule one level's values break (business-settings §5–§8), each on its own path. */
-export function bookingSettingsIssues(fields: BookingSettingsFields): ConfigIssue[] {
+/**
+ * Every rule one level's values break (business-settings §5–§8), each on its own path. A market
+ * may not hold a country-only value (spec 031, FR-014).
+ */
+export function bookingSettingsIssues(fields: BookingSettingsFields, scope: 'country' | 'market' = 'country'): ConfigIssue[] {
   const issues: (ConfigIssue | null)[] = [];
+  if (scope === 'market') {
+    for (const field of COUNTRY_ONLY_FIELDS) {
+      if (fields[field] !== null && fields[field] !== undefined) {
+        issues.push(issue(field, 'field_not_allowed_at_level', `${field} is set only by a country`));
+      }
+    }
+  }
   for (const [field, range] of FIELD_RANGES) {
     issues.push(rangeIssue(field, fields[field] as number | null | undefined, range));
   }
@@ -86,5 +102,7 @@ export function bookingSettingsIssues(fields: BookingSettingsFields): ConfigIssu
     issues.push(rangeIssue(`checkInWindow.${field}`, fields.checkInWindow?.[field], range));
   }
   issues.push(rangeIssue('noShowGraceMinutes', fields.noShowGraceMinutes, { min: 15, max: 240 }));
+  issues.push(rangeIssue('offerReminderIntervalMinutes', fields.offerReminderIntervalMinutes, { min: 1, max: 1440 }));
+  issues.push(rangeIssue('offerMaxReminders', fields.offerMaxReminders, { min: 0, max: 10 }));
   return issues.filter((item): item is ConfigIssue => item !== null);
 }

@@ -9,7 +9,7 @@ export type GetGoalkeeperOperatingBalanceResult =
       unconfiguredZoneIds: string[];
     }
   | { outcome: 'not_a_goalkeeper' }
-  | { outcome: 'operating_balance_not_configured'; cityId: string };
+  | { outcome: 'operating_balance_not_configured'; marketId: string };
 
 /** A goalkeeper's balance, currency and offers status (the goalkeeper's own, or read by an admin). */
 export class GetGoalkeeperOperatingBalanceQuery extends IQuery<GetGoalkeeperOperatingBalanceResult> {

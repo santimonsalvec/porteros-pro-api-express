@@ -1,13 +1,13 @@
 import type { ICommandHandler } from '../../../../common/mediator/types.js';
 import type { IIdGenerator } from '../../../auth/common/ports.js';
 import { Zone, type ZoneGeometry } from '../../../../../domain/zones/zone.js';
-import type { IAdminCityRepository, IAdminZoneRepository, IReferenceUsage } from '../../common/ports.js';
-import { needsAcknowledgement } from '../../common/warnings.js';
-import { checkZoneCity, reviewZoneGeometry } from '../../common/zoneChecks.js';
+import type { IAdminZoneRepository, IReferenceUsage } from '../../common/ports.js';
+import type { IAdminMarketRepository } from '../../../markets/common/ports.js';
+import { checkZoneMarket, reviewZoneGeometry } from '../../common/zoneChecks.js';
 import { SaveZoneCommand, type SaveZoneResult, type ZoneAction, type ZoneFields } from './saveZoneCommand.js';
 
 export interface SaveZoneDependencies {
-  cities: IAdminCityRepository;
+  markets: Pick<IAdminMarketRepository, 'getById' | 'getByIds'>;
   zones: IAdminZoneRepository;
   usage: IReferenceUsage;
   ids: IIdGenerator;
@@ -20,10 +20,11 @@ export class SaveZoneCommandHandler implements ICommandHandler<SaveZoneCommand, 
     const stored = command.zoneId === null ? null : await this.deps.zones.getById(command.zoneId);
     if (command.zoneId !== null && !stored) return { outcome: 'not_found' };
 
-    const cityId = stored?.cityId ?? command.cityId!;
+    if (stored && command.marketId !== null && command.marketId !== stored.marketId) return { outcome: 'zone_market_immutable' };
+    const marketId = stored?.marketId ?? command.marketId!;
     if (!stored) {
-      const city = await checkZoneCity(this.deps.cities, cityId);
-      if (city.outcome !== 'ok') return city;
+      const market = await checkZoneMarket(this.deps.markets, marketId);
+      if (market.outcome !== 'ok') return market;
     }
     const id = stored?.id ?? this.deps.ids.newId();
     const fields = { ...(stored ? fieldsOf(stored) : {}), ...command.fields } as ZoneFields;
@@ -32,13 +33,16 @@ export class SaveZoneCommandHandler implements ICommandHandler<SaveZoneCommand, 
     if (sameSlug && sameSlug.id !== id) return { outcome: 'zone_slug_taken' };
 
     const redrawn = !stored || JSON.stringify(fields.geometry) !== JSON.stringify(stored.geometry);
-    const review = redrawn ? await reviewZoneGeometry(this.deps.zones, cityId, fields.geometry, { id: stored?.id ?? null, displayOrder: fields.displayOrder }) : null;
-    if (review && review.errors.length > 0) return { outcome: 'invalid_geometry', errors: review.errors };
+    const reactivated = stored !== null && !stored.active && fields.active;
+    if (redrawn || reactivated) {
+      const review = await reviewZoneGeometry(this.deps, fields.geometry, stored?.id ?? null, fields.active);
+      if (review.errors.length > 0) return { outcome: 'invalid_geometry', errors: review.errors };
+      if (review.conflicts.length > 0) return { outcome: 'zone_conflict', conflicts: review.conflicts };
+    }
 
     if (stored && command.reason === null && (await this.needsReason(stored, fields, redrawn))) return { outcome: 'reason_required' };
-    if (review && needsAcknowledgement(review.warnings, command.acknowledgeWarnings)) return { outcome: 'warnings', warnings: review.warnings };
 
-    const zone = new Zone({ id, cityId, ...fields, geometry: fields.geometry as ZoneGeometry, revision: stored ? command.revision : 0 });
+    const zone = new Zone({ id, marketId, ...fields, geometry: fields.geometry as ZoneGeometry, revision: stored ? command.revision : 0 });
     if (!stored) {
       await this.deps.zones.create(zone);
       return { outcome: 'saved', zoneId: id, action: 'create' };

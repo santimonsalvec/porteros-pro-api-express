@@ -3,24 +3,22 @@ import { resolvePenaltyConfig } from '../../../../../src/application/features/bo
 import { DEFAULT_GOALKEEPER_PENALTIES } from '../../../../../src/domain/goalkeepers/penaltyPolicy.js';
 import { BookingSettings } from '../../../../../src/domain/pricing/bookingSettings.js';
 import { FakeBookingSettingsRepository } from '../../../../fakes/fakeBookingSettingsRepository.js';
-import { FakeCityRepository } from '../../../../fakes/fakeCityRepository.js';
+import { FakeMarketRepository } from '../../../../fakes/fakeMarketRepository.js';
 import { FakeCountryRepository } from '../../../../fakes/fakeCountryRepository.js';
 import { FakeGoalkeeperProfileRepository } from '../../../../fakes/fakeGoalkeeperProfileRepository.js';
-import { FakeRegionRepository } from '../../../../fakes/fakeRegionRepository.js';
 import { buildGoalkeeperProfile, seedOperatingBalanceWorld } from '../../../../fixtures/operatingBalanceFixtures.js';
 
-function setup(goalkeeperPenalties?: Record<string, number>, cityId = 'city-cali') {
-  const cityRepository = new FakeCityRepository();
-  const regionRepository = new FakeRegionRepository();
+function setup(goalkeeperPenalties?: Record<string, number>, marketId = 'city-cali') {
+  const marketRepository = new FakeMarketRepository();
   const countryRepository = new FakeCountryRepository();
-  seedOperatingBalanceWorld({ cityRepository, regionRepository, countryRepository });
+  seedOperatingBalanceWorld({ marketRepository, countryRepository });
   const goalkeeperProfileRepository = new FakeGoalkeeperProfileRepository();
-  goalkeeperProfileRepository.seed(buildGoalkeeperProfile('gk-1', { cityId }));
+  goalkeeperProfileRepository.seed(buildGoalkeeperProfile('gk-1', { marketId }));
   const bookingSettingsRepository = new FakeBookingSettingsRepository();
   bookingSettingsRepository.seed(new BookingSettings({ id: 's-co', scope: 'country', refId: 'country-co', goalkeeperPenalties: goalkeeperPenalties ?? null }));
   const warnings: Record<string, unknown>[] = [];
   const deps = {
-    operatingBalanceContext: { goalkeeperProfileRepository, cityRepository, regionRepository, countryLookup: countryRepository },
+    operatingBalanceContext: { goalkeeperProfileRepository, marketRepository, countryLookup: countryRepository },
     bookingSettingsRepository,
     logger: { info: () => undefined, warn: (entry: Record<string, unknown>) => void warnings.push(entry) },
   };

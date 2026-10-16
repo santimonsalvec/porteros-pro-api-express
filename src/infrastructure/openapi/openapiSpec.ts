@@ -202,8 +202,8 @@ export const openapiSpec = {
           requestId: { type: 'string' },
           zoneId: { type: 'string' },
           zoneName: { type: 'string', nullable: true },
-          cityId: { type: 'string' },
-          cityName: { type: 'string', nullable: true },
+          marketId: { type: 'string' },
+          marketName: { type: 'string', nullable: true },
           startsAt: { type: 'string', format: 'date-time' },
           startsAtLocal: { type: 'string', example: '2026-09-21T15:00:00-05:00' },
           timeZone: { type: 'string', example: 'America/Bogota' },
@@ -216,7 +216,7 @@ export const openapiSpec = {
           totalCharge: { type: 'integer', example: 8330, description: 'Available list only: commission + VAT, what accepting debits' },
           currency: { type: 'string', example: 'COP' },
         },
-        required: ['bookingId', 'requestId', 'zoneId', 'zoneName', 'cityId', 'cityName', 'startsAt', 'startsAtLocal', 'timeZone', 'durationMinutes', 'goalkeeperCount', 'matchFormat', 'earnings', 'commission', 'currency'],
+        required: ['bookingId', 'requestId', 'zoneId', 'zoneName', 'marketId', 'marketName', 'startsAt', 'startsAtLocal', 'timeZone', 'durationMinutes', 'goalkeeperCount', 'matchFormat', 'earnings', 'commission', 'currency'],
       },
       MatchFormat: {
         type: 'object',
@@ -561,7 +561,7 @@ export const openapiSpec = {
         description: 'What a client may pick for a pitch, so an app can build its selectors without hardcoding limits or using the phone\u2019s clock.',
         properties: {
           timeZone: { type: 'string', example: 'America/Bogota' },
-          now: { type: 'string', example: '2026-09-21T13:00:00-05:00', description: 'Server time in the city\u2019s local time, with its offset' },
+          now: { type: 'string', example: '2026-09-21T13:00:00-05:00', description: 'Server time in the market\u2019s local time, with its offset' },
           bookingWindowDays: { type: 'integer', example: 2, description: 'Today plus the next N-1 local calendar days' },
           availableDates: { type: 'array', items: { type: 'string' }, example: ['2026-09-21', '2026-09-22'], description: 'Bookable local dates (YYYY-MM-DD), starting today' },
           minNoticeMinutes: { type: 'integer', example: 30 },
@@ -596,14 +596,14 @@ export const openapiSpec = {
             type: 'string',
             example: '2026-09-21T15:00:00',
             description:
-              'ISO-8601 date-time. With an offset (Z or ±HH:mm) it is converted to that instant; WITHOUT an offset it is read as local time in the city where the location is (never the caller\u2019s or the server\u2019s). Must fall exactly on a local :00 or :30 with zero seconds.',
+              'ISO-8601 date-time. With an offset (Z or ±HH:mm) it is converted to that instant; WITHOUT an offset it is read as local time in the market where the location is (never the caller\u2019s or the server\u2019s). Must fall exactly on a local :00 or :30 with zero seconds.',
           },
           goalkeeperCount: { type: 'integer', enum: [1, 2] },
           durationMinutes: { type: 'integer', enum: [60, 90, 120] },
           modality: {
             type: 'string',
             enum: ['micro_futsal', 'futbol_medio', 'futbol_11', 'any'],
-            description: 'Feature 024. Prices by modality + level, then modality, then the general rate, within each geographic level (zone, then city); any always uses the general rate',
+            description: 'Feature 024. Prices by modality + level, then modality, then the general rate, within each geographic level (zone, then market); any always uses the general rate',
           },
           level: { type: 'string', enum: ['recreational', 'competitive'] },
           surfaceId: { type: 'string', example: 'synthetic_grass', description: 'An active surface of GET /config; an unknown or inactive one answers validation_failed with fieldErrors.surfaceId' },
@@ -614,7 +614,7 @@ export const openapiSpec = {
         type: 'object',
         description: 'Amounts are integers in whole units of the country\u2019s currency.',
         properties: {
-          unitRate: { type: 'integer', example: 55000, description: 'Price per goalkeeper (zone rates, else city rates; by modality + level, modality, then general within each)' },
+          unitRate: { type: 'integer', example: 55000, description: 'Price per goalkeeper (zone rates, else market rates; by modality + level, modality, then general within each)' },
           goalkeeperCount: { type: 'integer', enum: [1, 2] },
           subtotal: { type: 'integer', example: 110000, description: 'unitRate x goalkeeperCount' },
           unitSurcharge: { type: 'integer', example: 5000, description: 'Lead-time surcharge per goalkeeper; 0 when none applies' },
@@ -622,7 +622,7 @@ export const openapiSpec = {
           total: { type: 'integer', example: 120000, description: 'subtotal + surcharge = (unitRate + unitSurcharge) x goalkeeperCount' },
           currency: { type: 'string', example: 'COP', description: 'The currency of the country the location is in; every amount above is in it' },
           startsAt: { type: 'string', example: '2026-09-21T20:00:00.000Z', description: 'Resolved start instant, UTC' },
-          startsAtLocal: { type: 'string', example: '2026-09-21T15:00:00-05:00', description: 'The same instant in the city\u2019s time zone' },
+          startsAtLocal: { type: 'string', example: '2026-09-21T15:00:00-05:00', description: 'The same instant in the market\u2019s time zone' },
           timeZone: { type: 'string', example: 'America/Bogota' },
           matchFormat: { $ref: '#/components/schemas/MatchFormat' },
           quoteId: {
@@ -737,7 +737,7 @@ export const openapiSpec = {
           latitude: { type: 'number' },
           longitude: { type: 'number' },
           zoneId: { type: 'string' },
-          cityId: { type: 'string' },
+          marketId: { type: 'string' },
           startsAt: { type: 'string', example: '2026-09-21T20:00:00.000Z' },
           startsAtLocal: { type: 'string', example: '2026-09-21T15:00:00-05:00' },
           timeZone: { type: 'string', example: 'America/Bogota' },
@@ -770,13 +770,13 @@ export const openapiSpec = {
           bookings: { type: 'array', items: { $ref: '#/components/schemas/BookingItemResponse' } },
         },
         required: [
-          'requestId', 'quoteId', 'status', 'partialFulfillment', 'latitude', 'longitude', 'zoneId', 'cityId', 'startsAt',
+          'requestId', 'quoteId', 'status', 'partialFulfillment', 'latitude', 'longitude', 'zoneId', 'marketId', 'startsAt',
           'startsAtLocal', 'timeZone', 'goalkeeperCount', 'durationMinutes', 'matchFormat', 'unitRate', 'subtotal', 'unitSurcharge',
           'surcharge', 'total', 'currency', 'cancellation', 'contactsVisibleFrom', 'createdAt', 'bookings',
         ],
       },
       ListedRequestResponse: {
-        description: 'A listed request: exactly the POST /bookings body, plus the current zone and city names.',
+        description: 'A listed request: exactly the POST /bookings body, plus the current zone and market names.',
         allOf: [
           { $ref: '#/components/schemas/RequestResponse' },
           {
@@ -1025,6 +1025,7 @@ export const openapiSpec = {
               identification: { type: 'object', properties: { complete: { type: 'boolean' } } },
               physicalData: { type: 'object', properties: { complete: { type: 'boolean' } } },
               availability: { type: 'object', properties: { complete: { type: 'boolean' } } },
+              billing: { type: 'object', properties: { complete: { type: 'boolean' } }, description: 'Municipality and address (spec 031)' },
             },
           },
           documentType: { type: 'string', nullable: true },
@@ -1035,19 +1036,30 @@ export const openapiSpec = {
           documentPhotoBSubmitted: { type: 'boolean' },
           heightCm: { type: 'number', nullable: true },
           weightKg: { type: 'number', nullable: true },
-          cityId: { type: 'string', nullable: true },
+          marketId: { type: 'string', nullable: true },
           serviceZoneIds: { type: 'array', items: { type: 'string' } },
+          billing: {
+            type: 'object',
+            description: 'Where the goalkeeper lives, for their invoices (spec 031). cityName and stateName only on GET /goalkeepers/me',
+            properties: {
+              cityId: { type: 'string', nullable: true },
+              cityName: { type: 'string', nullable: true },
+              stateName: { type: 'string', nullable: true },
+              address: { type: 'string', nullable: true },
+              addressComplement: { type: 'string', nullable: true },
+            },
+          },
           availableForOffers: {
             type: 'boolean',
             nullable: true,
             description: 'The "available for offers" switch; null unless status is active. Off: no offers, no available matches, cannot accept',
           },
-          city: {
+          market: {
             type: 'object',
             nullable: true,
             description:
-              'Display data for cityId (region is the region name). Only returned by GET /goalkeepers/me — null when no city is saved or it no longer resolves; omitted from the write endpoints.',
-            properties: { id: { type: 'string' }, name: { type: 'string' }, region: { type: 'string' } },
+              'Display data for marketId. Only returned by GET /goalkeepers/me — null when no market is saved or it no longer resolves; omitted from the write endpoints.',
+            properties: { id: { type: 'string' }, name: { type: 'string' } },
           },
         },
       },
@@ -1061,8 +1073,7 @@ export const openapiSpec = {
               properties: {
                 id: { type: 'string' },
                 name: { type: 'string' },
-                region: { type: 'string' },
-                hasZones: { type: 'boolean' },
+                stateName: { type: 'string', description: 'The department (spec 031)' },
               },
             },
           },
@@ -1433,15 +1444,29 @@ export const openapiSpec = {
     },
     '/locations/cities': {
       get: {
-        summary: 'Search cities by name (typeahead), with service-zone availability per result',
+        summary: 'Search the billing municipalities by name (typeahead): only those with official codes (spec 031)',
         tags: ['Locations'],
         security: [{ bearerAuth: [] }],
         parameters: [{ name: 'q', in: 'query', schema: { type: 'string' } }],
         responses: {
           '200': {
             description:
-              'Up to 15 matching cities; with q empty or missing, every city with active zones (the cities the service is open in), by name',
+              'Up to 15 matching municipalities `{ id, name, stateName }`; nothing when q is empty or missing',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/CitiesResponse' } } },
+          },
+          '401': { description: 'Not signed in' },
+        },
+      },
+    },
+    '/markets': {
+      get: {
+        summary: 'The enabled markets, by name, with their time zone and map centre (spec 031)',
+        tags: ['Zones'],
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': {
+            description: '`{ markets: [{ id, name, countryId, timeZone, mapCenter: { lat, lng, zoom } }] }`',
+            content: { 'application/json': { schema: { type: 'object' } } },
           },
           '401': { description: 'Not signed in' },
         },
@@ -1449,18 +1474,18 @@ export const openapiSpec = {
     },
     '/zones': {
       get: {
-        summary: "Preview a city's active service zones (resolving a satellite city to its metro anchor)",
+        summary: "Preview an enabled market's active service zones (spec 031)",
         tags: ['Zones'],
         security: [{ bearerAuth: [] }],
-        parameters: [{ name: 'cityId', in: 'query', required: true, schema: { type: 'string' } }],
+        parameters: [{ name: 'marketId', in: 'query', required: true, schema: { type: 'string' } }],
         responses: {
           '200': {
-            description: "The city's active service zones, sorted by display order",
+            description: "The market's active service zones, sorted by display order",
             content: { 'application/json': { schema: { $ref: '#/components/schemas/ZonesResponse' } } },
           },
           '401': { description: 'Not signed in' },
           '404': {
-            description: 'city_not_found (the city does not exist) or no_zones_configured (it has no active zones yet)',
+            description: 'market_not_found (the market does not exist or is not enabled) or no_zones_configured (it has no active zones yet)',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
           },
         },
@@ -1470,7 +1495,7 @@ export const openapiSpec = {
       get: {
         summary: 'What a client may pick for a pitch: bookable dates, minimum notice, goalkeeper counts, durations (read-only)',
         description:
-          'Resolves the location exactly like the quote does, so it refuses exactly where a quote would refuse; a 200 here means /quote will accept a request within these limits. The window and the minimum notice are configured per country (city overrides allowed); the goalkeeper counts, durations and slot step are fixed.',
+          'Resolves the location exactly like the quote does, so it refuses exactly where a quote would refuse; a 200 here means /quote will accept a request within these limits. The window and the minimum notice are configured per country (market overrides allowed); the goalkeeper counts, durations and slot step are fixed.',
         tags: ['Goalkeeper requests'],
         security: [{ bearerAuth: [] }],
         parameters: [
@@ -1488,9 +1513,12 @@ export const openapiSpec = {
           },
           '401': { description: 'Not signed in' },
           '403': { description: 'Not a client, or the client profile is not complete' },
+          '409': {
+            description: 'market_unavailable (with marketName): the point is in an inactive zone or in a disabled market, which is temporarily out of service (spec 031)',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
           '422': {
-            description:
-              'time_zone_not_configured, or service_not_configured (missing: bookingWindowDays | minNoticeMinutes | leadTimeSurcharge | currency | commission)',
+            description: 'service_not_configured (missing: bookingWindowDays | minNoticeMinutes | leadTimeSurcharge | currency | commission)',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
           },
         },
@@ -1500,7 +1528,7 @@ export const openapiSpec = {
       post: {
         summary: 'Quote the total price of a goalkeeper booking and hold it for 3 minutes',
         description:
-          'total = (unit rate + lead-time surcharge) x goalkeeperCount: both the rate and the surcharge are charged per goalkeeper, so with two goalkeepers the surcharge is paid twice. The unit rate is the zone rate for the duration, else the city rate. The booking window, minimum notice and surcharge tiers are configured per country (city overrides allowed); an area with any of them missing is refused, never assumed. Evaluation order: validation_failed, location_not_covered, time_zone_not_configured, invalid_start_time, start_time_in_past, service_not_configured, insufficient_notice, outside_booking_window, rate_not_configured. No price is ever returned with an error. A successful quote is stored for 3 minutes (refusals are never stored) and can be booked with POST /goalkeeper-requests/bookings; if it cannot be stored the call fails with 500 and returns no price.',
+          'total = (unit rate + lead-time surcharge) x goalkeeperCount: both the rate and the surcharge are charged per goalkeeper, so with two goalkeepers the surcharge is paid twice. The unit rate is the zone rate for the duration, else the market rate. The booking window, minimum notice and surcharge tiers are configured per country (market overrides allowed); an area with any of them missing is refused, never assumed. Evaluation order: validation_failed, location_not_covered, market_unavailable, invalid_start_time, start_time_in_past, service_not_configured, insufficient_notice, outside_booking_window, rate_not_configured. No price is ever returned with an error. A successful quote is stored for 3 minutes (refusals are never stored) and can be booked with POST /goalkeeper-requests/bookings; if it cannot be stored the call fails with 500 and returns no price.',
         tags: ['Goalkeeper requests'],
         security: [{ bearerAuth: [] }],
         requestBody: {
@@ -1519,9 +1547,13 @@ export const openapiSpec = {
           },
           '401': { description: 'Not signed in' },
           '403': { description: 'Not a client, or the client profile is not complete' },
+          '409': {
+            description: 'market_unavailable (with marketName): the point is in an inactive zone or in a disabled market, which is temporarily out of service (spec 031)',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
           '422': {
             description:
-              'The request is well-formed but the service is not set up for that area or duration: time_zone_not_configured, service_not_configured (missing: bookingWindowDays | minNoticeMinutes | leadTimeSurcharge | currency — the country\u2019s currency — | commission — the platform commission of the zone, city or country) or rate_not_configured',
+              'The request is well-formed but the service is not set up for that area or duration: service_not_configured (missing: bookingWindowDays | minNoticeMinutes | leadTimeSurcharge | currency — the country\u2019s currency — | commission — the platform commission of the zone, market or country) or rate_not_configured',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
           },
         },
@@ -1594,7 +1626,7 @@ export const openapiSpec = {
       get: {
         summary: "List the caller's own requests (one per match, with their bookings), one page at a time",
         description:
-          'Upcoming matches first (start at or after the request time, soonest first), then past matches (most recent first); ties are broken by requestId. The client is always the token’s subject: any clientId, userId or other unknown parameter is ignored. A page past the last one returns an empty list with the real totals. Amounts and match details are the stored values; zone and city names are the current ones.',
+          'Upcoming matches first (start at or after the request time, soonest first), then past matches (most recent first); ties are broken by requestId. The client is always the token’s subject: any clientId, userId or other unknown parameter is ignored. A page past the last one returns an empty list with the real totals. Amounts and match details are the stored values; zone and market names are the current ones.',
         tags: ['Goalkeeper requests'],
         security: [{ bearerAuth: [] }],
         parameters: [
@@ -1646,7 +1678,7 @@ export const openapiSpec = {
           },
           '409': {
             description:
-              'duplicate_request (requestId of the caller’s existing active request for the same zone and start; the quote is left untouched) or confirmation_in_progress (another confirmation of this quote has not committed yet; retry after the Retry-After header, 1 second), or cancel_all_not_available (cancelAllUntil; "cancel_all" chosen once the free-cancellation period started — confirm with "keep_confirmed")',
+              'duplicate_request (requestId of the caller’s existing active request for the same zone and start; the quote is left untouched) or confirmation_in_progress (another confirmation of this quote has not committed yet; retry after the Retry-After header, 1 second), or cancel_all_not_available (cancelAllUntil; "cancel_all" chosen once the free-cancellation period started — confirm with "keep_confirmed"), or market_unavailable (marketName; the market was disabled after the quote, spec 031 — the quote is left untouched)',
             headers: { 'Retry-After': { schema: { type: 'integer' }, description: 'Only with confirmation_in_progress' } },
             content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
           },
@@ -1752,10 +1784,10 @@ export const openapiSpec = {
         tags: ['Goalkeeper bookings'],
         security: [{ bearerAuth: [] }],
         responses: {
-          '200': { description: 'Computed from the goalkeeper\u2019s bookings on every read; months cut in the time zone of their city', content: { 'application/json': { schema: { $ref: '#/components/schemas/GoalkeeperMonthStats' } } } },
+          '200': { description: 'Computed from the goalkeeper\u2019s bookings on every read; months cut in the time zone of their market', content: { 'application/json': { schema: { $ref: '#/components/schemas/GoalkeeperMonthStats' } } } },
           '401': { description: 'Not signed in' },
           '404': { description: 'goalkeeper_not_found: not an active goalkeeper', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
-          '422': { description: 'operating_balance_not_configured: the currency of the goalkeeper country cannot be resolved; time_zone_not_configured: their city has no valid time zone', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '422': { description: 'operating_balance_not_configured: the currency of the goalkeeper country cannot be resolved; time_zone_not_configured: their market has no valid time zone', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
         },
       },
     },
@@ -2020,7 +2052,7 @@ export const openapiSpec = {
         security: [{ adminBearerAuth: [] }],
         requestBody: {
           required: true,
-          content: { 'application/json': { schema: { type: 'object', required: ['email', 'roleId'], properties: { email: { type: 'string', format: 'email' }, roleId: { type: 'string' } } } } },
+          content: { 'application/json': { schema: { type: 'object', required: ['email', 'roleId', 'scopes'], properties: { email: { type: 'string', format: 'email' }, roleId: { type: 'string' }, scopes: { type: 'array', minItems: 1, description: 'Where the member may work (spec 031): { kind: platform } | { kind: country, id } | { kind: market, id }', items: { type: 'object' } } } } } },
         },
         responses: {
           '200': { description: 'Invitation renewed', content: { 'application/json': { schema: { $ref: '#/components/schemas/StaffMember' } } } },
@@ -2047,7 +2079,7 @@ export const openapiSpec = {
         },
       },
       patch: {
-        summary: "Changes a member's role, with a reason (staff.manage). The same role answers 200 without changes",
+        summary: "Changes a member's role, scopes or both, with a reason (staff.manage). The same values answer 200 without changes; 400 scopes_required or scope_not_found",
         tags: ['Admin team'],
         security: [{ adminBearerAuth: [] }],
         parameters: [{ name: 'staffId', in: 'path', required: true, schema: { type: 'string' } }],
@@ -2055,7 +2087,7 @@ export const openapiSpec = {
           required: true,
           content: {
             'application/json': {
-              schema: { type: 'object', required: ['roleId', 'reason'], properties: { roleId: { type: 'string' }, reason: { type: 'string', minLength: 3, maxLength: 300 } } },
+              schema: { type: 'object', required: ['reason'], properties: { roleId: { type: 'string' }, scopes: { type: 'array', minItems: 1, description: 'Where the member may work (spec 031): { kind: platform } | { kind: country, id } | { kind: market, id }', items: { type: 'object' } }, reason: { type: 'string', minLength: 3, maxLength: 300 } } },
             },
           },
         },
@@ -2235,12 +2267,37 @@ export const openapiSpec = {
         },
       },
     },
-    '/admin/payment-gateways/{countryId}': {
+    '/admin/payment-gateways': {
       get: {
-        summary: "A country's deposit gateway settings (administrators only, feature 022)",
+        summary: "A country's deposit settings and each of its markets with its override, if any (spec 031, payments.settings.manage)",
         tags: ['Admin'],
         security: [{ adminBearerAuth: [] }],
-        parameters: [{ name: 'countryId', in: 'path', required: true, schema: { type: 'string' } }],
+        parameters: [{ name: 'countryId', in: 'query', required: true, schema: { type: 'string' } }],
+        responses: {
+          '200': { description: '`{ country, markets: [{ marketId, marketName, settings }] }` — `settings` is null where the market uses the country\u2019s', content: { 'application/json': { schema: { type: 'object' } } } },
+          '401': { description: 'Not signed in' },
+          '404': { description: 'country_not_found' },
+        },
+      },
+    },
+    '/admin/payment-gateways/market/{refId}/delete': {
+      post: {
+        summary: "Removes a market's override, so it uses its country's settings again (spec 031); audited",
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        parameters: [{ name: 'refId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '204': { description: 'Removed' }, '401': { description: 'Not signed in' }, '404': { description: 'settings_not_found' } },
+      },
+    },
+    '/admin/payment-gateways/{scope}/{refId}': {
+      get: {
+        summary: "A country's deposit gateway settings, or a market's override (spec 031; administrators only, feature 022)",
+        tags: ['Admin'],
+        security: [{ adminBearerAuth: [] }],
+        parameters: [
+          { name: 'scope', in: 'path', required: true, schema: { type: 'string', enum: ['country', 'market'] }, description: 'A zone is refused with 400 invalid_scope (spec 031)' },
+          { name: 'refId', in: 'path', required: true, schema: { type: 'string' } },
+        ],
         responses: {
           '200': { description: 'The settings, never a secret', content: { 'application/json': { schema: { $ref: '#/components/schemas/GatewaySettingsResponse' } } } },
           '401': { description: 'Not signed in' },
@@ -2249,18 +2306,21 @@ export const openapiSpec = {
         },
       },
       put: {
-        summary: "Sets a country's deposit gateway, public key, costs and amounts (administrators only, feature 022)",
+        summary: "Sets a country's deposit gateway, public key, costs and amounts, or a market's override in its country's currency (spec 031; administrators only, feature 022)",
         description: 'Pending deposits keep the gateway and environment they started with.',
         tags: ['Admin'],
         security: [{ adminBearerAuth: [] }],
-        parameters: [{ name: 'countryId', in: 'path', required: true, schema: { type: 'string' } }],
+        parameters: [
+          { name: 'scope', in: 'path', required: true, schema: { type: 'string', enum: ['country', 'market'] }, description: 'A zone is refused with 400 invalid_scope (spec 031)' },
+          { name: 'refId', in: 'path', required: true, schema: { type: 'string' } },
+        ],
         requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/GatewaySettingsRequest' } } } },
         responses: {
           '200': { description: 'Saved', content: { 'application/json': { schema: { $ref: '#/components/schemas/GatewaySettingsResponse' } } } },
           '400': { description: 'validation_failed', content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } } } },
           '401': { description: 'Not signed in' },
           '403': { description: 'Not an administrator' },
-          '404': { description: 'country_not_found' },
+          '404': { description: 'country_not_found or market_not_found' },
           '409': { description: 'stale_revision: an old revision, or null over existing settings' },
         },
       },
@@ -2602,7 +2662,7 @@ export const openapiSpec = {
         tags: ['Admin'],
         security: [{ adminBearerAuth: [] }],
         description: 'Needs goalkeepers.read (porteros-pro-admin spec 005).',
-        parameters: [{ name: 'vetting', in: 'query', schema: { type: 'string', enum: ['unvalidated', 'validated', 'verified'] } }, { name: 'verificationMethod', in: 'query', schema: { type: 'string', enum: ['referral', 'other_platform', 'practice', 'reputation'] } }, { name: 'backgroundCheck', in: 'query', schema: { type: 'string', enum: ['pending', 'expiring', 'expired'] } }, ...PAGING, { name: 'q', in: 'query', schema: { type: 'string' } }, { name: 'cityId', in: 'query', schema: { type: 'string' } }, { name: 'zoneId', in: 'query', schema: { type: 'string' } }, { name: 'suspended', in: 'query', schema: { type: 'string' } }, { name: 'availableForOffers', in: 'query', schema: { type: 'string' } }, { name: 'balanceBelow', in: 'query', schema: { type: 'string' } }],
+        parameters: [{ name: 'vetting', in: 'query', schema: { type: 'string', enum: ['unvalidated', 'validated', 'verified'] } }, { name: 'verificationMethod', in: 'query', schema: { type: 'string', enum: ['referral', 'other_platform', 'practice', 'reputation'] } }, { name: 'backgroundCheck', in: 'query', schema: { type: 'string', enum: ['pending', 'expiring', 'expired'] } }, ...PAGING, { name: 'q', in: 'query', schema: { type: 'string' } }, { name: 'marketId', in: 'query', schema: { type: 'string' }, description: 'Narrows the country of X-Scope (spec 031)' }, { name: 'zoneId', in: 'query', schema: { type: 'string' } }, { name: 'suspended', in: 'query', schema: { type: 'string' } }, { name: 'availableForOffers', in: 'query', schema: { type: 'string' } }, { name: 'balanceBelow', in: 'query', schema: { type: 'string' } }],
         responses: { '200': { description: 'A page of goalkeepers' }, '400': { description: 'validation_failed or search_too_broad' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
       },
     },
@@ -2613,7 +2673,7 @@ export const openapiSpec = {
         security: [{ adminBearerAuth: [] }],
         description: 'Needs goalkeepers.read (porteros-pro-admin spec 005).',
         parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }],
-        responses: { '200': { description: 'Profile, zones, suspension, rating and stats' }, '404': { description: 'goalkeeper_not_found' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+        responses: { '200': { description: 'Profile, market and zones, suspension, rating, stats and the billing data (municipality with its department, address; spec 031)' }, '404': { description: 'goalkeeper_not_found' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
       },
     },
     '/admin/goalkeepers/{userId}/document': {
@@ -2715,7 +2775,7 @@ export const openapiSpec = {
         security: [{ adminBearerAuth: [] }],
         description: 'Needs goalkeepers.verify (admin spec 030, contracts C9). At most 20; `q` needs 2 characters.',
         parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }, { name: 'q', in: 'query', schema: { type: 'string' } }],
-        responses: { '200': { description: 'items: userId, name, city' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+        responses: { '200': { description: 'items: userId, name, market' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
       },
     },
     '/admin/unverified-discounts': {
@@ -2725,15 +2785,15 @@ export const openapiSpec = {
         security: [{ adminBearerAuth: [] }],
         description: 'Needs pricing.read (admin spec 030, contracts D1).',
         parameters: [{ name: 'countryId', in: 'query', required: true, schema: { type: 'string' } }],
-        responses: { '200': { description: 'maxBps, maxPriorityMinutes, country, cities and zones with setting and effective terms' }, '404': { description: 'country_not_found' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+        responses: { '200': { description: 'maxBps, maxPriorityMinutes, country, markets and zones with setting and effective terms' }, '404': { description: 'country_not_found' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
       },
       post: {
         summary: 'Set the discount and/or the verified-only window of a level that had none',
         tags: ['Admin'],
         security: [{ adminBearerAuth: [] }],
         description: 'Needs pricing.unverified_discount.manage (admin spec 030, contracts D2). discountBps 0–3000, verifiedPriorityMinutes 0–1440; at least one.',
-        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['scope', 'refId'], properties: { scope: { type: 'string', enum: ['country', 'city', 'zone'] }, refId: { type: 'string' }, discountBps: { type: 'integer', nullable: true }, verifiedPriorityMinutes: { type: 'integer', nullable: true } } } } } },
-        responses: { '201': { description: 'id' }, '400': { description: 'validation_failed' }, '404': { description: 'zone_not_found, city_not_found or country_not_found' }, '409': { description: 'discount_already_exists or city_not_anchor' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['scope', 'refId'], properties: { scope: { type: 'string', enum: ['country', 'market', 'zone'] }, refId: { type: 'string' }, discountBps: { type: 'integer', nullable: true }, verifiedPriorityMinutes: { type: 'integer', nullable: true } } } } } },
+        responses: { '201': { description: 'id' }, '400': { description: 'validation_failed' }, '404': { description: 'zone_not_found, market_not_found or country_not_found' }, '409': { description: 'discount_already_exists' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
       },
     },
     '/admin/unverified-discounts/{discountId}': {
@@ -2786,7 +2846,7 @@ export const openapiSpec = {
         tags: ['Admin'],
         security: [{ adminBearerAuth: [] }],
         description: 'Needs goalkeepers.registrations.review (porteros-pro-admin spec 005).',
-        parameters: [...PAGING, { name: 'step', in: 'query', schema: { type: 'string' } }, { name: 'cityId', in: 'query', schema: { type: 'string' } }, { name: 'idleDaysMin', in: 'query', schema: { type: 'string' } }],
+        parameters: [...PAGING, { name: 'step', in: 'query', schema: { type: 'string' } }, { name: 'marketId', in: 'query', schema: { type: 'string' }, description: 'Narrows the country of X-Scope (spec 031)' }, { name: 'idleDaysMin', in: 'query', schema: { type: 'string' } }],
         responses: { '200': { description: 'A page and the summary' }, '400': { description: 'validation_failed' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
       },
     },
@@ -2797,7 +2857,7 @@ export const openapiSpec = {
         security: [{ adminBearerAuth: [] }],
         description: 'Needs goalkeepers.registrations.review (porteros-pro-admin spec 005).',
         parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }],
-        responses: { '200': { description: 'Sections with complete or missing fields' }, '404': { description: 'registration_not_found' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
+        responses: { '200': { description: 'Sections with complete or missing fields, including billing with its municipality and address (spec 031)' }, '404': { description: 'registration_not_found' }, '401': { description: 'Not signed in' }, '403': { description: 'permission_denied' } },
       },
     },
     '/admin/goalkeepers/{userId}/operating-balance': {
@@ -2947,7 +3007,7 @@ export const openapiSpec = {
     '/admin/goalkeepers/{userId}/withdrawals': {
       get: {
         summary: "A goalkeeper's withdrawals and penalties, with who reversed what (administrators only)",
-        description: "Each item also brings match (the city and its time zone) and commission (the net amount charged, or null), for the admin's suspension tools (porteros-pro-admin spec 005).",
+        description: "Each item also brings match (the market and its time zone) and commission (the net amount charged, or null), for the admin's suspension tools (porteros-pro-admin spec 005).",
         tags: ['Admin'],
         security: [{ adminBearerAuth: [] }],
         parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }, ...PAGING],
@@ -3177,15 +3237,13 @@ export const openapiSpec = {
     },
     '/admin/requests': {
       get: {
-        summary: 'Requests with their status, filtered by place, match dates, client or goalkeeper',
+        summary: 'Requests with their status, filtered by the X-Scope market or country, zone, match dates, client or goalkeeper',
         tags: ['Admin'],
         security: [{ adminBearerAuth: [] }],
-        description: 'Needs requests.read (porteros-pro-admin spec 006). from/to are instants of the match start (to excluded).',
+        description: 'Needs requests.read (porteros-pro-admin spec 006). from/to are instants of the match start (to excluded). The country and market come from X-Scope (spec 031).',
         parameters: [
           ...PAGING,
           { name: 'status', in: 'query', schema: { type: 'string', enum: ['searching', 'partially_assigned', 'assigned', 'completed', 'cancelled', 'expired', 'closed'] } },
-          { name: 'countryId', in: 'query', schema: { type: 'string' } },
-          { name: 'cityId', in: 'query', schema: { type: 'string' } },
           { name: 'zoneId', in: 'query', schema: { type: 'string' } },
           { name: 'from', in: 'query', schema: { type: 'string', format: 'date-time' } },
           { name: 'to', in: 'query', schema: { type: 'string', format: 'date-time' } },
@@ -3275,21 +3333,17 @@ export const openapiSpec = {
     },
     '/admin/dashboard/summary': {
       get: {
-        summary: "The dashboard's numbers for the platform, a country or a city",
+        summary: "The dashboard's numbers for the platform, a country or a market, as X-Scope selects (spec 031)",
         tags: ['Admin'],
         security: [{ adminBearerAuth: [] }],
         description:
           "Needs dashboard.read; each area also needs its list's permission and is left out without it (porteros-pro-admin spec 008). Requests and bookings count by match date in the scope's time zone. An area that fails is { status: 'failed' }.",
-        parameters: [
-          { name: 'countryId', in: 'query', schema: { type: 'string' } },
-          { name: 'cityId', in: 'query', schema: { type: 'string' }, description: 'Needs countryId' },
-        ],
         responses: {
           '200': { description: 'The summary: computedAt, scope (time zone and windows) and the visible areas' },
-          '400': { description: 'validation_failed or city_not_in_country' },
+          '400': { description: 'validation_failed (no query parameters) or invalid_scope' },
           '401': { description: 'Not signed in' },
           '403': { description: 'permission_denied' },
-          '404': { description: 'country_not_found or city_not_found' },
+          '404': { description: 'scope_not_found' },
         },
       },
     },
@@ -3344,7 +3398,7 @@ export const openapiSpec = {
         summary: "The goalkeepers' operating balances (one movement or more), by balance",
         tags: ['Admin'],
         security: [{ adminBearerAuth: [] }],
-        description: 'Needs operating_balances.read (porteros-pro-admin spec 007). Country and city come from the goalkeeper profile.',
+        description: 'Needs operating_balances.read (porteros-pro-admin spec 007). Country and market come from the goalkeeper profile; the country from X-Scope, `?marketId=` narrows it (spec 031).',
         parameters: [
           ...PAGING,
           { name: 'countryId', in: 'query', schema: { type: 'string' } },
@@ -3654,7 +3708,7 @@ export const openapiSpec = {
     },
     '/goalkeepers/me/availability': {
       patch: {
-        summary: 'Save the availability section — the chosen service city and its service zones, together',
+        summary: 'Save the availability section — the chosen market and its service zones, together',
         tags: ['Goalkeepers'],
         security: [{ adminBearerAuth: [] }],
         requestBody: {
@@ -3663,9 +3717,9 @@ export const openapiSpec = {
             'application/json': {
               schema: {
                 type: 'object',
-                required: ['cityId', 'zoneIds'],
+                required: ['marketId', 'zoneIds'],
                 properties: {
-                  cityId: { type: 'string' },
+                  marketId: { type: 'string', description: 'An enabled market (spec 031)' },
                   zoneIds: { type: 'array', items: { type: 'string' }, minItems: 1 },
                 },
               },
@@ -3678,7 +3732,7 @@ export const openapiSpec = {
             content: { 'application/json': { schema: { $ref: '#/components/schemas/GoalkeeperRegistrationResponse' } } },
           },
           '400': {
-            description: 'validation_failed (missing/empty fields), invalid_city, or invalid_zones (with invalidZoneIds)',
+            description: 'validation_failed (missing/empty fields), invalid_market, or invalid_zones (with invalidZoneIds)',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
           },
           '401': { description: 'Not signed in' },
@@ -3785,7 +3839,7 @@ export const openapiSpec = {
         },
         responses: {
           '200': {
-            description: 'Updated (same shape as GET /goalkeepers/me, without `city`)',
+            description: 'Updated (same shape as GET /goalkeepers/me, without `market`)',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/GoalkeeperRegistrationResponse' } } },
           },
           '400': {
@@ -3807,9 +3861,9 @@ export const openapiSpec = {
     },
     '/goalkeepers/me/profile/availability': {
       put: {
-        summary: 'Replace the city and service zones of an ACTIVE goalkeeper',
+        summary: 'Replace the service zones of an ACTIVE goalkeeper within their current market',
         description:
-          'City and zones are saved together, atomically. Same validations as the draft registration. Does not change the goalkeeper’s status. Idempotent; last write wins.',
+          'Only zones of the current market (which may be disabled); marketId, when sent, must be that market, else 409 use_market_change — moving is POST /goalkeepers/me/market-change (spec 031). Does not change the goalkeeper’s status. Idempotent; last write wins.',
         tags: ['Goalkeepers'],
         security: [{ adminBearerAuth: [] }],
         requestBody: {
@@ -3818,9 +3872,9 @@ export const openapiSpec = {
             'application/json': {
               schema: {
                 type: 'object',
-                required: ['cityId', 'zoneIds'],
+                required: ['zoneIds'],
                 properties: {
-                  cityId: { type: 'string' },
+                  marketId: { type: 'string', description: 'An enabled market (spec 031)' },
                   zoneIds: { type: 'array', minItems: 1, items: { type: 'string' } },
                 },
               },
@@ -3829,11 +3883,11 @@ export const openapiSpec = {
         },
         responses: {
           '200': {
-            description: 'Updated (same shape as GET /goalkeepers/me, without `city`)',
+            description: 'Updated (same shape as GET /goalkeepers/me, without `market`)',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/GoalkeeperRegistrationResponse' } } },
           },
           '400': {
-            description: 'validation_failed (missing/empty fields), invalid_city, or invalid_zones (with invalidZoneIds)',
+            description: 'validation_failed (missing/empty fields), invalid_market, or invalid_zones (with invalidZoneIds)',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
           },
           '401': { description: 'Not signed in' },
@@ -3844,6 +3898,120 @@ export const openapiSpec = {
           },
           '409': {
             description: 'goalkeeper_not_active — a draft registration exists but is not activated yet',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+        },
+      },
+    },
+    '/goalkeepers/me/market-change': {
+      post: {
+        summary: 'Move an ACTIVE goalkeeper to another enabled market with new zones; only the goalkeeper does it (spec 031)',
+        description:
+          'One transaction. Refused while the goalkeeper holds accepted bookings not played yet. Across countries it also needs a zero operating balance, no pending deposit and no open account closure, and then moves the balance to the new currency; past movements keep theirs.',
+        tags: ['Goalkeepers'],
+        security: [{ adminBearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['marketId', 'zoneIds'],
+                properties: { marketId: { type: 'string' }, zoneIds: { type: 'array', minItems: 1, items: { type: 'string' } } },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': { description: '`{ goalkeeper }`: the profile, with `market`', content: { 'application/json': { schema: { type: 'object' } } } },
+          '400': {
+            description: 'validation_failed, or invalid_zones (with invalidZoneIds)',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+          '401': { description: 'Not signed in' },
+          '404': { description: 'goalkeeper_not_found', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '409': {
+            description:
+              'same_market, market_not_available, pending_bookings (bookingIds), balance_not_zero (balance, currency), deposit_pending (depositId), account_closure_open, or goalkeeper_not_active',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+        },
+      },
+    },
+    '/goalkeepers/me/billing': {
+      patch: {
+        summary: 'Save the billing section: municipality, address and its complement, any of them (spec 031)',
+        tags: ['Goalkeepers'],
+        security: [{ adminBearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  cityId: { type: 'string', description: 'A municipality with official (DANE) codes, from GET /locations/cities' },
+                  address: { type: 'string', minLength: 5, maxLength: 120 },
+                  addressComplement: { type: 'string', maxLength: 80, nullable: true },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Updated registration',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/GoalkeeperRegistrationResponse' } } },
+          },
+          '400': {
+            description: 'validation_failed (fieldErrors) or invalid_city (unknown, or without official codes)',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+          '401': { description: 'Not signed in' },
+          '409': {
+            description: 'already_active — use PUT /goalkeepers/me/profile/billing',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+        },
+      },
+    },
+    '/goalkeepers/me/profile/billing': {
+      put: {
+        summary: "Replace an ACTIVE goalkeeper's billing data; invoices already issued keep theirs (spec 031)",
+        tags: ['Goalkeepers'],
+        security: [{ adminBearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['cityId', 'address'],
+                properties: {
+                  cityId: { type: 'string' },
+                  address: { type: 'string', minLength: 5, maxLength: 120 },
+                  addressComplement: { type: 'string', maxLength: 80, nullable: true },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Updated (same shape as GET /goalkeepers/me, without `market`)',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/GoalkeeperRegistrationResponse' } } },
+          },
+          '400': {
+            description: 'validation_failed or invalid_city',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+          '401': { description: 'Not signed in' },
+          '404': {
+            description: 'goalkeeper_not_found',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+          '409': {
+            description: 'goalkeeper_not_active',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
           },
         },

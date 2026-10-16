@@ -1,14 +1,15 @@
+import { FakeMarketRepository, testMarket } from '../../../../fakes/fakeMarketRepository.js';
+import { FakeCityRepository } from '../../../../fakes/fakeCityRepository.js';
+import { FakeRegionRepository } from '../../../../fakes/fakeRegionRepository.js';
+import { City } from '../../../../../src/domain/locations/city.js';
+import { Region } from '../../../../../src/domain/locations/region.js';
 import { describe, expect, it } from 'vitest';
 import { GetGoalkeeperRegistrationQuery } from '../../../../../src/application/features/goalkeepers/queries/getGoalkeeperRegistration/getGoalkeeperRegistrationQuery.js';
 import { GetGoalkeeperRegistrationQueryHandler } from '../../../../../src/application/features/goalkeepers/queries/getGoalkeeperRegistration/getGoalkeeperRegistrationQueryHandler.js';
 import { FakeGoalkeeperRegistrationRepository } from '../../../../fakes/fakeGoalkeeperRegistrationRepository.js';
 import { FakeGoalkeeperProfileRepository } from '../../../../fakes/fakeGoalkeeperProfileRepository.js';
-import { FakeCityRepository } from '../../../../fakes/fakeCityRepository.js';
-import { FakeRegionRepository } from '../../../../fakes/fakeRegionRepository.js';
 import { GoalkeeperRegistration } from '../../../../../src/domain/goalkeepers/goalkeeperRegistration.js';
 import { GoalkeeperProfile } from '../../../../../src/domain/goalkeepers/goalkeeperProfile.js';
-import { City } from '../../../../../src/domain/locations/city.js';
-import { Region } from '../../../../../src/domain/locations/region.js';
 import { BackgroundCheck } from '../../../../../src/domain/goalkeepers/backgroundCheck.js';
 import { PENDING_VETTING, rejectValidation } from '../../../../../src/domain/goalkeepers/vetting.js';
 import { FakeBackgroundCheckRepository } from '../../../../fakes/fakeBackgroundCheckRepository.js';
@@ -17,15 +18,17 @@ import { VALIDATED_VETTING, VERIFIED_VETTING } from '../../../../fixtures/vettin
 function buildHandler() {
   const repository = new FakeGoalkeeperRegistrationRepository();
   const profileRepository = new FakeGoalkeeperProfileRepository();
-  const cityRepository = new FakeCityRepository();
-  const regionRepository = new FakeRegionRepository();
-  regionRepository.seed(new Region({ id: 'region-antioquia', name: 'Antioquia' }));
-  cityRepository.seed(new City({ id: 'city-envigado', name: 'Envigado', regionId: 'region-antioquia', zoneCityId: 'city-medellin' }));
-  cityRepository.seed(new City({ id: 'city-orphan', name: 'Orphan', regionId: 'region-missing', zoneCityId: null }));
+  const marketRepository = new FakeMarketRepository();
+  marketRepository.seed(testMarket({ id: 'city-envigado', name: 'Envigado', countryId: 'country-co' }));
+  marketRepository.seed(testMarket({ id: 'city-orphan', name: 'Orphan', countryId: 'country-co' }));
+  const cities = new FakeCityRepository();
+  cities.seed(new City({ id: 'mun-envigado', name: 'Envigado', regionId: 'antioquia', daneStateCode: '05', daneCityCode: '266' }));
+  const regions = new FakeRegionRepository();
+  regions.seed(new Region({ id: 'antioquia', name: 'Antioquia', countryId: 'country-co' }));
   return {
     repository,
     profileRepository,
-    handler: new GetGoalkeeperRegistrationQueryHandler(repository, profileRepository, cityRepository, regionRepository),
+    handler: new GetGoalkeeperRegistrationQueryHandler(repository, profileRepository, marketRepository, undefined, { cities, regions }),
   };
 }
 
@@ -41,7 +44,7 @@ function activeProfile(userId: string, overrides: Partial<ConstructorParameters<
     documentPhotoBId: 'img-b',
     heightCm: 185,
     weightKg: 78,
-    cityId: 'city-envigado',
+    marketId: 'city-envigado',
     zoneIds: ['zone-bello'],
     activatedAt: new Date('2026-08-30'),
     ...overrides,
@@ -57,8 +60,8 @@ describe('GetGoalkeeperRegistrationQueryHandler', () => {
     expect(result.registration.status).toBe('not_started');
     expect(result.registration.sections.identification.complete).toBe(false);
     expect(result.registration.heightCm).toBeNull();
-    expect(result.registration.cityId).toBeNull();
-    expect(result.registration.city).toBeNull();
+    expect(result.registration.marketId).toBeNull();
+    expect(result.registration.market).toBeNull();
     expect(result.registration.serviceZoneIds).toEqual([]);
     expect(await repository.getByUserId('user-1')).toBeNull();
   });
@@ -66,12 +69,12 @@ describe('GetGoalkeeperRegistrationQueryHandler', () => {
   it('round-trips a previously saved city and service zones, marking availability complete', async () => {
     const { handler, repository } = buildHandler();
     const registration = GoalkeeperRegistration.createEmpty('reg-3', 'user-3');
-    registration.saveAvailability({ cityId: 'city-envigado', zoneIds: ['zone-bello', 'zone-copacabana'] });
+    registration.saveAvailability({ marketId: 'city-envigado', zoneIds: ['zone-bello', 'zone-copacabana'] });
     repository.seed(registration);
 
     const result = await handler.handle(new GetGoalkeeperRegistrationQuery('user-3'));
 
-    expect(result.registration.cityId).toBe('city-envigado');
+    expect(result.registration.marketId).toBe('city-envigado');
     expect(result.registration.serviceZoneIds).toEqual(['zone-bello', 'zone-copacabana']);
     expect(result.registration.sections.availability.complete).toBe(true);
   });
@@ -93,29 +96,29 @@ describe('GetGoalkeeperRegistrationQueryHandler', () => {
   it("includes the saved city's name and region name", async () => {
     const { handler, repository } = buildHandler();
     const registration = GoalkeeperRegistration.createEmpty('reg-4', 'user-4');
-    registration.saveAvailability({ cityId: 'city-envigado', zoneIds: ['zone-bello'] });
+    registration.saveAvailability({ marketId: 'city-envigado', zoneIds: ['zone-bello'] });
     repository.seed(registration);
 
     const result = await handler.handle(new GetGoalkeeperRegistrationQuery('user-4'));
 
-    expect(result.registration.city).toEqual({ id: 'city-envigado', name: 'Envigado', region: 'Antioquia' });
+    expect(result.registration.market).toEqual({ id: 'city-envigado', name: 'Envigado' });
   });
 
-  it('returns city: null when the saved city no longer resolves, and an empty region name when only the region is gone', async () => {
+  it('returns market: null when the saved market no longer resolves (spec 031)', async () => {
     const { handler, repository } = buildHandler();
     const gone = GoalkeeperRegistration.createEmpty('reg-5', 'user-5');
-    gone.saveAvailability({ cityId: 'city-deleted', zoneIds: ['zone-bello'] });
+    gone.saveAvailability({ marketId: 'city-deleted', zoneIds: ['zone-bello'] });
     repository.seed(gone);
     const orphan = GoalkeeperRegistration.createEmpty('reg-6', 'user-6');
-    orphan.saveAvailability({ cityId: 'city-orphan', zoneIds: ['zone-bello'] });
+    orphan.saveAvailability({ marketId: 'city-orphan', zoneIds: ['zone-bello'] });
     repository.seed(orphan);
 
     const goneResult = await handler.handle(new GetGoalkeeperRegistrationQuery('user-5'));
     const orphanResult = await handler.handle(new GetGoalkeeperRegistrationQuery('user-6'));
 
-    expect(goneResult.registration.cityId).toBe('city-deleted');
-    expect(goneResult.registration.city).toBeNull();
-    expect(orphanResult.registration.city).toEqual({ id: 'city-orphan', name: 'Orphan', region: '' });
+    expect(goneResult.registration.marketId).toBe('city-deleted');
+    expect(goneResult.registration.market).toBeNull();
+    expect(orphanResult.registration.market).toEqual({ id: 'city-orphan', name: 'Orphan' });
   });
 
   describe('for an active goalkeeper', () => {
@@ -123,23 +126,39 @@ describe('GetGoalkeeperRegistrationQueryHandler', () => {
       const { handler, repository, profileRepository } = buildHandler();
       const locked = GoalkeeperRegistration.createEmpty('reg-7', 'user-7');
       locked.savePhysicalData({ heightCm: 185, weightKg: 78 });
-      locked.saveAvailability({ cityId: 'city-orphan', zoneIds: ['zone-old'] });
+      locked.saveAvailability({ marketId: 'city-orphan', zoneIds: ['zone-old'] });
       locked.activate();
       repository.seed(locked);
-      profileRepository.seed(activeProfile('user-7', { heightCm: 190, weightKg: 82, cityId: 'city-envigado', zoneIds: ['zone-bello', 'zone-copacabana'] }));
+      profileRepository.seed(
+        activeProfile('user-7', {
+          heightCm: 190,
+          weightKg: 82,
+          marketId: 'city-envigado',
+          zoneIds: ['zone-bello', 'zone-copacabana'],
+          billing: { cityId: 'mun-envigado', address: 'Calle 10 # 20-30', addressComplement: null },
+        }),
+      );
 
       const result = await handler.handle(new GetGoalkeeperRegistrationQuery('user-7'));
 
       expect(result.registration.status).toBe('active');
       expect(result.registration.heightCm).toBe(190);
       expect(result.registration.weightKg).toBe(82);
-      expect(result.registration.cityId).toBe('city-envigado');
+      expect(result.registration.marketId).toBe('city-envigado');
       expect(result.registration.serviceZoneIds).toEqual(['zone-bello', 'zone-copacabana']);
-      expect(result.registration.city).toEqual({ id: 'city-envigado', name: 'Envigado', region: 'Antioquia' });
+      expect(result.registration.market).toEqual({ id: 'city-envigado', name: 'Envigado' });
       expect(result.registration.sections).toEqual({
         identification: { complete: true },
         physicalData: { complete: true },
         availability: { complete: true },
+        billing: { complete: true },
+      });
+      expect(result.registration.billing).toEqual({
+        cityId: 'mun-envigado',
+        cityName: 'Envigado',
+        stateName: 'Antioquia',
+        address: 'Calle 10 # 20-30',
+        addressComplement: null,
       });
     });
 
@@ -171,8 +190,7 @@ describe('GetGoalkeeperRegistrationQueryHandler — vetting (admin spec 030, con
     const handler = new GetGoalkeeperRegistrationQueryHandler(
       built.repository,
       built.profileRepository,
-      new FakeCityRepository(),
-      new FakeRegionRepository(),
+      new FakeMarketRepository(),
       { checks, clock: { now: () => NOW } },
     );
     return { ...built, checks, handler };
@@ -217,7 +235,7 @@ describe('GetGoalkeeperRegistrationQueryHandler — vetting (admin spec 030, con
       ['zone-bello', { discountBps: 1000, verifiedPriorityMinutes: 15 }],
       ['zone-copacabana', { discountBps: 1500, verifiedPriorityMinutes: 15 }],
     ]);
-    const handler = new GetGoalkeeperRegistrationQueryHandler(built.repository, built.profileRepository, new FakeCityRepository(), new FakeRegionRepository(), {
+    const handler = new GetGoalkeeperRegistrationQueryHandler(built.repository, built.profileRepository, new FakeMarketRepository(), {
       checks: new FakeBackgroundCheckRepository(),
       clock: { now: () => new Date('2026-10-15T15:00:00.000Z') },
       discounts: { forZones: async (zoneIds) => new Map(zoneIds.map((id) => [id, terms.get(id) ?? { discountBps: 0, verifiedPriorityMinutes: 15 }])) },

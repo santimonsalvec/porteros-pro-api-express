@@ -20,8 +20,8 @@ export function goalkeeperNotFound(): ApiError {
 }
 
 /** The currency of the goalkeeper's country cannot be resolved: logged so operations fix it. */
-export function operatingBalanceNotConfigured(cityId: string): ApiError {
-  logger.warn({ outcome: 'operating_balance_not_configured', cityId }, 'OperatingBalance refused: country or currency not configured');
+export function operatingBalanceNotConfigured(marketId: string): ApiError {
+  logger.warn({ outcome: 'operating_balance_not_configured', marketId }, 'OperatingBalance refused: country or currency not configured');
   return new ApiError(422, 'operating_balance_not_configured', 'The operating balance currency for this goalkeeper is not configured.');
 }
 
@@ -43,7 +43,7 @@ export async function sendOperatingBalance(
     case 'not_a_goalkeeper':
       throw goalkeeperNotFound();
     case 'operating_balance_not_configured':
-      throw operatingBalanceNotConfigured(result.cityId);
+      throw operatingBalanceNotConfigured(result.marketId);
   }
 }
 

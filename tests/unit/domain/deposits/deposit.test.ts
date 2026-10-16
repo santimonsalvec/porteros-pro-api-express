@@ -8,7 +8,7 @@ function started(): Deposit {
   return Deposit.start({
     id: '01928f3a-7b2c-7d4e-8f90-123456789abc',
     goalkeeperId: 'gk-1',
-    countryId: 'country-co',
+    countryId: 'country-co', marketId: 'city-cali',
     gateway: 'wompi',
     environment: 'sandbox',
     amount: 20000,
@@ -38,6 +38,17 @@ describe('Deposit', () => {
 
   it('refuses a cost that leaves nothing', () => {
     expect(() => Deposit.start({ ...started().toProps(), cost: 20000, now: NOW })).toThrow(/net/);
+  });
+
+  it('refuses malformed stored data on rehydrate', () => {
+    const props = started().toProps();
+    expect(() => Deposit.rehydrate({ ...props, amount: 0 })).toThrow(/amount/);
+    expect(() => Deposit.rehydrate({ ...props, amount: 20000.5 })).toThrow(/amount/);
+    expect(() => Deposit.rehydrate({ ...props, cost: -1 })).toThrow(/cost/);
+    expect(() => Deposit.rehydrate({ ...props, net: 1 })).toThrow(/net/);
+    expect(() => Deposit.rehydrate({ ...props, currency: 'cop' })).toThrow(/currency/);
+    expect(() => Deposit.rehydrate({ ...props, status: 'paid' as DepositStatus })).toThrow(/status/);
+    expect(() => Deposit.rehydrate({ ...props, environment: 'staging' as 'sandbox' })).toThrow(/environment/);
   });
 
   it('finalizes: the status, the transaction and no further checks', () => {
@@ -93,5 +104,12 @@ describe('nextCheckAfter', () => {
 describe('newDepositReference', () => {
   it('drops the dashes', () => {
     expect(newDepositReference('a-b-c')).toBe('PPR-abc');
+  });
+});
+
+describe('Deposit market (spec 031, FR-043)', () => {
+  it('keeps the market the goalkeeper played in when it started', () => {
+    expect(started().marketId).toBe('city-cali');
+    expect(started().toProps().marketId).toBe('city-cali');
   });
 });

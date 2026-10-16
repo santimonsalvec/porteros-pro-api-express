@@ -1,6 +1,6 @@
 import type { IQueryHandler } from '../../../../common/mediator/types.js';
 import type { IUserRepository } from '../../../auth/common/ports.js';
-import type { ICityRepository } from '../../../locations/common/ports.js';
+import type { IMarketRepository } from '../../../markets/common/ports.js';
 import type { IUserAdminReader, IUserBlockRepository } from '../../../users/common/ports.js';
 import { userName } from '../../../users/common/userViewing.js';
 import type { IGoalkeeperProfileRepository } from '../../common/ports.js';
@@ -15,7 +15,7 @@ export interface ListReferrerOptionsDependencies {
   profiles: Pick<IGoalkeeperProfileRepository, 'getByUserId'>;
   users: Pick<IUserRepository, 'getByIds'>;
   blocks: Pick<IUserBlockRepository, 'findByUserIds'>;
-  cities: Pick<ICityRepository, 'getByIds'>;
+  markets: Pick<IMarketRepository, 'getByIds'>;
 }
 
 export class ListReferrerOptionsQueryHandler implements IQueryHandler<ListReferrerOptionsQuery, { items: ReferrerOption[] }> {
@@ -28,17 +28,17 @@ export class ListReferrerOptionsQueryHandler implements IQueryHandler<ListReferr
     const eligible = profiles
       .flatMap((profile) => (profile && profile.tier !== 'unvalidated' && !blocks.get(profile.userId)?.blocked ? [profile] : []))
       .slice(0, OPTIONS);
-    const [users, cities] = await Promise.all([
+    const [users, markets] = await Promise.all([
       this.deps.users.getByIds(eligible.map((profile) => profile.userId)),
-      this.deps.cities.getByIds([...new Set(eligible.map((profile) => profile.cityId))]),
+      this.deps.markets.getByIds([...new Set(eligible.map((profile) => profile.marketId))]),
     ]);
     const usersById = new Map(users.map((user) => [user.id, user]));
-    const citiesById = new Map(cities.map((city) => [city.id, city]));
+    const citiesById = new Map(markets.map((market) => [market.id, market]));
     return {
       items: eligible.map((profile) => {
         const user = usersById.get(profile.userId);
-        const city = citiesById.get(profile.cityId);
-        return { userId: profile.userId, name: user ? userName(user) : null, city: city ? { id: city.id, name: city.name } : null };
+        const market = citiesById.get(profile.marketId);
+        return { userId: profile.userId, name: user ? userName(user) : null, market: market ? { id: market.id, name: market.name } : null };
       }),
     };
   }

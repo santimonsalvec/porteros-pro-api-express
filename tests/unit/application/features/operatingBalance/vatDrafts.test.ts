@@ -3,7 +3,7 @@ import { commissionVatDraft, penaltyChargeDrafts } from '../../../../../src/appl
 import { assertMovementShape } from '../../../../../src/domain/operatingBalance/balanceMovement.js';
 import { COLOMBIA_INVOICING } from '../../../../fixtures/operatingBalanceFixtures.js';
 
-const OWNER = { goalkeeperId: 'gk-1', currency: 'COP', invoicing: COLOMBIA_INVOICING };
+const OWNER = { goalkeeperId: 'gk-1', currency: 'COP', invoicing: COLOMBIA_INVOICING, marketId: 'city-cali' };
 const AT = new Date('2026-09-29T12:00:00.000Z');
 
 describe('VAT drafts (feature 023)', () => {

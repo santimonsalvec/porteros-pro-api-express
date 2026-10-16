@@ -1,5 +1,6 @@
 import { CHECK_IN_DEFAULTS, type CheckInWindowConfig } from '../../../../domain/bookings/checkInWindow.js';
 import type { GoalkeeperRequest } from '../../../../domain/bookings/goalkeeperRequest.js';
+import { resolveLayered } from '../../../../domain/settings/layered.js';
 import { createCountrySettingsResolver, type CountrySettingsResolverDependencies } from './countrySettingsResolver.js';
 import type { ILifecycleLogger } from './ports.js';
 
@@ -12,25 +13,27 @@ export type CheckInWindowResolver = (request: GoalkeeperRequest) => Promise<Chec
 const FIELDS = ['opensMinutesBefore', 'closesMinutesAfter'] as const;
 
 /**
- * The check-in window values of the match's country (feature 020, research §4): the country-level
- * booking settings over the Colombia defaults, with a warning naming what was defaulted. Never
- * fails. Cached per city for the resolver's lifetime.
+ * The check-in window values of the match's market (feature 020; spec 031, FR-014): each value
+ * from the market, else the country, else the platform default, with a warning naming what was
+ * defaulted. Never fails. Cached per market for the resolver's lifetime.
  */
 export function createCheckInWindowResolver(deps: CheckInWindowResolverDependencies): CheckInWindowResolver {
   const country = createCountrySettingsResolver(deps);
   return async (request) => {
-    const cityId = request.match.cityId;
-    const { countryId, settings } = await country(cityId);
-    const configured = settings?.checkInWindow ?? {};
+    const marketId = request.match.marketId;
+    const { countryId, settings, marketSettings } = await country(marketId);
     const config: CheckInWindowConfig = { ...CHECK_IN_DEFAULTS };
     const defaulted: string[] = [];
     for (const field of FIELDS) {
-      const value = configured[field];
-      if (value === undefined || value === null) defaulted.push(field);
-      else config[field] = value;
+      const { value, origin } = resolveLayered(
+        { market: marketSettings?.checkInWindow?.[field], country: settings?.checkInWindow?.[field] },
+        CHECK_IN_DEFAULTS[field],
+      );
+      if (origin === 'platform') defaulted.push(field);
+      config[field] = value ?? CHECK_IN_DEFAULTS[field];
     }
     if (defaulted.length > 0) {
-      deps.logger.warn({ outcome: 'check_in_window_defaulted', cityId, countryId, defaulted }, 'Check-in window values missing for the country; using the defaults');
+      deps.logger.warn({ outcome: 'check_in_window_defaulted', marketId, countryId, defaulted }, 'Check-in window values missing for the market and its country; using the defaults');
     }
     return config;
   };
@@ -39,14 +42,16 @@ export function createCheckInWindowResolver(deps: CheckInWindowResolverDependenc
 /** Minutes after the end before a no-show, by default (feature 021). */
 export const NO_SHOW_GRACE_DEFAULT_MINUTES = 60;
 
-/** The no-show grace period of the match's country (feature 021), default 60 with a warning. */
+/** The no-show grace period of the match's market, else its country (feature 021; spec 031), default 60 with a warning. */
 export function createNoShowGraceResolver(deps: CheckInWindowResolverDependencies): (request: GoalkeeperRequest) => Promise<number> {
   const country = createCountrySettingsResolver(deps);
   return async (request) => {
-    const cityId = request.match.cityId;
-    const { countryId, settings } = await country(cityId);
-    if (settings?.noShowGraceMinutes != null) return settings.noShowGraceMinutes;
-    deps.logger.warn({ outcome: 'no_show_grace_defaulted', cityId, countryId }, 'No-show grace period missing for the country; using the default');
-    return NO_SHOW_GRACE_DEFAULT_MINUTES;
+    const marketId = request.match.marketId;
+    const { countryId, settings, marketSettings } = await country(marketId);
+    const { value, origin } = resolveLayered({ market: marketSettings?.noShowGraceMinutes, country: settings?.noShowGraceMinutes }, NO_SHOW_GRACE_DEFAULT_MINUTES);
+    if (origin === 'platform') {
+      deps.logger.warn({ outcome: 'no_show_grace_defaulted', marketId, countryId }, 'No-show grace period missing for the market and its country; using the default');
+    }
+    return value ?? NO_SHOW_GRACE_DEFAULT_MINUTES;
   };
 }

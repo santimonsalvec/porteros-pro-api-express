@@ -20,7 +20,7 @@ beforeEach(async () => {
     bookingRepository: h.bookings,
     requestRepository: h.requests,
     zoneRepository: h.zones,
-    cityRepository: h.cities,
+    marketRepository: h.markets,
     vatRates: fixedVatRates(0),
     clock: h.clock,
   });
@@ -48,8 +48,8 @@ describe('ListAvailableBookingsQueryHandler — US1: a goalkeeper sees the match
       requestId: 'sur',
       zoneId: 'zone-cali-sur',
       zoneName: 'Sur',
-      cityId: 'city-cali',
-      cityName: 'Cali',
+      marketId: 'city-cali',
+      marketName: 'Cali',
       startsAt: inHours(3).toISOString(),
       startsAtLocal: '2026-09-25T13:00:00-05:00',
       timeZone: 'America/Bogota',
@@ -107,7 +107,7 @@ describe('ListAvailableBookingsQueryHandler — US1: a goalkeeper sees the match
       bookingRepository: fresh.bookings,
       requestRepository: fresh.requests,
       zoneRepository: fresh.zones,
-      cityRepository: fresh.cities,
+      marketRepository: fresh.markets,
       vatRates: fixedVatRates(0),
       clock: fresh.clock,
     });
@@ -128,7 +128,7 @@ describe('ListAvailableBookingsQueryHandler — US1: a goalkeeper sees the match
       bookingRepository: poor.bookings,
       requestRepository: poor.requests,
       zoneRepository: poor.zones,
-      cityRepository: poor.cities,
+      marketRepository: poor.markets,
       vatRates: fixedVatRates(0),
       clock: poor.clock,
     });

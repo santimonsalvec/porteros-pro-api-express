@@ -1,7 +1,6 @@
+import { FakeMarketRepository, testMarket } from '../../../../fakes/fakeMarketRepository.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { Country } from '../../../../../src/domain/countries/country.js';
-import { City } from '../../../../../src/domain/locations/city.js';
-import { Region } from '../../../../../src/domain/locations/region.js';
 import { BookingSettings } from '../../../../../src/domain/pricing/bookingSettings.js';
 import { InvalidConfigurationError } from '../../../../../src/domain/pricing/invalidConfigurationError.js';
 import { MatchSurface } from '../../../../../src/domain/pricing/matchSurface.js';
@@ -14,7 +13,6 @@ import { parseStartsAt } from '../../../../../src/application/features/goalkeepe
 import { FakeBookingSettingsRepository } from '../../../../fakes/fakeBookingSettingsRepository.js';
 import { FakeCommissionSettingRepository } from '../../../../fakes/fakeCommissionSettingRepository.js';
 import { CommissionResolver } from '../../../../../src/application/features/operatingBalance/common/commissionResolver.js';
-import { FakeCityRepository } from '../../../../fakes/fakeCityRepository.js';
 import { FixedClock } from '../../../../fakes/fakeClock.js';
 import { FakeCountryRepository } from '../../../../fakes/fakeCountryRepository.js';
 import { FakeRegionRepository } from '../../../../fakes/fakeRegionRepository.js';
@@ -26,14 +24,14 @@ import { POINTS, QUOTE_NOW, seedQuoteWorld, QUOTE_FORMAT_FIELDS } from '../../..
 /** Fake-backed handlers over the shared quote world. Reference clock: 13:00 in Bogotá (18:00Z). */
 class Harness {
   readonly zoneRepository = new FakeZoneRepository();
-  readonly cityRepository = new FakeCityRepository();
+  readonly marketRepository = new FakeMarketRepository();
   readonly regionRepository = new FakeRegionRepository();
   readonly countryRepository = new FakeCountryRepository();
   readonly rentalRateRepository = new FakeRentalRateRepository();
   readonly matchSurfaceRepository = new FakeMatchSurfaceRepository();
   readonly bookingSettingsRepository = new FakeBookingSettingsRepository();
   readonly commissionSettingRepository = new FakeCommissionSettingRepository();
-  readonly commissionResolver = new CommissionResolver(this.commissionSettingRepository, this.zoneRepository, this.cityRepository, this.regionRepository);
+  readonly commissionResolver = new CommissionResolver(this.commissionSettingRepository, this.zoneRepository, this.marketRepository);
   readonly clock = new FixedClock(QUOTE_NOW);
   readonly config: GetBookingConfigQueryHandler;
   readonly quote: GetServiceQuoteQueryHandler;
@@ -42,8 +40,7 @@ class Harness {
     seedQuoteWorld(this);
     this.config = new GetBookingConfigQueryHandler(
       this.zoneRepository,
-      this.cityRepository,
-      this.regionRepository,
+      this.marketRepository,
       this.countryRepository,
       this.bookingSettingsRepository,
       this.clock,
@@ -51,8 +48,7 @@ class Harness {
     );
     this.quote = new GetServiceQuoteQueryHandler(
       this.zoneRepository,
-      this.cityRepository,
-      this.regionRepository,
+      this.marketRepository,
       this.countryRepository,
       this.rentalRateRepository,
       this.bookingSettingsRepository,
@@ -154,7 +150,7 @@ describe('GetBookingConfigQueryHandler — what a client may pick', () => {
   });
 
   it('returns no earliest start when the next slot already falls outside the booking window', async () => {
-    h.bookingSettingsRepository.seed(new BookingSettings({ id: 'cali-window-1', scope: 'city', refId: 'city-cali', bookingWindowDays: 1 }));
+    h.bookingSettingsRepository.seed(new BookingSettings({ id: 'cali-window-1', scope: 'market', refId: 'city-cali', bookingWindowDays: 1 }));
     h.clock.set('2026-09-22T04:50:00.000Z'); // 23:50 on the last (only) day
 
     const config = await h.configOf();
@@ -165,7 +161,7 @@ describe('GetBookingConfigQueryHandler — what a client may pick', () => {
 
   it('honors a city override of the window and the minimum notice', async () => {
     h.bookingSettingsRepository.seed(
-      new BookingSettings({ id: 'cali-override', scope: 'city', refId: 'city-cali', bookingWindowDays: 4, minNoticeMinutes: 45 }),
+      new BookingSettings({ id: 'cali-override', scope: 'market', refId: 'city-cali', bookingWindowDays: 4, minNoticeMinutes: 45 }),
     );
 
     const config = await h.configOf();
@@ -193,9 +189,9 @@ describe('GetBookingConfigQueryHandler — what a client may pick', () => {
   });
 
   it('rounds to the LOCAL slot marks in a 45-minute offset zone, not the UTC ones', async () => {
-    h.cityRepository.seed(new City({ id: 'city-ktm', name: 'Kathmandu', regionId: 'region-delhi', zoneCityId: null, timeZone: 'Asia/Kathmandu' }));
+    h.marketRepository.seed(testMarket({ id: 'city-ktm', name: 'Kathmandu', countryId: 'country-co', timeZone: 'Asia/Kathmandu' }));
     h.zoneRepository.seed(
-      new Zone({ id: 'zone-ktm', cityId: 'city-ktm', name: 'Centro', slug: 'ktm-centro', geometry: box(27.6, 27.8, 85.2, 85.4), active: true, displayOrder: 1 }),
+      new Zone({ id: 'zone-ktm', marketId: 'city-ktm', name: 'Centro', slug: 'ktm-centro', geometry: box(27.6, 27.8, 85.2, 85.4), active: true, displayOrder: 1 }),
     );
     h.clock.set('2026-09-21T06:00:00.000Z'); // 11:45 in Kathmandu (UTC+5:45); +30 = 12:15 → next local mark 12:30
 
@@ -251,18 +247,12 @@ describe('GetBookingConfigQueryHandler — refusals', () => {
     expect(await h.ask(POINTS.nowhere)).toEqual({ outcome: 'location_not_covered' });
   });
 
-  it('refuses a city with no time zone', async () => {
-    h.cityRepository.seed(new City({ id: 'city-cali', name: 'Cali', regionId: 'region-valle', zoneCityId: null, timeZone: null }));
-
-    expect(await h.ask()).toEqual({ outcome: 'time_zone_not_configured', cityId: 'city-cali' });
-  });
-
   it('refuses an area with no configuration, naming every missing setting', async () => {
     h.bookingSettingsRepository.clear();
 
     expect(await h.ask()).toEqual({
       outcome: 'service_not_configured',
-      cityId: 'city-cali',
+      marketId: 'city-cali',
       missing: ['bookingWindowDays', 'minNoticeMinutes', 'leadTimeSurcharge'],
     });
   });
@@ -270,17 +260,11 @@ describe('GetBookingConfigQueryHandler — refusals', () => {
   it('refuses a country with no currency, naming the currency last', async () => {
     h.countryRepository.seed(new Country({ id: 'country-co', name: 'Colombia', dialCode: '+57', countryCode: 'CO' }));
 
-    expect(await h.ask()).toEqual({ outcome: 'service_not_configured', cityId: 'city-cali', missing: ['currency'] });
-  });
-
-  it('refuses a city whose region has no country recorded', async () => {
-    h.regionRepository.seed(new Region({ id: 'region-valle', name: 'Valle del Cauca' }));
-
-    expect(await h.ask()).toMatchObject({ outcome: 'service_not_configured', missing: expect.arrayContaining(['currency']) });
+    expect(await h.ask()).toEqual({ outcome: 'service_not_configured', marketId: 'city-cali', missing: ['currency'] });
   });
 
   it('treats a time zone that is not a real IANA identifier as broken configuration', async () => {
-    h.cityRepository.seed(new City({ id: 'city-cali', name: 'Cali', regionId: 'region-valle', zoneCityId: null, timeZone: 'Mars/Olympus' }));
+    h.marketRepository.seed(testMarket({ id: 'city-cali', name: 'Cali', countryId: 'country-co', timeZone: 'Mars/Olympus' }));
 
     await expect(h.ask()).rejects.toThrow(InvalidConfigurationError);
   });
@@ -293,7 +277,7 @@ describe('GetBookingConfigQueryHandler — refusals', () => {
 
   it('fails loudly when a zone points at a city that does not exist', async () => {
     h.zoneRepository.seed(
-      new Zone({ id: 'zone-dangling', cityId: 'city-missing', name: 'D', slug: 'd', geometry: box(50, 51, 10, 11), active: true, displayOrder: 1 }),
+      new Zone({ id: 'zone-dangling', marketId: 'city-missing', name: 'D', slug: 'd', geometry: box(50, 51, 10, 11), active: true, displayOrder: 1 }),
     );
 
     await expect(h.ask({ latitude: 50.5, longitude: 10.5 })).rejects.toThrow(/city-missing/);
@@ -318,8 +302,7 @@ describe('GetBookingConfigQueryHandler — read-only', () => {
       });
     const handler = new GetBookingConfigQueryHandler(
       watch('zones', h.zoneRepository),
-      watch('cities', h.cityRepository),
-      watch('regions', h.regionRepository),
+      watch('markets', h.marketRepository),
       watch('countries', h.countryRepository),
       watch('settings', h.bookingSettingsRepository),
       h.clock,
@@ -329,7 +312,7 @@ describe('GetBookingConfigQueryHandler — read-only', () => {
     await handler.handle(new GetBookingConfigQuery(POINTS.caliNorte));
     await handler.handle(new GetBookingConfigQuery(POINTS.nowhere));
 
-    const allowed = new Set(['zones.findActiveContainingPoint', 'cities.getById', 'regions.getByIds', 'countries.getById', 'settings.findFor']);
+    const allowed = new Set(['zones.findActiveContainingPoint', 'zones.findAnyContainingPoint', 'markets.getById', 'countries.getById', 'settings.findFor']);
     expect(calls.length).toBeGreaterThan(0);
     for (const call of calls) expect(allowed.has(call)).toBe(true);
   });

@@ -25,7 +25,7 @@ export class GetGoalkeeperOperatingBalanceQueryHandler implements IQueryHandler<
   async handle(query: GetGoalkeeperOperatingBalanceQuery): Promise<GetGoalkeeperOperatingBalanceResult> {
     const context = await resolveGoalkeeperOperatingBalanceContext(this.context, query.goalkeeperId);
     if (context.kind === 'not_a_goalkeeper') return { outcome: 'not_a_goalkeeper' };
-    if (context.kind === 'operating_balance_not_configured') return { outcome: 'operating_balance_not_configured', cityId: context.cityId };
+    if (context.kind === 'operating_balance_not_configured') return { outcome: 'operating_balance_not_configured', marketId: context.marketId };
 
     const [stored, commissions, vatRateBps] = await Promise.all([
       this.operatingBalanceRepository.findByGoalkeeperId(query.goalkeeperId),

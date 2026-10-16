@@ -16,10 +16,10 @@ export class GetDepositOptionsQueryHandler implements IQueryHandler<GetDepositOp
   async handle(query: GetDepositOptionsQuery): Promise<GetDepositOptionsResult> {
     const context = await resolveGoalkeeperOperatingBalanceContext(this.context, query.goalkeeperId);
     if (context.kind === 'not_a_goalkeeper') return { outcome: 'not_a_goalkeeper' };
-    if (context.kind === 'operating_balance_not_configured') return { outcome: 'operating_balance_not_configured', cityId: context.cityId };
+    if (context.kind === 'operating_balance_not_configured') return { outcome: 'operating_balance_not_configured', marketId: context.marketId };
 
     const [settings, termsAccepted] = await Promise.all([
-      usableSettings(this.settingsRepository, context.countryId, context.currency),
+      usableSettings(this.settingsRepository, { countryId: context.countryId, marketId: context.profile.marketId }, context.currency),
       acceptedCurrentTerms(this.termsRepository, query.goalkeeperId, this.legal.termsVersion),
     ]);
     return {

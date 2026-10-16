@@ -17,7 +17,7 @@ export interface RequestListFilter {
   to?: Date;
   zoneId?: string;
   /** A city, or every city of a country (resolved first). */
-  cityIds?: readonly string[];
+  marketIds?: readonly string[];
   clientId?: string;
   /** Only these requests (a goalkeeper's, resolved first). */
   requestIds?: readonly string[];
@@ -31,7 +31,7 @@ export interface RequestListRecord {
   clientId: string;
   startsAt: Date;
   timeZone: string;
-  cityId: string;
+  marketId: string;
   zoneId: string;
   goalkeeperCount: number;
   counts: BookingCounts;
@@ -69,11 +69,11 @@ export type CheckInPhotoRecord =
 
 export interface IRequestAdminReader {
   /** Every city of a country, through its regions. */
-  cityIdsOfCountry(countryId: string): Promise<string[]>;
+  marketIdsOfCountry(countryId: string): Promise<string[]>;
   /** The requests a goalkeeper ever held a booking of, at most `limit`. */
   requestIdsOfGoalkeeper(goalkeeperId: string, limit: number): Promise<string[]>;
-  /** Those of `requestIds` whose match is in one of `cityIds` (a country's cases, admin spec 006 US2). */
-  requestIdsInCities(requestIds: readonly string[], cityIds: readonly string[]): Promise<string[]>;
+  /** Those of `requestIds` whose match is in one of `marketIds` (a country's cases, admin spec 006 US2). */
+  requestIdsInMarkets(requestIds: readonly string[], marketIds: readonly string[]): Promise<string[]>;
   list(filter: RequestListFilter): Promise<{ items: RequestListRecord[]; totalItems: number }>;
   detail(requestId: string): Promise<RequestDetailRecord | null>;
   /** By case or by request: the booking's check-in photo, the one sensitive read. */

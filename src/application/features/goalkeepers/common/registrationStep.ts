@@ -3,7 +3,7 @@ import type { FieldStatus, RegistrationStep, SectionName } from './adminViews.js
 import { computeGoalkeeperSections } from './goalkeeperSections.js';
 
 /** The sections in the order the app asks for them. */
-const SECTIONS: readonly SectionName[] = ['identification', 'physicalData', 'availability'];
+const SECTIONS: readonly SectionName[] = ['identification', 'physicalData', 'availability', 'billing'];
 
 /** The first section still incomplete, or `ready` (admin spec 005, research §12). */
 export function registrationStep(registration: GoalkeeperRegistration): RegistrationStep {

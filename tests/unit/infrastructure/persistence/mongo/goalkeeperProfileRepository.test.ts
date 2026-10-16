@@ -22,7 +22,7 @@ const baseParams = {
   documentPhotoBId: 'img-b',
   heightCm: 185,
   weightKg: 78,
-  cityId: 'city-envigado',
+  marketId: 'city-envigado',
   zoneIds: ['zone-bello', 'zone-copacabana'],
   activatedAt: new Date('2026-08-30T00:00:00.000Z'),
 };
@@ -34,7 +34,7 @@ describe('GoalkeeperProfileRepository (mocked driver)', () => {
 
     await repositoryWith(collection).ensureIndexes();
 
-    expect(collection.createIndex).toHaveBeenCalledWith({ cityId: 1, activatedAt: -1 }, { name: 'cityId_activatedAt' });
+    expect(collection.createIndex).toHaveBeenCalledWith({ marketId: 1, activatedAt: -1 }, { name: 'market_activatedAt' });
   });
 
   it('maps a GoalkeeperProfile to its document shape on add', async () => {
@@ -49,7 +49,7 @@ describe('GoalkeeperProfileRepository (mocked driver)', () => {
       _id: 'profile-1',
       userId: 'user-1',
       documentNumber: '123',
-      cityId: 'city-envigado',
+      marketId: 'city-envigado',
       zoneIds: ['zone-bello', 'zone-copacabana'],
     });
   });
@@ -67,7 +67,7 @@ describe('GoalkeeperProfileRepository (mocked driver)', () => {
       documentPhotoBId: 'img-d',
       heightCm: 170,
       weightKg: 65,
-      cityId: 'city-bogota',
+      marketId: 'city-bogota',
       zoneIds: ['zone-chapinero'],
       activatedAt: '2026-08-30T00:00:00.000Z',
     });
@@ -76,7 +76,7 @@ describe('GoalkeeperProfileRepository (mocked driver)', () => {
     const found = await repository.getByUserId('user-2');
 
     expect(found?.documentType).toBe('pasaporte');
-    expect(found?.cityId).toBe('city-bogota');
+    expect(found?.marketId).toBe('city-bogota');
     expect(found?.zoneIds).toEqual(['zone-chapinero']);
   });
 
@@ -92,7 +92,7 @@ describe('GoalkeeperProfileRepository (mocked driver)', () => {
       documentPhotoBId: 'img-b',
       heightCm: 190,
       weightKg: 78,
-      cityId: 'city-envigado',
+      marketId: 'city-envigado',
       zoneIds: ['zone-bello'],
       activatedAt: '2026-08-30T00:00:00.000Z',
     };
@@ -144,9 +144,9 @@ describe('GoalkeeperProfileRepository (mocked driver)', () => {
       expect(result?.userId).toBe('user-1');
     });
 
-    it('$sets cityId and zoneIds together, in a single write, and nothing else', async () => {
+    it('$sets marketId and zoneIds together, in a single write, and nothing else', async () => {
       const collection = createFakeCollection();
-      collection.findOneAndUpdate.mockResolvedValue({ ...storedDoc, cityId: 'city-medellin', zoneIds: ['zone-bello', 'zone-copacabana'] });
+      collection.findOneAndUpdate.mockResolvedValue({ ...storedDoc, marketId: 'city-medellin', zoneIds: ['zone-bello', 'zone-copacabana'] });
       const repository = repositoryWith(collection);
 
       const updated = await repository.updateAvailability('user-1', 'city-medellin', ['zone-bello', 'zone-copacabana']);
@@ -154,10 +154,10 @@ describe('GoalkeeperProfileRepository (mocked driver)', () => {
       expect(collection.findOneAndUpdate).toHaveBeenCalledTimes(1);
       expect(collection.findOneAndUpdate).toHaveBeenCalledWith(
         { userId: 'user-1' },
-        { $set: { cityId: 'city-medellin', zoneIds: ['zone-bello', 'zone-copacabana'] } },
+        { $set: { marketId: 'city-medellin', zoneIds: ['zone-bello', 'zone-copacabana'] } },
         { returnDocument: 'after' },
       );
-      expect(updated?.cityId).toBe('city-medellin');
+      expect(updated?.marketId).toBe('city-medellin');
       expect(updated?.zoneIds).toEqual(['zone-bello', 'zone-copacabana']);
     });
 

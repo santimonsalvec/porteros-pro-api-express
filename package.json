@@ -25,6 +25,7 @@
     "@opentelemetry/sdk-trace-base": "^1.28.0",
     "@opentelemetry/sdk-trace-node": "^1.28.0",
     "@turf/area": "^7.4.0",
+    "@turf/boolean-disjoint": "^7.4.0",
     "@turf/helpers": "^7.4.0",
     "@turf/intersect": "^7.4.0",
     "@turf/kinks": "^7.4.0",

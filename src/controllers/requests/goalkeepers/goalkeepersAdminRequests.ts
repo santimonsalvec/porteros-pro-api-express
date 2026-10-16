@@ -11,7 +11,7 @@ export const listGoalkeepersQuerySchema = z
   .object({
     ...pageQuery,
     q: searchQueryField,
-    cityId: id,
+    marketId: id,
     zoneId: id,
     suspended: booleanQuery.optional(),
     availableForOffers: booleanQuery.optional(),
@@ -36,8 +36,8 @@ export const correctDocumentRequestSchema = z
 export const listRegistrationsQuerySchema = z
   .object({
     ...pageQuery,
-    step: z.enum(['identification', 'physicalData', 'availability', 'ready']).optional(),
-    cityId: id,
+    step: z.enum(['identification', 'physicalData', 'availability', 'billing', 'ready']).optional(),
+    marketId: id,
     idleDaysMin: z.string().regex(/^\d{1,4}$/, 'Must be a whole number of days.').transform(Number).optional(),
   })
   .strict();

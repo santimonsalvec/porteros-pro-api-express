@@ -93,6 +93,7 @@ describe('booking events', () => {
       goalkeeperId: 'gk-1',
       bookingId: held.id,
       requestId: 'req-1',
+      marketId: 'city-cali',
       startsAt: held.startsAt,
       occurredAt: AT,
       noticeMinutes: 90,

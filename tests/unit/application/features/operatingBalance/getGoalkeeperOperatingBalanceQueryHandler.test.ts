@@ -63,8 +63,8 @@ describe('GetGoalkeeperOperatingBalanceQueryHandler — US2: the goalkeeper sees
   });
 
   it("reports operating_balance_not_configured when the goalkeeper's country cannot be resolved", async () => {
-    h.profiles.seed(buildGoalkeeperProfile('gk-1', { cityId: 'city-orphan' }));
+    h.profiles.seed(buildGoalkeeperProfile('gk-1', { marketId: 'city-orphan' }));
 
-    expect(await get()).toEqual({ outcome: 'operating_balance_not_configured', cityId: 'city-orphan' });
+    expect(await get()).toEqual({ outcome: 'operating_balance_not_configured', marketId: 'city-orphan' });
   });
 });

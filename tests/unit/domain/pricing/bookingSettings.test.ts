@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BookingSettings, type LeadTimeSurcharge } from '../../../../src/domain/pricing/bookingSettings.js';
 import { InvalidConfigurationError } from '../../../../src/domain/pricing/invalidConfigurationError.js';
+import { bookingSettingsIssues } from '../../../../src/domain/pricing/bookingSettingsRules.js';
 
 const tiers: LeadTimeSurcharge = {
   tiers: [
@@ -18,7 +19,7 @@ describe('BookingSettings', () => {
   });
 
   it('builds a document with every setting absent — each one means "inherit"', () => {
-    const settings = new BookingSettings({ ...base, scope: 'city' });
+    const settings = new BookingSettings({ ...base, scope: 'market' });
     expect(settings.bookingWindowDays).toBeNull();
     expect(settings.minNoticeMinutes).toBeNull();
     expect(settings.leadTimeSurcharge).toBeNull();
@@ -107,5 +108,34 @@ describe('BookingSettings revision', () => {
 
   it.each([-1, 1.5])('rejects a broken revision (%s)', (revision) => {
     expect(() => new BookingSettings({ ...base, revision })).toThrow(/bookingSettings document s1: revision/);
+  });
+});
+
+describe('BookingSettings by market (spec 031, FR-014)', () => {
+  const market = (fields: Record<string, unknown>) => new BookingSettings({ id: 'm', scope: 'market', refId: 'med', ...fields });
+
+  it('lets a market set its own check-in window and no-show grace', () => {
+    const settings = market({ checkInWindow: { opensMinutesBefore: 45 }, noShowGraceMinutes: 90 });
+    expect(settings.checkInWindow).toEqual({ opensMinutesBefore: 45 });
+    expect(settings.noShowGraceMinutes).toBe(90);
+  });
+
+  it('keeps the goalkeeper penalties at the country only', () => {
+    expect(() => market({ goalkeeperPenalties: { lateSuspensionDays: 3 } })).toThrow(/goalkeeperPenalties.*field_not_allowed_at_level|only a country/);
+    expect(bookingSettingsIssues({ goalkeeperPenalties: { lateSuspensionDays: 3 } }, 'market')).toEqual([
+      expect.objectContaining({ path: 'goalkeeperPenalties', code: 'field_not_allowed_at_level' }),
+    ]);
+    expect(bookingSettingsIssues({ goalkeeperPenalties: { lateSuspensionDays: 3 } }, 'country')).toEqual([]);
+  });
+
+  it('holds the offer reminders at a country or a market, within range', () => {
+    const settings = market({ offerReminderIntervalMinutes: 10, offerMaxReminders: 0 });
+    expect([settings.offerReminderIntervalMinutes, settings.offerMaxReminders]).toEqual([10, 0]);
+    expect(new BookingSettings({ id: 'c', scope: 'country', refId: 'co' }).offerMaxReminders).toBeNull();
+    expect(bookingSettingsIssues({ offerReminderIntervalMinutes: 0, offerMaxReminders: 11 }).map((item) => item.path)).toEqual([
+      'offerReminderIntervalMinutes',
+      'offerMaxReminders',
+    ]);
+    expect(bookingSettingsIssues({ offerReminderIntervalMinutes: 1440, offerMaxReminders: 10 })).toEqual([]);
   });
 });

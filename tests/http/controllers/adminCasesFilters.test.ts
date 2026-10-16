@@ -49,7 +49,9 @@ describe('admin cases filters and evidence (spec 006 of the admin, US2)', () => 
     expect((await get(context, owner.token, '/admin/cases?order=oldest')).body.items.map((item: { type: string }) => item.type)).toEqual(['goalkeeper_no_show', 'payment_not_received']);
     expect((await get(context, owner.token, '/admin/cases?from=2026-09-21T23:35:00.000Z')).body.totalItems).toBe(1);
     expect((await get(context, owner.token, '/admin/cases?to=2026-09-21T23:35:00.000Z')).body.totalItems).toBe(1);
-    expect((await get(context, owner.token, '/admin/cases?countryId=nowhere')).body.totalItems).toBe(0);
+    expect((await get(context, owner.token, '/admin/cases').set('X-Scope', 'country:country-mx')).body.totalItems).toBe(0);
+    expect((await get(context, owner.token, '/admin/cases').set('X-Scope', 'country:country-co')).body.totalItems).toBe(2);
+    expect((await get(context, owner.token, '/admin/cases').set('X-Scope', 'country:nowhere')).status).toBe(404);
     for (const query of ['type=other', 'order=newest', 'from=ayer', 'from=2026-09-22T00:00:00.000Z&to=2026-09-21T00:00:00.000Z']) {
       const response = await get(context, owner.token, `/admin/cases?${query}`);
       expect(response.status, query).toBe(400);

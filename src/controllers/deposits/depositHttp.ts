@@ -28,7 +28,7 @@ export async function sendDepositOptions(mediator: ISender, goalkeeperId: string
     case 'not_a_goalkeeper':
       throw goalkeeperNotFound();
     case 'operating_balance_not_configured':
-      throw operatingBalanceNotConfigured(result.cityId);
+      throw operatingBalanceNotConfigured(result.marketId);
   }
 }
 
@@ -45,7 +45,7 @@ export async function startDeposit(mediator: ISender, goalkeeperId: string, req:
     case 'not_a_goalkeeper':
       throw goalkeeperNotFound();
     case 'operating_balance_not_configured':
-      throw operatingBalanceNotConfigured(result.cityId);
+      throw operatingBalanceNotConfigured(result.marketId);
     case 'invalid_amount':
       throw new ApiError(400, 'invalid_amount', 'The amount is not one of the available deposit amounts.', undefined, {
         amounts: result.amounts,

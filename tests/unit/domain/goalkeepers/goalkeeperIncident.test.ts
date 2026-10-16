@@ -20,6 +20,7 @@ function incident(overrides: Partial<GoalkeeperIncidentProps> = {}): GoalkeeperI
     goalkeeperId: 'gk-1',
     bookingId: 'b-1',
     requestId: 'r-1',
+    marketId: 'city-cali',
     startsAt: at(2),
     occurredAt: at(-1),
     noticeMinutes: 90,

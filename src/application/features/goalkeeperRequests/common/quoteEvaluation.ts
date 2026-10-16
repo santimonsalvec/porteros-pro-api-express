@@ -1,7 +1,6 @@
-import type { City } from '../../../../domain/locations/city.js';
+import type { Market } from '../../../../domain/markets/market.js';
 import type { MatchTier } from '../../../../domain/pricing/tieredRate.js';
 import type { Zone } from '../../../../domain/zones/zone.js';
-import type { IRegionRepository } from '../../locations/common/ports.js';
 import type { ICommissionResolver } from '../../operatingBalance/common/ports.js';
 import { SLOT_STEP_MINUTES } from './bookingLimits.js';
 import { computeAmounts, selectSurchargeTier, selectUnitRate } from './pricing.js';
@@ -12,7 +11,6 @@ import type { ParsedStartsAt } from './startsAt.js';
 import { formatLocalIso, localDayNumber, resolveLocalDateTime, toLocalParts } from './zonedTime.js';
 
 export interface QuoteEvaluationDependencies {
-  regionRepository: IRegionRepository;
   countryLookup: ICountryLookup;
   rentalRateRepository: IRentalRateRepository;
   bookingSettingsRepository: IBookingSettingsRepository;
@@ -21,8 +19,8 @@ export interface QuoteEvaluationDependencies {
 
 export interface AreaQuoteInput {
   zone: Zone;
-  /** The anchor city that owns the zone: its time zone, rate fallback and settings scope. */
-  city: City;
+  /** The market that owns the zone: its time zone, rate fallback and settings scope. */
+  market: Market;
   timeZone: string;
   startsAt: ParsedStartsAt;
   goalkeeperCount: number;
@@ -51,14 +49,14 @@ export type AreaQuoteResult =
     }
   | { outcome: 'invalid_start_time'; reason: InvalidStartTimeReason }
   | { outcome: 'start_time_in_past' }
-  | { outcome: 'service_not_configured'; cityId: string; missing: MissingSetting[] }
+  | { outcome: 'service_not_configured'; marketId: string; missing: MissingSetting[] }
   | { outcome: 'insufficient_notice'; minNoticeMinutes: number }
   | { outcome: 'outside_booking_window'; bookingWindowDays: number }
-  | { outcome: 'rate_not_configured'; zoneId: string; cityId: string; durationMinutes: number };
+  | { outcome: 'rate_not_configured'; zoneId: string; marketId: string; durationMinutes: number };
 
 type StartInstant = { kind: 'ok'; epochMs: number } | { kind: 'invalid'; reason: InvalidStartTimeReason };
 
-/** With an explicit offset the instant is fixed; without one the wall-clock time is read in the city's zone. */
+/** With an explicit offset the instant is fixed; without one the wall-clock time is read in the market's zone. */
 export function resolveStartInstant(startsAt: ParsedStartsAt, timeZone: string): StartInstant {
   const { local, offsetMinutes } = startsAt;
   if (offsetMinutes !== null) {
@@ -76,14 +74,14 @@ export function resolveStartInstant(startsAt: ParsedStartsAt, timeZone: string):
  * (admin spec 004, research §1), so both judge an area the same way. Read-only.
  */
 export async function evaluateQuoteInArea(deps: QuoteEvaluationDependencies, input: AreaQuoteInput): Promise<AreaQuoteResult> {
-  const { zone, city, timeZone, startsAt, goalkeeperCount, durationMinutes, match, nowMs } = input;
+  const { zone, market, timeZone, startsAt, goalkeeperCount, durationMinutes, match, nowMs } = input;
 
-  // (3) The start instant, read in the city's own time zone.
+  // (3) The start instant, read in the market's own time zone.
   const start = resolveStartInstant(startsAt, timeZone);
   if (start.kind === 'invalid') return { outcome: 'invalid_start_time', reason: start.reason };
   const startEpochMs = start.epochMs;
 
-  // (3b) The start must sit on a local slot mark (:00 or :30) — judged in the city's own time, so
+  // (3b) The start must sit on a local slot mark (:00 or :30) — judged in the market's own time, so
   //      half-hour and 45-minute offsets (India, Nepal) are handled correctly.
   const startLocal = toLocalParts(startEpochMs, timeZone);
   if (startLocal.minute % SLOT_STEP_MINUTES !== 0 || startLocal.second !== 0 || startLocal.millisecond !== 0) {
@@ -93,34 +91,33 @@ export async function evaluateQuoteInArea(deps: QuoteEvaluationDependencies, inp
   // (3c) In the past? Needs no configuration, so it is reported even in an unconfigured area.
   if (startEpochMs < nowMs) return { outcome: 'start_time_in_past' };
 
-  // (4)(5)(6) The rates for this duration, and the area's settings + currency (city → region →
-  //          country), in parallel. Every setting must be defined at the city or its country — no
+  // (4)(5)(6) The rates for this duration, and the area's settings + currency   //          country), in parallel. Every setting must be defined at the market or its country — no
   //          built-in defaults — and the country must say which currency its prices are in.
   //          The platform commission is fixed here too, for the whole flow (012): no commission, no
   //          quote — a booking nobody could be offered must not be sold.
   const [rates, areaSettings, commission] = await Promise.all([
-    deps.rentalRateRepository.findForDuration(zone.id, city.id, durationMinutes),
-    resolveAreaSettings(deps, city),
+    deps.rentalRateRepository.findForDuration(zone.id, market.id, durationMinutes),
+    resolveAreaSettings(deps, market),
     deps.commissionResolver.resolveForMatch(zone.id, match),
   ]);
   if (!areaSettings.ok || commission === null) {
     const missing: MissingSetting[] = [...(areaSettings.ok ? [] : areaSettings.missing), ...(commission === null ? ['commission' as const] : [])];
-    return { outcome: 'service_not_configured', cityId: city.id, missing };
+    return { outcome: 'service_not_configured', marketId: market.id, missing };
   }
   const { currency, bookingWindowDays, minNoticeMinutes, leadTimeSurcharge, freeCancellationMinutes, travelBufferMinutes } = areaSettings;
 
   // (6b) Minimum notice, on real elapsed time. Exactly the minimum is accepted.
   if (startEpochMs - nowMs < minNoticeMinutes * 60_000) return { outcome: 'insufficient_notice', minNoticeMinutes };
 
-  // (6c) Booking window: N days = today plus the next N−1 LOCAL calendar days in the city's zone.
+  // (6c) Booking window: N days = today plus the next N−1 LOCAL calendar days in the market's zone.
   const daysAhead = localDayNumber(startLocal) - localDayNumber(toLocalParts(nowMs, timeZone));
   if (daysAhead > bookingWindowDays - 1) return { outcome: 'outside_booking_window', bookingWindowDays };
 
-  // (7) The unit rate: the zone's own rates, else the city's — decided per duration, since
+  // (7) The unit rate: the zone's own rates, else the market's — decided per duration, since
   //     the repository already filtered on the requested one, then by modality + level →
   //     modality → general within each (feature 024). None ⇒ refused, never free.
   const rate = selectUnitRate(rates, match);
-  if (!rate) return { outcome: 'rate_not_configured', zoneId: zone.id, cityId: city.id, durationMinutes };
+  if (!rate) return { outcome: 'rate_not_configured', zoneId: zone.id, marketId: market.id, durationMinutes };
 
   // (8) Lead-time surcharge, on real elapsed time. The tier's amount is per goalkeeper.
   const leadMinutes = (startEpochMs - nowMs) / 60_000;

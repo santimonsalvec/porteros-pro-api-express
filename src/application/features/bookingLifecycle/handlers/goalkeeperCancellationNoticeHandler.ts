@@ -8,7 +8,7 @@ import type { IPushNotifier } from '../../devices/common/ports.js';
 import type { IProcessedEventStore } from '../../events/common/ports.js';
 import { runOnce } from '../../events/common/runOnce.js';
 import type { IGoalkeeperRequestRepository } from '../../goalkeeperRequests/common/ports.js';
-import type { ICityRepository } from '../../locations/common/ports.js';
+import type { IMarketRepository } from '../../markets/common/ports.js';
 import type { INotificationRepository } from '../../notifications/common/ports.js';
 import type { IZoneRepository } from '../../zones/common/ports.js';
 import type { ILifecycleLogger } from '../common/ports.js';
@@ -18,7 +18,7 @@ export const GOALKEEPER_CANCELLATION_EVENT_TYPES = ['booking.cancelled'] as cons
 export interface GoalkeeperCancellationNoticeDependencies {
   requestRepository: IGoalkeeperRequestRepository;
   zoneRepository: IZoneRepository;
-  cityRepository: ICityRepository;
+  marketRepository: IMarketRepository;
   notifications: INotificationRepository;
   pushNotifier: IPushNotifier;
   processed: IProcessedEventStore;
@@ -45,12 +45,12 @@ export class GoalkeeperCancellationNoticeHandler implements INotificationHandler
   private async notify(event: DomainEvent, payload: BookingCancelledPayload): Promise<void> {
     const [request] = await this.deps.requestRepository.findByIds([event.requestId]);
     if (!request) return;
-    const [zones, cities] = await Promise.all([
+    const [zones, markets] = await Promise.all([
       this.deps.zoneRepository.getManyByIds([request.match.zoneId]),
-      this.deps.cityRepository.getByIds([request.match.cityId]),
+      this.deps.marketRepository.getByIds([request.match.marketId]),
     ]);
     const message = bookingCancelledMessage(
-      { zoneName: zones[0]?.name ?? null, cityName: cities[0]?.name ?? null, startsAt: request.match.startsAt, timeZone: request.match.timeZone },
+      { zoneName: zones[0]?.name ?? null, marketName: markets[0]?.name ?? null, startsAt: request.match.startsAt, timeZone: request.match.timeZone },
       event.requestId,
       event.bookingId,
       payload.refundedAmount === null ? null : { amount: payload.refundedAmount, currency: payload.currency },

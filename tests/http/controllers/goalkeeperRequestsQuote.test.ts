@@ -6,7 +6,6 @@ import { POINTS, QUOTE_FORMAT_FIELDS } from '../../fixtures/quoteFixtures.js';
 import { BookingSettings } from '../../../src/domain/pricing/bookingSettings.js';
 import { Country } from '../../../src/domain/countries/country.js';
 import { InvalidConfigurationError } from '../../../src/domain/pricing/invalidConfigurationError.js';
-import { City } from '../../../src/domain/locations/city.js';
 import { Zone } from '../../../src/domain/zones/zone.js';
 import { logger } from '../../../src/infrastructure/observability/logger.js';
 import { geographyStaff } from '../geographyTestHelpers.js';
@@ -324,16 +323,6 @@ describe('POST /goalkeeper-requests/quote — Story 4: configuration', () => {
     expect(JSON.stringify(response.body)).not.toContain('peso');
   });
 
-  it('422 time_zone_not_configured for a city with no time zone', async () => {
-    const { context, token } = await withToken('sub-0303');
-    context.cityRepository.seed(new City({ id: 'city-cali', name: 'Cali', regionId: 'region-valle', zoneCityId: null, timeZone: null }));
-
-    const response = await post(context, token, validBody);
-
-    expect(response.status).toBe(422);
-    expect(response.body.error).toBe('time_zone_not_configured');
-  });
-
   it('answers each country with its own currency and time zone', async () => {
     const { context, token } = await withToken('sub-0304');
 
@@ -346,7 +335,7 @@ describe('POST /goalkeeper-requests/quote — Story 4: configuration', () => {
 
   it('applies a city override on top of the country configuration', async () => {
     const { context, token } = await withToken('sub-0305');
-    context.bookingSettingsRepository.seed(new BookingSettings({ id: 'cali-window', scope: 'city', refId: 'city-cali', bookingWindowDays: 4 }));
+    context.bookingSettingsRepository.seed(new BookingSettings({ id: 'cali-window', scope: 'market', refId: 'city-cali', bookingWindowDays: 4 }));
 
     const response = await post(context, token, { ...validBody, startsAt: '2026-09-24T15:00:00' });
 
@@ -372,7 +361,7 @@ describe('POST /goalkeeper-requests/quote — Story 4: configuration', () => {
     context.zoneRepository.seed(
       new Zone({
         id: 'zone-dangling',
-        cityId: 'city-missing',
+        marketId: 'city-missing',
         name: 'D',
         slug: 'd',
         geometry: { type: 'Polygon', coordinates: [[[10, 50], [11, 50], [11, 51], [10, 51], [10, 50]]] },
@@ -396,7 +385,7 @@ describe('POST /goalkeeper-requests/quote — Story 4: configuration', () => {
 
       expect(response.status).toBe(422);
       expect(warn).toHaveBeenCalledWith(
-        expect.objectContaining({ outcome: 'service_not_configured', cityId: 'city-cali', missing: expect.any(Array) }),
+        expect.objectContaining({ outcome: 'service_not_configured', marketId: 'city-cali', missing: expect.any(Array) }),
         expect.any(String),
       );
     } finally {
@@ -418,7 +407,7 @@ describe('POST /goalkeeper-requests/quote — Story 4: configuration', () => {
 });
 
 describe('POST /goalkeeper-requests/quote — zones the admin deactivates (admin spec 003)', () => {
-  it('no longer quotes a point of a deactivated zone', async () => {
+  it('no longer quotes a point of a deactivated zone: the market is temporarily unavailable there (spec 031)', async () => {
     const context = await buildTestApp();
     const { editor } = await geographyStaff(context);
     const token = await signInAndComplete(context, 'sub-0300');
@@ -429,7 +418,7 @@ describe('POST /goalkeeper-requests/quote — zones the admin deactivates (admin
     const closed = await post(context, token, validBody);
 
     expect(open.status).toBe(200);
-    expect([closed.status, closed.body.error]).toEqual([400, 'location_not_covered']);
+    expect([closed.status, closed.body.error]).toEqual([409, 'market_unavailable']);
   });
 });
 

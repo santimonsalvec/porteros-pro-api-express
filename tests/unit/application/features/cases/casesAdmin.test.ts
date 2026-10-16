@@ -7,7 +7,7 @@ import { ListCasesAdminQueryHandler } from '../../../../../src/application/featu
 import type { BookingView, RequestDetail } from '../../../../../src/application/features/goalkeeperRequests/common/adminViews.js';
 import type { CaseListFilter } from '../../../../../src/application/features/cases/common/ports.js';
 import { SupportCase } from '../../../../../src/domain/cases/case.js';
-import type { City } from '../../../../../src/domain/locations/city.js';
+import type { Market } from '../../../../../src/domain/markets/market.js';
 import { Rating } from '../../../../../src/domain/ratings/rating.js';
 import type { StaffMember } from '../../../../../src/domain/staff/staffMember.js';
 import { User } from '../../../../../src/domain/users/user.js';
@@ -51,13 +51,13 @@ describe('the admin case queries (admin spec 006, US2)', () => {
       },
       ratings: { getById: async () => Rating.create({ id: 'rt-1', bookingId: 'b-1', requestId: 'q-1', side: 'client', authorId: request.clientId, subjectId: 'gk-1', answer: true, stars: 2, comment: 'Llegó tarde', createdAt: AT }) },
       requests: { findByIds: async (ids) => (ids.includes('q-1') ? [request] : []) },
-      requestReader: { cityIdsOfCountry: async () => ['med'], requestIdsInCities: async (ids) => ids.filter((id) => id === 'q-1') },
+      requestReader: { marketIdsOfCountry: async () => ['med'], requestIdsInMarkets: async (ids) => ids.filter((id) => id === 'q-1') },
       requestDetail: async (requestId) =>
         requestId === 'q-1'
           ? { outcome: 'ok', request: { requestId: 'q-1', status: 'completed', bookings: [booking] } as unknown as RequestDetail }
           : { outcome: 'request_not_found' },
       users: { getByIds: async (ids) => [person(request.clientId, 'Laura', 'Gómez'), person('gk-1', 'Juan', 'Pérez')].filter((user) => ids.includes(user.id)) },
-      cities: { getByIds: async (ids) => ids.map((id) => ({ id, name: 'Medellín' }) as City) },
+      markets: { getByIds: async (ids) => ids.map((id) => ({ id, name: 'Medellín' }) as unknown as Market) },
       zones: { getManyByIds: async (ids) => ids.map((id) => ({ id, name: 'Laureles' }) as Zone) },
       staff: { findByUserId: async (userId) => (userId === 'staff-user-1' ? ({ displayName: 'Ana Soporte' } as StaffMember) : null) },
     };
@@ -82,7 +82,7 @@ describe('the admin case queries (admin spec 006, US2)', () => {
       noShowIncidentId: null,
       createdAt: AT.toISOString(),
       resolution: null,
-      match: { startsAt: request.startsAt.toISOString(), timeZone: request.match.timeZone, city: { id: request.match.cityId, name: 'Medellín' }, zone: { id: request.zoneId, name: 'Laureles' } },
+      match: { startsAt: request.startsAt.toISOString(), timeZone: request.match.timeZone, market: { id: request.match.marketId, name: 'Medellín' }, zone: { id: request.zoneId, name: 'Laureles' } },
       client: { userId: request.clientId, name: 'Laura Gómez' },
       goalkeeper: { userId: 'gk-1', name: 'Juan Pérez' },
     });

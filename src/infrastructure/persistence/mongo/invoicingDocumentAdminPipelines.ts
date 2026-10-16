@@ -15,6 +15,7 @@ export function documentAdminFilter(filter: DocumentAdminFilter, now: Date): Doc
   if (filter.status) match.status = filter.status;
   if (filter.kind) match.kind = filter.kind;
   if (filter.countryId) match.countryId = filter.countryId;
+  if (filter.marketIds) match.marketId = { $in: [...filter.marketIds] };
   if (filter.from || filter.to) {
     match.occurredAt = { ...(filter.from ? { $gte: filter.from } : {}), ...(filter.to ? { $lt: filter.to } : {}) };
   }

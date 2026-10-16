@@ -5,7 +5,7 @@ export function fixedVatRates(rateBps = 0): IVatRateResolver & { rateBps: number
   const rates = {
     rateBps,
     forCountry: async () => rates.rateBps,
-    forCity: async () => rates.rateBps,
+    forMarket: async () => rates.rateBps,
   };
   return rates;
 }

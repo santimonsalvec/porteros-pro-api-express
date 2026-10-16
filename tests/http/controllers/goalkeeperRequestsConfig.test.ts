@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js';
 import { Country } from '../../../src/domain/countries/country.js';
-import { City } from '../../../src/domain/locations/city.js';
 import { BookingSettings } from '../../../src/domain/pricing/bookingSettings.js';
 import { InvalidConfigurationError } from '../../../src/domain/pricing/invalidConfigurationError.js';
 import { logger } from '../../../src/infrastructure/observability/logger.js';
@@ -74,7 +73,7 @@ describe('GET /goalkeeper-requests/config', () => {
 
   it('reflects a per-city override of the window', async () => {
     const { context, token } = await withToken('sub-0403');
-    context.bookingSettingsRepository.seed(new BookingSettings({ id: 'cali-window', scope: 'city', refId: 'city-cali', bookingWindowDays: 3 }));
+    context.bookingSettingsRepository.seed(new BookingSettings({ id: 'cali-window', scope: 'market', refId: 'city-cali', bookingWindowDays: 3 }));
 
     const response = await get(context, token, at(POINTS.caliNorte));
 
@@ -161,16 +160,6 @@ describe('GET /goalkeeper-requests/config — refusals', () => {
     expect(response.body).toMatchObject({ error: 'service_not_configured', missing: ['currency'] });
   });
 
-  it('422 time_zone_not_configured', async () => {
-    const { context, token } = await withToken('sub-0505');
-    context.cityRepository.seed(new City({ id: 'city-cali', name: 'Cali', regionId: 'region-valle', zoneCityId: null, timeZone: null }));
-
-    const response = await get(context, token, at(POINTS.caliNorte));
-
-    expect(response.status).toBe(422);
-    expect(response.body.error).toBe('time_zone_not_configured');
-  });
-
   it('500 internal_error, leaking nothing, when a stored configuration document is malformed', async () => {
     const { context, token } = await withToken('sub-0506');
     context.bookingSettingsRepository.findFor = async () => {
@@ -193,7 +182,7 @@ describe('GET /goalkeeper-requests/config — refusals', () => {
 
       expect(response.status).toBe(422);
       expect(warn).toHaveBeenCalledWith(
-        expect.objectContaining({ outcome: 'service_not_configured', cityId: 'city-cali', missing: expect.any(Array) }),
+        expect.objectContaining({ outcome: 'service_not_configured', marketId: 'city-cali', missing: expect.any(Array) }),
         expect.stringContaining('Booking config'),
       );
     } finally {

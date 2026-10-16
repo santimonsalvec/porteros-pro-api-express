@@ -4,7 +4,7 @@ import { FixedClock } from '../../../../fakes/fakeClock.js';
 import { FakeOperatingBalanceStore } from '../../../../fakes/fakeOperatingBalanceStore.js';
 import { COLOMBIA_INVOICING, OPERATING_BALANCE_NOW } from '../../../../fixtures/operatingBalanceFixtures.js';
 
-const owner: LedgerOwner = { goalkeeperId: 'gk-1', currency: 'COP', invoicing: COLOMBIA_INVOICING };
+const owner: LedgerOwner = { goalkeeperId: 'gk-1', currency: 'COP', invoicing: COLOMBIA_INVOICING, marketId: 'city-cali' };
 
 let store: FakeOperatingBalanceStore;
 let ledger: OperatingBalanceLedger;
@@ -183,5 +183,35 @@ describe('OperatingBalanceLedger — feature 029: closing an account', () => {
     });
     expect(await balanceOf()).toBe(0);
     expect((await ledger.waiveDebt(owner, { closureId: 'c-1', amount: 30000, reason: 'Error de cobro', adminUserId: 'admin-1' })).kind).toBe('duplicate');
+  });
+});
+
+describe('OperatingBalanceLedger — spec 031: each movement keeps the market it happened in', () => {
+  const moved: LedgerOwner = { ...owner, marketId: 'city-medellin' };
+
+  it("attributes adjustments and charges to the goalkeeper's market then", async () => {
+    await credit(20000, 'k-1');
+    await ledger.chargeCommission(owner, { bookingId: 'b-1', requestId: 'r-1', amount: 7000 });
+
+    expect(store.movements().map((movement) => movement.marketId)).toEqual(['city-cali', 'city-cali']);
+  });
+
+  it('keeps the original market on what a refund or a reversal gives back, after the goalkeeper moved', async () => {
+    await credit(20000, 'k-1');
+    await ledger.chargeCommission(owner, { bookingId: 'b-1', requestId: 'r-1', amount: 7000 });
+    await ledger.applyPenalty(owner, { penaltyEventId: 'e-1', amount: 3000 });
+
+    await ledger.refundCommission(moved, { bookingId: 'b-1', requestId: 'r-1', cancellation: { by: 'client', at: new Date(OPERATING_BALANCE_NOW), reason: 'Lluvia' } });
+    await ledger.reversePenalty(moved, { penaltyEventId: 'e-1', actor: { kind: 'admin', userId: 'admin-1' } });
+    await ledger.adjust(moved, { adminUserId: 'admin-1', amount: 100, reason: 'Ajuste', operationKey: 'k-2' });
+
+    expect(store.movements().map((movement) => [movement.type, movement.marketId])).toEqual([
+      ['admin_adjustment', 'city-cali'],
+      ['commission_charge', 'city-cali'],
+      ['penalty', 'city-cali'],
+      ['commission_refund', 'city-cali'],
+      ['penalty_reversal', 'city-cali'],
+      ['admin_adjustment', 'city-medellin'],
+    ]);
   });
 });

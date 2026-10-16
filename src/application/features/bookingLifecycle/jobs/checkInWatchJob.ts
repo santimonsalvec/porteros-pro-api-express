@@ -10,7 +10,7 @@ import type { IPushNotifier } from '../../devices/common/ports.js';
 import type { IScheduledJob } from '../../events/common/ports.js';
 import { loadContacts } from '../../goalkeeperRequests/common/contacts.js';
 import type { CheckInNoticeField, IBookingRepository, IGoalkeeperRequestRepository } from '../../goalkeeperRequests/common/ports.js';
-import type { ICityRepository } from '../../locations/common/ports.js';
+import type { IMarketRepository } from '../../markets/common/ports.js';
 import type { INotificationRepository } from '../../notifications/common/ports.js';
 import type { IZoneRepository } from '../../zones/common/ports.js';
 import type { CheckInWindowResolver } from '../common/checkInWindowResolver.js';
@@ -22,7 +22,7 @@ export interface CheckInWatchDependencies {
   requestRepository: IGoalkeeperRequestRepository;
   userRepository: IUserRepository;
   zoneRepository: IZoneRepository;
-  cityRepository: ICityRepository;
+  marketRepository: IMarketRepository;
   notifications: INotificationRepository;
   pushNotifier: IPushNotifier;
   idGenerator: IIdGenerator;
@@ -97,10 +97,10 @@ export class CheckInWatchJob implements IScheduledJob {
   }
 
   private async matchOf(request: GoalkeeperRequest): Promise<OutcomeMatch> {
-    const [zones, cities] = await Promise.all([
+    const [zones, markets] = await Promise.all([
       this.deps.zoneRepository.getManyByIds([request.match.zoneId]),
-      this.deps.cityRepository.getByIds([request.match.cityId]),
+      this.deps.marketRepository.getByIds([request.match.marketId]),
     ]);
-    return { zoneName: zones[0]?.name ?? null, cityName: cities[0]?.name ?? null, startsAt: request.match.startsAt, timeZone: request.match.timeZone };
+    return { zoneName: zones[0]?.name ?? null, marketName: markets[0]?.name ?? null, startsAt: request.match.startsAt, timeZone: request.match.timeZone };
   }
 }

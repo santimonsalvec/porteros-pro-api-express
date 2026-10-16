@@ -1,6 +1,6 @@
+import { testMarket } from '../../fakes/fakeMarketRepository.js';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
-import { City } from '../../../src/domain/locations/city.js';
 import { COLOMBIA_SIIGO_CONFIG } from '../../fakes/fakeInvoicingSettingsRepository.js';
 import { TEST_INVOICING_CREDENTIALS } from '../../fakes/fakeInvoicingSecrets.js';
 import { buildTestApp } from '../testAppFactory.js';
@@ -121,7 +121,7 @@ describe('/admin/invoicing/documents — US4: watching invoicing and retrying fa
     });
 
     // The data is fixed (here: the city's official codes), then the administrator retries.
-    context.cityRepository.seed(new City({ id: 'city-cali', name: 'Cali', regionId: 'region-valle', zoneCityId: null, timeZone: 'America/Bogota', daneStateCode: '76', daneCityCode: '76001' }));
+    context.marketRepository.seed(testMarket({ id: 'city-cali', name: 'Cali', countryId: 'country-co', timeZone: 'America/Bogota' }));
     const documentId = rejected.body.items[0].documentId as string;
     const retried = await admin(context, token).retry(documentId);
     const again = await admin(context, token).retry(documentId);

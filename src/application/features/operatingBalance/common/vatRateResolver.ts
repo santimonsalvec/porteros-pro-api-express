@@ -1,4 +1,4 @@
-import type { ICityRepository, IRegionRepository } from '../../locations/common/ports.js';
+import type { IMarketRepository } from '../../markets/common/ports.js';
 import type { ITaxSettingsRepository, IVatRateResolver } from './ports.js';
 
 export interface VatRateLogger {
@@ -11,14 +11,13 @@ export interface VatRateLogger {
  */
 export function createVatRateResolver(
   repository: ITaxSettingsRepository,
-  locations: { cityRepository: ICityRepository; regionRepository: IRegionRepository },
+  locations: { marketRepository: Pick<IMarketRepository, 'getById'> },
   logger: VatRateLogger,
 ): IVatRateResolver {
   const resolver: IVatRateResolver = {
-    async forCity(cityId: string): Promise<number> {
-      const city = await locations.cityRepository.getById(cityId);
-      const region = city ? (await locations.regionRepository.getByIds([city.regionId]))[0] : undefined;
-      return region?.countryId ? resolver.forCountry(region.countryId) : 0;
+    async forMarket(marketId: string): Promise<number> {
+      const market = await locations.marketRepository.getById(marketId);
+      return market ? resolver.forCountry(market.countryId) : 0;
     },
     async forCountry(countryId: string): Promise<number> {
       const setting = await repository.getByCountry(countryId);

@@ -6,7 +6,7 @@ import type { OperatingBalanceAdminFilter } from '../../common/adminPorts.js';
 /** A row of Finanzas → Saldos operativos (admin spec 007, contracts/finance-api.md §1). */
 export interface OperatingBalanceRow {
   goalkeeper: PersonRef;
-  cityName: string | null;
+  marketName: string | null;
   countryId: string | null;
   countryName: string | null;
   balance: number;

@@ -58,6 +58,7 @@ export function auditTrail(deps: AuditTrailDependencies) {
     request: null,
     ip: req.ip ?? null,
     userAgent: req.header('user-agent')?.slice(0, USER_AGENT_MAX) ?? null,
+    scope: { countryId: req.adminScope?.countryId ?? null, marketId: req.adminScope?.marketId ?? null },
     ...rest,
   });
 
@@ -122,6 +123,17 @@ export function auditTrail(deps: AuditTrailDependencies) {
     /** A read that shows sensitive personal data (FR-023a): who looked, never what they saw. */
     auditedRead: (spec: Omit<AuditSpec, 'before'>): RequestHandler => middleware(spec, 'read'),
     /** For `requirePermission`: every refusal is recorded as `denied`. */
+    /** For `requireScope`: an `X-Scope` the member does not hold is recorded as `denied`. */
+    onScopeDenied: (req: Request): void => {
+      const path = (req.originalUrl ?? req.url ?? '').split('?')[0] ?? '';
+      void write(
+        entryFor(
+          req,
+          { kind: req.method === 'GET' ? 'read' : 'write', permission: 'scope', action: req.method, resourceType: 'admin_route', resourceId: path },
+          { outcome: 'denied', httpStatus: 403, errorCode: 'scope_denied', request: { scope: req.header('x-scope') ?? null } },
+        ),
+      );
+    },
     onDenied: (req: Request, permission: Permission): void => {
       const path = (req.originalUrl ?? req.url ?? '').split('?')[0] ?? '';
       void write(

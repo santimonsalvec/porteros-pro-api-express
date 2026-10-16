@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { RatingListFilter } from '../../../../../src/application/features/ratings/common/adminPorts.js';
 import { ListRatingsAdminQuery } from '../../../../../src/application/features/ratings/queries/listRatingsAdmin/listRatingsAdminQuery.js';
 import { ListRatingsAdminQueryHandler } from '../../../../../src/application/features/ratings/queries/listRatingsAdmin/listRatingsAdminQueryHandler.js';
-import type { City } from '../../../../../src/domain/locations/city.js';
+import type { Market } from '../../../../../src/domain/markets/market.js';
 import { Rating } from '../../../../../src/domain/ratings/rating.js';
 import { User } from '../../../../../src/domain/users/user.js';
 import { buildRequest } from '../../../../fixtures/quoteFixtures.js';
@@ -31,7 +31,7 @@ describe('the admin rating list (admin spec 006, US4)', () => {
       },
       requests: { findByIds: async () => [request] },
       users: { getByIds: async () => [person(request.clientId, 'Laura', 'Gómez'), person('gk-1', 'Juan', 'Pérez')] },
-      cities: { getByIds: async (ids) => ids.map((id) => ({ id, name: 'Medellín' }) as City) },
+      markets: { getByIds: async (ids) => ids.map((id) => ({ id, name: 'Medellín' }) as unknown as Market) },
     });
 
     const result = await handler.handle(new ListRatingsAdminQuery({ goalkeeperId: 'gk-1', starsMax: 2, page: 1, pageSize: 20 }));
@@ -47,7 +47,7 @@ describe('the admin rating list (admin spec 006, US4)', () => {
       answer: false,
       comment: 'Llegó tarde',
       createdAt: AT.toISOString(),
-      match: { startsAt: request.startsAt.toISOString(), timeZone: request.match.timeZone, city: { id: request.match.cityId, name: 'Medellín' } },
+      match: { startsAt: request.startsAt.toISOString(), timeZone: request.match.timeZone, market: { id: request.match.marketId, name: 'Medellín' } },
       requestId: 'q-1',
       bookingId: 'b-1',
       caseId: 'case-1',

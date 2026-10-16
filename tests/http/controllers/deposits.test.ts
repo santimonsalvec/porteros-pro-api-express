@@ -2,6 +2,8 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp, TEST_INTERNAL_TOKEN, TEST_PAYMENTS_BASE_URL } from '../testAppFactory.js';
 import { signInClient, signInGoalkeeper, type TestApp } from '../operatingBalanceTestHelpers.js';
+import { testMarket } from '../../fakes/fakeMarketRepository.js';
+import { buildGoalkeeperProfile } from '../../fixtures/operatingBalanceFixtures.js';
 import { signedEvent } from '../../fakes/fakePaymentGateway.js';
 import { TEST_GATEWAY_SECRETS } from '../../fakes/fakePaymentSecrets.js';
 
@@ -11,6 +13,7 @@ function api(context: TestApp, token: string) {
     options: () => auth(request(context.app).get('/goalkeepers/me/operating-balance/deposit-options')),
     start: (body: unknown) => auth(request(context.app).post('/goalkeepers/me/operating-balance/deposits').send(body as object)),
     acceptTerms: () => auth(request(context.app).post('/profile/terms/accept')),
+    list: () => auth(request(context.app).get('/goalkeepers/me/operating-balance/deposits')),
   };
 }
 
@@ -103,8 +106,25 @@ describe('OperatingBalance deposits — US1: the goalkeeper starts a deposit', (
 
     expect((await api(context, token).options()).status).toBe(404);
     expect((await api(context, token).start({ amount: 20000 })).status).toBe(404);
+    expect((await api(context, token).list()).status).toBe(404);
     expect((await request(context.app).get('/goalkeepers/me/operating-balance/deposit-options')).status).toBe(401);
     expect((await request(context.app).post('/profile/terms/accept')).status).toBe(401);
+  });
+
+  it("422 operating_balance_not_configured when the goalkeeper's market has no currency", async () => {
+    const context = await buildTestApp();
+    context.paymentGatewaySettingsRepository.seed();
+    context.marketRepository.seed(testMarket({ id: 'city-limbo', name: 'Limbo', countryId: 'country-none' }));
+    const { token, userId } = await signInClient(context, 'sub-2204');
+    context.goalkeeperProfileRepository.seed(buildGoalkeeperProfile(userId, { marketId: 'city-limbo' }));
+
+    const options = await api(context, token).options();
+    const start = await api(context, token).start({ amount: 20000 });
+
+    expect(options.status).toBe(422);
+    expect(options.body.error).toBe('operating_balance_not_configured');
+    expect(start.status).toBe(422);
+    expect(start.body.error).toBe('operating_balance_not_configured');
   });
 });
 

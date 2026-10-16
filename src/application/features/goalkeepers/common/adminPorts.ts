@@ -11,7 +11,9 @@ import type { ScheduledRecord } from '../../users/common/ports.js';
 export interface GoalkeeperListFilter {
   /** Only these users (a search resolved first); `undefined` = everyone. */
   userIds?: readonly string[];
-  cityId?: string;
+  marketId?: string;
+  /** Spec 031: only goalkeepers of these markets (a country, from X-Scope). */
+  marketIds?: readonly string[];
   zoneId?: string;
   suspended?: boolean;
   availableForOffers?: boolean;
@@ -28,7 +30,7 @@ export interface GoalkeeperListFilter {
 
 export interface GoalkeeperListRecord {
   userId: string;
-  cityId: string | null;
+  marketId: string | null;
   zoneCount: number;
   availableForOffers: boolean;
   suspendedUntil: Date | null;
@@ -52,7 +54,9 @@ export interface IGoalkeeperAdminReader {
 }
 
 export interface RegistrationListFilter {
-  cityId?: string;
+  marketId?: string;
+  /** Spec 031: only registrations of these markets (a country, from X-Scope). */
+  marketIds?: readonly string[];
   /** Last activity at or before this instant. */
   updatedBefore?: Date;
 }

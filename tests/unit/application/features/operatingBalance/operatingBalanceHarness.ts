@@ -2,7 +2,7 @@ import { CommissionResolver } from '../../../../../src/application/features/oper
 import { OperatingBalanceLedger, type LedgerOwner } from '../../../../../src/application/features/operatingBalance/common/operatingBalanceLedger.js';
 import { CommissionSetting } from '../../../../../src/domain/operatingBalance/commissionSetting.js';
 import { Zone } from '../../../../../src/domain/zones/zone.js';
-import { FakeCityRepository } from '../../../../fakes/fakeCityRepository.js';
+import { FakeMarketRepository } from '../../../../fakes/fakeMarketRepository.js';
 import { FixedClock } from '../../../../fakes/fakeClock.js';
 import { FakeCommissionSettingRepository } from '../../../../fakes/fakeCommissionSettingRepository.js';
 import { FakeCountryRepository } from '../../../../fakes/fakeCountryRepository.js';
@@ -13,7 +13,7 @@ import { FakeZoneRepository } from '../../../../fakes/fakeZoneRepository.js';
 import { COLOMBIA_INVOICING, seedOperatingBalanceWorld, OPERATING_BALANCE_NOW } from '../../../../fixtures/operatingBalanceFixtures.js';
 
 const zone = (id: string) =>
-  new Zone({ id, cityId: 'city-cali', name: id, slug: id, geometry: { type: 'Polygon', coordinates: [] }, active: true, displayOrder: 1 });
+  new Zone({ id, marketId: 'city-cali', name: id, slug: id, geometry: { type: 'Polygon', coordinates: [] }, active: true, displayOrder: 1 });
 
 /**
  * The Cali operating balance world: Colombia's commission is 7.000 and zone `zone-cali-sur` overrides it to
@@ -21,7 +21,7 @@ const zone = (id: string) =>
  */
 export class OperatingBalanceHarness {
   readonly profiles = new FakeGoalkeeperProfileRepository();
-  readonly cities = new FakeCityRepository();
+  readonly markets = new FakeMarketRepository();
   readonly regions = new FakeRegionRepository();
   readonly countries = new FakeCountryRepository();
   readonly zones = new FakeZoneRepository();
@@ -30,16 +30,16 @@ export class OperatingBalanceHarness {
   readonly clock = new FixedClock(OPERATING_BALANCE_NOW);
   private counter = 0;
   readonly ledger = new OperatingBalanceLedger(this.store, this.store, { newId: () => `m-${++this.counter}` }, this.clock);
-  readonly resolver = new CommissionResolver(this.settings, this.zones, this.cities, this.regions);
+  readonly resolver = new CommissionResolver(this.settings, this.zones, this.markets);
   readonly context = {
     goalkeeperProfileRepository: this.profiles,
-    cityRepository: this.cities,
+    marketRepository: this.markets,
     regionRepository: this.regions,
     countryLookup: this.countries,
   };
 
   constructor() {
-    seedOperatingBalanceWorld({ cityRepository: this.cities, regionRepository: this.regions, countryRepository: this.countries });
+    seedOperatingBalanceWorld({ marketRepository: this.markets, countryRepository: this.countries });
     this.zones.seed(zone('zone-cali-norte'));
     this.zones.seed(zone('zone-cali-sur'));
     this.settings.seed(new CommissionSetting({ id: 'c-co', scope: 'country', refId: 'country-co', amount: 7000 }));
@@ -47,7 +47,7 @@ export class OperatingBalanceHarness {
   }
 
   owner(goalkeeperId: string): LedgerOwner {
-    return { goalkeeperId, currency: 'COP', invoicing: COLOMBIA_INVOICING };
+    return { goalkeeperId, currency: 'COP', invoicing: COLOMBIA_INVOICING, marketId: 'city-cali' };
   }
 
   credit(goalkeeperId: string, amount: number, key = `k-${++this.counter}`) {

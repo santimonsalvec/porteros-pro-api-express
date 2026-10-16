@@ -299,3 +299,14 @@ describe('WithdrawFromBookingCommand — US2: penalties and suspensions', () => 
     expect(h.store.incidents().flatMap((incident) => incident.penalties.map((penalty) => penalty.kind))).toEqual(['weekly_limit']);
   });
 });
+
+describe('WithdrawFromBookingCommand — the incident keeps its market (spec 031, FR-043)', () => {
+  it("records the withdrawal in the booking's market", async () => {
+    const h = await withAssignedMatch(3);
+
+    await h.withdraw(h.booking.id, 'g', 'Viaje');
+
+    const [request] = h.requestRepository.all();
+    expect(h.store.incidents().map((incident) => incident.marketId)).toEqual([request!.match.marketId]);
+  });
+});

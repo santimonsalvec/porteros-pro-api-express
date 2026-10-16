@@ -1,6 +1,6 @@
 import type { IClock } from '../../../../common/clock.js';
 import type { IQueryHandler } from '../../../../common/mediator/types.js';
-import type { ICityRepository, IRegionRepository } from '../../../locations/common/ports.js';
+import type { IMarketRepository } from '../../../markets/common/ports.js';
 import type { IZoneRepository } from '../../../zones/common/ports.js';
 import {
   DURATION_OPTIONS,
@@ -19,7 +19,7 @@ function isoDate(epochMs: number): string {
 
 /**
  * The soonest instant a quote would accept: `now + minNotice`, rounded up to the next slot mark
- * in the city's LOCAL time (so a +05:45 zone rounds to its own :00/:30, not the UTC ones).
+ * in the market's LOCAL time (so a +05:45 zone rounds to its own :00/:30, not the UTC ones).
  */
 function earliestSlot(nowMs: number, minNoticeMinutes: number, timeZone: string): number {
   const earliest = nowMs + minNoticeMinutes * 60_000;
@@ -36,8 +36,7 @@ function earliestSlot(nowMs: number, minNoticeMinutes: number, timeZone: string)
 export class GetBookingConfigQueryHandler implements IQueryHandler<GetBookingConfigQuery, GetBookingConfigResult> {
   constructor(
     private readonly zoneRepository: IZoneRepository,
-    private readonly cityRepository: ICityRepository,
-    private readonly regionRepository: IRegionRepository,
+    private readonly marketRepository: Pick<IMarketRepository, 'getById'>,
     private readonly countryLookup: ICountryLookup,
     private readonly bookingSettingsRepository: IBookingSettingsRepository,
     private readonly clock: IClock,
@@ -48,25 +47,25 @@ export class GetBookingConfigQueryHandler implements IQueryHandler<GetBookingCon
     const { latitude, longitude } = query.input;
     const nowMs = this.clock.now().getTime();
 
-    const area = await resolveServiceArea(this.zoneRepository, this.cityRepository, latitude, longitude);
+    const area = await resolveServiceArea(this.zoneRepository, this.marketRepository, latitude, longitude);
+    if (area.outcome === 'market_unavailable') return { outcome: 'market_unavailable', marketId: area.market.id, marketName: area.market.name };
     if (area.outcome !== 'ok') return area;
-    const { city, timeZone } = area;
+    const { market, timeZone } = area;
 
     const [settings, surfaces] = await Promise.all([
       resolveAreaSettings(
         {
-          regionRepository: this.regionRepository,
-          countryLookup: this.countryLookup,
+            countryLookup: this.countryLookup,
           bookingSettingsRepository: this.bookingSettingsRepository,
         },
-        city,
+        market,
       ),
       this.matchSurfaceRepository.listActive(),
     ]);
-    if (!settings.ok) return { outcome: 'service_not_configured', cityId: city.id, missing: settings.missing };
+    if (!settings.ok) return { outcome: 'service_not_configured', marketId: market.id, missing: settings.missing };
     const { currency, bookingWindowDays, minNoticeMinutes } = settings;
 
-    // The bookable local dates: today in the city's zone, then the next N−1 calendar days.
+    // The bookable local dates: today in the market's zone, then the next N−1 calendar days.
     const today = toLocalParts(nowMs, timeZone);
     const availableDates = Array.from({ length: bookingWindowDays }, (_, day) =>
       isoDate(Date.UTC(today.year, today.month - 1, today.day + day)),

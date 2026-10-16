@@ -31,7 +31,7 @@ describe('GET /goalkeepers/me/available-bookings — US1: the goalkeeper sees wh
     expect(response.body.items[0]).toMatchObject({
       requestId: created.requestId,
       zoneName: 'Norte',
-      cityName: 'Cali',
+      marketName: 'Cali',
       durationMinutes: 90,
       goalkeeperCount: 2,
       earnings: 60000,

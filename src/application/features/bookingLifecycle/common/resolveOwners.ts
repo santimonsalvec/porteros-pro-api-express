@@ -21,6 +21,6 @@ export async function addLedgerOwner(
     deps.logger.warn({ outcome, goalkeeperId, reason: context.kind }, 'Refund owner unresolved');
     return false;
   }
-  owners.set(goalkeeperId, { goalkeeperId, currency: context.currency, invoicing: context.invoicing });
+  owners.set(goalkeeperId, { goalkeeperId, currency: context.currency, invoicing: context.invoicing, marketId: context.profile.marketId });
   return true;
 }

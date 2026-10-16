@@ -6,7 +6,9 @@ import type { RequestListItem } from '../../common/adminViews.js';
 export interface ListRequestsAdminCriteria {
   status?: RequestStatus;
   countryId?: string;
-  cityId?: string;
+  marketId?: string;
+  /** Spec 031: the markets a member who holds only some may see. */
+  marketIds?: readonly string[];
   zoneId?: string;
   /** Match start, `from` included, `to` excluded. */
   from?: Date;

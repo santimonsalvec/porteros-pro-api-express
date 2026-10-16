@@ -14,7 +14,7 @@ import type {
   IBookingSettingsRepository,
   IGoalkeeperRequestRepository,
 } from '../../../goalkeeperRequests/common/ports.js';
-import type { ICityRepository } from '../../../locations/common/ports.js';
+import type { IMarketRepository } from '../../../markets/common/ports.js';
 import type { GoalkeeperOperatingBalanceContextDependencies } from '../../../operatingBalance/common/goalkeeperOperatingBalanceContext.js';
 import type { IZoneRepository } from '../../../zones/common/ports.js';
 import { resolvePenaltyConfig } from '../../common/penaltyConfig.js';
@@ -29,7 +29,7 @@ export interface WithdrawFromBookingDependencies {
   bookingRepository: IBookingRepository;
   requestRepository: IGoalkeeperRequestRepository;
   zoneRepository: IZoneRepository;
-  cityRepository: ICityRepository;
+  marketRepository: IMarketRepository;
   relay: IEventRelay;
   idGenerator: IIdGenerator;
   clock: IClock;

@@ -1,30 +1,28 @@
+import { FakeMarketRepository, testMarket } from '../../../../fakes/fakeMarketRepository.js';
 import { describe, expect, it } from 'vitest';
 import { UpdateGoalkeeperAvailabilityCommand } from '../../../../../src/application/features/goalkeepers/commands/updateGoalkeeperAvailability/updateGoalkeeperAvailabilityCommand.js';
 import { UpdateGoalkeeperAvailabilityCommandHandler } from '../../../../../src/application/features/goalkeepers/commands/updateGoalkeeperAvailability/updateGoalkeeperAvailabilityCommandHandler.js';
 import { FakeGoalkeeperProfileRepository } from '../../../../fakes/fakeGoalkeeperProfileRepository.js';
 import { FakeGoalkeeperRegistrationRepository } from '../../../../fakes/fakeGoalkeeperRegistrationRepository.js';
-import { FakeCityRepository } from '../../../../fakes/fakeCityRepository.js';
 import { FakeZoneRepository } from '../../../../fakes/fakeZoneRepository.js';
 import { GoalkeeperProfile } from '../../../../../src/domain/goalkeepers/goalkeeperProfile.js';
 import { GoalkeeperRegistration } from '../../../../../src/domain/goalkeepers/goalkeeperRegistration.js';
-import { City } from '../../../../../src/domain/locations/city.js';
 import { Zone } from '../../../../../src/domain/zones/zone.js';
 
 const polygon = { type: 'Polygon' as const, coordinates: [[[0, 0]]] };
 
-function zone(id: string, cityId: string, active = true, displayOrder = 1): Zone {
-  return new Zone({ id, cityId, name: id, slug: id, geometry: polygon, active, displayOrder });
+function zone(id: string, marketId: string, active = true, displayOrder = 1): Zone {
+  return new Zone({ id, marketId, name: id, slug: id, geometry: polygon, active, displayOrder });
 }
 
 function buildHandler() {
   const profileRepository = new FakeGoalkeeperProfileRepository();
   const registrationRepository = new FakeGoalkeeperRegistrationRepository();
-  const cityRepository = new FakeCityRepository();
+  const marketRepository = new FakeMarketRepository();
   const zoneRepository = new FakeZoneRepository();
 
-  cityRepository.seed(new City({ id: 'city-medellin', name: 'Medellín', regionId: 'region-antioquia', zoneCityId: null }));
-  cityRepository.seed(new City({ id: 'city-envigado', name: 'Envigado', regionId: 'region-antioquia', zoneCityId: 'city-medellin' }));
-  cityRepository.seed(new City({ id: 'city-bogota', name: 'Bogotá', regionId: 'region-cundinamarca', zoneCityId: null }));
+  marketRepository.seed(testMarket({ id: 'city-medellin', name: 'Medellín', countryId: 'country-co' }));
+  marketRepository.seed(testMarket({ id: 'city-bogota', name: 'Bogotá', countryId: 'country-co' }));
   zoneRepository.seed(zone('zone-bello', 'city-medellin', true, 1));
   zoneRepository.seed(zone('zone-copacabana', 'city-medellin', true, 2));
   zoneRepository.seed(zone('zone-inactive', 'city-medellin', false, 3));
@@ -42,7 +40,7 @@ function buildHandler() {
       documentPhotoBId: 'img-b',
       heightCm: 185,
       weightKg: 78,
-      cityId: 'city-medellin',
+      marketId: 'city-medellin',
       zoneIds: ['zone-bello'],
       activatedAt: new Date('2026-08-30'),
     }),
@@ -51,7 +49,8 @@ function buildHandler() {
   return {
     profileRepository,
     registrationRepository,
-    handler: new UpdateGoalkeeperAvailabilityCommandHandler(profileRepository, registrationRepository, cityRepository, zoneRepository),
+    marketRepository,
+    handler: new UpdateGoalkeeperAvailabilityCommandHandler(profileRepository, registrationRepository, marketRepository, zoneRepository),
   };
 }
 
@@ -60,13 +59,13 @@ describe('UpdateGoalkeeperAvailabilityCommandHandler', () => {
     const { handler, profileRepository } = buildHandler();
 
     const result = await handler.handle(
-      new UpdateGoalkeeperAvailabilityCommand('user-1', 'city-envigado', ['zone-bello', 'zone-copacabana']),
+      new UpdateGoalkeeperAvailabilityCommand('user-1', 'city-medellin', ['zone-bello', 'zone-copacabana']),
     );
 
     expect(result.outcome).toBe('success');
-    expect(result.goalkeeper).toMatchObject({ status: 'active', cityId: 'city-envigado', serviceZoneIds: ['zone-bello', 'zone-copacabana'] });
+    expect(result.goalkeeper).toMatchObject({ status: 'active', marketId: 'city-medellin', serviceZoneIds: ['zone-bello', 'zone-copacabana'] });
     const stored = await profileRepository.getByUserId('user-1');
-    expect(stored?.cityId).toBe('city-envigado');
+    expect(stored?.marketId).toBe('city-medellin');
     expect(stored?.zoneIds).toEqual(['zone-bello', 'zone-copacabana']);
     expect([stored?.heightCm, stored?.weightKg]).toEqual([185, 78]);
   });
@@ -82,13 +81,23 @@ describe('UpdateGoalkeeperAvailabilityCommandHandler', () => {
     expect((await profileRepository.getByUserId('user-1'))?.zoneIds).toEqual(['zone-bello']);
   });
 
-  it('rejects an unknown city and writes nothing', async () => {
+  it('only changes zones of the current market: another market goes through the market change (spec 031)', async () => {
     const { handler, profileRepository } = buildHandler();
 
-    const result = await handler.handle(new UpdateGoalkeeperAvailabilityCommand('user-1', 'city-nowhere', ['zone-bello']));
+    const other = await handler.handle(new UpdateGoalkeeperAvailabilityCommand('user-1', 'city-bogota', ['zone-chapinero']));
+    const unknown = await handler.handle(new UpdateGoalkeeperAvailabilityCommand('user-1', 'city-nowhere', ['zone-bello']));
+    const withoutMarket = await handler.handle(new UpdateGoalkeeperAvailabilityCommand('user-1', null, ['zone-copacabana']));
 
-    expect(result.outcome).toBe('invalid_city');
-    expect((await profileRepository.getByUserId('user-1'))?.cityId).toBe('city-medellin');
+    expect([other.outcome, unknown.outcome]).toEqual(['use_market_change', 'use_market_change']);
+    expect(withoutMarket.outcome).toBe('success');
+    expect(await profileRepository.getByUserId('user-1')).toMatchObject({ marketId: 'city-medellin', zoneIds: ['zone-copacabana'] });
+  });
+
+  it('still lets the goalkeeper change zones while their market is disabled', async () => {
+    const { handler, marketRepository } = buildHandler();
+    marketRepository.seed(marketRepository.markets.get('city-medellin')!.disable('staff-1', new Date()));
+
+    expect((await handler.handle(new UpdateGoalkeeperAvailabilityCommand('user-1', null, ['zone-copacabana']))).outcome).toBe('success');
   });
 
   it('rejects zones that do not exist, are inactive, or belong to another city — naming each, writing nothing', async () => {
@@ -101,18 +110,7 @@ describe('UpdateGoalkeeperAvailabilityCommandHandler', () => {
     expect(result.outcome).toBe('invalid_zones');
     expect(result.invalidZoneIds).toEqual(['zone-missing', 'zone-inactive', 'zone-chapinero']);
     const stored = await profileRepository.getByUserId('user-1');
-    expect([stored?.cityId, stored?.zoneIds]).toEqual(['city-medellin', ['zone-bello']]);
-  });
-
-  it('resolves zones through the anchor city, like the draft registration does', async () => {
-    const { handler } = buildHandler();
-
-    // city-envigado is not an anchor: its zones belong to city-medellin.
-    const ok = await handler.handle(new UpdateGoalkeeperAvailabilityCommand('user-1', 'city-envigado', ['zone-bello']));
-    const wrong = await handler.handle(new UpdateGoalkeeperAvailabilityCommand('user-1', 'city-envigado', ['zone-chapinero']));
-
-    expect(ok.outcome).toBe('success');
-    expect(wrong.outcome).toBe('invalid_zones');
+    expect([stored?.marketId, stored?.zoneIds]).toEqual(['city-medellin', ['zone-bello']]);
   });
 
   it('reports not_a_goalkeeper when the user has neither a profile nor a registration', async () => {

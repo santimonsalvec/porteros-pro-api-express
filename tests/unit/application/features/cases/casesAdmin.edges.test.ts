@@ -17,10 +17,10 @@ describe('the admin case detail with pieces missing (admin spec 006)', () => {
       cases: { search: async () => [], countMatching: async () => 0, requestIdsMatching: async () => [], getById: async () => opened },
       ratings: { getById: async () => null },
       requests: { findByIds: async () => [] },
-      requestReader: { cityIdsOfCountry: async () => [], requestIdsInCities: async () => [] },
+      requestReader: { marketIdsOfCountry: async () => [], requestIdsInMarkets: async () => [] },
       requestDetail: async () => ({ outcome: 'request_not_found' }),
       users: { getByIds: async () => [] },
-      cities: { getByIds: async () => [] },
+      markets: { getByIds: async () => [] },
       zones: { getManyByIds: async () => [] },
       staff: { findByUserId: async () => null },
     };
@@ -37,12 +37,12 @@ describe('the admin case detail with pieces missing (admin spec 006)', () => {
     const asked: string[] = [];
     const deps = {
       users: { getByIds: async () => (asked.push('users'), []) },
-      cities: { getByIds: async () => (asked.push('cities'), []) },
+      markets: { getByIds: async () => (asked.push('cities'), []) },
       zones: { getManyByIds: async () => (asked.push('zones'), []) },
     };
 
     expect((await personNames(deps, []))('x')).toEqual({ userId: 'x', name: null });
-    expect((await placeNames(deps, [], [])).city('med')).toEqual({ id: 'med', name: null });
+    expect((await placeNames(deps, [], [])).market('med')).toEqual({ id: 'med', name: null });
     expect(asked).toEqual([]);
   });
 });

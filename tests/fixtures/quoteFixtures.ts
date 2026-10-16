@@ -1,3 +1,4 @@
+import { testMarket, type FakeMarketRepository } from '../fakes/fakeMarketRepository.js';
 import type { LeadTimeSurcharge } from '../../src/domain/pricing/bookingSettings.js';
 import { FREE_CANCELLATION_MINUTES_DEFAULT, TRAVEL_BUFFER_MINUTES_DEFAULT } from '../../src/application/features/goalkeeperRequests/common/bookingLimits.js';
 import { Booking } from '../../src/domain/bookings/booking.js';
@@ -9,15 +10,11 @@ import { Quote } from '../../src/domain/bookings/quote.js';
 import { BookingSettings } from '../../src/domain/pricing/bookingSettings.js';
 import { RentalRate } from '../../src/domain/pricing/rentalRate.js';
 import { Country } from '../../src/domain/countries/country.js';
-import { City } from '../../src/domain/locations/city.js';
-import { Region } from '../../src/domain/locations/region.js';
 import { Zone } from '../../src/domain/zones/zone.js';
 import type { FakeBookingSettingsRepository } from '../fakes/fakeBookingSettingsRepository.js';
 import type { FakeCommissionSettingRepository } from '../fakes/fakeCommissionSettingRepository.js';
 import { CommissionSetting } from '../../src/domain/operatingBalance/commissionSetting.js';
-import type { FakeCityRepository } from '../fakes/fakeCityRepository.js';
 import type { FakeCountryRepository } from '../fakes/fakeCountryRepository.js';
-import type { FakeRegionRepository } from '../fakes/fakeRegionRepository.js';
 import type { FakeRentalRateRepository } from '../fakes/fakeRentalRateRepository.js';
 import type { FakeZoneRepository } from '../fakes/fakeZoneRepository.js';
 
@@ -73,8 +70,7 @@ export interface QuoteWorldRepositories {
   /** A dedicated instance for quotes: seeding it into the shared one would change the countries the profile/locations suites assert on. */
   countryRepository: FakeCountryRepository;
   zoneRepository: FakeZoneRepository;
-  cityRepository: FakeCityRepository;
-  regionRepository: FakeRegionRepository;
+  marketRepository: FakeMarketRepository;
   rentalRateRepository: FakeRentalRateRepository;
   bookingSettingsRepository: FakeBookingSettingsRepository;
   /** When given, every country of the world gets a country-level commission (012: quotes need one). */
@@ -92,7 +88,7 @@ export const WORLD_COMMISSIONS: Record<string, number> = {
 let rateSequence = 0;
 function seedRates(
   repo: FakeRentalRateRepository,
-  scope: 'zone' | 'city',
+  scope: 'zone' | 'market',
   refId: string,
   amounts: Partial<Record<60 | 90 | 120, number>>,
 ): void {
@@ -108,7 +104,7 @@ export function seedQuoteWorld(repos: QuoteWorldRepositories): void {
   for (const [countryId, amount] of Object.entries(WORLD_COMMISSIONS)) {
     repos.commissionSettingRepository?.seed(new CommissionSetting({ id: `commission-${countryId}`, scope: 'country', refId: countryId, amount }));
   }
-  const { countryRepository, zoneRepository, cityRepository, regionRepository, rentalRateRepository, bookingSettingsRepository } = repos;
+  const { countryRepository, zoneRepository, marketRepository, rentalRateRepository, bookingSettingsRepository } = repos;
 
   // ---- Countries: each carries the currency of every price in it
   countryRepository.seed(new Country({ id: 'country-co', name: 'Colombia', dialCode: '+57', countryCode: 'CO', currency: 'COP' }));
@@ -117,33 +113,27 @@ export function seedQuoteWorld(repos: QuoteWorldRepositories): void {
   countryRepository.seed(new Country({ id: 'country-in', name: 'India', dialCode: '+91', countryCode: 'IN', currency: 'INR' }));
 
   // ---- Colombia (Cali): three zones exercising own-rate / partial-rate / pure-fallback
-  regionRepository.seed(new Region({ id: 'region-valle', name: 'Valle del Cauca', countryId: 'country-co' }));
-  cityRepository.seed(
-    new City({ id: 'city-cali', name: 'Cali', regionId: 'region-valle', zoneCityId: null, timeZone: 'America/Bogota' }),
+  marketRepository.seed(testMarket({ id: 'city-cali', name: 'Cali', countryId: 'country-co', timeZone: 'America/Bogota' }));
+  zoneRepository.seed(
+    new Zone({ id: 'zone-cali-norte', marketId: 'city-cali', name: 'Norte', slug: 'cali-co-norte', geometry: rectangle(3.4, 3.5, -76.55, -76.45), active: true, displayOrder: 1 }),
   );
   zoneRepository.seed(
-    new Zone({ id: 'zone-cali-norte', cityId: 'city-cali', name: 'Norte', slug: 'cali-co-norte', geometry: rectangle(3.4, 3.5, -76.55, -76.45), active: true, displayOrder: 1 }),
+    new Zone({ id: 'zone-cali-sur', marketId: 'city-cali', name: 'Sur', slug: 'cali-co-sur', geometry: rectangle(3.3, 3.39, -76.55, -76.45), active: true, displayOrder: 2 }),
   );
   zoneRepository.seed(
-    new Zone({ id: 'zone-cali-sur', cityId: 'city-cali', name: 'Sur', slug: 'cali-co-sur', geometry: rectangle(3.3, 3.39, -76.55, -76.45), active: true, displayOrder: 2 }),
-  );
-  zoneRepository.seed(
-    new Zone({ id: 'zone-cali-centro', cityId: 'city-cali', name: 'Centro', slug: 'cali-co-centro', geometry: rectangle(3.2, 3.29, -76.55, -76.45), active: true, displayOrder: 3 }),
+    new Zone({ id: 'zone-cali-centro', marketId: 'city-cali', name: 'Centro', slug: 'cali-co-centro', geometry: rectangle(3.2, 3.29, -76.55, -76.45), active: true, displayOrder: 3 }),
   );
   seedRates(rentalRateRepository, 'zone', 'zone-cali-norte', { 60: 40000, 90: 55000, 120: 70000 });
   seedRates(rentalRateRepository, 'zone', 'zone-cali-sur', { 60: 45000 });
-  seedRates(rentalRateRepository, 'city', 'city-cali', { 60: 41000, 90: 56000, 120: 71000 });
+  seedRates(rentalRateRepository, 'market', 'city-cali', { 60: 41000, 90: 56000, 120: 71000 });
   bookingSettingsRepository.seed(
     new BookingSettings({ id: 'settings-co', scope: 'country', refId: 'country-co', bookingWindowDays: 2, minNoticeMinutes: 30, leadTimeSurcharge: COLOMBIA_SURCHARGE }),
   );
 
   // ---- Mexico: another country, time zone and currency (MXN, from the country)
-  regionRepository.seed(new Region({ id: 'region-cdmx', name: 'Ciudad de México', countryId: 'country-mx' }));
-  cityRepository.seed(
-    new City({ id: 'city-cdmx', name: 'Ciudad de México', regionId: 'region-cdmx', zoneCityId: null, timeZone: 'America/Mexico_City' }),
-  );
+  marketRepository.seed(testMarket({ id: 'city-cdmx', name: 'Ciudad de México', countryId: 'country-mx', timeZone: 'America/Mexico_City' }));
   zoneRepository.seed(
-    new Zone({ id: 'zone-cdmx', cityId: 'city-cdmx', name: 'Centro', slug: 'cdmx-mx-centro', geometry: rectangle(19.3, 19.5, -99.2, -99.0), active: true, displayOrder: 1 }),
+    new Zone({ id: 'zone-cdmx', marketId: 'city-cdmx', name: 'Centro', slug: 'cdmx-mx-centro', geometry: rectangle(19.3, 19.5, -99.2, -99.0), active: true, displayOrder: 1 }),
   );
   seedRates(rentalRateRepository, 'zone', 'zone-cdmx', { 60: 800, 90: 1100, 120: 1400 });
   bookingSettingsRepository.seed(
@@ -151,12 +141,9 @@ export function seedQuoteWorld(repos: QuoteWorldRepositories): void {
   );
 
   // ---- United States: observes daylight-saving time (UTC−4 in September)
-  regionRepository.seed(new Region({ id: 'region-ny', name: 'New York', countryId: 'country-us' }));
-  cityRepository.seed(
-    new City({ id: 'city-nyc', name: 'New York', regionId: 'region-ny', zoneCityId: null, timeZone: 'America/New_York' }),
-  );
+  marketRepository.seed(testMarket({ id: 'city-nyc', name: 'New York', countryId: 'country-us', timeZone: 'America/New_York' }));
   zoneRepository.seed(
-    new Zone({ id: 'zone-nyc', cityId: 'city-nyc', name: 'Manhattan', slug: 'nyc-us-manhattan', geometry: rectangle(40.6, 40.9, -74.1, -73.9), active: true, displayOrder: 1 }),
+    new Zone({ id: 'zone-nyc', marketId: 'city-nyc', name: 'Manhattan', slug: 'nyc-us-manhattan', geometry: rectangle(40.6, 40.9, -74.1, -73.9), active: true, displayOrder: 1 }),
   );
   seedRates(rentalRateRepository, 'zone', 'zone-nyc', { 60: 40, 90: 55, 120: 70 });
   bookingSettingsRepository.seed(
@@ -164,12 +151,9 @@ export function seedQuoteWorld(repos: QuoteWorldRepositories): void {
   );
 
   // ---- India: a half-hour UTC offset (+05:30), so "30-minute marks" must be judged locally
-  regionRepository.seed(new Region({ id: 'region-delhi', name: 'Delhi', countryId: 'country-in' }));
-  cityRepository.seed(
-    new City({ id: 'city-delhi', name: 'New Delhi', regionId: 'region-delhi', zoneCityId: null, timeZone: 'Asia/Kolkata' }),
-  );
+  marketRepository.seed(testMarket({ id: 'city-delhi', name: 'New Delhi', countryId: 'country-in', timeZone: 'Asia/Kolkata' }));
   zoneRepository.seed(
-    new Zone({ id: 'zone-delhi', cityId: 'city-delhi', name: 'Central', slug: 'delhi-in-central', geometry: rectangle(28.5, 28.7, 77.1, 77.3), active: true, displayOrder: 1 }),
+    new Zone({ id: 'zone-delhi', marketId: 'city-delhi', name: 'Central', slug: 'delhi-in-central', geometry: rectangle(28.5, 28.7, 77.1, 77.3), active: true, displayOrder: 1 }),
   );
   seedRates(rentalRateRepository, 'zone', 'zone-delhi', { 60: 500, 90: 700, 120: 900 });
   bookingSettingsRepository.seed(
@@ -205,7 +189,7 @@ export function buildStoredQuote(
   const match = new MatchDetails({
     ...POINTS.caliNorte,
     zoneId: overrides.zoneId ?? 'zone-cali-norte',
-    cityId: 'city-cali',
+    marketId: 'city-cali',
     startsAt: new Date(startsAt),
     startsAtLocal: '2026-09-21T15:00:00-05:00',
     timeZone: 'America/Bogota',
@@ -247,7 +231,7 @@ export function buildRequest(
   overrides: Partial<{
     clientId: string;
     zoneId: string;
-    cityId: string;
+    marketId: string;
     goalkeeperCount: 1 | 2;
     partialFulfillment: PartialFulfillment;
     freeCancellationMinutes: number;
@@ -266,7 +250,7 @@ export function buildRequest(
     match: new MatchDetails({
       ...POINTS.caliNorte,
       zoneId: overrides.zoneId ?? 'zone-cali-norte',
-      cityId: overrides.cityId ?? 'city-cali',
+      marketId: overrides.marketId ?? 'city-cali',
       startsAt,
       startsAtLocal: '2026-09-25T13:00:00-05:00',
       timeZone: 'America/Bogota',

@@ -11,7 +11,7 @@ const NOW = new Date('2026-09-29T12:00:00.000Z');
 const LATER = new Date('2026-09-29T12:05:00.000Z');
 
 function depositDoc(status: DepositStatus = 'pending', cost = 1464): Document {
-  const deposit = Deposit.start({ id: 't-1', goalkeeperId: 'gk-1', countryId: 'country-co', gateway: 'wompi', environment: 'sandbox', amount: 20000, cost, currency: 'COP', now: NOW });
+  const deposit = Deposit.start({ id: 't-1', goalkeeperId: 'gk-1', countryId: 'country-co', marketId: 'city-cali', gateway: 'wompi', environment: 'sandbox', amount: 20000, cost, currency: 'COP', now: NOW });
   return depositToDocument(Deposit.rehydrate({ ...deposit.toProps(), status }));
 }
 
@@ -21,7 +21,7 @@ function args(overrides: Partial<ApplyOutcomeArgs> = {}): ApplyOutcomeArgs {
     status: 'approved',
     gatewayTransactionId: 'tx-1',
     charged: { amountInCents: 2000000, currency: 'COP' },
-    owner: { goalkeeperId: 'gk-1', currency: 'COP', invoicing: COLOMBIA_INVOICING },
+    owner: { goalkeeperId: 'gk-1', currency: 'COP', invoicing: COLOMBIA_INVOICING, marketId: 'city-cali' },
     now: LATER,
     ...overrides,
   };

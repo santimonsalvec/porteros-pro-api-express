@@ -1,3 +1,4 @@
+import { FakeMarketRepository, testMarket } from '../../../../fakes/fakeMarketRepository.js';
 import { PushNotifier } from '../../../../../src/application/features/devices/common/pushNotifier.js';
 import { OfferSender } from '../../../../../src/application/features/notifications/common/offerSender.js';
 import { OfferEligibilityService } from '../../../../../src/application/features/notifications/common/offerEligibilityService.js';
@@ -8,11 +9,9 @@ import { FakeGoalkeeperProfileRepository } from '../../../../fakes/fakeGoalkeepe
 import { buildGoalkeeperProfile } from '../../../../fixtures/operatingBalanceFixtures.js';
 import type { Booking } from '../../../../../src/domain/bookings/booking.js';
 import type { GoalkeeperRequest } from '../../../../../src/domain/bookings/goalkeeperRequest.js';
-import { City } from '../../../../../src/domain/locations/city.js';
 import { Zone } from '../../../../../src/domain/zones/zone.js';
 import { sha256TokenFingerprint } from '../../../../../src/infrastructure/push/tokenRef.js';
 import { FixedClock } from '../../../../fakes/fakeClock.js';
-import { FakeCityRepository } from '../../../../fakes/fakeCityRepository.js';
 import { FakeZoneRepository } from '../../../../fakes/fakeZoneRepository.js';
 import { FakeDeviceRepository } from '../../../../fakes/fakeDeviceRepository.js';
 import { FakeGoalkeeperRequestRepository } from '../../../../fakes/fakeGoalkeeperRequestRepository.js';
@@ -21,6 +20,7 @@ import { FakeOfferPushState } from '../../../../fakes/fakeOfferPushState.js';
 import { FakePushSender } from '../../../../fakes/fakePushSender.js';
 import { buildRequest, buildRequestBookings } from '../../../../fixtures/quoteFixtures.js';
 import { fixedVatRates } from '../../../../fakes/fakeVatRates.js';
+import { FakeBookingSettingsRepository } from '../../../../fakes/fakeBookingSettingsRepository.js';
 
 /** 13:00 in Bogotá on a Sunday; matches start later that day or the next. */
 export const OFFERS_NOW = '2026-10-04T18:00:00.000Z';
@@ -40,7 +40,7 @@ export function offerHarness() {
   zoneRepository.seed(
     new Zone({
       id: 'zone-bello',
-      cityId: 'city-medellin',
+      marketId: 'city-medellin',
       name: 'Bello',
       slug: 'medellin-co-bello',
       geometry: { type: 'Polygon', coordinates: [[[0, 0]]] },
@@ -48,8 +48,9 @@ export function offerHarness() {
       displayOrder: 1,
     }),
   );
-  const cityRepository = new FakeCityRepository();
-  cityRepository.seed(new City({ id: 'city-medellin', name: 'Medellín', regionId: 'region-antioquia', zoneCityId: null }));
+  const marketRepository = new FakeMarketRepository();
+  marketRepository.seed(testMarket({ id: 'city-medellin', name: 'Medellín', countryId: 'country-co' }));
+  const bookingSettingsRepository = new FakeBookingSettingsRepository();
   let counter = 0;
   const sender = new OfferSender({
     notifications,
@@ -58,10 +59,10 @@ export function offerHarness() {
     idGenerator: { newId: () => `0192a3b4-0000-7000-8000-${String(++counter).padStart(12, '0')}` },
     requestRepository,
     zoneRepository,
-    cityRepository,
+    marketRepository,
+    bookingSettingsRepository,
     logger: silent,
-    maxReminders: 3,
-    intervalMinutes: 5,
+    platformReminders: { maxReminders: 3, intervalMinutes: 5 },
   });
 
   const bookingRepository = new FakeBookingRepository();
@@ -99,7 +100,7 @@ export function offerHarness() {
   ): { request: GoalkeeperRequest; bookings: Booking[] } => {
     const request = buildRequest(id, new Date(new Date(OFFERS_NOW).getTime() + hoursAhead * 3_600_000), {
       zoneId: 'zone-bello',
-      cityId: 'city-medellin',
+      marketId: 'city-medellin',
       goalkeeperCount,
       partialFulfillment,
     });
@@ -122,7 +123,8 @@ export function offerHarness() {
     pushNotifier,
     requestRepository,
     zoneRepository,
-    cityRepository,
+    marketRepository,
+    bookingSettingsRepository,
     bookingRepository,
     goalkeeperProfileRepository,
     eligibility,

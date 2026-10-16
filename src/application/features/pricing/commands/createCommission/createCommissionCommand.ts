@@ -3,7 +3,7 @@ import type { MatchLevel, PricedModality } from '../../../../../domain/bookings/
 import type { TargetFailure } from '../../common/pricingGeography.js';
 
 export interface CommissionInput {
-  scope: 'country' | 'city' | 'zone';
+  scope: 'country' | 'market' | 'zone';
   refId: string;
   modality: PricedModality | null;
   level: MatchLevel | null;

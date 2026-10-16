@@ -6,7 +6,7 @@ import { idFilter } from './idFilter.js';
 import { countBy, deleteById, updateAtRevision } from './revisionWrite.js';
 import { Zone, type ZoneGeometry } from '../../../domain/zones/zone.js';
 
-/** Seeded by the data owner; the app reads it, and the admin web draws and edits zones (admin spec 003). */
+/** The zones of each market (spec 031): drawn and edited in the admin web, read by the app and the quote. */
 export class ZoneRepository implements IZoneRepository, IAdminZoneRepository {
   private readonly collection: Collection<Document>;
 
@@ -15,13 +15,13 @@ export class ZoneRepository implements IZoneRepository, IAdminZoneRepository {
   }
 
   async ensureIndexes(): Promise<void> {
-    await this.collection.createIndex({ cityId: 1, active: 1, displayOrder: 1 }, { name: 'cityId_active_displayOrder' });
+    await this.collection.createIndex({ marketId: 1, active: 1, displayOrder: 1 }, { name: 'market_active_order' });
   }
 
   private fromDocument(doc: Document): Zone {
     return new Zone({
       id: String(doc._id),
-      cityId: doc.cityId as string,
+      marketId: doc.marketId as string,
       name: doc.name as string,
       slug: doc.slug as string,
       geometry: doc.geometry as ZoneGeometry,
@@ -31,9 +31,9 @@ export class ZoneRepository implements IZoneRepository, IAdminZoneRepository {
     });
   }
 
-  async getActiveByCityId(anchorCityId: string): Promise<Zone[]> {
+  async getActiveByMarketId(marketId: string): Promise<Zone[]> {
     const docs = await this.collection
-      .find({ cityId: anchorCityId, active: true })
+      .find({ marketId: marketId, active: true })
       .sort({ displayOrder: 1 })
       .toArray();
     return docs.map((doc) => this.fromDocument(doc));
@@ -45,14 +45,14 @@ export class ZoneRepository implements IZoneRepository, IAdminZoneRepository {
     return docs.map((doc) => this.fromDocument(doc));
   }
 
-  async hasActiveZonesForCityIds(anchorCityIds: string[]): Promise<Set<string>> {
-    if (anchorCityIds.length === 0) return new Set();
-    const cityIds = await this.collection.distinct('cityId', { cityId: { $in: anchorCityIds }, active: true });
-    return new Set(cityIds as string[]);
+  async hasActiveZonesForMarketIds(marketIds: string[]): Promise<Set<string>> {
+    if (marketIds.length === 0) return new Set();
+    const found = await this.collection.distinct('marketId', { marketId: { $in: marketIds }, active: true });
+    return new Set(found as string[]);
   }
 
-  async getCityIdsWithActiveZones(): Promise<string[]> {
-    return (await this.collection.distinct('cityId', { active: true })) as string[];
+  async getMarketIdsWithActiveZones(): Promise<string[]> {
+    return (await this.collection.distinct('marketId', { active: true })) as string[];
   }
 
   /**
@@ -63,9 +63,18 @@ export class ZoneRepository implements IZoneRepository, IAdminZoneRepository {
    * GeoJSON coordinates are `[longitude, latitude]`.
    */
   async findActiveContainingPoint(latitude: number, longitude: number): Promise<Zone | null> {
+    return this.firstContaining(latitude, longitude, true);
+  }
+
+  /** The same search among the inactive zones (spec 031, research §8). */
+  async findAnyContainingPoint(latitude: number, longitude: number): Promise<Zone | null> {
+    return this.firstContaining(latitude, longitude, false);
+  }
+
+  private async firstContaining(latitude: number, longitude: number, active: boolean): Promise<Zone | null> {
     const docs = await this.collection
       .find({
-        active: true,
+        active,
         geometry: { $geoIntersects: { $geometry: { type: 'Point', coordinates: [longitude, latitude] } } },
       })
       .sort({ displayOrder: 1, _id: 1 })
@@ -75,22 +84,27 @@ export class ZoneRepository implements IZoneRepository, IAdminZoneRepository {
     return first ? this.fromDocument(first) : null;
   }
 
-  /** The editable fields; `cityId` never changes after a zone is created. */
+  /** The editable fields; `marketId` never changes after a zone is created. */
   private toFields(zone: Zone): Document {
     return { name: zone.name, slug: zone.slug, geometry: zone.geometry, active: zone.active, displayOrder: zone.displayOrder };
   }
 
-  async listByCity(cityId: string): Promise<Zone[]> {
-    const docs = await this.collection.find({ cityId }).sort({ displayOrder: 1, _id: 1 }).toArray();
+  async listByMarket(marketId: string): Promise<Zone[]> {
+    const docs = await this.collection.find({ marketId }).sort({ displayOrder: 1, _id: 1 }).toArray();
     return docs.map((doc) => this.fromDocument(doc));
   }
 
-  async summariesByCities(cityIds: string[]): Promise<ZoneSummary[]> {
-    if (cityIds.length === 0) return [];
-    const docs = await this.collection.find({ cityId: { $in: cityIds } }, { projection: { geometry: 0 } }).sort({ displayOrder: 1, _id: 1 }).toArray();
+  async listActive(): Promise<Zone[]> {
+    const docs = await this.collection.find({ active: true }).toArray();
+    return docs.map((doc) => this.fromDocument(doc));
+  }
+
+  async summariesByMarkets(marketIds: string[]): Promise<ZoneSummary[]> {
+    if (marketIds.length === 0) return [];
+    const docs = await this.collection.find({ marketId: { $in: marketIds } }, { projection: { geometry: 0 } }).sort({ displayOrder: 1, _id: 1 }).toArray();
     return docs.map((doc) => ({
       id: String(doc._id),
-      cityId: doc.cityId as string,
+      marketId: doc.marketId as string,
       name: doc.name as string,
       slug: doc.slug as string,
       active: doc.active as boolean,
@@ -109,16 +123,16 @@ export class ZoneRepository implements IZoneRepository, IAdminZoneRepository {
     return doc ? this.fromDocument(doc) : null;
   }
 
-  countByCity(cityIds: string[]): Promise<Map<string, number>> {
-    return countBy(this.collection, 'cityId', cityIds);
+  countByMarket(marketIds: string[]): Promise<Map<string, number>> {
+    return countBy(this.collection, 'marketId', marketIds);
   }
 
   async zoneOwnerIds(): Promise<string[]> {
-    return ((await this.collection.distinct('cityId')) as unknown[]).map(String);
+    return ((await this.collection.distinct('marketId')) as unknown[]).map(String);
   }
 
   async create(zone: Zone): Promise<void> {
-    await this.collection.insertOne({ _id: zone.id, cityId: zone.cityId, ...this.toFields(zone), revision: 0 } as Document);
+    await this.collection.insertOne({ _id: zone.id, marketId: zone.marketId, ...this.toFields(zone), revision: 0 } as Document);
   }
 
   update(zone: Zone): Promise<UpdateResult> {

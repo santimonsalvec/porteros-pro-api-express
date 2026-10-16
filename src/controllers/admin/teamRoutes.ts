@@ -2,6 +2,7 @@ import type { ISender } from '../../application/common/mediator/types.js';
 import { GetStaffMemberQuery } from '../../application/features/staff/queries/getStaffMember/getStaffMemberQuery.js';
 import { ListStaffMembersQuery } from '../../application/features/staff/queries/listStaffMembers/listStaffMembersQuery.js';
 import { ApiError } from '../apiError.js';
+import { ChangeStaffMemberScopesCommand } from '../../application/features/staff/commands/changeStaffMemberScopes/changeStaffMemberScopesCommand.js';
 import { zodFieldErrors } from '../requests/goalkeeperRequests/getServiceQuoteRequest.js';
 import {
   changeRoleRequestSchema,
@@ -44,6 +45,9 @@ const nameTaken = () =>
   new ApiError(409, 'role_name_taken', 'Another role already has this name.', { name: 'Another role already has this name.' });
 
 /** The team in the admin web (spec 002): members, roles and the audit log (contracts/team-api.md). */
+const scopesRequired = () => new ApiError(400, 'scopes_required', 'A member needs at least one scope.');
+const scopeNotFound = () => new ApiError(400, 'scope_not_found', 'A country or market of the scopes does not exist, or is repeated.');
+
 export function registerTeamRoutes(route: Route, mediator: ISender): void {
   route('get', '/staff', 'staff.read', async (req, res) => {
     const parsed = listStaffQuerySchema.safeParse(req.query);
@@ -83,7 +87,7 @@ export function registerTeamRoutes(route: Route, mediator: ISender): void {
     async (req, res) => {
       const parsed = inviteRequestSchema.safeParse(req.body ?? {});
       if (!parsed.success) throw invalid(parsed.error);
-      const result = await mediator.send(new InviteStaffMemberCommand(parsed.data.email, parsed.data.roleId, actorOf(req)));
+      const result = await mediator.send(new InviteStaffMemberCommand(parsed.data.email, parsed.data.roleId, actorOf(req), parsed.data.scopes));
       switch (result.outcome) {
         case 'invited':
         case 'reinvited':
@@ -97,6 +101,10 @@ export function registerTeamRoutes(route: Route, mediator: ISender): void {
           throw roleNotFound();
         case 'owner_requires_owner':
           throw ownersOnly();
+        case 'scopes_required':
+          throw scopesRequired();
+        case 'scope_not_found':
+          throw scopeNotFound();
       }
     },
   );
@@ -104,7 +112,24 @@ export function registerTeamRoutes(route: Route, mediator: ISender): void {
   route('patch', '/staff/:staffId', memberAudit('staff.changeRole'), async (req, res) => {
     const parsed = changeRoleRequestSchema.safeParse(req.body ?? {});
     if (!parsed.success) throw invalid(parsed.error);
-    const result = await mediator.send(new ChangeStaffMemberRoleCommand(req.params.staffId, parsed.data.roleId, actorOf(req)));
+    if (parsed.data.scopes !== undefined) {
+      const scoped = await mediator.send(new ChangeStaffMemberScopesCommand(req.params.staffId, parsed.data.scopes, actorOf(req)));
+      switch (scoped.outcome) {
+        case 'staff_not_found':
+          throw staffNotFound();
+        case 'owner_requires_owner':
+          throw ownersOnly();
+        case 'scopes_required':
+          throw scopesRequired();
+        case 'scope_not_found':
+          throw scopeNotFound();
+      }
+      if (parsed.data.roleId === undefined) {
+        await sendMember(res, req.params.staffId, 200);
+        return;
+      }
+    }
+    const result = await mediator.send(new ChangeStaffMemberRoleCommand(req.params.staffId, parsed.data.roleId!, actorOf(req)));
     switch (result.outcome) {
       case 'changed':
       case 'unchanged':

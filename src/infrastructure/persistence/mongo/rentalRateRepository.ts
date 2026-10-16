@@ -44,38 +44,38 @@ export class RentalRateRepository implements IRentalRateRepository, IRatePresenc
 
   async findForDuration(
     zoneId: string,
-    cityId: string,
+    marketId: string,
     durationMinutes: number,
-  ): Promise<{ zone: RentalRate[]; city: RentalRate[] }> {
+  ): Promise<{ zone: RentalRate[]; market: RentalRate[] }> {
     const docs = await this.collection
       .find({
         durationMinutes,
         $or: [
           { scope: 'zone', refId: zoneId },
-          { scope: 'city', refId: cityId },
+          { scope: 'market', refId: marketId },
         ],
       })
       .toArray();
     const rates = docs.map((doc) => this.fromDocument(doc));
     return {
       zone: rates.filter((rate) => rate.scope === 'zone'),
-      city: rates.filter((rate) => rate.scope === 'city'),
+      market: rates.filter((rate) => rate.scope === 'market'),
     };
   }
 
   /** Which durations have a rate for these refs; the indexed `scope`/`refId` pair serves it. */
-  async pricedDurations(refs: { cityIds: string[]; zoneIds: string[] }): Promise<{ scope: 'city' | 'zone'; refId: string; durationMinutes: number }[]> {
+  async pricedDurations(refs: { marketIds: string[]; zoneIds: string[] }): Promise<{ scope: 'market' | 'zone'; refId: string; durationMinutes: number }[]> {
     const or = [
-      ...(refs.cityIds.length > 0 ? [{ scope: 'city', refId: { $in: refs.cityIds } }] : []),
+      ...(refs.marketIds.length > 0 ? [{ scope: 'market', refId: { $in: refs.marketIds } }] : []),
       ...(refs.zoneIds.length > 0 ? [{ scope: 'zone', refId: { $in: refs.zoneIds } }] : []),
     ];
     if (or.length === 0) return [];
     const docs = await this.collection.find({ $or: or }, { projection: { scope: 1, refId: 1, durationMinutes: 1 } }).toArray();
-    return docs.map((doc) => ({ scope: doc.scope as 'city' | 'zone', refId: String(doc.refId), durationMinutes: doc.durationMinutes as number }));
+    return docs.map((doc) => ({ scope: doc.scope as 'market' | 'zone', refId: String(doc.refId), durationMinutes: doc.durationMinutes as number }));
   }
 
   private recordOf(doc: Document): RentalRateRecord {
-    return { ...priceRecordOf<'zone' | 'city'>(doc, (stored) => this.fromDocument(stored)), durationMinutes: doc.durationMinutes as number };
+    return { ...priceRecordOf<'zone' | 'market'>(doc, (stored) => this.fromDocument(stored)), durationMinutes: doc.durationMinutes as number };
   }
 
   async find(filter: PriceFilter & { durationMinutes?: number }): Promise<RentalRateRecord[]> {

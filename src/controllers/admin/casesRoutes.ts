@@ -8,6 +8,7 @@ import { GetCheckInPhotoQuery } from '../../application/features/goalkeeperReque
 import { ApiError } from '../apiError.js';
 import { listCasesQuerySchema, resolveCaseRequestSchema } from '../requests/cases/caseRequests.js';
 import { invalid, notFound, parse, type Route } from './geographyRoutes.js';
+import { canSeeMarket, marketScopeCriteria } from './scopeCriteria.js';
 
 const caseIdOf = (req: Request) => String(req.params.caseId);
 
@@ -19,13 +20,13 @@ const caseIdOf = (req: Request) => String(req.params.caseId);
 export function registerCasesRoutes(route: Route, mediator: ISender): void {
   route('get', '/cases', 'cases.read', async (req, res) => {
     const { status, ...criteria } = parse(listCasesQuerySchema, req.query);
-    const result = await mediator.send(new ListCasesAdminQuery({ ...criteria, status }));
+    const result = await mediator.send(new ListCasesAdminQuery({ ...criteria, status, ...marketScopeCriteria(req) }));
     res.status(200).json(result.page);
   });
 
   route('get', '/cases/:caseId', 'cases.read', async (req, res) => {
     const result = await mediator.send(new GetCaseAdminQuery(caseIdOf(req)));
-    if (result.outcome === 'case_not_found') throw notFound('case_not_found');
+    if (result.outcome === 'case_not_found' || !canSeeMarket(req, result.case.match?.market.id)) throw notFound('case_not_found');
     res.status(200).json(result.case);
   });
 

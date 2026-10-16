@@ -11,7 +11,7 @@ export const listUnverifiedDiscountsQuerySchema = z.object({ countryId: z.string
 
 /** `POST /admin/unverified-discounts`. */
 export const createUnverifiedDiscountRequestSchema = z
-  .object({ scope: z.enum(['country', 'city', 'zone']), refId: z.string().min(1), ...terms })
+  .object({ scope: z.enum(['country', 'market', 'zone']), refId: z.string().min(1), ...terms })
   .strict();
 
 /** `PATCH /admin/unverified-discounts/:discountId`. */

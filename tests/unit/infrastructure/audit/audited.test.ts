@@ -73,6 +73,7 @@ describe('auditTrail', () => {
         request: { vatRateBps: 1900 },
         ip: '1.2.3.4',
         userAgent: 'x'.repeat(300),
+        scope: { countryId: null, marketId: null },
       },
     ]);
     expect(res.sent).toEqual([{ countryId: 'country-co', vatRateBps: 1900 }]);
@@ -142,5 +143,25 @@ describe('auditTrail', () => {
     await vi.waitFor(() => expect(log.entries).toHaveLength(1));
 
     expect(log.entries[0]).toMatchObject({ kind: 'write', outcome: 'denied', httpStatus: 403, errorCode: 'permission_denied', permission: 'pricing.manage', action: 'PUT', resourceType: 'admin_route' });
+  });
+
+  it('records the country and market the member was working in (spec 031, FR-039)', async () => {
+    const { log, trail } = setup();
+    const req = Object.assign(fakeRequest({ vatRateBps: 1900 }), {
+      adminScope: { level: 'market', kind: 'market', countryId: 'country-co', marketId: 'city-medellin', allowedCountryIds: 'all', allowedMarketIds: 'all' },
+    });
+
+    await run(trail.audited(spec), req, fakeResponse(), (r) => r.status(200).json({}));
+
+    expect(log.entries[0]!.scope).toEqual({ countryId: 'country-co', marketId: 'city-medellin' });
+  });
+
+  it('records a scope denial (spec 031, contract B1)', async () => {
+    const { log, trail } = setup();
+
+    trail.onScopeDenied(Object.assign(fakeRequest(), { header: (name: string) => (name.toLowerCase() === 'x-scope' ? 'market:city-bogota' : undefined) }) as Request);
+    await vi.waitFor(() => expect(log.entries).toHaveLength(1));
+
+    expect(log.entries[0]).toMatchObject({ outcome: 'denied', httpStatus: 403, errorCode: 'scope_denied', request: { scope: 'market:city-bogota' } });
   });
 });

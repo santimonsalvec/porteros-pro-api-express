@@ -1,4 +1,5 @@
 import { Entity } from '../common/entity.js';
+import { EMPTY_BILLING, normalizedBilling, type BillingData } from './billing.js';
 
 export type GoalkeeperRegistrationStatus = 'in_progress' | 'active';
 
@@ -17,7 +18,8 @@ export interface PhysicalDataSection {
 }
 
 export interface AvailabilitySection {
-  cityId: string | null;
+  /** The market the goalkeeper will play in (spec 031). */
+  marketId: string | null;
   zoneIds: string[];
 }
 
@@ -35,6 +37,8 @@ export class GoalkeeperRegistration extends Entity<string> {
   identification: IdentificationSection;
   physicalData: PhysicalDataSection;
   availability: AvailabilitySection;
+  /** Where the goalkeeper lives, for their invoices (spec 031, FR-023). */
+  billing: BillingData;
   readonly createdAt: Date;
   updatedAt: Date;
   activatedAt: Date | null;
@@ -46,6 +50,7 @@ export class GoalkeeperRegistration extends Entity<string> {
     identification: IdentificationSection;
     physicalData: PhysicalDataSection;
     availability: AvailabilitySection;
+    billing?: BillingData;
     createdAt: Date;
     updatedAt: Date;
     activatedAt: Date | null;
@@ -56,6 +61,7 @@ export class GoalkeeperRegistration extends Entity<string> {
     this.identification = params.identification;
     this.physicalData = params.physicalData;
     this.availability = params.availability;
+    this.billing = { ...(params.billing ?? EMPTY_BILLING) };
     this.createdAt = params.createdAt;
     this.updatedAt = params.updatedAt;
     this.activatedAt = params.activatedAt;
@@ -77,7 +83,7 @@ export class GoalkeeperRegistration extends Entity<string> {
         documentPhotoBId: null,
       },
       physicalData: { heightCm: null, weightKg: null },
-      availability: { cityId: null, zoneIds: [] },
+      availability: { marketId: null, zoneIds: [] },
       createdAt: now,
       updatedAt: now,
       activatedAt: null,
@@ -97,6 +103,12 @@ export class GoalkeeperRegistration extends Entity<string> {
 
   saveAvailability(fields: Partial<AvailabilitySection>): void {
     Object.assign(this.availability, fields);
+    this.updatedAt = new Date();
+  }
+
+  /** Trimmed; an empty complement is stored as none. */
+  saveBilling(fields: Partial<BillingData>): void {
+    Object.assign(this.billing, normalizedBilling(fields));
     this.updatedAt = new Date();
   }
 

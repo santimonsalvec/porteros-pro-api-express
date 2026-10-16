@@ -5,6 +5,8 @@ export interface DocumentAdminFilter {
   status?: InvoicingDocumentStatus;
   kind?: InvoicingDocumentKind;
   countryId?: string;
+  /** Spec 031: only these markets (a member who holds just some of them, or `?marketId=`). */
+  marketIds?: readonly string[];
   from?: Date;
   to?: Date;
   /** Pending or awaiting the authority for more than 24 hours (`isStale`). */

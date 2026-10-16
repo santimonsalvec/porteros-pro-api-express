@@ -17,7 +17,7 @@ import { FakeTaxSettingsRepository } from '../../../../../fakes/fakeTaxSettingsR
 import { pricingKit } from '../pricingTestKit.js';
 
 let kit: ReturnType<typeof pricingKit>;
-const commission = (id: string, scope: 'country' | 'city' | 'zone', refId: string, amount: number, modality: string | null = null) =>
+const commission = (id: string, scope: 'country' | 'market' | 'zone', refId: string, amount: number, modality: string | null = null) =>
   kit.commissions.base.seed(new CommissionSetting({ id, scope, refId, amount, modality, level: null }));
 
 beforeEach(() => {
@@ -32,7 +32,7 @@ describe('CreateCommissionCommand', () => {
 
   it('creates a country, an anchor-city and a zone commission', async () => {
     expect(await create()).toEqual({ outcome: 'saved', commissionId: 'new-1' });
-    expect(await create({ scope: 'city', refId: 'med', amount: 8000 })).toEqual({ outcome: 'saved', commissionId: 'new-2' });
+    expect(await create({ scope: 'market', refId: 'med', amount: 8000 })).toEqual({ outcome: 'saved', commissionId: 'new-2' });
     expect(await create({ scope: 'zone', refId: 'poblado', amount: 9000 })).toEqual({ outcome: 'saved', commissionId: 'new-3' });
   });
 
@@ -40,7 +40,6 @@ describe('CreateCommissionCommand', () => {
     commission('c-co', 'country', 'co', 7000);
     kit.countries.items.set('ve', new Country({ id: 've', name: 'Venezuela', dialCode: '+58', countryCode: 'VE', currency: null }));
     expect(await create()).toEqual({ outcome: 'duplicate', existingId: 'c-co' });
-    expect(await create({ scope: 'city', refId: 'env' })).toEqual({ outcome: 'city_not_anchor', anchorCityId: 'med' });
     expect(await create({ refId: 'pe' })).toEqual({ outcome: 'country_not_found' });
     expect(await create({ refId: 've' })).toEqual({ outcome: 'country_without_currency' });
   });
@@ -73,7 +72,7 @@ describe('UpdateCommissionCommand and DeleteCommissionCommand', () => {
 describe('ListCommissionsQuery and GetCommissionQuery', () => {
   beforeEach(() => {
     commission('c-poblado', 'zone', 'poblado', 9000);
-    commission('c-med-f11', 'city', 'med', 8500, 'futbol_11');
+    commission('c-med-f11', 'market', 'med', 8500, 'futbol_11');
     commission('c-co', 'country', 'co', 7000);
     commission('c-bello', 'zone', 'bello', 8000);
   });
@@ -84,12 +83,12 @@ describe('ListCommissionsQuery and GetCommissionQuery', () => {
     const result = await list();
     expect(result.items.map((item) => item.id)).toEqual(['c-co', 'c-med-f11', 'c-bello', 'c-poblado']);
     expect(result.items[0]).toMatchObject({ countryName: 'Colombia', currency: 'COP', vatRateBps: 1900, vatAmount: 1330, totalWithVat: 8330 });
-    expect(result.items[3]).toMatchObject({ zoneName: 'El Poblado', cityName: 'Medellín', vatAmount: 1710, totalWithVat: 10710 });
+    expect(result.items[3]).toMatchObject({ zoneName: 'El Poblado', marketName: 'Medellín', vatAmount: 1710, totalWithVat: 10710 });
   });
 
   it('filters by scope, city, zone and modality', async () => {
     expect((await list({ scope: 'zone' })).items.map((item) => item.id)).toEqual(['c-bello', 'c-poblado']);
-    expect((await list({ cityId: 'med' })).items.map((item) => item.id)).toEqual(['c-med-f11', 'c-bello', 'c-poblado']);
+    expect((await list({ marketId: 'med' })).items.map((item) => item.id)).toEqual(['c-med-f11', 'c-bello', 'c-poblado']);
     expect((await list({ zoneId: 'poblado' })).items.map((item) => item.id)).toEqual(['c-poblado']);
     expect((await list({ modality: 'futbol_11' })).items.map((item) => item.id)).toEqual(['c-med-f11']);
   });

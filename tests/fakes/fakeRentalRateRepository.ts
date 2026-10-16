@@ -17,19 +17,19 @@ export class FakeRentalRateRepository implements IRentalRateRepository, IRatePre
 
   async findForDuration(
     zoneId: string,
-    cityId: string,
+    marketId: string,
     durationMinutes: number,
-  ): Promise<{ zone: RentalRate[]; city: RentalRate[] }> {
+  ): Promise<{ zone: RentalRate[]; market: RentalRate[] }> {
     const forDuration = this.rates.filter((rate) => rate.durationMinutes === durationMinutes);
     return {
       zone: forDuration.filter((rate) => rate.scope === 'zone' && rate.refId === zoneId),
-      city: forDuration.filter((rate) => rate.scope === 'city' && rate.refId === cityId),
+      market: forDuration.filter((rate) => rate.scope === 'market' && rate.refId === marketId),
     };
   }
 
-  async pricedDurations(refs: { cityIds: string[]; zoneIds: string[] }) {
+  async pricedDurations(refs: { marketIds: string[]; zoneIds: string[] }) {
     return this.rates
-      .filter((rate) => (rate.scope === 'city' ? refs.cityIds : refs.zoneIds).includes(rate.refId))
-      .map((rate) => ({ scope: rate.scope as 'city' | 'zone', refId: rate.refId, durationMinutes: rate.durationMinutes }));
+      .filter((rate) => (rate.scope === 'market' ? refs.marketIds : refs.zoneIds).includes(rate.refId))
+      .map((rate) => ({ scope: rate.scope as 'market' | 'zone', refId: rate.refId, durationMinutes: rate.durationMinutes }));
   }
 }

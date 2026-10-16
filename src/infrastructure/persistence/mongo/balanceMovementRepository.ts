@@ -28,6 +28,7 @@ export function movementToDocument(movement: BalanceMovement): Document {
     reason: movement.reason,
     invoicing: movement.invoicing,
     ...(movement.taxRateBps !== null ? { taxRateBps: movement.taxRateBps } : {}),
+    marketId: movement.marketId,
   };
 }
 
@@ -48,6 +49,7 @@ export function movementFromDocument(doc: Document): BalanceMovement {
     reason: (doc.reason as string | null | undefined) ?? null,
     invoicing: doc.invoicing as InvoicingSnapshot,
     taxRateBps: (doc.taxRateBps as number | null | undefined) ?? null,
+    marketId: doc.marketId as string,
   });
 }
 
@@ -69,6 +71,8 @@ export class BalanceMovementRepository implements IBalanceMovementRepository {
     await this.collection.createIndex({ operatingBalanceId: 1, sequence: -1 }, { name: 'balance_sequence_unique', unique: true });
     // The invoicing safety net's scan of billable movements (feature 023).
     await this.collection.createIndex({ type: 1, occurredAt: 1 }, { name: 'billable_occurred' });
+    // Spec 031: a market's history, which never moves when a goalkeeper leaves.
+    await this.collection.createIndex({ marketId: 1, occurredAt: -1 }, { name: 'market_occurred' });
   }
 
   async findById(id: string): Promise<BalanceMovement | null> {

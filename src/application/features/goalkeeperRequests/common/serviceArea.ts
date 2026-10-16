@@ -1,9 +1,9 @@
-import type { City } from '../../../../domain/locations/city.js';
 import type { BookingSettings, LeadTimeSurcharge } from '../../../../domain/pricing/bookingSettings.js';
 import type { Country } from '../../../../domain/countries/country.js';
+import type { Market } from '../../../../domain/markets/market.js';
 import { InvalidConfigurationError } from '../../../../domain/pricing/invalidConfigurationError.js';
 import type { Zone } from '../../../../domain/zones/zone.js';
-import type { ICityRepository, IRegionRepository } from '../../locations/common/ports.js';
+import type { IMarketRepository } from '../../markets/common/ports.js';
 import type { IZoneRepository } from '../../zones/common/ports.js';
 import type { IBookingSettingsRepository, ICountryLookup } from './ports.js';
 import { resolveBookingSettings, type MissingSetting } from './resolveBookingSettings.js';
@@ -16,31 +16,46 @@ import { isValidTimeZone } from './zonedTime.js';
  */
 
 export type ServiceAreaResult =
-  | { outcome: 'ok'; zone: Zone; city: City; timeZone: string }
+  | { outcome: 'ok'; zone: Zone; market: Market; timeZone: string }
   | { outcome: 'location_not_covered' }
-  | { outcome: 'time_zone_not_configured'; cityId: string };
+  /** The point is in a market that operates but is out of service there now (spec 031, FR-011). */
+  | { outcome: 'market_unavailable'; market: Market };
 
-/** Which active zone contains the point, and the (anchor) city that owns it, with its time zone. */
+async function marketOf(marketRepository: Pick<IMarketRepository, 'getById'>, zone: Zone): Promise<Market> {
+  const market = await marketRepository.getById(zone.marketId);
+  if (!market) throw new InvalidConfigurationError(`zones document ${zone.id}: market ${zone.marketId} does not exist`);
+  return market;
+}
+
+/**
+ * Which active zone contains the point and the market that owns it, with its time zone (spec 031,
+ * research §8). A draft market is not covered yet. A disabled market, or an inactive zone of a
+ * market that has operated, is "temporarily unavailable" instead, so the client learns why.
+ */
 export async function resolveServiceArea(
   zoneRepository: IZoneRepository,
-  cityRepository: ICityRepository,
+  marketRepository: Pick<IMarketRepository, 'getById'>,
   latitude: number,
   longitude: number,
 ): Promise<ServiceAreaResult> {
   const zone = await zoneRepository.findActiveContainingPoint(latitude, longitude);
-  if (!zone) return { outcome: 'location_not_covered' };
-
-  const city = await cityRepository.getById(zone.cityId);
-  if (!city) throw new Error(`Zone ${zone.id} references city ${zone.cityId}, which does not exist.`);
-  if (city.timeZone === null) return { outcome: 'time_zone_not_configured', cityId: city.id };
-  if (!isValidTimeZone(city.timeZone)) {
-    throw new InvalidConfigurationError(`cities document ${city.id}: '${city.timeZone}' is not a valid IANA time zone`);
+  if (!zone) {
+    const inactive = await zoneRepository.findAnyContainingPoint(latitude, longitude);
+    if (!inactive) return { outcome: 'location_not_covered' };
+    const market = await marketOf(marketRepository, inactive);
+    return market.status === 'draft' ? { outcome: 'location_not_covered' } : { outcome: 'market_unavailable', market };
   }
-  return { outcome: 'ok', zone, city, timeZone: city.timeZone };
+
+  const market = await marketOf(marketRepository, zone);
+  if (market.status === 'draft') return { outcome: 'location_not_covered' };
+  if (market.status === 'disabled') return { outcome: 'market_unavailable', market };
+  if (!isValidTimeZone(market.timeZone)) {
+    throw new InvalidConfigurationError(`markets document ${market.id}: '${market.timeZone}' is not a valid IANA time zone`);
+  }
+  return { outcome: 'ok', zone, market, timeZone: market.timeZone };
 }
 
 export interface AreaSettingsDependencies {
-  regionRepository: IRegionRepository;
   countryLookup: ICountryLookup;
   bookingSettingsRepository: IBookingSettingsRepository;
 }
@@ -62,29 +77,25 @@ export type AreaSettingsResult =
 const CURRENCY_PATTERN = /^[A-Z]{3}$/;
 
 /**
- * The booking rules of a city's area: city → region → country, the settings at the city or
- * its country (no built-in defaults) and the country's currency. `ok: false` lists exactly
- * what is missing. A currency written in the wrong form is broken configuration (throws).
+ * The booking rules of a market: the settings at the market or its country (no built-in
+ * defaults) and the country's currency. `ok: false` lists exactly what is missing. A currency
+ * written in the wrong form is broken configuration (throws).
  */
-export async function resolveAreaSettings(deps: AreaSettingsDependencies, city: City): Promise<AreaSettingsResult> {
-  // The country is found through the city's region; a region with no country recorded leaves it
-  // unknown, so only city-level settings can apply (and no currency is known).
-  const countryId = (await deps.regionRepository.getByIds([city.regionId]))[0]?.countryId ?? null;
-
+export async function resolveAreaSettings(deps: AreaSettingsDependencies, market: Market): Promise<AreaSettingsResult> {
   const [settingsDocuments, country] = await Promise.all([
-    deps.bookingSettingsRepository.findFor(city.id, countryId),
-    countryId === null ? Promise.resolve(null) : deps.countryLookup.getById(countryId),
+    deps.bookingSettingsRepository.findFor(market.id, market.countryId),
+    deps.countryLookup.getById(market.countryId),
   ]);
   return areaSettingsFrom(settingsDocuments, country);
 }
 
 /**
- * The booking rules of an area from its documents already read: the city's and its country's
+ * The booking rules of an area from its documents already read: the market's and its country's
  * settings, and the country (its currency). Shared with the admin's readiness, which reads many
  * areas at once, so both judge an area the same way.
  */
 export function areaSettingsFrom(
-  settingsDocuments: { city: BookingSettings | null; country: BookingSettings | null },
+  settingsDocuments: { market: BookingSettings | null; country: BookingSettings | null },
   country: Country | null,
 ): AreaSettingsResult {
   const currency = country?.currency ?? null;

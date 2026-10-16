@@ -5,17 +5,7 @@ import { isInvoiceableDocumentType, type DocumentType } from '../../../../domain
 import type { MatchSurface } from '../../../../domain/pricing/matchSurface.js';
 import type { Zone, ZoneGeometry } from '../../../../domain/zones/zone.js';
 import { previewGeometry, validateZoneGeometry } from '../../../../domain/zones/zoneGeometry.js';
-import type {
-  IAdminCityRepository,
-  IAdminCountryRepository,
-  IAdminRegionRepository,
-  IAdminZoneRepository,
-  IReadinessSummary,
-  IReferenceUsage,
-  ReadinessSummary,
-  ZoneSummary,
-} from './ports.js';
-import { isSupportedTimeZone } from './timeZones.js';
+import type { IAdminCityRepository, IAdminCountryRepository, IAdminRegionRepository, IReferenceUsage, ZoneSummary } from './ports.js';
 
 /** A list page as every admin list answers it. */
 export interface Page<T> {
@@ -30,25 +20,14 @@ export function pageOf<T>(items: T[], page: number, pageSize: number, totalItems
   return { items, page, pageSize, totalItems, totalPages: Math.max(1, Math.ceil(totalItems / pageSize)) };
 }
 
-export type CityState = 'operating' | 'available';
-
-/** A city as the admin shows it (contracts/geography-api.md). */
+/** A municipality as the admin shows it (billing catalog, spec 031). */
 export interface CityView {
   id: string;
   name: string;
   region: { id: string; name: string };
   country: { id: string; name: string; countryCode: string } | null;
-  timeZone: string | null;
-  /** False for a stored name the city form would not accept (an alias, a typo). */
-  timeZoneValid: boolean;
   daneStateCode: string | null;
   daneCityCode: string | null;
-  zoneCity: { id: string; name: string } | null;
-  zoneCount: number;
-  satelliteCount: number;
-  state: CityState;
-  /** Only operating cities have a checklist. */
-  readiness: ReadinessSummary | null;
   revision: number;
 }
 
@@ -56,55 +35,27 @@ export interface CityViewDependencies {
   cities: IAdminCityRepository;
   regions: IAdminRegionRepository;
   countries: IAdminCountryRepository;
-  zones: IAdminZoneRepository;
-  readiness: IReadinessSummary;
 }
 
 const unique = (values: (string | null)[]) => [...new Set(values.filter((value): value is string => value !== null))];
 
-/** Operating: it uses an anchor's zones, or has zones of its own (clarification 2). */
-export function cityState(city: City, zoneCount: number): CityState {
-  return city.zoneCityId !== null || zoneCount > 0 ? 'operating' : 'available';
-}
-
-/**
- * The views of several cities, reading their related records once. `withReadiness` adds the
- * checklist summary of the operating ones (one batch, the costliest part): only the list asks it.
- */
-export async function toCityViews(cities: City[], deps: CityViewDependencies, withReadiness = true): Promise<CityView[]> {
-  const ids = cities.map((city) => city.id);
-  const [regions, anchors, zoneCounts, satelliteCounts] = await Promise.all([
-    deps.regions.getByIds(unique(cities.map((city) => city.regionId))),
-    deps.cities.getByIds(unique(cities.map((city) => city.zoneCityId))),
-    deps.zones.countByCity(ids),
-    deps.cities.countSatellites(ids),
-  ]);
+/** The views of several municipalities, reading their regions and countries once. */
+export async function toCityViews(cities: City[], deps: CityViewDependencies): Promise<CityView[]> {
+  const regions = await deps.regions.getByIds(unique(cities.map((city) => city.regionId)));
   const countries = await deps.countries.getByIds(unique(regions.map((region) => region.countryId)));
   const regionById = new Map(regions.map((region) => [region.id, region]));
   const countryById = new Map(countries.map((country) => [country.id, country]));
-  const anchorById = new Map(anchors.map((anchor) => [anchor.id, anchor]));
-  const operating = cities.filter((city) => cityState(city, zoneCounts.get(city.id) ?? 0) === 'operating');
-  const summaries = withReadiness && operating.length > 0 ? await deps.readiness.summarize(operating) : new Map<string, ReadinessSummary>();
 
   return cities.map((city) => {
     const region = regionById.get(city.regionId);
     const country = region?.countryId ? countryById.get(region.countryId) : undefined;
-    const anchor = city.zoneCityId ? anchorById.get(city.zoneCityId) : undefined;
-    const zoneCount = zoneCounts.get(city.id) ?? 0;
     return {
       id: city.id,
       name: city.name,
       region: { id: city.regionId, name: region?.name ?? '' },
       country: country ? { id: country.id, name: country.name, countryCode: country.countryCode } : null,
-      timeZone: city.timeZone,
-      timeZoneValid: city.timeZone === null || isSupportedTimeZone(city.timeZone),
       daneStateCode: city.daneStateCode,
       daneCityCode: city.daneCityCode,
-      zoneCity: city.zoneCityId ? { id: city.zoneCityId, name: anchor?.name ?? '' } : null,
-      zoneCount,
-      satelliteCount: satelliteCounts.get(city.id) ?? 0,
-      state: cityState(city, zoneCount),
-      readiness: summaries.get(city.id) ?? null,
       revision: city.revision,
     };
   });
@@ -113,7 +64,7 @@ export async function toCityViews(cities: City[], deps: CityViewDependencies, wi
 /** A zone as the admin shows it (contracts/geography-api.md). */
 export interface ZoneView {
   id: string;
-  cityId: string;
+  marketId: string;
   name: string;
   slug: string;
   active: boolean;
@@ -130,7 +81,7 @@ export async function toZoneViews(zones: Zone[], usage: IReferenceUsage): Promis
   const inUse = await usage.zonesInUse(zones.map((zone) => zone.id));
   return zones.map((zone) => ({
     id: zone.id,
-    cityId: zone.cityId,
+    marketId: zone.marketId,
     name: zone.name,
     slug: zone.slug,
     active: zone.active,

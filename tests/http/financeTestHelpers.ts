@@ -5,10 +5,11 @@ import { seedRole, signInStaff } from './adminTestHelpers.js';
 import { signInGoalkeeper, type TestApp } from './operatingBalanceTestHelpers.js';
 import { buildDocument } from '../fixtures/invoicingAdminFixtures.js';
 
-/** A GET as a member (or anonymous without a token). */
-export const adminGet = (context: TestApp, path: string, token?: string) => {
+/** A GET as a member (or anonymous without a token), optionally with an `X-Scope` (spec 031). */
+export const adminGet = (context: TestApp, path: string, token?: string, scope?: string) => {
   const req = request(context.app).get(path);
-  return token ? req.set('Authorization', `Bearer ${token}`) : req;
+  const withScope = scope ? req.set('X-Scope', scope) : req;
+  return token ? withScope.set('Authorization', `Bearer ${token}`) : withScope;
 };
 
 export const adminPost = (context: TestApp, path: string, token: string, body: object = {}) =>

@@ -7,7 +7,7 @@ const match = new MatchDetails({
   latitude: 3.45,
   longitude: -76.5,
   zoneId: 'zone-cali-norte',
-  cityId: 'city-cali',
+  marketId: 'city-cali',
   startsAt: new Date('2026-09-21T20:00:00.000Z'),
   startsAtLocal: '2026-09-21T15:00:00-05:00',
   timeZone: 'America/Bogota',

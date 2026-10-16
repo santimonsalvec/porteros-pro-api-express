@@ -11,7 +11,11 @@ export interface InvoicingBuyer {
   firstName: string;
   lastName: string;
   email: string;
+  /** The municipality of the goalkeeper's billing data at the charge (spec 031). */
   cityId: string;
+  /** Their address and its complement then; `null` on documents created before spec 031. */
+  address: string | null;
+  addressComplement: string | null;
 }
 
 /**
@@ -40,6 +44,8 @@ export interface InvoicingDocumentProps {
   concept: InvoicingConcept;
   goalkeeperId: string;
   countryId: string;
+  /** The market of the movement it bills (spec 031, FR-043); written once. */
+  marketId: string;
   sourceEventId: string | null;
   sourceMovementId: string;
   vatMovementId: string | null;
@@ -76,6 +82,7 @@ export class InvoicingDocument extends Entity<string> {
   readonly concept: InvoicingConcept;
   readonly goalkeeperId: string;
   readonly countryId: string;
+  readonly marketId: string;
   readonly sourceEventId: string | null;
   readonly sourceMovementId: string;
   readonly vatMovementId: string | null;
@@ -111,6 +118,7 @@ export class InvoicingDocument extends Entity<string> {
     this.concept = props.concept;
     this.goalkeeperId = props.goalkeeperId;
     this.countryId = props.countryId;
+    this.marketId = props.marketId;
     this.sourceEventId = props.sourceEventId;
     this.sourceMovementId = props.sourceMovementId;
     this.vatMovementId = props.vatMovementId;
@@ -164,6 +172,7 @@ export class InvoicingDocument extends Entity<string> {
       concept: this.concept,
       goalkeeperId: this.goalkeeperId,
       countryId: this.countryId,
+      marketId: this.marketId,
       sourceEventId: this.sourceEventId,
       sourceMovementId: this.sourceMovementId,
       vatMovementId: this.vatMovementId,

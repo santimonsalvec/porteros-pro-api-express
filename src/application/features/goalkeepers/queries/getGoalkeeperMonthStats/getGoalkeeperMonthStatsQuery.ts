@@ -26,9 +26,9 @@ export type GetGoalkeeperMonthStatsResult =
   | { outcome: 'success'; stats: GoalkeeperMonthStats }
   | { outcome: 'not_a_goalkeeper' }
   /** The currency of the goalkeeper's country can't be resolved (as for the operating balance). */
-  | { outcome: 'operating_balance_not_configured'; cityId: string }
-  /** The goalkeeper's city has no valid time zone, so its months can't be cut. */
-  | { outcome: 'time_zone_not_configured'; cityId: string };
+  | { outcome: 'operating_balance_not_configured'; marketId: string }
+  /** The goalkeeper's market has no valid time zone, so its months can't be cut. */
+  | { outcome: 'time_zone_not_configured'; marketId: string };
 
 export class GetGoalkeeperMonthStatsQuery extends IQuery<GetGoalkeeperMonthStatsResult> {
   constructor(public readonly goalkeeperId: string) {

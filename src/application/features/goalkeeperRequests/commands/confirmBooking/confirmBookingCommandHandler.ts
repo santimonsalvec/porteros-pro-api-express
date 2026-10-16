@@ -10,6 +10,7 @@ import type {
   IQuoteConfirmationStore,
   IQuoteRepository,
 } from '../../common/ports.js';
+import type { IMarketRepository } from '../../../markets/common/ports.js';
 import { loadContacts } from '../../common/contacts.js';
 import { assignedGoalkeeperIds, toRequestResponse } from '../../common/requestResponse.js';
 import { Booking } from '../../../../../domain/bookings/booking.js';
@@ -36,6 +37,7 @@ export class ConfirmBookingCommandHandler implements ICommandHandler<
     private readonly clock: IClock,
     private readonly audit: IBookingAuditLogger,
     private readonly relay: IEventRelay,
+    private readonly markets: Pick<IMarketRepository, 'getById'>,
   ) {}
 
   async handle(command: ConfirmBookingCommand): Promise<ConfirmBookingResult> {
@@ -51,10 +53,15 @@ export class ConfirmBookingCommandHandler implements ICommandHandler<
     const replay = await this.replay(quoteId, clientId, now);
     if (replay) return this.finish(command, replay);
 
-    // "Cancel all" is only offered while it can still be applied (feature 016, clarification 1).
-    if (command.partialFulfillment === 'cancel_all') {
-      const quote = await this.quoteRepository.findByIdForClient(quoteId, clientId);
-      if (quote && !quote.isCancelAllAvailableAt(now)) {
+    const quote = await this.quoteRepository.findByIdForClient(quoteId, clientId);
+    if (quote) {
+      // A market disabled after the quote takes no new request (spec 031, FR-011); the quote stays.
+      const market = await this.markets.getById(quote.match.marketId);
+      if (market && market.status !== 'enabled') {
+        return this.finish(command, { outcome: 'market_unavailable', marketId: market.id, marketName: market.name });
+      }
+      // "Cancel all" is only offered while it can still be applied (feature 016, clarification 1).
+      if (command.partialFulfillment === 'cancel_all' && !quote.isCancelAllAvailableAt(now)) {
         return this.finish(command, { outcome: 'cancel_all_not_available', cancelAllUntil: quote.cancelAllUntil().toISOString() });
       }
     }

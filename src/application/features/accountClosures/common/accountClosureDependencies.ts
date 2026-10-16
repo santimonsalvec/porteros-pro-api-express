@@ -55,7 +55,7 @@ export async function balanceStateOf(deps: AccountClosureDependencies, userId: s
     deps.balances.findByGoalkeeperId(userId),
   ]);
   const owner: LedgerOwner | null =
-    context.kind === 'ok' ? { goalkeeperId: userId, currency: stored?.currency ?? context.currency, invoicing: context.invoicing } : null;
+    context.kind === 'ok' ? { goalkeeperId: userId, currency: stored?.currency ?? context.currency, invoicing: context.invoicing, marketId: context.profile.marketId } : null;
   return {
     balance: stored?.balance ?? 0,
     currency: stored?.currency ?? (context.kind === 'ok' ? context.currency : null),

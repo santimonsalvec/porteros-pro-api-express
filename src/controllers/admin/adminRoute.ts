@@ -4,6 +4,7 @@ import type { AdminWebDependencies } from '../../appDependencies.js';
 import type { Permission } from '../../domain/staff/permissionCatalog.js';
 import { auditTrail, type AuditSpec } from '../../infrastructure/audit/audited.js';
 import { requirePermission } from '../../infrastructure/auth/middleware/requirePermission.js';
+import { requireScope, type ScopeLevel } from '../../infrastructure/auth/middleware/requireScope.js';
 import { logger } from '../../infrastructure/observability/logger.js';
 import { maskEmails } from '../../infrastructure/observability/maskEmails.js';
 
@@ -13,15 +14,30 @@ import { maskEmails } from '../../infrastructure/observability/maskEmails.js';
  */
 export type AdminRouteGuard =
   | Permission
-  | { permission: Permission; audit: Omit<AuditSpec, 'permission'> }
-  | { permission: Permission; read: Omit<AuditSpec, 'permission' | 'before'> };
+  | { permission: Permission; level?: ScopeLevel }
+  | { permission: Permission; audit: Omit<AuditSpec, 'permission'>; level?: ScopeLevel }
+  | { permission: Permission; read: Omit<AuditSpec, 'permission' | 'before'>; level?: ScopeLevel };
+
+/** Declares one admin route; its module's level applies unless the guard names another. */
+export type AdminRoute = <Path extends string>(
+  method: 'get' | 'post' | 'put' | 'patch',
+  path: Path,
+  guard: AdminRouteGuard,
+  ...handlers: RequestHandler<RouteParameters<Path>>[]
+) => void;
 
 /**
  * How every `/admin/*` route is declared (spec 001, reused by spec 002's team routes): the
  * permission it needs and, for a write, how it is audited. The path's own params type the
  * handlers, as `router.get(path, handler)` would.
  */
-export function createAdminRouting(router: Router, admin: Pick<AdminWebDependencies, 'auditLog' | 'newId' | 'now'>) {
+/** The same routes at another level (a module whose routes are mostly of one level, spec 031). */
+export const atLevel =
+  (route: AdminRoute, level: ScopeLevel): AdminRoute =>
+  (method, path, guard, ...handlers) =>
+    route(method, path, typeof guard === 'string' ? { permission: guard, level } : { ...guard, level: guard.level ?? level }, ...handlers);
+
+export function createAdminRouting(router: Router, admin: Pick<AdminWebDependencies, 'auditLog' | 'newId' | 'now' | 'scope'>) {
   const trail = auditTrail({
     auditLog: admin.auditLog,
     newId: admin.newId,
@@ -34,23 +50,25 @@ export function createAdminRouting(router: Router, admin: Pick<AdminWebDependenc
     },
   });
 
-  const route = <Path extends string>(
-    method: 'get' | 'post' | 'put' | 'patch',
-    path: Path,
-    guard: AdminRouteGuard,
-    ...handlers: RequestHandler<RouteParameters<Path>>[]
-  ) => {
-    const permission = typeof guard === 'string' ? guard : guard.permission;
-    const audit =
-      typeof guard === 'string'
-        ? []
-        : 'audit' in guard
-          ? [trail.audited({ ...guard.audit, permission })]
-          : [trail.auditedRead({ ...guard.read, permission })];
-    router[method](path, requirePermission(permission, { onDenied: trail.onDenied }), ...audit, ...(handlers as RequestHandler[]));
-  };
+  /** A route of a module working at `level` (spec 031, contract B1); without scope deps, none is read. */
+  const at =
+    (level: ScopeLevel): AdminRoute =>
+    (method, path, guard, ...handlers) => {
+      const permission = typeof guard === 'string' ? guard : guard.permission;
+      const audit =
+        typeof guard === 'string'
+          ? []
+          : 'audit' in guard
+            ? [trail.audited({ ...guard.audit, permission })]
+            : 'read' in guard
+              ? [trail.auditedRead({ ...guard.read, permission })]
+              : [];
+      const routeLevel = typeof guard === 'string' ? level : (guard.level ?? level);
+      const scope = admin.scope ? [requireScope(routeLevel, admin.scope, { onDenied: trail.onScopeDenied })] : [];
+      router[method](path, requirePermission(permission, { onDenied: trail.onDenied }), ...scope, ...audit, ...(handlers as RequestHandler[]));
+    };
 
-  return { route, trail };
+  return { route: at('platform'), at, trail };
 }
 
 /** The state before a write, through an existing read; null when there is none yet. */

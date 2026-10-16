@@ -7,6 +7,7 @@ import { CancelBookingsByAdminCommand } from '../../application/features/booking
 import { ApiError } from '../apiError.js';
 import { adminCancelRequestSchema, listRequestsQuerySchema } from '../requests/requests/requestAdminRequests.js';
 import { invalidFields, notFound, parse, type Route } from './geographyRoutes.js';
+import { canSeeMarket, marketScopeCriteria } from './scopeCriteria.js';
 
 const requestIdOf = (req: Request) => String(req.params.requestId);
 const bookingIdOf = (req: Request) => String(req.params.bookingId);
@@ -17,7 +18,7 @@ const bookingIdOf = (req: Request) => String(req.params.bookingId);
  */
 export function registerRequestsRoutes(route: Route, mediator: ISender): void {
   route('get', '/requests', 'requests.read', async (req, res) => {
-    const result = await mediator.send(new ListRequestsAdminQuery(parse(listRequestsQuerySchema, req.query)));
+    const result = await mediator.send(new ListRequestsAdminQuery({ ...parse(listRequestsQuerySchema, req.query), ...marketScopeCriteria(req) }));
     if (result.outcome === 'search_too_broad') {
       throw new ApiError(400, 'search_too_broad', 'The goalkeeper has too many requests; narrow the dates.');
     }
@@ -26,7 +27,7 @@ export function registerRequestsRoutes(route: Route, mediator: ISender): void {
 
   route('get', '/requests/:requestId', 'requests.read', async (req, res) => {
     const result = await mediator.send(new GetRequestAdminQuery(requestIdOf(req)));
-    if (result.outcome === 'request_not_found') throw notFound('request_not_found');
+    if (result.outcome === 'request_not_found' || !canSeeMarket(req, result.request.match.market.id)) throw notFound('request_not_found');
     res.status(200).json(result.request);
   });
 

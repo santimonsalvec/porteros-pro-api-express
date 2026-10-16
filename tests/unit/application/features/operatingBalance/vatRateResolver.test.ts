@@ -3,16 +3,14 @@ import { createVatRateResolver } from '../../../../../src/application/features/o
 import { TaxSetting } from '../../../../../src/domain/operatingBalance/taxSetting.js';
 import { InvalidConfigurationError } from '../../../../../src/domain/pricing/invalidConfigurationError.js';
 import { FakeTaxSettingsRepository } from '../../../../fakes/fakeTaxSettingsRepository.js';
-import { FakeCityRepository } from '../../../../fakes/fakeCityRepository.js';
+import { FakeMarketRepository } from '../../../../fakes/fakeMarketRepository.js';
 import { FakeCountryRepository } from '../../../../fakes/fakeCountryRepository.js';
-import { FakeRegionRepository } from '../../../../fakes/fakeRegionRepository.js';
 import { seedOperatingBalanceWorld } from '../../../../fixtures/operatingBalanceFixtures.js';
 
 function locations() {
-  const cityRepository = new FakeCityRepository();
-  const regionRepository = new FakeRegionRepository();
-  seedOperatingBalanceWorld({ cityRepository, regionRepository, countryRepository: new FakeCountryRepository() });
-  return { cityRepository, regionRepository };
+  const marketRepository = new FakeMarketRepository();
+  seedOperatingBalanceWorld({ marketRepository, countryRepository: new FakeCountryRepository() });
+  return { marketRepository };
 }
 
 describe('createVatRateResolver', () => {
@@ -23,8 +21,8 @@ describe('createVatRateResolver', () => {
     const resolver = createVatRateResolver(repository, locations(), { warn: (entry) => void warnings.push(entry) });
 
     expect(await resolver.forCountry('country-co')).toBe(1900);
-    expect(await resolver.forCity('city-cali')).toBe(1900);
-    expect(await resolver.forCity('city-orphan')).toBe(0);
+    expect(await resolver.forMarket('city-cali')).toBe(1900);
+    expect(await resolver.forMarket('nowhere')).toBe(0);
     expect(await resolver.forCountry('country-mx')).toBe(0);
     expect(warnings).toEqual([{ outcome: 'vat_not_configured', countryId: 'country-mx' }]);
   });

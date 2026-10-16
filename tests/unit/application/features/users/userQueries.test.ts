@@ -65,7 +65,7 @@ describe('user queries (admin spec 005, US1)', () => {
     users.seed(user('u-new', 'new@gmail.com', '2026-10-11T15:00:00.000Z'));
     profiles.seed(new GoalkeeperProfile({
       id: 'gp-1', userId: 'u-andres', documentType: 'CC', documentNumber: '1020304050', issueDate: new Date('2016-01-01'), birthDate: new Date('1998-04-02'),
-      documentPhotoAId: 'img-a', documentPhotoBId: 'img-b', heightCm: 186, weightKg: 80, cityId: 'med', zoneIds: ['poblado'], activatedAt: T0,
+      documentPhotoAId: 'img-a', documentPhotoBId: 'img-b', heightCm: 186, weightKg: 80, marketId: 'med', zoneIds: ['poblado'], activatedAt: T0,
     }));
   });
 

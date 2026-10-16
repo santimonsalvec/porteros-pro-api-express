@@ -19,6 +19,8 @@ export function depositMovementDrafts(deposit: Deposit, args: ApplyOutcomeArgs, 
     cancellation: null,
     reason: null,
     invoicing: args.owner.invoicing,
+    // Where the goalkeeper played when the deposit started (spec 031).
+    marketId: deposit.marketId,
   };
   const drafts: MovementDraft[] = [{ ...common, id: ids[0], type: 'deposit', amount: deposit.amount, causeKey: `deposit:${deposit.id}` }];
   if (deposit.cost > 0) {

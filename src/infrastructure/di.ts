@@ -1,3 +1,7 @@
+import { ListGatewaySettingsQuery } from '../application/features/payments/queries/listGatewaySettings/listGatewaySettingsQuery.js';
+import { ListGatewaySettingsQueryHandler } from '../application/features/payments/queries/listGatewaySettings/listGatewaySettingsQueryHandler.js';
+import { DeleteMarketGatewayOverrideCommand } from '../application/features/payments/commands/deleteMarketGatewayOverride/deleteMarketGatewayOverrideCommand.js';
+import { DeleteMarketGatewayOverrideCommandHandler } from '../application/features/payments/commands/deleteMarketGatewayOverride/deleteMarketGatewayOverrideCommandHandler.js';
 import { Mediator, registerHandlers, registerSubscribers } from '../application/common/mediator/mediator.js';
 import { WithdrawalAdminDetails } from '../application/features/bookingLifecycle/common/withdrawalAdminDetails.js';
 import { GetSsoOptionsQuery } from '../application/features/auth/queries/getSsoOptions/getSsoOptionsQuery.js';
@@ -26,8 +30,10 @@ import { ListClientRequestsQueryHandler } from '../application/features/goalkeep
 import { ConfirmBookingCommandHandler } from '../application/features/goalkeeperRequests/commands/confirmBooking/confirmBookingCommandHandler.js';
 import { IssueServiceQuoteCommand } from '../application/features/goalkeeperRequests/commands/issueServiceQuote/issueServiceQuoteCommand.js';
 import { IssueServiceQuoteCommandHandler } from '../application/features/goalkeeperRequests/commands/issueServiceQuote/issueServiceQuoteCommandHandler.js';
-import { GetZonesByCityQuery } from '../application/features/zones/queries/getZonesByCity/getZonesByCityQuery.js';
-import { GetZonesByCityQueryHandler } from '../application/features/zones/queries/getZonesByCity/getZonesByCityQueryHandler.js';
+import { GetZonesByMarketQuery } from '../application/features/zones/queries/getZonesByMarket/getZonesByMarketQuery.js';
+import { GetZonesByMarketQueryHandler } from '../application/features/zones/queries/getZonesByMarket/getZonesByMarketQueryHandler.js';
+import { ListEnabledMarketsQuery } from '../application/features/markets/queries/listEnabledMarkets/listEnabledMarketsQuery.js';
+import { ListEnabledMarketsQueryHandler } from '../application/features/markets/queries/listEnabledMarkets/listEnabledMarketsQueryHandler.js';
 import { StoreImageCommand } from '../application/features/images/commands/storeImage/storeImageCommand.js';
 import { StoreImageCommandHandler } from '../application/features/images/commands/storeImage/storeImageCommandHandler.js';
 import { ResolveImageQuery } from '../application/features/images/queries/resolveImage/resolveImageQuery.js';
@@ -42,6 +48,13 @@ import { SaveIdentificationSectionCommand } from '../application/features/goalke
 import { SaveIdentificationSectionCommandHandler } from '../application/features/goalkeepers/commands/saveIdentificationSection/saveIdentificationSectionCommandHandler.js';
 import { SavePhysicalDataSectionCommand } from '../application/features/goalkeepers/commands/savePhysicalDataSection/savePhysicalDataSectionCommand.js';
 import { SavePhysicalDataSectionCommandHandler } from '../application/features/goalkeepers/commands/savePhysicalDataSection/savePhysicalDataSectionCommandHandler.js';
+import { SaveBillingSectionCommand } from '../application/features/goalkeepers/commands/saveBillingSection/saveBillingSectionCommand.js';
+import { ChangeGoalkeeperMarketCommand } from '../application/features/goalkeepers/commands/changeGoalkeeperMarket/changeGoalkeeperMarketCommand.js';
+import { ChangeGoalkeeperMarketCommandHandler } from '../application/features/goalkeepers/commands/changeGoalkeeperMarket/changeGoalkeeperMarketCommandHandler.js';
+import { MongoGoalkeeperMarketChangeStore } from './persistence/mongo/goalkeeperMarketChangeStore.js';
+import { SaveBillingSectionCommandHandler } from '../application/features/goalkeepers/commands/saveBillingSection/saveBillingSectionCommandHandler.js';
+import { UpdateGoalkeeperBillingCommand } from '../application/features/goalkeepers/commands/updateGoalkeeperBilling/updateGoalkeeperBillingCommand.js';
+import { UpdateGoalkeeperBillingCommandHandler } from '../application/features/goalkeepers/commands/updateGoalkeeperBilling/updateGoalkeeperBillingCommandHandler.js';
 import { SaveAvailabilitySectionCommand } from '../application/features/goalkeepers/commands/saveAvailabilitySection/saveAvailabilitySectionCommand.js';
 import { SaveAvailabilitySectionCommandHandler } from '../application/features/goalkeepers/commands/saveAvailabilitySection/saveAvailabilitySectionCommandHandler.js';
 import { SaveDocumentPhotoCommand } from '../application/features/goalkeepers/commands/saveDocumentPhoto/saveDocumentPhotoCommand.js';
@@ -143,6 +156,7 @@ import { MongoOperatingBalanceStore } from './persistence/mongo/operatingBalance
 import { CityRepository } from './persistence/mongo/cityRepository.js';
 import { RegionRepository } from './persistence/mongo/regionRepository.js';
 import { ZoneRepository } from './persistence/mongo/zoneRepository.js';
+import { MarketRepository } from './persistence/mongo/marketRepository.js';
 import { ImageRepository } from './persistence/mongo/imageRepository.js';
 import { GoogleIdTokenValidator } from './auth/googleIdTokenValidator.js';
 import { JwtInternalTokenIssuer } from './auth/jwtInternalTokenIssuer.js';
@@ -340,9 +354,11 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   await cityRepository.ensureIndexes();
   const regionRepository = new RegionRepository(db);
   await regionRepository.ensureIndexes();
+  const marketRepository = new MarketRepository(db);
+  await marketRepository.ensureIndexes();
   const zoneRepository = new ZoneRepository(db);
   // Admin spec 030: the discount and verified-only window of each zone, for the quote.
-  const unverifiedDiscountResolver = new UnverifiedDiscountResolver(unverifiedDiscountRepository, zoneRepository, cityRepository, regionRepository);
+  const unverifiedDiscountResolver = new UnverifiedDiscountResolver(unverifiedDiscountRepository, zoneRepository, marketRepository);
   await zoneRepository.ensureIndexes();
   const rentalRateRepository = new RentalRateRepository(db);
   await rentalRateRepository.ensureIndexes();
@@ -379,11 +395,11 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   await balanceMovementRepository.ensureIndexes();
   const commissionSettingRepository = new CommissionSettingRepository(db);
   await commissionSettingRepository.ensureIndexes();
-  const commissionResolver = new CommissionResolver(commissionSettingRepository, zoneRepository, cityRepository, regionRepository);
-  const operatingBalanceContext = { goalkeeperProfileRepository, cityRepository, regionRepository, countryLookup: countryRepository };
+  const commissionResolver = new CommissionResolver(commissionSettingRepository, zoneRepository, marketRepository);
+  const operatingBalanceContext = { goalkeeperProfileRepository, marketRepository, countryLookup: countryRepository };
   // VAT on top of commissions (feature 023).
   const taxSettingsRepository = new TaxSettingsRepository(db);
-  const vatRates = createVatRateResolver(taxSettingsRepository, { cityRepository, regionRepository }, logger);
+  const vatRates = createVatRateResolver(taxSettingsRepository, { marketRepository }, logger);
   // Electronic invoicing (feature 023): providers per country, credentials from Secret Manager.
   const invoicingDocumentRepository = new InvoicingDocumentRepository(db);
   await invoicingDocumentRepository.ensureIndexes();
@@ -398,6 +414,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   await depositRepository.ensureIndexes();
   await depositRepository.ensureAdminIndexes();
   const paymentGatewaySettingsRepository = new PaymentGatewaySettingsRepository(db);
+  await paymentGatewaySettingsRepository.ensureIndexes();
   const paymentGatewayRegistry = new PaymentGatewayRegistry([new WompiGateway()]);
   const paymentSecrets = new EnvPaymentSecrets(process.env);
 
@@ -561,10 +578,11 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     idGenerator,
     requestRepository,
     zoneRepository,
-    cityRepository,
+    marketRepository,
+    bookingSettingsRepository,
     logger,
-    maxReminders: config.offers.maxReminders,
-    intervalMinutes: config.offers.reminderIntervalMinutes,
+    // The environment values are the platform level; a country or a market may override them (spec 031, research §6).
+    platformReminders: { maxReminders: config.offers.maxReminders, intervalMinutes: config.offers.reminderIntervalMinutes },
   });
   const offersHandler = new NotifyBookingOffersHandler(mediator, processedEventStore, clock);
   // Booking expiry and "cancel all" (feature 016).
@@ -574,7 +592,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     requestRepository,
     bookingRepository,
     zoneRepository,
-    cityRepository,
+    marketRepository,
     notifications: notificationRepository,
     pushNotifier,
     processed: processedEventStore,
@@ -594,7 +612,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   const goalkeeperCancellationNotices = new GoalkeeperCancellationNoticeHandler({
     requestRepository,
     zoneRepository,
-    cityRepository,
+    marketRepository,
     notifications: notificationRepository,
     pushNotifier,
     processed: processedEventStore,
@@ -614,7 +632,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   const withdrawalNotices = new WithdrawalNoticeHandler({
     requestRepository,
     zoneRepository,
-    cityRepository,
+    marketRepository,
     notifications: notificationRepository,
     pushNotifier,
     processed: processedEventStore,
@@ -634,7 +652,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       handler: new CheckInNoticeHandler({
         requestRepository,
         zoneRepository,
-        cityRepository,
+        marketRepository,
         notifications: notificationRepository,
         pushNotifier,
         processed: processedEventStore,
@@ -652,7 +670,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       handler: new NoShowNoticeHandler({
         requestRepository,
         zoneRepository,
-        cityRepository,
+        marketRepository,
         notifications: notificationRepository,
         pushNotifier,
         processed: processedEventStore,
@@ -668,7 +686,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       bookingRepository,
       userRepository,
       zoneRepository,
-      cityRepository,
+      marketRepository,
       notifications: notificationRepository,
       pushNotifier,
       processed: processedEventStore,
@@ -714,6 +732,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       securityLog: new PinoAdminSecurityLog(),
       accessResolver: staffAccessResolver,
       auditLog: adminAuditLog,
+      places: { markets: marketRepository, countries: countryRepository },
     }),
   );
   const referenceUsage = new MongoReferenceUsage(db);
@@ -724,8 +743,10 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       countries: adminCountryRepository,
       regions: regionRepository,
       cities: cityRepository,
+      markets: marketRepository,
       zones: zoneRepository,
       usage: referenceUsage,
+      marketUsage: referenceUsage,
       futureBookings: referenceUsage,
       bookingSettings: bookingSettingsRepository,
       rentalRates: rentalRateRepository,
@@ -742,18 +763,17 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   registerHandlers(
     mediator,
     pricingHandlerRegistrations({
-      regionRepository,
       countryLookup: countryRepository,
       rentalRateRepository,
       bookingSettingsRepository,
       commissionResolver,
       countries: adminCountryRepository,
-      regions: regionRepository,
-      cities: cityRepository,
+      markets: marketRepository,
       zones: zoneRepository,
       rentalRates: rentalRateRepository,
       commissions: commissionSettingRepository,
       bookingSettings: bookingSettingsRepository,
+      platformReminders: { maxReminders: config.offers.maxReminders, intervalMinutes: config.offers.reminderIntervalMinutes },
       discounts: unverifiedDiscountRepository,
       taxSettings: taxSettingsRepository,
       ids: idGenerator,
@@ -786,7 +806,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       suggestDepositAmount: async (goalkeeperId, debt) => {
         const context = await resolveGoalkeeperOperatingBalanceContext(operatingBalanceContext, goalkeeperId);
         if (context.kind !== 'ok') return null;
-        const settings = await usableSettings(paymentGatewaySettingsRepository, context.countryId, context.currency);
+        const settings = await usableSettings(paymentGatewaySettingsRepository, { countryId: context.countryId, marketId: context.profile.marketId }, context.currency);
         return settings ? suggestDepositAmount(settings.options(), debt) : null;
       },
       idGenerator,
@@ -804,7 +824,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       staff: staffMemberRepository,
       goalkeeperReader: goalkeeperAdminReader,
       zones: zoneRepository,
-      cities: cityRepository,
+      markets: marketRepository,
       clock,
       reader: userAdminReader,
       closures: accountClosureRepository,
@@ -818,7 +838,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       users: userRepository,
       blocks: userBlockRepository,
       profiles: goalkeeperProfileRepository,
-      cities: cityRepository,
+      markets: marketRepository,
       zones: zoneRepository,
       documentTypes: documentTypeRepository,
       monthStats: (goalkeeperId) => mediator.send(new GetGoalkeeperMonthStatsQuery(goalkeeperId)),
@@ -826,6 +846,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       registrations: goalkeeperRegistrationRepository,
       images: imageRepository,
       documentWriter: new MongoGoalkeeperDocumentWriter(() => connectionProvider.startSession(), db),
+      places: { cities: cityRepository, regions: regionRepository },
     }),
   );
   // Validation and verification (admin spec 030): the notices and the reputation seal.
@@ -856,7 +877,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       ratings: ratingRepository,
       blocks: userBlockRepository,
       userReader: userAdminReader,
-      cities: cityRepository,
+      markets: marketRepository,
     }),
   );
   registerHandlers(
@@ -864,7 +885,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     operationsHandlerRegistrations({
       reader: new RequestAdminReader(db),
       users: userRepository,
-      cities: cityRepository,
+      markets: marketRepository,
       zones: zoneRepository,
       staff: staffMemberRepository,
       clock,
@@ -881,8 +902,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     financeHandlerRegistrations({
       depositReader: new DepositAdminReader(db),
       operatingBalanceReader: new OperatingBalanceAdminReader(db),
-      cities: cityRepository,
-      regions: regionRepository,
+      markets: marketRepository,
       documentReader: new InvoicingDocumentAdminReader(db),
       documents: invoicingDocumentRepository,
       clock,
@@ -906,7 +926,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       relay: eventRelay,
       idGenerator: idGenerator,
       clock,
-      graceResolver: () => createNoShowGraceResolver({ cityRepository, regionRepository, bookingSettingsRepository, logger: logger }),
+      graceResolver: () => createNoShowGraceResolver({ marketRepository, bookingSettingsRepository, logger: logger }),
     }),
     new OfferRemindersJob({ bookingRepository, eligibility: offerEligibility, sender: offerSender, logger: logger, roundCap: config.offers.roundCap }),
     new ContactsRevealJob({
@@ -914,7 +934,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       bookingRepository,
       userRepository,
       zoneRepository,
-      cityRepository,
+      marketRepository,
       notifications: notificationRepository,
       pushNotifier,
       idGenerator: idGenerator,
@@ -926,13 +946,13 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       requestRepository,
       userRepository,
       zoneRepository,
-      cityRepository,
+      marketRepository,
       notifications: notificationRepository,
       pushNotifier,
       idGenerator: idGenerator,
       clock,
       logger: logger,
-      windowResolver: () => createCheckInWindowResolver({ cityRepository, regionRepository, bookingSettingsRepository, logger: logger }),
+      windowResolver: () => createCheckInWindowResolver({ marketRepository, bookingSettingsRepository, logger: logger }),
     }),
     new DepositReconcileJob({
       operatingBalanceContext,
@@ -996,15 +1016,15 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     { requestType: GetCountriesQuery, handler: new GetCountriesQueryHandler(countryRepository) },
     {
       requestType: GetCitiesQuery,
-      handler: new GetCitiesQueryHandler(cityRepository, regionRepository, zoneRepository),
+      handler: new GetCitiesQueryHandler(cityRepository, regionRepository),
     },
-    { requestType: GetZonesByCityQuery, handler: new GetZonesByCityQueryHandler(cityRepository, zoneRepository) },
+    { requestType: GetZonesByMarketQuery, handler: new GetZonesByMarketQueryHandler(marketRepository, zoneRepository) },
+    { requestType: ListEnabledMarketsQuery, handler: new ListEnabledMarketsQueryHandler(marketRepository) },
     {
       requestType: GetBookingConfigQuery,
       handler: new GetBookingConfigQueryHandler(
         zoneRepository,
-        cityRepository,
-        regionRepository,
+        marketRepository,
         countryRepository,
         bookingSettingsRepository,
         clock,
@@ -1015,8 +1035,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       requestType: GetServiceQuoteQuery,
       handler: new GetServiceQuoteQueryHandler(
         zoneRepository,
-        cityRepository,
-        regionRepository,
+        marketRepository,
         countryRepository,
         rentalRateRepository,
         bookingSettingsRepository,
@@ -1041,6 +1060,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         clock,
         auditLogger,
         eventRelay,
+        marketRepository,
       ),
     },
     {
@@ -1049,7 +1069,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         requestRepository,
         bookingRepository,
         zoneRepository,
-        cityRepository,
+        marketRepository,
         userRepository,
         clock,
       ),
@@ -1105,9 +1125,14 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     { requestType: GetDepositByReferenceQuery, handler: new GetDepositByReferenceQueryHandler(depositRepository) },
     {
       requestType: SetGatewaySettingsCommand,
-      handler: new SetGatewaySettingsCommandHandler(countryRepository, paymentGatewaySettingsRepository, paymentSecrets, clock, logger),
+      handler: new SetGatewaySettingsCommandHandler(countryRepository, paymentGatewaySettingsRepository, paymentSecrets, clock, logger, marketRepository),
     },
     { requestType: GetGatewaySettingsQuery, handler: new GetGatewaySettingsQueryHandler(paymentGatewaySettingsRepository, paymentSecrets, countryRepository) },
+    {
+      requestType: ListGatewaySettingsQuery,
+      handler: new ListGatewaySettingsQueryHandler({ settingsRepository: paymentGatewaySettingsRepository, secrets: paymentSecrets, countryLookup: countryRepository, markets: marketRepository }),
+    },
+    { requestType: DeleteMarketGatewayOverrideCommand, handler: new DeleteMarketGatewayOverrideCommandHandler(paymentGatewaySettingsRepository) },
     { requestType: ListMyDocumentsQuery, handler: new ListMyDocumentsQueryHandler(goalkeeperProfileRepository, invoicingDocumentRepository) },
     { requestType: GetMyDocumentQuery, handler: new GetMyDocumentQueryHandler(invoicingDocumentRepository) },
     { requestType: GetDocumentFileQuery, handler: new GetDocumentFileQueryHandler(invoicingDeps) },
@@ -1165,7 +1190,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         bookingRepository,
         requestRepository,
         zoneRepository,
-        cityRepository,
+        marketRepository,
         userRepository,
         store: new MongoBookingAcceptanceStore(() => connectionProvider.startSession(), db),
         idGenerator: idGenerator,
@@ -1173,7 +1198,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         audit: auditLogger,
         relay: eventRelay,
         vatRates,
-        windowResolver: () => createCheckInWindowResolver({ cityRepository, regionRepository, bookingSettingsRepository, logger: logger }),
+        windowResolver: () => createCheckInWindowResolver({ marketRepository, bookingSettingsRepository, logger: logger }),
       }),
     },
     {
@@ -1186,7 +1211,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         bookingRepository,
         requestRepository: requestRepository,
         zoneRepository,
-        cityRepository,
+        marketRepository,
         clock,
         onCapReached: (goalkeeperId) =>
           logger.warn({ outcome: 'available_candidates_cap_reached', goalkeeperId }, 'Available-bookings candidate cap reached'),
@@ -1199,10 +1224,10 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         bookingRepository,
         requestRepository,
         zoneRepository,
-        cityRepository,
+        marketRepository,
         userRepository,
         clock,
-        windowResolver: () => createCheckInWindowResolver({ cityRepository, regionRepository, bookingSettingsRepository, logger: logger }),
+        windowResolver: () => createCheckInWindowResolver({ marketRepository, bookingSettingsRepository, logger: logger }),
       }),
     },
     {
@@ -1219,9 +1244,9 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       handler: new GetGoalkeeperRegistrationQueryHandler(
         goalkeeperRegistrationRepository,
         goalkeeperProfileRepository,
-        cityRepository,
-        regionRepository,
+        marketRepository,
         { checks: backgroundCheckRepository, clock, discounts: unverifiedDiscountResolver },
+        { cities: cityRepository, regions: regionRepository },
       ),
     },
     { requestType: GetDocumentTypesQuery, handler: new GetDocumentTypesQueryHandler(documentTypeRepository) },
@@ -1234,8 +1259,16 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       handler: new SavePhysicalDataSectionCommandHandler(goalkeeperRegistrationRepository, idGenerator),
     },
     {
+      requestType: SaveBillingSectionCommand,
+      handler: new SaveBillingSectionCommandHandler(goalkeeperRegistrationRepository, cityRepository, idGenerator),
+    },
+    {
+      requestType: UpdateGoalkeeperBillingCommand,
+      handler: new UpdateGoalkeeperBillingCommandHandler(goalkeeperProfileRepository, goalkeeperRegistrationRepository, cityRepository),
+    },
+    {
       requestType: SaveAvailabilitySectionCommand,
-      handler: new SaveAvailabilitySectionCommandHandler(goalkeeperRegistrationRepository, cityRepository, zoneRepository, idGenerator),
+      handler: new SaveAvailabilitySectionCommandHandler(goalkeeperRegistrationRepository, marketRepository, zoneRepository, idGenerator),
     },
     {
       requestType: SaveDocumentPhotoCommand,
@@ -1254,9 +1287,21 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       handler: new UpdateGoalkeeperAvailabilityCommandHandler(
         goalkeeperProfileRepository,
         goalkeeperRegistrationRepository,
-        cityRepository,
+        marketRepository,
         zoneRepository,
       ),
+    },
+    {
+      requestType: ChangeGoalkeeperMarketCommand,
+      handler: new ChangeGoalkeeperMarketCommandHandler({
+        profiles: goalkeeperProfileRepository,
+        registrations: goalkeeperRegistrationRepository,
+        markets: marketRepository,
+        zones: zoneRepository,
+        countries: countryRepository,
+        store: new MongoGoalkeeperMarketChangeStore(() => connectionProvider.startSession(), db, goalkeeperProfileRepository),
+        clock,
+      }),
     },
     {
       requestType: RunSweepCommand,
@@ -1319,7 +1364,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         goalkeeperProfileRepository,
         incidents: goalkeeperIncidentRepository,
         clock,
-        adminDetails: new WithdrawalAdminDetails({ bookings: bookingRepository, zones: zoneRepository, cities: cityRepository, movements: balanceMovementRepository }),
+        adminDetails: new WithdrawalAdminDetails({ bookings: bookingRepository, zones: zoneRepository, markets: marketRepository, movements: balanceMovementRepository }),
       }),
     },
     {
@@ -1334,9 +1379,9 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         bookingRepository,
         requestRepository,
         zoneRepository,
-        cityRepository,
+        marketRepository,
         userRepository,
-        windowResolver: () => createCheckInWindowResolver({ cityRepository, regionRepository, bookingSettingsRepository, logger: logger }),
+        windowResolver: () => createCheckInWindowResolver({ marketRepository, bookingSettingsRepository, logger: logger }),
         store: lifecycleStore,
         relay: eventRelay,
         idGenerator: idGenerator,
@@ -1362,7 +1407,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     },
     {
       requestType: ListPendingRatingsQuery,
-      handler: new ListPendingRatingsQueryHandler({ bookingRepository, ratingRepository: ratingRepository, requestRepository, zoneRepository, cityRepository, userRepository, clock }),
+      handler: new ListPendingRatingsQueryHandler({ bookingRepository, ratingRepository: ratingRepository, requestRepository, zoneRepository, marketRepository, userRepository, clock }),
     },
     { requestType: ListCasesQuery, handler: new ListCasesQueryHandler(caseRepository) },
     { requestType: GetCaseQuery, handler: new GetCaseQueryHandler(caseRepository, ratingRepository) },
@@ -1376,7 +1421,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         bookingRepository,
         requestRepository,
         zoneRepository,
-        cityRepository,
+        marketRepository,
         relay: eventRelay,
         idGenerator,
         clock,
@@ -1422,8 +1467,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     dashboardSystemHandlerRegistrations({
       dashboardReader: new MongoDashboardReader(db),
       countries: adminCountryRepository,
-      regions: regionRepository,
-      cities: cityRepository,
+      markets: marketRepository,
       clock,
       logger,
       outbox: outboxStore,
@@ -1458,6 +1502,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         verifyAccessToken: (token) => adminTokenIssuer.verifyAccessToken(token),
         accessResolver: staffAccessResolver,
         auditLog: adminAuditLog,
+        scope: { markets: marketRepository, countries: countryRepository },
         allowedOrigins: config.admin.allowedOrigins,
         sessionCookieSecure: config.admin.sessionCookieSecure,
         newId: () => idGenerator.newId(),

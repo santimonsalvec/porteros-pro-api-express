@@ -15,18 +15,18 @@ describe('GoalkeeperAdminReader (mocked driver, admin spec 005)', () => {
     const goalkeeperProfiles = createFakeCollection();
     goalkeeperProfiles.aggregate.mockReturnValue(
       toArrayResult([{
-        items: [{ _id: 'gp1', userId: 'u1', cityId: 'med', zoneCount: 3, suspendedUntil: NOW, balance: -4000, currency: 'COP', activatedAt: NOW }],
+        items: [{ _id: 'gp1', userId: 'u1', marketId: 'med', zoneCount: 3, suspendedUntil: NOW, balance: -4000, currency: 'COP', activatedAt: NOW }],
         total: [{ count: 7 }],
       }]),
     );
 
-    const result = await readerWith({ goalkeeperProfiles }).list({ cityId: 'med', now: NOW, page: 1, pageSize: 20 });
+    const result = await readerWith({ goalkeeperProfiles }).list({ marketId: 'med', now: NOW, page: 1, pageSize: 20 });
 
     expect(result).toEqual({
       totalItems: 7,
-      items: [{ userId: 'u1', cityId: 'med', zoneCount: 3, availableForOffers: true, suspendedUntil: NOW, balance: -4000, currency: 'COP', activatedAt: NOW, vetting: { tier: 'unvalidated', verificationMethod: null, backgroundCheckAlert: null } }],
+      items: [{ userId: 'u1', marketId: 'med', zoneCount: 3, availableForOffers: true, suspendedUntil: NOW, balance: -4000, currency: 'COP', activatedAt: NOW, vetting: { tier: 'unvalidated', verificationMethod: null, backgroundCheckAlert: null } }],
     });
-    expect(goalkeeperProfiles.aggregate.mock.calls[0]![0][0]).toEqual({ $match: { cityId: 'med' } });
+    expect(goalkeeperProfiles.aggregate.mock.calls[0]![0][0]).toEqual({ $match: { marketId: 'med' } });
   });
 
   it('answers no goalkeepers when a search found no users, without asking Mongo', async () => {

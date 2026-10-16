@@ -20,7 +20,7 @@ export interface PlaceRef {
 
 export interface RequestListItem {
   requestId: string;
-  match: { startsAt: string; timeZone: string; city: PlaceRef; zone: PlaceRef };
+  match: { startsAt: string; timeZone: string; market: PlaceRef; zone: PlaceRef };
   client: PersonRef;
   goalkeepersRequested: number;
   goalkeepersAssigned: number;
@@ -101,7 +101,7 @@ export interface RequestDetail {
   match: {
     startsAt: string;
     timeZone: string;
-    city: PlaceRef;
+    market: PlaceRef;
     zone: PlaceRef;
     latitude: number;
     longitude: number;

@@ -45,7 +45,7 @@ describe('admin requests (spec 006 of the admin, US1)', () => {
       goalkeepersRequested: 2,
       goalkeepersAssigned: 1,
       status: 'partially_assigned',
-      match: { timeZone: expect.any(String), city: { id: expect.any(String) }, zone: { id: 'zone-cali-norte' } },
+      match: { timeZone: expect.any(String), market: { id: expect.any(String) }, zone: { id: 'zone-cali-norte' } },
     });
     expect(JSON.stringify(all.body)).not.toMatch(/whatsApp|phone/i);
 

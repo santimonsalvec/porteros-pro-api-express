@@ -6,13 +6,13 @@ export class MatchDetails {
   readonly longitude: number;
   /** The active zone the point fell in when the quote was issued. */
   readonly zoneId: string;
-  /** The zone's owning (anchor) city. */
-  readonly cityId: string;
+  /** The zone's market (spec 031). */
+  readonly marketId: string;
   /** The start instant (UTC). */
   readonly startsAt: Date;
-  /** The same instant in the city's zone, `…±HH:mm` — display only. */
+  /** The same instant in the market's zone, `…±HH:mm` — display only. */
   readonly startsAtLocal: string;
-  /** The city's IANA time-zone identifier. */
+  /** The market's IANA time-zone identifier, copied when quoted. */
   readonly timeZone: string;
   readonly goalkeeperCount: 1 | 2;
   readonly durationMinutes: 60 | 90 | 120;
@@ -23,7 +23,7 @@ export class MatchDetails {
     latitude: number;
     longitude: number;
     zoneId: string;
-    cityId: string;
+    marketId: string;
     startsAt: Date;
     startsAtLocal: string;
     timeZone: string;
@@ -40,7 +40,7 @@ export class MatchDetails {
     if (!(params.startsAt instanceof Date) || Number.isNaN(params.startsAt.getTime())) {
       throw new Error('MatchDetails: startsAt must be a valid date');
     }
-    for (const key of ['zoneId', 'cityId', 'timeZone', 'startsAtLocal'] as const) {
+    for (const key of ['zoneId', 'marketId', 'timeZone', 'startsAtLocal'] as const) {
       if (typeof params[key] !== 'string' || params[key] === '') {
         throw new Error(`MatchDetails: ${key} is required`);
       }
@@ -58,7 +58,7 @@ export class MatchDetails {
     this.latitude = params.latitude;
     this.longitude = params.longitude;
     this.zoneId = params.zoneId;
-    this.cityId = params.cityId;
+    this.marketId = params.marketId;
     this.startsAt = new Date(params.startsAt);
     this.startsAtLocal = params.startsAtLocal;
     this.timeZone = params.timeZone;

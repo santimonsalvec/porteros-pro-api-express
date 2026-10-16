@@ -32,7 +32,7 @@ describe('GoalkeeperRegistrationRepository (mocked driver)', () => {
       status: 'in_progress',
       identification: { documentType: 'cedula_ciudadania', documentNumber: '123' },
       physicalData: { heightCm: 185 },
-      availability: { cityId: 'city-envigado', zoneIds: ['zone-bello', 'zone-copacabana'] },
+      availability: { marketId: 'city-envigado', zoneIds: ['zone-bello', 'zone-copacabana'] },
       createdAt: '2026-08-30T15:04:05.000Z',
       updatedAt: '2026-08-30T15:04:05.000Z',
     });
@@ -45,12 +45,12 @@ describe('GoalkeeperRegistrationRepository (mocked driver)', () => {
     expect(found?.identification.birthDate).toBeNull();
     expect(found?.physicalData.heightCm).toBe(185);
     expect(found?.physicalData.weightKg).toBeNull();
-    expect(found?.availability.cityId).toBe('city-envigado');
+    expect(found?.availability.marketId).toBe('city-envigado');
     expect(found?.availability.zoneIds).toEqual(['zone-bello', 'zone-copacabana']);
     expect(found?.activatedAt).toBeNull();
   });
 
-  it('defaults availability.zoneIds to an empty array and cityId to null when the stored field is absent', async () => {
+  it('defaults availability.zoneIds to an empty array and marketId to null when the stored field is absent', async () => {
     const collection = createFakeCollection();
     collection.findOne.mockResolvedValue({
       _id: 'reg-3',
@@ -66,11 +66,11 @@ describe('GoalkeeperRegistrationRepository (mocked driver)', () => {
 
     const found = await repository.getById('reg-3');
 
-    expect(found?.availability.cityId).toBeNull();
+    expect(found?.availability.marketId).toBeNull();
     expect(found?.availability.zoneIds).toEqual([]);
   });
 
-  it('omits availability.cityId but keeps zoneIds when persisting an in-progress save', async () => {
+  it('omits availability.marketId but keeps zoneIds when persisting an in-progress save', async () => {
     const collection = createFakeCollection();
     collection.insertOne.mockResolvedValue({ acknowledged: true, insertedId: 'reg-4' });
     const repository = repositoryWith(collection);
@@ -81,7 +81,7 @@ describe('GoalkeeperRegistrationRepository (mocked driver)', () => {
 
     const doc = collection.insertOne.mock.calls[0]![0] as Record<string, unknown>;
     const availability = doc.availability as Record<string, unknown>;
-    expect(availability.cityId).toBeUndefined();
+    expect(availability.marketId).toBeUndefined();
     expect(availability.zoneIds).toEqual(['zone-bello']);
   });
 
@@ -119,9 +119,9 @@ describe('GoalkeeperRegistrationRepository (mocked driver)', () => {
     const cursor = toArrayCursor([{ _id: 'r1', userId: 'u1', status: 'in_progress', identification: {}, physicalData: {}, availability: { zoneIds: [] }, createdAt: at, updatedAt: at }]);
     collection.find.mockReturnValue(cursor);
 
-    const result = await repositoryWith(collection).inProgress({ cityId: 'med', updatedBefore: at });
+    const result = await repositoryWith(collection).inProgress({ marketId: 'med', updatedBefore: at });
 
-    expect(collection.find).toHaveBeenCalledWith({ status: 'in_progress', 'availability.cityId': 'med', updatedAt: { $lte: at } });
+    expect(collection.find).toHaveBeenCalledWith({ status: 'in_progress', 'availability.marketId': 'med', updatedAt: { $lte: at } });
     expect(cursor.sort).toHaveBeenCalledWith({ updatedAt: 1, _id: 1 });
     expect(result.map((registration) => [registration.userId, registration.status])).toEqual([['u1', 'in_progress']]);
   });

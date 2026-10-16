@@ -12,7 +12,7 @@ export class GetGatewaySettingsQueryHandler implements IQueryHandler<GetGatewayS
   ) {}
 
   async handle(query: GetGatewaySettingsQuery): Promise<GetGatewaySettingsResult> {
-    const settings = await this.settingsRepository.getByCountry(query.countryId);
+    const settings = await this.settingsRepository.getFor(query.scope, query.refId);
     if (!settings) return { outcome: 'not_found' };
     const credentialsPresent = await gatewayCredentialsPresent({ secrets: this.secrets, countryLookup: this.countryLookup }, settings);
     return { outcome: 'success', settings: toGatewaySettingsResponse(settings, credentialsPresent) };

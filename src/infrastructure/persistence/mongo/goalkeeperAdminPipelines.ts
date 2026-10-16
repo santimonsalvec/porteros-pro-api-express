@@ -6,7 +6,7 @@ import { BACKGROUND_CHECKS_COLLECTION } from './backgroundCheckRepository.js';
 /** What a goalkeeper row reads from the profile and its operating balance. */
 const ROW_PROJECTION = {
   userId: 1,
-  cityId: 1,
+  marketId: 1,
   zoneCount: { $size: { $ifNull: ['$zoneIds', []] } },
   availableForOffers: 1,
   suspendedUntil: 1,
@@ -78,7 +78,8 @@ function backgroundCheckAlertSteps(now: Date): Document[] {
 export function goalkeepersListPipeline(filter: GoalkeeperListFilter): Document[] {
   const own: Document = {};
   if (filter.userIds !== undefined) own.userId = { $in: [...filter.userIds] };
-  if (filter.cityId !== undefined) own.cityId = filter.cityId;
+  if (filter.marketId !== undefined) own.marketId = filter.marketId;
+  else if (filter.marketIds !== undefined) own.marketId = { $in: [...filter.marketIds] };
   if (filter.zoneId !== undefined) own.zoneIds = filter.zoneId;
   if (filter.suspended === true) own.suspendedUntil = { $gt: filter.now };
   if (filter.suspended === false) own.$or = [{ suspendedUntil: null }, { suspendedUntil: { $lte: filter.now } }];

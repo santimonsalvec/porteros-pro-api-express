@@ -4,7 +4,7 @@ import { DeleteCityCommandHandler } from '../../../../../src/application/feature
 import { geographyKit } from './geographyTestKit.js';
 
 describe('DeleteCityCommandHandler', () => {
-  it.each(['city_has_zones', 'city_is_anchor', 'city_in_use'] as const)('keeps a city that is used (%s)', async (reason) => {
+  it.each(['city_in_use'] as const)('keeps a city that is used (%s)', async (reason) => {
     const kit = geographyKit();
     kit.usage.use('ita', reason);
 

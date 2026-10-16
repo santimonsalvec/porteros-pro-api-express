@@ -59,7 +59,7 @@ export class GoalkeeperAdminReader implements IGoalkeeperAdminReader {
 function toRecord(doc: Document): GoalkeeperListRecord {
   return {
     userId: doc.userId as string,
-    cityId: (doc.cityId as string | undefined) ?? null,
+    marketId: (doc.marketId as string | undefined) ?? null,
     zoneCount: (doc.zoneCount as number | undefined) ?? 0,
     availableForOffers: doc.availableForOffers !== false,
     suspendedUntil: doc.suspendedUntil ? new Date(doc.suspendedUntil as Date) : null,

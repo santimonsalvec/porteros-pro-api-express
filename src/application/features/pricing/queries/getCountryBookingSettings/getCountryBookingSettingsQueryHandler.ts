@@ -1,11 +1,12 @@
 import type { IQueryHandler } from '../../../../common/mediator/types.js';
 import type { IAdminCountryRepository } from '../../../geography/common/ports.js';
-import { EMPTY_SETTINGS, SETTING_DEFAULTS } from '../../common/bookingRules.js';
+import { EMPTY_SETTINGS, settingDefaults } from '../../common/bookingRules.js';
 import type { IBookingSettingsAdmin } from '../../common/ports.js';
+import type { OfferReminderValues } from '../../../notifications/common/offerReminders.js';
 import { GetCountryBookingSettingsQuery, type GetCountryBookingSettingsResult } from './getCountryBookingSettingsQuery.js';
 
 export class GetCountryBookingSettingsQueryHandler implements IQueryHandler<GetCountryBookingSettingsQuery, GetCountryBookingSettingsResult> {
-  constructor(private readonly deps: { countries: IAdminCountryRepository; bookingSettings: IBookingSettingsAdmin }) {}
+  constructor(private readonly deps: { countries: IAdminCountryRepository; bookingSettings: IBookingSettingsAdmin; platformReminders?: OfferReminderValues }) {}
 
   async handle({ countryId }: GetCountryBookingSettingsQuery): Promise<GetCountryBookingSettingsResult> {
     const country = await this.deps.countries.getById(countryId);
@@ -18,7 +19,7 @@ export class GetCountryBookingSettingsQueryHandler implements IQueryHandler<GetC
         countryName: country.name,
         currency: country.currency,
         own: record?.fields ?? EMPTY_SETTINGS,
-        defaults: SETTING_DEFAULTS,
+        defaults: settingDefaults(this.deps.platformReminders),
         invalid: record?.invalid ?? false,
         revision: record?.revision ?? null,
       },

@@ -15,7 +15,7 @@ import type { IUserContactWriter } from '../application/features/users/common/po
 import type { IClock } from '../application/common/clock.js';
 import type { IGoalkeeperAdminReader } from '../application/features/goalkeepers/common/adminPorts.js';
 import type { IGoalkeeperProfileRepository } from '../application/features/goalkeepers/common/ports.js';
-import type { ICityRepository } from '../application/features/locations/common/ports.js';
+import type { IMarketRepository } from '../application/features/markets/common/ports.js';
 import type { IZoneRepository } from '../application/features/zones/common/ports.js';
 import { BlockUserCommand } from '../application/features/users/commands/blockUser/blockUserCommand.js';
 import { BlockUserCommandHandler } from '../application/features/users/commands/blockUser/blockUserCommandHandler.js';
@@ -30,7 +30,7 @@ export interface UsersHandlerDependencies extends UsersQueryDependencies {
   profiles: Pick<IGoalkeeperProfileRepository, 'getByUserId' | 'setAvailableForOffers'>;
   goalkeeperReader: Pick<IGoalkeeperAdminReader, 'upcomingBookings'>;
   zones: Pick<IZoneRepository, 'getManyByIds'>;
-  cities: Pick<ICityRepository, 'getByIds'>;
+  markets: Pick<IMarketRepository, 'getByIds'>;
   clock: IClock;
 }
 

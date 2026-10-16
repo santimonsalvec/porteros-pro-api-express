@@ -3,7 +3,7 @@ import type { IQueryHandler } from '../../../../common/mediator/types.js';
 import type { IUserRepository } from '../../../auth/common/ports.js';
 import type { IGoalkeeperAdminReader } from '../../../goalkeepers/common/adminPorts.js';
 import type { IGoalkeeperProfileRepository } from '../../../goalkeepers/common/ports.js';
-import type { ICityRepository } from '../../../locations/common/ports.js';
+import type { IMarketRepository } from '../../../markets/common/ports.js';
 import type { IZoneRepository } from '../../../zones/common/ports.js';
 import type { IUserAdminReader, ScheduledRecord } from '../../common/ports.js';
 import type { ScheduledItem } from '../../common/views.js';
@@ -20,7 +20,7 @@ export class GetBlockImpactQueryHandler implements IQueryHandler<GetBlockImpactQ
       userReader: Pick<IUserAdminReader, 'openRequests'>;
       goalkeeperReader: Pick<IGoalkeeperAdminReader, 'upcomingBookings'>;
       zones: Pick<IZoneRepository, 'getManyByIds'>;
-      cities: Pick<ICityRepository, 'getByIds'>;
+      markets: Pick<IMarketRepository, 'getByIds'>;
       clock: IClock;
     },
   ) {}
@@ -48,15 +48,15 @@ export class GetBlockImpactQueryHandler implements IQueryHandler<GetBlockImpactQ
   /** Puts each item on its city's clock (zone → city). */
   private async places(records: ScheduledRecord[]): Promise<(record: ScheduledRecord) => ScheduledItem> {
     const zones = await this.deps.zones.getManyByIds([...new Set(records.flatMap((record) => (record.zoneId ? [record.zoneId] : [])))]);
-    const cities = await this.deps.cities.getByIds([...new Set(zones.map((zone) => zone.cityId))]);
-    const cityOfZone = new Map(zones.map((zone) => [zone.id, cities.find((city) => city.id === zone.cityId)]));
+    const markets = await this.deps.markets.getByIds([...new Set(zones.map((zone) => zone.marketId))]);
+    const cityOfZone = new Map(zones.map((zone) => [zone.id, markets.find((market) => market.id === zone.marketId)]));
     return (record) => {
       const city = record.zoneId ? cityOfZone.get(record.zoneId) : undefined;
       return {
         id: record.id,
         ...(record.requestId ? { requestId: record.requestId } : {}),
         startsAt: record.startsAt.toISOString(),
-        cityName: city?.name ?? null,
+        marketName: city?.name ?? null,
         timeZone: city?.timeZone ?? null,
       };
     };

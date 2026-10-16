@@ -15,7 +15,8 @@ describe('admin invoicing documents (spec 007 of the admin, US2)', () => {
     const ids = async (query: string) => (await adminGet(context, `/admin/invoicing/documents?${query}`, owner.token)).body.items.map((item: { documentId: string }) => item.documentId);
     expect(await ids('status=rejected')).toEqual(['rej-1']);
     expect(await ids('kind=credit_note')).toEqual(['nc-1']);
-    expect(await ids('countryId=country-pe')).toEqual([]);
+    expect((await adminGet(context, '/admin/invoicing/documents', owner.token, 'country:country-mx')).body.items).toEqual([]);
+    expect((await adminGet(context, '/admin/invoicing/documents?countryId=country-co', owner.token)).status).toBe(400);
     expect(await ids('from=2026-10-14T05:00:00.000Z')).toEqual(['rej-1']);
     expect(await ids('stale=true')).toEqual(['nc-1']);
   });

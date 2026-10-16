@@ -10,7 +10,7 @@ import { ListDocumentsForAdminQuery } from '../application/features/invoicing/qu
 import { ListDocumentsForAdminQueryHandler } from '../application/features/invoicing/queries/listDocumentsForAdmin/listDocumentsForAdminQueryHandler.js';
 import type { IUserRepository } from '../application/features/auth/common/ports.js';
 import type { ICountryLookup } from '../application/features/goalkeeperRequests/common/ports.js';
-import type { ICityRepository, IRegionRepository } from '../application/features/locations/common/ports.js';
+import type { IMarketRepository } from '../application/features/markets/common/ports.js';
 import type { IOperatingBalanceAdminReader } from '../application/features/operatingBalance/common/adminPorts.js';
 import { ListOperatingBalancesAdminQuery } from '../application/features/operatingBalance/queries/listOperatingBalancesAdmin/listOperatingBalancesAdminQuery.js';
 import { ListOperatingBalancesAdminQueryHandler } from '../application/features/operatingBalance/queries/listOperatingBalancesAdmin/listOperatingBalancesAdminQueryHandler.js';
@@ -26,8 +26,7 @@ import { ListDepositsAdminQueryHandler } from '../application/features/deposits/
 export interface FinanceHandlerDependencies {
   depositReader: IDepositAdminReader;
   operatingBalanceReader: IOperatingBalanceAdminReader;
-  cities: Pick<ICityRepository, 'getByIds'>;
-  regions: Pick<IRegionRepository, 'getByIds'>;
+  markets: Pick<IMarketRepository, 'getByIds'>;
   documentReader: IInvoicingDocumentAdminReader;
   documents: Pick<IInvoicingDocumentRepository, 'getById'>;
   users: Pick<IUserRepository, 'getByIds'>;
@@ -43,7 +42,7 @@ export function financeHandlerRegistrations(deps: FinanceHandlerDependencies): H
   return [
     {
       requestType: ListOperatingBalancesAdminQuery,
-      handler: new ListOperatingBalancesAdminQueryHandler({ reader: deps.operatingBalanceReader, users: deps.users, cities: deps.cities, regions: deps.regions, countries: deps.countries }),
+      handler: new ListOperatingBalancesAdminQueryHandler({ reader: deps.operatingBalanceReader, users: deps.users, markets: deps.markets, countries: deps.countries }),
     },
     // The list existed (feature 023); spec 007 adds filters and reads through the admin reader.
     { requestType: ListDocumentsForAdminQuery, handler: new ListDocumentsForAdminQueryHandler(documents) },

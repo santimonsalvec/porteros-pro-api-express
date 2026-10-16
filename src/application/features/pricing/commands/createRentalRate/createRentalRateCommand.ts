@@ -3,7 +3,7 @@ import type { MatchLevel, PricedModality } from '../../../../../domain/bookings/
 import type { TargetFailure } from '../../common/pricingGeography.js';
 
 export interface RentalRateInput {
-  scope: 'zone' | 'city';
+  scope: 'zone' | 'market';
   refId: string;
   durationMinutes: number;
   modality: PricedModality | null;

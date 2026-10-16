@@ -15,6 +15,7 @@ import { FakeEventRelay } from '../../../../fakes/fakeEventRelay.js';
 import { FakeUserRepository } from '../../../../fakes/fakeUserRepository.js';
 import { User } from '../../../../../src/domain/users/user.js';
 import { Quote } from '../../../../../src/domain/bookings/quote.js';
+import { FakeMarketRepository, testMarket } from '../../../../fakes/fakeMarketRepository.js';
 import {
   buildRequest,
   buildStoredQuote,
@@ -33,6 +34,7 @@ class Harness {
   readonly audit = new FakeBookingAuditLogger();
   readonly users = new FakeUserRepository();
   readonly clock = new FixedClock('2026-09-21T18:01:00.000Z');
+  readonly markets = new FakeMarketRepository();
   private counter = 0;
   // Ids in creation order: the request is `id-1`, its bookings `id-2` and `id-3`.
   readonly handler = new ConfirmBookingCommandHandler(
@@ -45,7 +47,12 @@ class Harness {
     this.clock,
     this.audit,
     this.relay,
+    this.markets,
   );
+
+  constructor() {
+    this.markets.seed(testMarket({ id: 'city-cali', name: 'Cali', countryId: 'country-co' }));
+  }
 
   confirm(quoteId = STORED_QUOTE_ID, clientId = 'client-a', partialFulfillment?: 'keep_confirmed' | 'cancel_all') {
     return this.handler.handle(new ConfirmBookingCommand(clientId, quoteId, partialFulfillment));
@@ -72,7 +79,7 @@ describe('ConfirmBookingCommandHandler — Story 1: book at exactly the quoted p
         latitude: 3.45,
         longitude: -76.5,
         zoneId: 'zone-cali-norte',
-        cityId: 'city-cali',
+        marketId: 'city-cali',
         startsAt: '2026-09-21T20:00:00.000Z',
         startsAtLocal: '2026-09-21T15:00:00-05:00',
         timeZone: 'America/Bogota',
@@ -545,5 +552,16 @@ describe('ConfirmBookingCommandHandler — goalkeepers without the seal (admin s
 
     const [request] = h.requests.all();
     expect(request!.acceptsUnverified).toBe(false);
+  });
+});
+
+describe('ConfirmBookingCommandHandler — a market out of service (spec 031, FR-011)', () => {
+  it('refuses a valid quote of a market disabled since, and keeps the quote', async () => {
+    h.markets.seed(h.markets.markets.get('city-cali')!.disable('staff-1', new Date('2026-09-21T18:00:30.000Z')));
+
+    expect(await h.confirm()).toEqual({ outcome: 'market_unavailable', marketId: 'city-cali', marketName: 'Cali' });
+    expect(await h.quotes.findByIdForClient(STORED_QUOTE_ID, 'client-a')).not.toBeNull();
+    expect(h.requests.all()).toEqual([]);
+    expect(h.audit.entries.at(-1)).toMatchObject({ outcome: 'market_unavailable' });
   });
 });

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { validatePushMessage } from '../../../../src/domain/devices/deviceRules.js';
 import { adminCancelledMessage, bookingCancelledMessage } from '../../../../src/domain/notifications/outcomeMessages.js';
 
-const match = { zoneName: 'Bello', cityName: 'Medellín', startsAt: new Date('2026-10-04T20:00:00.000Z'), timeZone: 'America/Bogota' };
+const match = { zoneName: 'Bello', marketName: 'Medellín', startsAt: new Date('2026-10-04T20:00:00.000Z'), timeZone: 'America/Bogota' };
 
 describe('notices of an administrator cancellation (admin spec 006)', () => {
   it('tells the goalkeeper PorterosPRO cancelled their match and how much came back', () => {

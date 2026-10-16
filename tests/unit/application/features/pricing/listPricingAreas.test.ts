@@ -4,11 +4,11 @@ import { ListPricingAreasQueryHandler } from '../../../../../src/application/fea
 import { pricingKit } from './pricingTestKit.js';
 
 describe('ListPricingAreasQuery (the admin pickers, spec 004)', () => {
-  it('lists the countries and the cities that own zones, each with its zones in display order', async () => {
+  it('lists the countries and the markets, each with its zones in display order', async () => {
     const kit = pricingKit();
     expect(await new ListPricingAreasQueryHandler(kit).handle(new ListPricingAreasQuery())).toEqual({
       countries: [{ id: 'co', name: 'Colombia', currency: 'COP' }],
-      cities: [
+      markets: [
         {
           id: 'med',
           name: 'Medellín',

@@ -79,7 +79,8 @@ export async function refundCommissionInSession(
     session,
     commissionRefundDraft(
       args.owner,
-      { bookingId: booking.id, requestId: args.requestId, amount, cancellation: args.cancellation },
+      // What is given back keeps the charge's market (spec 031).
+      { bookingId: booking.id, requestId: args.requestId, amount, cancellation: args.cancellation, marketId: charge.marketId as string },
       args.newId(),
       args.now,
       args.actor,
@@ -96,7 +97,13 @@ export async function refundCommissionInSession(
     const vatRefund = await appendMovementInSession(
       db,
       session,
-      commissionVatRefundDraft(args.owner, { bookingId: booking.id, requestId: args.requestId, amount: vat, rateBps }, args.newId(), args.now, args.actor),
+      commissionVatRefundDraft(
+        args.owner,
+        { bookingId: booking.id, requestId: args.requestId, amount: vat, rateBps, marketId: vatCharge.marketId as string },
+        args.newId(),
+        args.now,
+        args.actor,
+      ),
       args.now,
     );
     if (vatRefund.kind !== 'recorded') throw new Error(`VAT refund of ${booking.id} was not recorded (${vatRefund.kind})`);
@@ -686,12 +693,17 @@ export class MongoBookingLifecycleStore implements IBookingLifecycleStore {
       { goalkeeperId, forgivenAt: null, occurredAt: { $gt: windowStart(now, config) } } as Document,
       { session },
     );
+    // The booking's market, through its request: zones never change market (spec 031).
+    const request = await this.db
+      .collection(GOALKEEPER_REQUESTS_COLLECTION)
+      .findOne({ _id: args.booking.requestId } as Document, { projection: { 'match.marketId': 1 }, session });
     const incident = GoalkeeperIncident.rehydrate({
       id: args.newId(),
       kind: args.kind,
       goalkeeperId,
       bookingId: args.booking.id,
       requestId: args.booking.requestId,
+      marketId: String((request?.match as Document | undefined)?.marketId ?? ''),
       startsAt: args.booking.startsAt,
       occurredAt: now,
       noticeMinutes: args.noticeMinutes,

@@ -35,7 +35,11 @@ async function completeAllSections(app: Awaited<ReturnType<typeof buildTestApp>>
   await request(app)
     .patch('/goalkeepers/me/availability')
     .set('Authorization', `Bearer ${accessToken}`)
-    .send({ cityId: 'city-medellin', zoneIds: ['zone-bello'] });
+    .send({ marketId: 'city-medellin', zoneIds: ['zone-bello'] });
+  await request(app)
+    .patch('/goalkeepers/me/billing')
+    .set('Authorization', `Bearer ${accessToken}`)
+    .send({ cityId: 'city-medellin', address: 'Calle 10 # 20-30' });
   await request(app)
     .post('/goalkeepers/me/document-photo')
     .set('Authorization', `Bearer ${accessToken}`)

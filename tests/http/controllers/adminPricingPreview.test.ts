@@ -58,7 +58,7 @@ describe('GET /admin/pricing/preview (admin spec 004, US4)', () => {
     const areas = await reader.get('/admin/pricing/areas');
 
     expect(areas.status).toBe(200);
-    expect(areas.body.cities.find((city: { id: string }) => city.id === 'city-cali')).toMatchObject({
+    expect(areas.body.markets.find((market: { id: string }) => market.id === 'city-cali')).toMatchObject({
       name: 'Cali',
       countryId: 'country-co',
       zones: [{ id: 'zone-cali-norte', name: 'Norte', active: true }, { id: 'zone-cali-sur' }, { id: 'zone-cali-centro' }],

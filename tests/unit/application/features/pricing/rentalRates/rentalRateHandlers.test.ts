@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { City } from '../../../../../../src/domain/locations/city.js';
+import { testMarket } from '../../../../../fakes/fakeMarketRepository.js';
 import { Country } from '../../../../../../src/domain/countries/country.js';
-import { Region } from '../../../../../../src/domain/locations/region.js';
 import { RentalRate } from '../../../../../../src/domain/pricing/rentalRate.js';
 import { CreateRentalRateCommand } from '../../../../../../src/application/features/pricing/commands/createRentalRate/createRentalRateCommand.js';
 import { CreateRentalRateCommandHandler } from '../../../../../../src/application/features/pricing/commands/createRentalRate/createRentalRateCommandHandler.js';
@@ -19,7 +18,7 @@ import { pricingKit } from '../pricingTestKit.js';
 
 let kit: ReturnType<typeof pricingKit>;
 const general = { modality: null, level: null };
-const rate = (id: string, scope: 'city' | 'zone', refId: string, durationMinutes: number, amount: number, tier: { modality: string | null; level: string | null } = general) =>
+const rate = (id: string, scope: 'market' | 'zone', refId: string, durationMinutes: number, amount: number, tier: { modality: string | null; level: string | null } = general) =>
   kit.rentalRates.base.seed(new RentalRate({ id, scope, refId, durationMinutes, amount, ...tier }));
 
 beforeEach(() => {
@@ -29,7 +28,7 @@ beforeEach(() => {
 describe('CreateRentalRateCommand', () => {
   const create = (input: Partial<CreateRentalRateCommand['input']> = {}) =>
     new CreateRentalRateCommandHandler(kit).handle(
-      new CreateRentalRateCommand({ scope: 'city', refId: 'med', durationMinutes: 90, modality: null, level: null, amount: 55000, ...input }),
+      new CreateRentalRateCommand({ scope: 'market', refId: 'med', durationMinutes: 90, modality: null, level: null, amount: 55000, ...input }),
     );
 
   it('creates a city rate and a zone rate', async () => {
@@ -46,23 +45,22 @@ describe('CreateRentalRateCommand', () => {
   });
 
   it('refuses a city that uses the zones of another', async () => {
-    expect(await create({ refId: 'env' })).toEqual({ outcome: 'city_not_anchor', anchorCityId: 'med' });
+    expect(await create({ refId: 'env' })).toEqual({ outcome: 'market_not_found' });
   });
 
-  it('refuses an unknown city or zone', async () => {
-    expect(await create({ refId: 'nowhere' })).toEqual({ outcome: 'city_not_found' });
+  it('refuses an unknown market or zone', async () => {
+    expect(await create({ refId: 'nowhere' })).toEqual({ outcome: 'market_not_found' });
     expect(await create({ scope: 'zone', refId: 'nowhere' })).toEqual({ outcome: 'zone_not_found' });
   });
 
-  it('refuses a city whose country has no currency', async () => {
+  it('refuses a market whose country has no currency', async () => {
     kit.countries.items.set('ve', new Country({ id: 've', name: 'Venezuela', dialCode: '+58', countryCode: 'VE', currency: null }));
-    kit.regions.items.set('zul', new Region({ id: 'zul', name: 'Zulia', countryId: 've' }));
-    kit.cities.items.set('mar', new City({ id: 'mar', name: 'Maracaibo', regionId: 'zul', zoneCityId: null }));
+    kit.markets.seed(testMarket({ id: 'mar', name: 'Maracaibo', countryId: 've' }));
     expect(await create({ refId: 'mar' })).toEqual({ outcome: 'country_without_currency' });
   });
 
   it('answers duplicate with the existing rate', async () => {
-    rate('r-city', 'city', 'med', 90, 50000);
+    rate('r-city', 'market', 'med', 90, 50000);
     expect(await create()).toEqual({ outcome: 'duplicate', existingId: 'r-city' });
   });
 });
@@ -71,7 +69,7 @@ describe('UpdateRentalRateCommand', () => {
   const update = (revision: number, amount: number, id = 'r-city') =>
     new UpdateRentalRateCommandHandler(kit).handle(new UpdateRentalRateCommand(id, revision, amount));
 
-  beforeEach(() => rate('r-city', 'city', 'med', 90, 50000));
+  beforeEach(() => rate('r-city', 'market', 'med', 90, 50000));
 
   it('changes only the amount', async () => {
     expect(await update(0, 55000)).toEqual({ outcome: 'saved', rateId: 'r-city' });
@@ -90,7 +88,7 @@ describe('UpdateRentalRateCommand', () => {
 
 describe('DeleteRentalRateCommand', () => {
   it('deletes, and is not found the second time', async () => {
-    rate('r-city', 'city', 'med', 90, 50000);
+    rate('r-city', 'market', 'med', 90, 50000);
     const handler = new DeleteRentalRateCommandHandler(kit);
     expect(await handler.handle(new DeleteRentalRateCommand('r-city'))).toEqual({ outcome: 'deleted' });
     expect(await handler.handle(new DeleteRentalRateCommand('r-city'))).toEqual({ outcome: 'not_found' });
@@ -104,21 +102,21 @@ describe('ListRentalRatesQuery', () => {
   beforeEach(() => {
     rate('r-poblado-90', 'zone', 'poblado', 90, 62000);
     rate('r-bello-90', 'zone', 'bello', 90, 60000);
-    rate('r-f11-90', 'city', 'med', 90, 70000, { modality: 'futbol_11', level: 'competitive' });
-    rate('r-city-90', 'city', 'med', 90, 55000);
-    rate('r-city-60', 'city', 'med', 60, 40000);
-    rate('r-f11-only-90', 'city', 'med', 90, 65000, { modality: 'futbol_11', level: null });
+    rate('r-f11-90', 'market', 'med', 90, 70000, { modality: 'futbol_11', level: 'competitive' });
+    rate('r-city-90', 'market', 'med', 90, 55000);
+    rate('r-city-60', 'market', 'med', 60, 40000);
+    rate('r-f11-only-90', 'market', 'med', 90, 65000, { modality: 'futbol_11', level: null });
   });
 
   it("lists a city's rates by duration, city before zones (by display order), general before tiers", async () => {
-    const result = await list({ cityId: 'med' });
+    const result = await list({ marketId: 'med' });
     expect(result.items.map((item) => item.id)).toEqual(['r-city-60', 'r-city-90', 'r-f11-only-90', 'r-f11-90', 'r-bello-90', 'r-poblado-90']);
     expect(result).toMatchObject({ page: 1, pageSize: 20, totalItems: 6, totalPages: 1 });
-    expect(result.items[4]).toMatchObject({ zoneName: 'Bello', zoneActive: true, cityName: 'Medellín', currency: 'COP', targetValid: true });
+    expect(result.items[4]).toMatchObject({ zoneName: 'Bello', zoneActive: true, marketName: 'Medellín', currency: 'COP', targetValid: true });
   });
 
   it('filters by duration, modality, zone and country', async () => {
-    expect((await list({ cityId: 'med', durationMinutes: 60 })).items.map((item) => item.id)).toEqual(['r-city-60']);
+    expect((await list({ marketId: 'med', durationMinutes: 60 })).items.map((item) => item.id)).toEqual(['r-city-60']);
     expect((await list({ modality: 'general', durationMinutes: 90 })).items.map((item) => item.id)).toEqual(['r-city-90', 'r-bello-90', 'r-poblado-90']);
     expect((await list({ zoneId: 'bello' })).items.map((item) => item.id)).toEqual(['r-bello-90']);
     expect((await list({ countryId: 'co' })).totalItems).toBe(6);
@@ -126,7 +124,7 @@ describe('ListRentalRatesQuery', () => {
   });
 
   it('pages the sorted list', async () => {
-    const second = await list({ cityId: 'med' }, 2, 4);
+    const second = await list({ marketId: 'med' }, 2, 4);
     expect(second.items.map((item) => item.id)).toEqual(['r-bello-90', 'r-poblado-90']);
     expect(second).toMatchObject({ totalItems: 6, totalPages: 2 });
   });
@@ -144,7 +142,7 @@ describe('GetRentalRateQuery', () => {
     const handler = new GetRentalRateQueryHandler(kit);
     expect(await handler.handle(new GetRentalRateQuery('r-bello-90'))).toMatchObject({
       outcome: 'ok',
-      rate: { id: 'r-bello-90', zoneName: 'Bello', cityName: 'Medellín', currency: 'COP' },
+      rate: { id: 'r-bello-90', zoneName: 'Bello', marketName: 'Medellín', currency: 'COP' },
     });
     expect(await handler.handle(new GetRentalRateQuery('nope'))).toEqual({ outcome: 'not_found' });
   });
@@ -154,13 +152,13 @@ describe('GetRentalRateDeleteImpactQuery', () => {
   const impact = (id: string) => new GetRentalRateDeleteImpactQueryHandler(kit).handle(new GetRentalRateDeleteImpactQuery(id));
 
   it("names the active zones that stop quoting the duration when the city's only rate goes", async () => {
-    rate('r-city-90', 'city', 'med', 90, 55000);
+    rate('r-city-90', 'market', 'med', 90, 55000);
     rate('r-bello-90', 'zone', 'bello', 90, 60000);
     expect(await impact('r-city-90')).toEqual({ outcome: 'ok', impact: { zoneCount: 2, zoneNames: ['Laureles', 'El Poblado'] } });
   });
 
   it('loses nothing when the city still covers the zone', async () => {
-    rate('r-city-90', 'city', 'med', 90, 55000);
+    rate('r-city-90', 'market', 'med', 90, 55000);
     rate('r-bello-90', 'zone', 'bello', 90, 60000);
     expect(await impact('r-bello-90')).toEqual({ outcome: 'ok', impact: { zoneCount: 0, zoneNames: [] } });
   });

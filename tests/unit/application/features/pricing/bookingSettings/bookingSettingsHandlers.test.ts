@@ -1,15 +1,15 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { BookingSettings } from '../../../../../../src/domain/pricing/bookingSettings.js';
 import type { StoredBookingSettings } from '../../../../../../src/application/features/pricing/common/ports.js';
-import type { CityRuleFields } from '../../../../../../src/application/features/pricing/common/bookingRules.js';
+import type { MarketRuleFields } from '../../../../../../src/application/features/pricing/common/bookingRules.js';
 import { GetCountryBookingSettingsQuery } from '../../../../../../src/application/features/pricing/queries/getCountryBookingSettings/getCountryBookingSettingsQuery.js';
 import { GetCountryBookingSettingsQueryHandler } from '../../../../../../src/application/features/pricing/queries/getCountryBookingSettings/getCountryBookingSettingsQueryHandler.js';
-import { GetCityBookingSettingsQuery } from '../../../../../../src/application/features/pricing/queries/getCityBookingSettings/getCityBookingSettingsQuery.js';
-import { GetCityBookingSettingsQueryHandler } from '../../../../../../src/application/features/pricing/queries/getCityBookingSettings/getCityBookingSettingsQueryHandler.js';
+import { GetMarketBookingSettingsQuery } from '../../../../../../src/application/features/pricing/queries/getMarketBookingSettings/getMarketBookingSettingsQuery.js';
+import { GetMarketBookingSettingsQueryHandler } from '../../../../../../src/application/features/pricing/queries/getMarketBookingSettings/getMarketBookingSettingsQueryHandler.js';
 import { SaveCountryBookingSettingsCommand } from '../../../../../../src/application/features/pricing/commands/saveCountryBookingSettings/saveCountryBookingSettingsCommand.js';
 import { SaveCountryBookingSettingsCommandHandler } from '../../../../../../src/application/features/pricing/commands/saveCountryBookingSettings/saveCountryBookingSettingsCommandHandler.js';
-import { SaveCityBookingSettingsCommand } from '../../../../../../src/application/features/pricing/commands/saveCityBookingSettings/saveCityBookingSettingsCommand.js';
-import { SaveCityBookingSettingsCommandHandler } from '../../../../../../src/application/features/pricing/commands/saveCityBookingSettings/saveCityBookingSettingsCommandHandler.js';
+import { SaveMarketBookingSettingsCommand } from '../../../../../../src/application/features/pricing/commands/saveMarketBookingSettings/saveMarketBookingSettingsCommand.js';
+import { SaveMarketBookingSettingsCommandHandler } from '../../../../../../src/application/features/pricing/commands/saveMarketBookingSettings/saveMarketBookingSettingsCommandHandler.js';
 import { pricingKit } from '../pricingTestKit.js';
 
 let kit: ReturnType<typeof pricingKit>;
@@ -23,19 +23,31 @@ const EMPTY: StoredBookingSettings = {
   goalkeeperPenalties: null,
   checkInWindow: null,
   noShowGraceMinutes: null,
+  offerReminderIntervalMinutes: null,
+  offerMaxReminders: null,
 };
 const COLOMBIA = { ...EMPTY, bookingWindowDays: 7, minNoticeMinutes: 60, leadTimeSurcharge: tiers, freeCancellationMinutes: 60, travelBufferMinutes: 30 };
-const CITY_FIELDS: CityRuleFields = { bookingWindowDays: null, minNoticeMinutes: null, leadTimeSurcharge: null, freeCancellationMinutes: null, travelBufferMinutes: null };
+const CITY_FIELDS: MarketRuleFields = {
+  bookingWindowDays: null,
+  minNoticeMinutes: null,
+  leadTimeSurcharge: null,
+  freeCancellationMinutes: null,
+  travelBufferMinutes: null,
+  checkInWindow: null,
+  noShowGraceMinutes: null,
+  offerReminderIntervalMinutes: null,
+  offerMaxReminders: null,
+};
 
 const seedCountry = (fields: Partial<StoredBookingSettings> = COLOMBIA) =>
   kit.bookingSettings.base.seed(new BookingSettings({ id: 'bs-co', scope: 'country', refId: 'co', ...(fields as object) } as ConstructorParameters<typeof BookingSettings>[0]));
 const seedMedellin = (fields: Partial<StoredBookingSettings>) =>
-  kit.bookingSettings.base.seed(new BookingSettings({ id: 'bs-med', scope: 'city', refId: 'med', ...(fields as object) } as ConstructorParameters<typeof BookingSettings>[0]));
+  kit.bookingSettings.base.seed(new BookingSettings({ id: 'bs-med', scope: 'market', refId: 'med', ...(fields as object) } as ConstructorParameters<typeof BookingSettings>[0]));
 
 const saveCountry = (fields: StoredBookingSettings, revision: number | null = null, acknowledgeWarnings = false) =>
   new SaveCountryBookingSettingsCommandHandler(kit).handle(new SaveCountryBookingSettingsCommand('co', revision, fields, acknowledgeWarnings));
-const saveCity = (fields: Partial<CityRuleFields>, revision: number | null = null, acknowledgeWarnings = false, cityId = 'med') =>
-  new SaveCityBookingSettingsCommandHandler(kit).handle(new SaveCityBookingSettingsCommand(cityId, revision, { ...CITY_FIELDS, ...fields }, acknowledgeWarnings));
+const saveCity = (fields: Partial<MarketRuleFields>, revision: number | null = null, acknowledgeWarnings = false, marketId = 'med') =>
+  new SaveMarketBookingSettingsCommandHandler(kit).handle(new SaveMarketBookingSettingsCommand(marketId, revision, { ...CITY_FIELDS, ...fields }, acknowledgeWarnings));
 
 beforeEach(() => {
   kit = pricingKit();
@@ -59,6 +71,8 @@ describe('GetCountryBookingSettingsQuery', () => {
           noShowGraceMinutes: 60,
           goalkeeperPenalties: { lateNoticeMinutes: 120, lateSuspensionDays: 3, weeklyLimit: 3, windowDays: 7, limitSuspensionDays: 7 },
           checkInWindow: { opensMinutesBefore: 30, closesMinutesAfter: 15 },
+          offerReminderIntervalMinutes: 5,
+          offerMaxReminders: 3,
         },
         invalid: false,
         revision: 0,
@@ -72,8 +86,8 @@ describe('GetCountryBookingSettingsQuery', () => {
   });
 });
 
-describe('GetCityBookingSettingsQuery', () => {
-  const read = (cityId: string) => new GetCityBookingSettingsQueryHandler(kit).handle(new GetCityBookingSettingsQuery(cityId));
+describe('GetMarketBookingSettingsQuery', () => {
+  const read = (marketId: string) => new GetMarketBookingSettingsQueryHandler(kit).handle(new GetMarketBookingSettingsQuery(marketId));
 
   it('shows, field by field, the city value, the country value and where the effective one comes from', async () => {
     seedCountry();
@@ -82,14 +96,14 @@ describe('GetCityBookingSettingsQuery', () => {
     expect(result).toMatchObject({
       outcome: 'ok',
       settings: {
-        cityId: 'med',
-        cityName: 'Medellín',
+        marketId: 'med',
+        marketName: 'Medellín',
         countryName: 'Colombia',
         own: { ...CITY_FIELDS, travelBufferMinutes: 45 },
         country: { bookingWindowDays: 7, minNoticeMinutes: 60, leadTimeSurcharge: tiers, freeCancellationMinutes: 60, travelBufferMinutes: 30 },
         effective: {
           bookingWindowDays: { value: 7, origin: 'country' },
-          travelBufferMinutes: { value: 45, origin: 'city' },
+          travelBufferMinutes: { value: 45, origin: 'market' },
         },
         revision: 0,
       },
@@ -97,7 +111,6 @@ describe('GetCityBookingSettingsQuery', () => {
   });
 
   it('sends a satellite to its anchor, and is not found for an unknown city', async () => {
-    expect(await read('env')).toEqual({ outcome: 'city_not_anchor', anchorCityId: 'med' });
     expect(await read('nowhere')).toEqual({ outcome: 'not_found' });
   });
 });
@@ -133,7 +146,7 @@ describe('SaveCountryBookingSettingsCommand', () => {
     expect(await saveCountry({ ...COLOMBIA, minNoticeMinutes: 40 }, 0)).toEqual({
       outcome: 'notice_violation',
       violations: [
-        { cityId: 'med', cityName: 'Medellín', minNoticeMinutes: 40, travelBufferMinutes: 45, origins: { minNoticeMinutes: 'country', travelBufferMinutes: 'city' } },
+        { marketId: 'med', marketName: 'Medellín', minNoticeMinutes: 40, travelBufferMinutes: 45, origins: { minNoticeMinutes: 'country', travelBufferMinutes: 'market' } },
       ],
     });
   });
@@ -148,7 +161,7 @@ describe('SaveCountryBookingSettingsCommand', () => {
     seedCountry();
     expect(await saveCountry({ ...COLOMBIA, bookingWindowDays: null }, 0)).toMatchObject({
       outcome: 'warnings',
-      warnings: [{ code: 'required_setting_removed', data: { field: 'bookingWindowDays', operatingCities: 1 } }],
+      warnings: [{ code: 'required_setting_removed', data: { field: 'bookingWindowDays', operatingMarkets: 1 } }],
     });
   });
 
@@ -159,24 +172,23 @@ describe('SaveCountryBookingSettingsCommand', () => {
   });
 });
 
-describe('SaveCityBookingSettingsCommand', () => {
+describe('SaveMarketBookingSettingsCommand', () => {
   beforeEach(() => seedCountry());
 
   it('overrides only what changes, and inherits again when emptied', async () => {
     expect(await saveCity({ travelBufferMinutes: 45 })).toEqual({ outcome: 'saved' });
     expect(await saveCity({ travelBufferMinutes: null }, 0)).toEqual({ outcome: 'saved' });
-    expect((await kit.bookingSettings.getByScope('city', 'med'))?.fields).toMatchObject({ travelBufferMinutes: null, goalkeeperPenalties: null });
+    expect((await kit.bookingSettings.getByScope('market', 'med'))?.fields).toMatchObject({ travelBufferMinutes: null, goalkeeperPenalties: null });
   });
 
   it('judges the notice on the values the city ends up with', async () => {
     expect(await saveCity({ travelBufferMinutes: 60 })).toMatchObject({
       outcome: 'notice_violation',
-      violations: [{ cityId: 'med', minNoticeMinutes: 60, travelBufferMinutes: 60 }],
+      violations: [{ marketId: 'med', minNoticeMinutes: 60, travelBufferMinutes: 60 }],
     });
   });
 
   it('refuses a satellite and an unknown city', async () => {
-    expect(await saveCity({}, null, false, 'env')).toEqual({ outcome: 'city_not_anchor', anchorCityId: 'med' });
     expect(await saveCity({}, null, false, 'nowhere')).toEqual({ outcome: 'not_found' });
   });
 });

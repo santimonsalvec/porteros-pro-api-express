@@ -13,7 +13,7 @@ export type SaveBookingSettingsResult =
 
 /**
  * Replaces a country's booking rules (admin spec 004, US2): `null` = not set. Refused when it
- * leaves the country or one of its anchor cities with a notice not above its buffer (FR-010).
+ * leaves the country or one of its markets with a notice not above its buffer (FR-010).
  */
 export class SaveCountryBookingSettingsCommand extends ICommand<SaveBookingSettingsResult> {
   constructor(

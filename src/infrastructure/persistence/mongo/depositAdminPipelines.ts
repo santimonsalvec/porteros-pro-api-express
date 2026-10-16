@@ -9,6 +9,7 @@ export function depositAdminFilter(filter: DepositAdminFilter): Document {
   const match: Document = {};
   if (filter.status) match.status = filter.status;
   if (filter.countryId) match.countryId = filter.countryId;
+  if (filter.marketIds) match.marketId = { $in: [...filter.marketIds] };
   if (filter.goalkeeperId) match.goalkeeperId = filter.goalkeeperId;
   if (filter.from || filter.to) {
     match.createdAt = { ...(filter.from ? { $gte: filter.from } : {}), ...(filter.to ? { $lt: filter.to } : {}) };

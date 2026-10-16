@@ -24,7 +24,7 @@ const countryDoc = {
   minNoticeMinutes: 30,
   leadTimeSurcharge: surcharge,
 };
-const cityDoc = { _id: 's-city', scope: 'city', refId: 'city-1', bookingWindowDays: 4 };
+const cityDoc = { _id: 's-city', scope: 'market', refId: 'city-1', bookingWindowDays: 4 };
 
 describe('BookingSettingsRepository (mocked driver)', () => {
   it('queries the city and country documents in a single find', async () => {
@@ -37,7 +37,7 @@ describe('BookingSettingsRepository (mocked driver)', () => {
     expect(collection.find).toHaveBeenCalledTimes(1);
     expect(collection.find).toHaveBeenCalledWith({
       $or: [
-        { scope: 'city', refId: 'city-1' },
+        { scope: 'market', refId: 'city-1' },
         { scope: 'country', refId: 'country-co' },
       ],
     });
@@ -50,7 +50,7 @@ describe('BookingSettingsRepository (mocked driver)', () => {
 
     await repository.findFor('city-1', null);
 
-    expect(collection.find).toHaveBeenCalledWith({ $or: [{ scope: 'city', refId: 'city-1' }] });
+    expect(collection.find).toHaveBeenCalledWith({ $or: [{ scope: 'market', refId: 'city-1' }] });
   });
 
   it('splits the results into city and country, keeping absent settings null', async () => {
@@ -63,9 +63,9 @@ describe('BookingSettingsRepository (mocked driver)', () => {
     expect(found.country?.bookingWindowDays).toBe(2);
     expect(found.country?.leadTimeSurcharge?.tiers).toHaveLength(2);
     expect(found.country?.leadTimeSurcharge).not.toHaveProperty('currency');
-    expect(found.city?.bookingWindowDays).toBe(4);
-    expect(found.city?.minNoticeMinutes).toBeNull();
-    expect(found.city?.leadTimeSurcharge).toBeNull();
+    expect(found.market?.bookingWindowDays).toBe(4);
+    expect(found.market?.minNoticeMinutes).toBeNull();
+    expect(found.market?.leadTimeSurcharge).toBeNull();
   });
 
   it('returns nulls when nothing is configured', async () => {
@@ -73,7 +73,7 @@ describe('BookingSettingsRepository (mocked driver)', () => {
     collection.find.mockReturnValue(toArrayResult([]));
     const repository = repositoryWith(collection);
 
-    expect(await repository.findFor('city-1', 'country-co')).toEqual({ city: null, country: null });
+    expect(await repository.findFor('city-1', 'country-co')).toEqual({ market: null, country: null });
   });
 
   it('throws on a malformed document instead of skipping it', async () => {
@@ -100,7 +100,7 @@ describe('BookingSettingsRepository (mocked driver)', () => {
     const found = await repositoryWith(collection).findFor('city-1', 'country-co');
 
     expect(found.country?.freeCancellationMinutes).toBe(60);
-    expect(found.city?.freeCancellationMinutes).toBeNull();
+    expect(found.market?.freeCancellationMinutes).toBeNull();
   });
 
   it('maps the travel margin, and reads it as null when the document has none', async () => {
@@ -110,7 +110,7 @@ describe('BookingSettingsRepository (mocked driver)', () => {
     const found = await repositoryWith(collection).findFor('city-1', 'country-co');
 
     expect(found.country?.travelBufferMinutes).toBe(30);
-    expect(found.city?.travelBufferMinutes).toBeNull();
+    expect(found.market?.travelBufferMinutes).toBeNull();
   });
 
   it('maps the check-in window (feature 020)', async () => {
@@ -120,7 +120,7 @@ describe('BookingSettingsRepository (mocked driver)', () => {
     const found = await repositoryWith(collection).findFor('city-1', 'country-co');
 
     expect(found.country?.checkInWindow).toEqual({ opensMinutesBefore: 20 });
-    expect(found.city?.checkInWindow).toBeNull();
+    expect(found.market?.checkInWindow).toBeNull();
   });
 
   it('maps the goalkeeper penalty values (feature 018)', async () => {
@@ -130,7 +130,7 @@ describe('BookingSettingsRepository (mocked driver)', () => {
     const found = await repositoryWith(collection).findFor('city-1', 'country-co');
 
     expect(found.country?.goalkeeperPenalties).toEqual({ lateNoticeMinutes: 60, weeklyLimit: 4 });
-    expect(found.city?.goalkeeperPenalties).toBeNull();
+    expect(found.market?.goalkeeperPenalties).toBeNull();
   });
 });
 
@@ -139,15 +139,15 @@ describe('BookingSettingsRepository.findMany (admin readiness)', () => {
     const collection = createFakeCollection();
     collection.find.mockReturnValue(toArrayResult([{ _id: 'bs-co', scope: 'country', refId: 'co', minNoticeMinutes: 60 }]));
 
-    const found = await repositoryWith(collection).findMany({ cityIds: ['med', 'bog'], countryIds: ['co'] });
+    const found = await repositoryWith(collection).findMany({ marketIds: ['med', 'bog'], countryIds: ['co'] });
 
-    expect(collection.find).toHaveBeenCalledWith({ $or: [{ scope: 'city', refId: { $in: ['med', 'bog'] } }, { scope: 'country', refId: { $in: ['co'] } }] });
+    expect(collection.find).toHaveBeenCalledWith({ $or: [{ scope: 'market', refId: { $in: ['med', 'bog'] } }, { scope: 'country', refId: { $in: ['co'] } }] });
     expect(found.map((settings) => [settings.scope, settings.refId, settings.minNoticeMinutes])).toEqual([['country', 'co', 60]]);
   });
 
   it('asks nothing for no refs', async () => {
     const collection = createFakeCollection();
-    expect(await repositoryWith(collection).findMany({ cityIds: [], countryIds: [] })).toEqual([]);
+    expect(await repositoryWith(collection).findMany({ marketIds: [], countryIds: [] })).toEqual([]);
     expect(collection.find).not.toHaveBeenCalled();
   });
 });
@@ -155,16 +155,16 @@ describe('BookingSettingsRepository.findMany (admin readiness)', () => {
 describe('BookingSettingsRepository — admin web (spec 004 of the admin)', () => {
   const empty = {
     bookingWindowDays: null, minNoticeMinutes: null, leadTimeSurcharge: null, freeCancellationMinutes: null, travelBufferMinutes: null,
-    goalkeeperPenalties: null, checkInWindow: null, noShowGraceMinutes: null,
+    goalkeeperPenalties: null, checkInWindow: null, noShowGraceMinutes: null, offerReminderIntervalMinutes: null, offerMaxReminders: null,
   };
 
   it('reads one level with every field, null where it sets none', async () => {
     const collection = createFakeCollection();
-    collection.findOne.mockResolvedValue({ _id: 's-med', scope: 'city', refId: 'med', travelBufferMinutes: 45, revision: 3 });
-    expect(await repositoryWith(collection).getByScope('city', 'med')).toEqual({
-      scope: 'city', refId: 'med', fields: { ...empty, travelBufferMinutes: 45 }, revision: 3, invalid: false,
+    collection.findOne.mockResolvedValue({ _id: 's-med', scope: 'market', refId: 'med', travelBufferMinutes: 45, revision: 3 });
+    expect(await repositoryWith(collection).getByScope('market', 'med')).toEqual({
+      scope: 'market', refId: 'med', fields: { ...empty, travelBufferMinutes: 45 }, revision: 3, invalid: false,
     });
-    expect(collection.findOne).toHaveBeenCalledWith({ scope: 'city', refId: 'med' });
+    expect(collection.findOne).toHaveBeenCalledWith({ scope: 'market', refId: 'med' });
   });
 
   it('marks a seeded level the domain refuses', async () => {
@@ -182,19 +182,19 @@ describe('BookingSettingsRepository — admin web (spec 004 of the admin)', () =
   it('creates a level with only its values and revision 0', async () => {
     const collection = createFakeCollection();
     collection.insertOne.mockResolvedValue({});
-    const result = await repositoryWith(collection).save('city', 'med', null, {
+    const result = await repositoryWith(collection).save('market', 'med', null, {
       ...empty, travelBufferMinutes: 45, checkInWindow: { opensMinutesBefore: 30, closesMinutesAfter: null },
     });
     expect(result).toBe('saved');
     expect(collection.insertOne).toHaveBeenCalledWith({
-      _id: 'city:med', scope: 'city', refId: 'med', travelBufferMinutes: 45, checkInWindow: { opensMinutesBefore: 30 }, revision: 0,
+      _id: 'market:med', scope: 'market', refId: 'med', travelBufferMinutes: 45, checkInWindow: { opensMinutesBefore: 30 }, revision: 0,
     });
   });
 
   it('is stale when another level was created meanwhile', async () => {
     const collection = createFakeCollection();
     collection.insertOne.mockRejectedValue(Object.assign(new Error('E11000'), { code: 11000 }));
-    expect(await repositoryWith(collection).save('city', 'med', null, empty)).toBe('stale');
+    expect(await repositoryWith(collection).save('market', 'med', null, empty)).toBe('stale');
   });
 
   it('replaces the values at the revision read, removing the ones now empty', async () => {
@@ -208,7 +208,7 @@ describe('BookingSettingsRepository — admin web (spec 004 of the admin)', () =
         $set: { bookingWindowDays: 7 },
         $unset: {
           minNoticeMinutes: '', leadTimeSurcharge: '', freeCancellationMinutes: '', travelBufferMinutes: '',
-          goalkeeperPenalties: '', checkInWindow: '', noShowGraceMinutes: '',
+          goalkeeperPenalties: '', checkInWindow: '', noShowGraceMinutes: '', offerReminderIntervalMinutes: '', offerMaxReminders: '',
         },
         $inc: { revision: 1 },
       },
@@ -224,8 +224,8 @@ describe('BookingSettingsRepository — admin web (spec 004 of the admin)', () =
 
   it('lists every city level', async () => {
     const collection = createFakeCollection();
-    collection.find.mockReturnValue(toArrayResult([{ _id: 's', scope: 'city', refId: 'med', travelBufferMinutes: 45 }]));
-    expect(await repositoryWith(collection).listCityScoped()).toMatchObject([{ refId: 'med', fields: { travelBufferMinutes: 45 } }]);
-    expect(collection.find).toHaveBeenCalledWith({ scope: 'city' });
+    collection.find.mockReturnValue(toArrayResult([{ _id: 's', scope: 'market', refId: 'med', travelBufferMinutes: 45 }]));
+    expect(await repositoryWith(collection).listMarketScoped()).toMatchObject([{ refId: 'med', fields: { travelBufferMinutes: 45 } }]);
+    expect(collection.find).toHaveBeenCalledWith({ scope: 'market' });
   });
 });

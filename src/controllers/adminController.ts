@@ -9,6 +9,7 @@ import { registerUsersRoutes } from './admin/usersRoutes.js';
 import { registerGoalkeeperAdminRoutes } from './admin/goalkeepersRoutes.js';
 import { registerGoalkeeperVettingRoutes } from './admin/goalkeeperVettingRoutes.js';
 import { registerReadinessRoutes } from './admin/readinessRoutes.js';
+import { registerMarketsRoutes } from './admin/marketsRoutes.js';
 import { registerRequestsRoutes } from './admin/requestsRoutes.js';
 import { registerCasesRoutes } from './admin/casesRoutes.js';
 import { registerNotificationsRoutes } from './admin/notificationsRoutes.js';
@@ -21,6 +22,7 @@ import type { ISender } from '../application/common/mediator/types.js';
 import { RecordOperatingBalanceAdjustmentCommand } from '../application/features/operatingBalance/commands/recordOperatingBalanceAdjustment/recordOperatingBalanceAdjustmentCommand.js';
 import type { AdminWebDependencies } from '../appDependencies.js';
 import { requireAdminAuth } from '../infrastructure/auth/middleware/requireAdminAuth.js';
+import { scopeOptions } from '../infrastructure/auth/scopeOptions.js';
 import { adminCors } from '../infrastructure/http/adminCors.js';
 import { GetAdminMeQuery } from '../application/features/staff/queries/getAdminMe/getAdminMeQuery.js';
 import { GetPermissionCatalogQuery } from '../application/features/staff/queries/getPermissionCatalog/getPermissionCatalogQuery.js';
@@ -53,28 +55,42 @@ export function createAdminController(deps: AdminControllerDependencies): Router
     requireAdminAuth(deps.admin.verifyAccessToken, deps.admin.accessResolver),
   );
 
-  const { route } = createAdminRouting(router, deps.admin);
-  registerTeamRoutes(route, deps.mediator);
-  registerGeographyRoutes(route, deps.mediator);
-  registerCatalogRoutes(route, deps.mediator);
-  registerPricingRoutes(route, deps.mediator);
-  registerUsersRoutes(route, deps.mediator);
-  registerAccountClosureRoutes(route, deps.mediator);
-  registerGoalkeeperAdminRoutes(route, deps.mediator);
-  registerGoalkeeperVettingRoutes(route, deps.mediator);
-  registerRequestsRoutes(route, deps.mediator);
-  registerCasesRoutes(route, deps.mediator);
-  registerNotificationsRoutes(route, deps.mediator);
-  registerRatingsRoutes(route, deps.mediator);
-  registerFinanceRoutes(route, deps.mediator);
-  registerDashboardRoutes(route, deps.mediator);
-  registerSystemRoutes(route, deps.mediator);
-  registerSettingsRoutes(route, deps.mediator);
-  registerReadinessRoutes(route, deps.mediator);
+  // Each module works on one level of data (spec 031, contract B1): `X-Scope` selects it.
+  const { at } = createAdminRouting(router, deps.admin);
+  const [platform, country, market] = [at('platform'), at('country'), at('market')];
+  registerTeamRoutes(platform, deps.mediator);
+  registerGeographyRoutes(platform, deps.mediator);
+  registerMarketsRoutes(market, deps.mediator);
+  registerCatalogRoutes(platform, deps.mediator);
+  registerPricingRoutes(market, deps.mediator);
+  registerUsersRoutes(platform, deps.mediator);
+  registerAccountClosureRoutes(country, deps.mediator);
+  registerGoalkeeperAdminRoutes(country, deps.mediator);
+  registerGoalkeeperVettingRoutes(country, deps.mediator);
+  registerRequestsRoutes(market, deps.mediator);
+  registerCasesRoutes(market, deps.mediator);
+  registerNotificationsRoutes(platform, deps.mediator);
+  registerRatingsRoutes(market, deps.mediator);
+  registerFinanceRoutes(country, deps.mediator);
+  registerDashboardRoutes(market, deps.mediator);
+  registerSystemRoutes(platform, deps.mediator);
+  registerSettingsRoutes(country, deps.mediator);
+  registerReadinessRoutes(market, deps.mediator);
+  const route = country;
 
   // The fixed permission catalog, for the role screen (any active member).
   router.get('/permissions', async (_req, res) => {
     res.status(200).json(await deps.mediator.send(new GetPermissionCatalogQuery()));
+  });
+
+  // The countries and markets the member may pick (spec 031, contract B2); no permission of its own.
+  router.get('/me/scopes', async (req, res) => {
+    const access = req.adminAccess!;
+    if (!deps.admin.scope) {
+      res.status(200).json({ platform: true, countries: [] });
+      return;
+    }
+    res.status(200).json(await scopeOptions(access, deps.admin.scope));
   });
 
   // The signed-in member and their effective permissions: the admin web's menu, routes and buttons.
@@ -136,7 +152,7 @@ export function createAdminController(deps: AdminControllerDependencies): Router
       case 'not_a_goalkeeper':
         throw goalkeeperNotFound();
       case 'operating_balance_not_configured':
-        throw operatingBalanceNotConfigured(result.cityId);
+        throw operatingBalanceNotConfigured(result.marketId);
     }
   });
 
@@ -172,7 +188,7 @@ export function createAdminController(deps: AdminControllerDependencies): Router
       case 'withdrawal_not_found':
         throw new ApiError(404, 'withdrawal_not_found', 'This withdrawal does not exist for this goalkeeper.');
       case 'operating_balance_not_configured':
-        throw operatingBalanceNotConfigured(result.cityId);
+        throw operatingBalanceNotConfigured(result.marketId);
       case 'missing_charge':
         throw new ApiError(409, 'missing_charge', 'This booking has no commission charge to refund.', undefined, { bookingId: result.bookingId });
     }

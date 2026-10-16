@@ -26,7 +26,7 @@ export interface GetGoalkeeperMonthStatsDependencies {
 
 /**
  * The goalkeeper's month so far (026 research §1–§4): what the played matches earned, against the
- * previous month through the same day. Months are cut in the time zone of the goalkeeper's city,
+ * previous month through the same day. Months are cut in the time zone of the goalkeeper's market,
  * and "now" is read once so both periods agree on what today is. Nothing is stored.
  */
 export class GetGoalkeeperMonthStatsQueryHandler implements IQueryHandler<
@@ -40,12 +40,12 @@ export class GetGoalkeeperMonthStatsQueryHandler implements IQueryHandler<
     const context = await resolveGoalkeeperOperatingBalanceContext(this.deps.context, goalkeeperId);
     if (context.kind === 'not_a_goalkeeper') return { outcome: 'not_a_goalkeeper' };
     if (context.kind === 'operating_balance_not_configured')
-      return { outcome: 'operating_balance_not_configured', cityId: context.cityId };
+      return { outcome: 'operating_balance_not_configured', marketId: context.marketId };
 
-    const city = await this.deps.context.cityRepository.getById(context.profile.cityId);
-    const timeZone = city?.timeZone;
+    const market = await this.deps.context.marketRepository.getById(context.profile.marketId);
+    const timeZone = market?.timeZone;
     if (!timeZone || !isValidTimeZone(timeZone))
-      return { outcome: 'time_zone_not_configured', cityId: context.profile.cityId };
+      return { outcome: 'time_zone_not_configured', marketId: context.profile.marketId };
 
     const today = toLocalParts(this.deps.clock.now().getTime(), timeZone);
     const month: CalendarMonth = { year: today.year, month: today.month };

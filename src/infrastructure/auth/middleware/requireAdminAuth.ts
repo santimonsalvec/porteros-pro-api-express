@@ -1,6 +1,7 @@
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import type { AdminAccessTokenClaims, IStaffAccessResolver } from '../../../application/features/staff/common/ports.js';
 import type { Permission } from '../../../domain/staff/permissionCatalog.js';
+import type { StaffScope } from '../../../domain/staff/staffScope.js';
 
 /** Who is calling an admin route, resolved on this request. */
 export interface AdminAccess {
@@ -11,6 +12,8 @@ export interface AdminAccess {
   roleId: string;
   permissions: Permission[];
   isOwner: boolean;
+  /** Where the member may work (spec 031). */
+  scopes: readonly StaffScope[];
 }
 
 declare global {
@@ -49,6 +52,7 @@ export function requireAdminAuth(
       roleId: access.role.id,
       permissions: access.permissions,
       isOwner: access.isOwner,
+      scopes: access.member.scopes,
     };
     next();
   };

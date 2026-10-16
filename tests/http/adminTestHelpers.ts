@@ -1,3 +1,4 @@
+import type { StaffScope } from '../../src/domain/staff/staffScope.js';
 import request from 'supertest';
 import type { buildTestApp } from './testAppFactory.js';
 import { ExternalIdentity } from '../../src/domain/users/externalIdentity.js';
@@ -36,7 +37,7 @@ export async function seedRole(context: TestApp, id: string, permissions: string
  */
 export async function signInStaff(
   context: TestApp,
-  options: { key: string; roleId?: string; userId?: string },
+  options: { key: string; roleId?: string; userId?: string; scopes?: StaffScope[] },
 ): Promise<SignedInStaff> {
   const { key } = options;
   const roleId = options.roleId ?? OWNER_ROLE_ID;
@@ -47,7 +48,7 @@ export async function signInStaff(
   if (!(await context.userRepository.getById(userId))) {
     await context.userRepository.add(User.createFromExternalIdentity({ id: userId, email, displayName: null, provider: 'google', subject: `sub-${key}` }));
   }
-  const member = StaffMember.invite({ id: `staff-${key}`, email, roleId, invitedBy: 'system:script' }, now).activate(userId, key, now);
+  const member = StaffMember.invite({ id: `staff-${key}`, email, roleId, invitedBy: 'system:script', scopes: options.scopes }, now).activate(userId, key, now);
   await context.staffMemberRepository.add(member);
   context.googleValidator.registerValidAdminCredential(`admin-cred-${key}`, new ExternalIdentity('google', `sub-${key}`, email), true, key);
 

@@ -2,8 +2,18 @@ import type { Db, Document } from 'mongodb';
 import type { IRegistrationAdminReader, RegistrationListFilter } from '../../../application/features/goalkeepers/common/adminPorts.js';
 import type { IGoalkeeperRegistrationRepository } from '../../../application/features/goalkeepers/common/ports.js';
 import { GoalkeeperRegistration, type GoalkeeperRegistrationStatus } from '../../../domain/goalkeepers/goalkeeperRegistration.js';
+import type { BillingData } from '../../../domain/goalkeepers/billing.js';
 import { MongoRepository } from './mongoRepository.js';
 import { stripNulls } from './stripNulls.js';
+
+/** The billing data as stored; absent fields are not set yet. */
+export function readBilling(doc: Document | undefined): BillingData {
+  return {
+    cityId: (doc?.cityId as string | undefined) ?? null,
+    address: (doc?.address as string | undefined) ?? null,
+    addressComplement: (doc?.addressComplement as string | undefined) ?? null,
+  };
+}
 
 function toDateOrNull(value: unknown): Date | null {
   return value ? new Date(value as string | Date) : null;
@@ -40,7 +50,8 @@ export class GoalkeeperRegistrationRepository
       status: entity.status,
       identification: stripNulls({ ...entity.identification }),
       physicalData: stripNulls({ ...entity.physicalData }),
-      availability: stripNulls({ cityId: entity.availability.cityId, zoneIds: entity.availability.zoneIds }),
+      availability: stripNulls({ marketId: entity.availability.marketId, zoneIds: entity.availability.zoneIds }),
+      billing: stripNulls({ ...entity.billing }),
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
       activatedAt: entity.activatedAt,
@@ -51,6 +62,7 @@ export class GoalkeeperRegistrationRepository
     const identification = (doc.identification as Document | undefined) ?? {};
     const physicalData = (doc.physicalData as Document | undefined) ?? {};
     const availability = (doc.availability as Document | undefined) ?? {};
+    const billing = (doc.billing as Document | undefined) ?? {};
 
     return new GoalkeeperRegistration({
       id: doc._id as string,
@@ -69,9 +81,10 @@ export class GoalkeeperRegistrationRepository
         weightKg: (physicalData.weightKg as number | undefined) ?? null,
       },
       availability: {
-        cityId: (availability.cityId as string | undefined) ?? null,
+        marketId: (availability.marketId as string | undefined) ?? null,
         zoneIds: (availability.zoneIds as string[] | undefined) ?? [],
       },
+      billing: readBilling(billing),
       createdAt: new Date(doc.createdAt as string | Date),
       updatedAt: new Date(doc.updatedAt as string | Date),
       activatedAt: toDateOrNull(doc.activatedAt),
@@ -81,7 +94,8 @@ export class GoalkeeperRegistrationRepository
   /** The registrations not activated yet (they are few), longest idle first (admin spec 005). */
   async inProgress(filter: RegistrationListFilter): Promise<GoalkeeperRegistration[]> {
     const query: Document = { status: 'in_progress' };
-    if (filter.cityId !== undefined) query['availability.cityId'] = filter.cityId;
+    if (filter.marketId !== undefined) query['availability.marketId'] = filter.marketId;
+    else if (filter.marketIds !== undefined) query['availability.marketId'] = { $in: [...filter.marketIds] };
     if (filter.updatedBefore !== undefined) query.updatedAt = { $lte: filter.updatedBefore };
     const docs = await this.collection.find(query).sort({ updatedAt: 1, _id: 1 }).toArray();
     return docs.map((doc) => this.fromDocument(doc));

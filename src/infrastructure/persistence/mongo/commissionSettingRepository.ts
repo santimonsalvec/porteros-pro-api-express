@@ -8,7 +8,7 @@ import { createPrice, findPriceById, priceFilter, priceRecordOf } from './priceD
 import { deleteById, updateAtRevision } from './revisionWrite.js';
 
 /**
- * Platform commissions (country, anchor city or zone), one per scope, reference and tier. The
+ * Platform commissions (country, market or zone), one per scope, reference and tier. The
  * operating balance reads them through `ICommissionSettingRepository`; the admin web writes them through
  * `ICommissionAdmin` (spec 004 of the admin).
  */
@@ -29,10 +29,10 @@ export class CommissionSettingRepository implements ICommissionSettingRepository
   }
 
   /** Every setting for any of these zones, anchor cities or countries, in one read. */
-  async findFor(refs: { zoneIds: string[]; cityIds: string[]; countryIds: string[] }): Promise<CommissionSetting[]> {
+  async findFor(refs: { zoneIds: string[]; marketIds: string[]; countryIds: string[] }): Promise<CommissionSetting[]> {
     const or = [
       ...(refs.zoneIds.length > 0 ? [{ scope: 'zone', refId: { $in: refs.zoneIds } }] : []),
-      ...(refs.cityIds.length > 0 ? [{ scope: 'city', refId: { $in: refs.cityIds } }] : []),
+      ...(refs.marketIds.length > 0 ? [{ scope: 'market', refId: { $in: refs.marketIds } }] : []),
       ...(refs.countryIds.length > 0 ? [{ scope: 'country', refId: { $in: refs.countryIds } }] : []),
     ];
     if (or.length === 0) return [];

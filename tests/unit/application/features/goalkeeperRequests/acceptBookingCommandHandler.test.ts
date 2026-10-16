@@ -37,12 +37,12 @@ beforeEach(async () => {
   ids = 0;
   handler = new AcceptBookingCommandHandler({
     windowResolver: () => async () => CHECK_IN_DEFAULTS,
-    operatingBalanceContext: { goalkeeperProfileRepository: h.profiles, cityRepository: h.cities, regionRepository: h.regions, countryLookup: h.countries },
+    operatingBalanceContext: { goalkeeperProfileRepository: h.profiles, marketRepository: h.markets, countryLookup: h.countries },
     operatingBalanceRepository: h.operatingBalance,
     bookingRepository: h.bookings,
     requestRepository: h.requests,
     zoneRepository: h.zones,
-    cityRepository: h.cities,
+    marketRepository: h.markets,
     userRepository: h.users,
     store,
     idGenerator: { newId: () => `move-${++ids}` },
@@ -393,5 +393,14 @@ describe('AcceptBookingCommandHandler — vetting tier (admin spec 030)', () => 
 
     expect(await accept(bookingId!)).toEqual({ outcome: 'verified_only' });
     expect(charges()).toHaveLength(0);
+  });
+});
+
+describe('AcceptBookingCommandHandler — a disabled market (spec 031, FR-011)', () => {
+  it('still lets a goalkeeper take a booking of a request created before the market was disabled', async () => {
+    const [bookingId] = match(1, 5);
+    h.markets.seed(h.markets.markets.get('city-cali')!.disable('staff-1', h.clock.now()));
+
+    expect(await accept(bookingId!)).toMatchObject({ outcome: 'accepted', booking: { bookingId, status: 'assigned' } });
   });
 });

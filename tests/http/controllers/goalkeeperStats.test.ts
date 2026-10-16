@@ -1,8 +1,8 @@
+import { testMarket } from '../../fakes/fakeMarketRepository.js';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { Booking } from '../../../src/domain/bookings/booking.js';
 import { GoalkeeperPrice } from '../../../src/domain/bookings/goalkeeperPrice.js';
-import { City } from '../../../src/domain/locations/city.js';
 import { buildRequest, buildRequestBookings } from '../../fixtures/quoteFixtures.js';
 import { buildGoalkeeperProfile } from '../../fixtures/operatingBalanceFixtures.js';
 import { buildTestApp } from '../testAppFactory.js';
@@ -72,26 +72,15 @@ describe("GET /goalkeepers/me/stats — US1: the goalkeeper's month in numbers",
     expect(notGoalkeeper.body.error).toBe('goalkeeper_not_found');
   });
 
-  it('422 operating_balance_not_configured without currency, 422 time_zone_not_configured without time zone', async () => {
+  it("422 operating_balance_not_configured when the market's country has no currency", async () => {
     const context = await buildTestApp();
-    context.cityRepository.seed(
-      new City({ id: 'city-palmira', name: 'Palmira', regionId: 'region-valle', zoneCityId: null }),
-    );
+    context.marketRepository.seed(testMarket({ id: 'city-limbo', name: 'Limbo', countryId: 'country-none' }));
     const noCurrency = await signInClient(context, 'sub-2621');
-    const noTimeZone = await signInClient(context, 'sub-2622');
-    context.goalkeeperProfileRepository.seed(
-      buildGoalkeeperProfile(noCurrency.userId, { cityId: 'city-medellin' }),
-    );
-    context.goalkeeperProfileRepository.seed(
-      buildGoalkeeperProfile(noTimeZone.userId, { cityId: 'city-palmira' }),
-    );
+    context.goalkeeperProfileRepository.seed(buildGoalkeeperProfile(noCurrency.userId, { marketId: 'city-limbo' }));
 
     const currency = await stats(context, noCurrency.token);
-    const timeZone = await stats(context, noTimeZone.token);
 
     expect(currency.status).toBe(422);
     expect(currency.body.error).toBe('operating_balance_not_configured');
-    expect(timeZone.status).toBe(422);
-    expect(timeZone.body.error).toBe('time_zone_not_configured');
   });
 });

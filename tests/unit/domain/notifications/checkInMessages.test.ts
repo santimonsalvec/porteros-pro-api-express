@@ -7,7 +7,7 @@ import {
   goalkeeperArrivedMessage,
 } from '../../../../src/domain/notifications/checkInMessages.js';
 
-const match = { zoneName: 'Bello', cityName: 'Medellín', startsAt: new Date('2026-10-04T20:00:00.000Z'), timeZone: 'America/Bogota' };
+const match = { zoneName: 'Bello', marketName: 'Medellín', startsAt: new Date('2026-10-04T20:00:00.000Z'), timeZone: 'America/Bogota' };
 const juan = { firstName: 'Juan', lastName: 'Pérez', whatsApp: '+57 300 1234567' };
 
 describe('check-in messages (feature 020)', () => {

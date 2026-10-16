@@ -67,7 +67,7 @@ describe('admin audit log (spec 001, US3)', () => {
     const context = await buildTestApp();
     const admin = await signInAdmin(context);
 
-    await as(context, admin.token).put('/admin/payment-gateways/country-co', GATEWAY);
+    await as(context, admin.token).put('/admin/payment-gateways/country/country-co', GATEWAY);
     await as(context, admin.token).put('/admin/invoicing/settings/country-co', { provider: 'siigo', config: { username: 'u', accessKey: 'secret-key' } });
 
     const stored = JSON.stringify(context.adminAuditLog.entries);

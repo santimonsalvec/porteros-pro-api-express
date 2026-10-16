@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { validatePushMessage } from '../../../../src/domain/devices/deviceRules.js';
 import { goalkeeperSuspendedMessage, goalkeeperWithdrewMessage } from '../../../../src/domain/notifications/withdrawalMessages.js';
 
-const match = { zoneName: 'Bello', cityName: 'Medellín', startsAt: new Date('2026-10-04T20:00:00.000Z'), timeZone: 'America/Bogota' };
+const match = { zoneName: 'Bello', marketName: 'Medellín', startsAt: new Date('2026-10-04T20:00:00.000Z'), timeZone: 'America/Bogota' };
 
 describe('withdrawal messages (feature 018)', () => {
   it('tells the client another goalkeeper is being searched', () => {

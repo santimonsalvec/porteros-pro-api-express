@@ -12,6 +12,7 @@ import { ExportDepositsQuery } from '../../application/features/deposits/queries
 import { GetDepositAdminQuery } from '../../application/features/deposits/queries/getDepositAdmin/getDepositAdminQuery.js';
 import { ListDepositsAdminQuery } from '../../application/features/deposits/queries/listDepositsAdmin/listDepositsAdminQuery.js';
 import { ApiError } from '../apiError.js';
+import { countryScopeFilter } from './scopeCriteria.js';
 import { exportDocumentsQuerySchema, listDocumentsAdminQuerySchema } from '../requests/finance/invoicingDocumentRequests.js';
 import { exportDepositsQuerySchema, listDepositsQuerySchema } from '../requests/finance/depositRequests.js';
 import { listOperatingBalancesQuerySchema } from '../requests/finance/operatingBalanceRequests.js';
@@ -43,7 +44,8 @@ const exportTooLarge = (count: number, limit: number) =>
  */
 export function registerFinanceRoutes(route: Route, mediator: ISender): void {
   route('get', '/operating-balances', 'operating_balances.read', async (req, res) => {
-    const result = await mediator.send(new ListOperatingBalancesAdminQuery(parse(listOperatingBalancesQuerySchema, req.query)));
+    const { marketId, ...query } = parse(listOperatingBalancesQuerySchema, req.query);
+    const result = await mediator.send(new ListOperatingBalancesAdminQuery({ ...query, ...countryScopeFilter(req, marketId) }));
     res.status(200).json(result.page);
   });
   registerDepositRoutes(route, mediator);
@@ -51,10 +53,11 @@ export function registerFinanceRoutes(route: Route, mediator: ISender): void {
 }
 
 function registerDepositRoutes(route: Route, mediator: ISender): void {
-  const DEPOSIT_FILTERS = ['status', 'countryId', 'goalkeeperId', 'from', 'to'] as const;
+  const DEPOSIT_FILTERS = ['status', 'marketId', 'goalkeeperId', 'from', 'to'] as const;
 
   route('get', '/deposits', 'deposits.read', async (req, res) => {
-    const result = await mediator.send(new ListDepositsAdminQuery(parse(listDepositsQuerySchema, req.query)));
+    const { marketId, ...query } = parse(listDepositsQuerySchema, req.query);
+    const result = await mediator.send(new ListDepositsAdminQuery({ ...query, ...countryScopeFilter(req, marketId) }));
     res.status(200).json(result.page);
   });
 
@@ -63,7 +66,8 @@ function registerDepositRoutes(route: Route, mediator: ISender): void {
     '/deposits/export',
     { permission: 'deposits.read', read: { action: 'deposits.export', resourceType: 'deposits', resourceId: () => 'export' } },
     async (req, res) => {
-      const filter = parse(exportDepositsQuerySchema, req.query);
+      const { marketId, ...query } = parse(exportDepositsQuerySchema, req.query);
+      const filter = { ...query, ...countryScopeFilter(req, marketId) };
       const result = await mediator.send(new ExportDepositsQuery(filter));
       if (result.outcome === 'too_large') {
         res.locals.auditRequest = filtersOf(req, DEPOSIT_FILTERS);
@@ -118,11 +122,11 @@ const documentNotFound = () => new ApiError(404, 'invoicing_document_not_found',
 
 /** Invoices and credit notes (feature 023's list and retry, moved here; admin spec 007 adds the rest). */
 function registerDocumentRoutes(route: Route, mediator: ISender): void {
-  const DOCUMENT_FILTERS = ['status', 'kind', 'countryId', 'from', 'to', 'stale'] as const;
+  const DOCUMENT_FILTERS = ['status', 'kind', 'marketId', 'from', 'to', 'stale'] as const;
 
   route('get', '/invoicing/documents', 'invoicing.read', async (req, res) => {
-    const { status, page, pageSize, ...filters } = parse(listDocumentsAdminQuerySchema, req.query);
-    res.status(200).json(await mediator.send(new ListDocumentsForAdminQuery(status ?? null, page, pageSize, filters)));
+    const { status, page, pageSize, marketId, ...filters } = parse(listDocumentsAdminQuerySchema, req.query);
+    res.status(200).json(await mediator.send(new ListDocumentsForAdminQuery(status ?? null, page, pageSize, { ...filters, ...countryScopeFilter(req, marketId) })));
   });
 
   route(
@@ -130,7 +134,8 @@ function registerDocumentRoutes(route: Route, mediator: ISender): void {
     '/invoicing/documents/export',
     { permission: 'invoicing.read', read: { action: 'invoicingDocuments.export', resourceType: 'invoicingDocuments', resourceId: () => 'export' } },
     async (req, res) => {
-      const result = await mediator.send(new ExportDocumentsQuery(parse(exportDocumentsQuerySchema, req.query)));
+      const { marketId, ...query } = parse(exportDocumentsQuerySchema, req.query);
+      const result = await mediator.send(new ExportDocumentsQuery({ ...query, ...countryScopeFilter(req, marketId) }));
       if (result.outcome === 'too_large') {
         res.locals.auditRequest = filtersOf(req, DOCUMENT_FILTERS);
         throw exportTooLarge(result.count, result.limit);

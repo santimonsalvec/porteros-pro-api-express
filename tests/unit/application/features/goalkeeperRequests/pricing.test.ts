@@ -14,7 +14,7 @@ const colombian: SurchargeTier[] = [
   { fromMinutes: 120, toMinutes: null, amount: 0 },
 ];
 
-function rate(scope: 'zone' | 'city', amount: number): RentalRate {
+function rate(scope: 'zone' | 'market', amount: number): RentalRate {
   return new RentalRate({ id: `${scope}-rate`, scope, refId: `${scope}-1`, durationMinutes: 60, amount });
 }
 
@@ -22,20 +22,20 @@ const F11: MatchTier = { modality: 'futbol_11', level: 'competitive' };
 
 describe('selectUnitRate', () => {
   it('prefers the zone rate over the city rate', () => {
-    expect(selectUnitRate({ zone: [rate('zone', 45000)], city: [rate('city', 40000)] }, F11)?.amount).toBe(45000);
+    expect(selectUnitRate({ zone: [rate('zone', 45000)], market: [rate('market', 40000)] }, F11)?.amount).toBe(45000);
   });
 
   it('falls back to the city rate when the zone has none', () => {
-    expect(selectUnitRate({ zone: [], city: [rate('city', 40000)] }, F11)?.amount).toBe(40000);
+    expect(selectUnitRate({ zone: [], market: [rate('market', 40000)] }, F11)?.amount).toBe(40000);
   });
 
   it('returns null — never zero — when neither level has a rate', () => {
-    expect(selectUnitRate({ zone: [], city: [] }, F11)).toBeNull();
+    expect(selectUnitRate({ zone: [], market: [] }, F11)).toBeNull();
   });
 
   it('prefers the city Fútbol 11 rate over its general one', () => {
-    const f11 = new RentalRate({ id: 'f11', scope: 'city', refId: 'city-1', durationMinutes: 60, amount: 70000, modality: 'futbol_11' });
-    expect(selectUnitRate({ zone: [], city: [rate('city', 40000), f11] }, F11)?.amount).toBe(70000);
+    const f11 = new RentalRate({ id: 'f11', scope: 'market', refId: 'city-1', durationMinutes: 60, amount: 70000, modality: 'futbol_11' });
+    expect(selectUnitRate({ zone: [], market: [rate('market', 40000), f11] }, F11)?.amount).toBe(70000);
   });
 });
 

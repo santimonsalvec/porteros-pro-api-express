@@ -29,6 +29,7 @@ const refund = BalanceMovement.rehydrate({
   cancellation: { by: 'client', at: new Date('2026-09-27T18:04:00.000Z'), reason: 'Un amigo tapa' },
   reason: null,
   invoicing: COLOMBIA_INVOICING,
+  marketId: 'city-cali',
 });
 
 describe('BalanceMovementRepository (mocked driver)', () => {

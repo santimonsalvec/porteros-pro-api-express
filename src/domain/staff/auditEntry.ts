@@ -29,4 +29,6 @@ export interface AuditEntry {
   request: Record<string, unknown> | null;
   ip: string | null;
   userAgent: string | null;
+  /** The country and market the member was working in (spec 031, FR-039); absent on older entries. */
+  scope?: { countryId: string | null; marketId: string | null };
 }

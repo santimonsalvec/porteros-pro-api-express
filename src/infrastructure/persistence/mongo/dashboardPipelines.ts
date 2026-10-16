@@ -21,9 +21,9 @@ const EACH_BOOKING = { $unwind: '$bookingStatuses' };
  * them, each with its status (the list's rule) and its bookings' statuses. Bookings are counted
  * through their request because they do not store a city. Today is inside the week.
  */
-export function matchesPipeline(windows: Pick<DashboardWindows, 'today' | 'week'>, cityIds: readonly string[] | null, timeZone: string): Document[] {
+export function matchesPipeline(windows: Pick<DashboardWindows, 'today' | 'week'>, marketIds: readonly string[] | null, timeZone: string): Document[] {
   const match: Document = { startsAt: { $gte: windows.week.from, $lt: windows.week.to } };
-  if (cityIds !== null) match['match.cityId'] = { $in: [...cityIds] };
+  if (marketIds !== null) match['match.marketId'] = { $in: [...marketIds] };
   return [
     { $match: match },
     ...bookingCountStages(),
@@ -79,9 +79,9 @@ export function toRequestsArea(facet: MatchesFacet | undefined, days: readonly s
  * goalkeeper; suspended and blocked may count the same one; available needs offers on (absent =
  * on, as the offers read it), no current suspension and no block.
  */
-export function goalkeepersSummaryPipeline(cityIds: readonly string[] | null, now: Date): Document[] {
+export function goalkeepersSummaryPipeline(marketIds: readonly string[] | null, now: Date): Document[] {
   return [
-    ...(cityIds !== null ? [{ $match: { cityId: { $in: [...cityIds] } } }] : []),
+    ...(marketIds !== null ? [{ $match: { marketId: { $in: [...marketIds] } } }] : []),
     { $lookup: { from: 'userBlocks', localField: 'userId', foreignField: '_id', as: 'block', pipeline: [{ $match: { blocked: true } }, { $project: { _id: 1 } }] } },
     {
       $addFields: {

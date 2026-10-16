@@ -77,7 +77,7 @@ describe('POST /goalkeeper-requests/bookings — Story 1: book at exactly the qu
       latitude: POINTS.caliNorte.latitude,
       longitude: POINTS.caliNorte.longitude,
       zoneId: 'zone-cali-norte',
-      cityId: 'city-cali',
+      marketId: 'city-cali',
       startsAt: '2026-09-21T20:00:00.000Z',
       startsAtLocal: '2026-09-21T15:00:00-05:00',
       timeZone: 'America/Bogota',

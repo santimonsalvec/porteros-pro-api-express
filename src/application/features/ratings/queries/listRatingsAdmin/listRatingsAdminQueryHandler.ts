@@ -3,7 +3,7 @@ import type { IUserRepository } from '../../../auth/common/ports.js';
 import { pageOf } from '../../../geography/common/views.js';
 import { personNames, placeNames } from '../../../goalkeeperRequests/common/adminNames.js';
 import type { IGoalkeeperRequestRepository } from '../../../goalkeeperRequests/common/ports.js';
-import type { ICityRepository } from '../../../locations/common/ports.js';
+import type { IMarketRepository } from '../../../markets/common/ports.js';
 import type { IRatingAdminReader } from '../../common/adminPorts.js';
 import { ListRatingsAdminQuery, type ListRatingsAdminResult } from './listRatingsAdminQuery.js';
 
@@ -11,7 +11,7 @@ export interface ListRatingsAdminDependencies {
   reader: IRatingAdminReader;
   requests: Pick<IGoalkeeperRequestRepository, 'findByIds'>;
   users: Pick<IUserRepository, 'getByIds'>;
-  cities: Pick<ICityRepository, 'getByIds'>;
+  markets: Pick<IMarketRepository, 'getByIds'>;
 }
 
 export class ListRatingsAdminQueryHandler implements IQueryHandler<ListRatingsAdminQuery, ListRatingsAdminResult> {
@@ -23,7 +23,7 @@ export class ListRatingsAdminQueryHandler implements IQueryHandler<ListRatingsAd
     const requestsById = new Map(requests.map((request) => [request.id, request]));
     const [people, places, cases] = await Promise.all([
       personNames(this.deps, items.flatMap((rating) => [rating.authorId, rating.subjectId])),
-      placeNames({ ...this.deps, zones: { getManyByIds: async () => [] } }, requests.map((request) => request.match.cityId), []),
+      placeNames({ ...this.deps, zones: { getManyByIds: async () => [] } }, requests.map((request) => request.match.marketId), []),
       this.deps.reader.casesOpenedBy(items),
     ]);
     const rows = items.map((rating) => {
@@ -39,7 +39,7 @@ export class ListRatingsAdminQueryHandler implements IQueryHandler<ListRatingsAd
         answer: rating.answer,
         comment: rating.comment,
         createdAt: rating.createdAt.toISOString(),
-        match: request ? { startsAt: request.startsAt.toISOString(), timeZone: request.match.timeZone, city: places.city(request.match.cityId) } : null,
+        match: request ? { startsAt: request.startsAt.toISOString(), timeZone: request.match.timeZone, market: places.market(request.match.marketId) } : null,
         requestId: rating.requestId,
         bookingId: rating.bookingId,
         caseId: cases.get(rating.id) ?? null,

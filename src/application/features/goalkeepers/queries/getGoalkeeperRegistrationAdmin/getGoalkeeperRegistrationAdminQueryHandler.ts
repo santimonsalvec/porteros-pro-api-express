@@ -1,4 +1,5 @@
 import type { IQueryHandler } from '../../../../common/mediator/types.js';
+import { billingWithPlaceNames } from '../../common/billingPlaces.js';
 import { userName } from '../../../users/common/userViewing.js';
 import { computeGoalkeeperSections } from '../../common/goalkeeperSections.js';
 import { fieldStatus, registrationStep } from '../../common/registrationStep.js';
@@ -12,14 +13,15 @@ export class GetGoalkeeperRegistrationAdminQueryHandler implements IQueryHandler
     const registration = await this.deps.registrations.getByUserId(userId);
     if (!registration || registration.status !== 'in_progress') return { outcome: 'not_found' };
     const { availability, physicalData } = registration;
-    const [user, cities, zones] = await Promise.all([
+    const [user, markets, zones, billing] = await Promise.all([
       this.deps.users.getById(userId),
-      availability.cityId ? this.deps.cities.getByIds([availability.cityId]) : Promise.resolve([]),
+      availability.marketId ? this.deps.markets.getByIds([availability.marketId]) : Promise.resolve([]),
       this.deps.zones.getManyByIds(availability.zoneIds),
+      billingWithPlaceNames(registration.billing, this.deps.places),
     ]);
     const sections = computeGoalkeeperSections(registration);
     const fields = fieldStatus(registration);
-    const city = cities[0];
+    const market = markets[0];
     return {
       outcome: 'ok',
       registration: {
@@ -31,9 +33,10 @@ export class GetGoalkeeperRegistrationAdminQueryHandler implements IQueryHandler
           physicalData: { complete: sections.physicalData.complete, fields: fields.physicalData, values: { heightCm: physicalData.heightCm, weightKg: physicalData.weightKg } },
           availability: {
             complete: sections.availability.complete,
-            city: city ? { id: city.id, name: city.name } : null,
+            market: market ? { id: market.id, name: market.name } : null,
             zones: availability.zoneIds.map((id) => ({ id, name: zones.find((zone) => zone.id === id)?.name ?? id })),
           },
+          billing: { complete: sections.billing.complete, ...billing },
         },
         createdAt: registration.createdAt.toISOString(),
         updatedAt: registration.updatedAt.toISOString(),

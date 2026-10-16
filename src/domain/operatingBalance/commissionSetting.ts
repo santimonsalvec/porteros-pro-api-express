@@ -4,15 +4,15 @@ import type { MatchLevel, PricedModality } from '../bookings/matchFormat.js';
 import { InvalidConfigurationError } from '../pricing/invalidConfigurationError.js';
 import { parseTier } from '../pricing/tier.js';
 
-export type CommissionScope = 'country' | 'city' | 'zone';
+export type CommissionScope = 'country' | 'market' | 'zone';
 
 /**
- * The platform's fixed commission per accepted booking, defined for a country, an anchor city or
+ * The platform's fixed commission per accepted booking, defined for a country, a market or
  * a zone; the most specific applies (FR-009). Externally seeded, read-only here.
  */
 export class CommissionSetting extends Entity<string> {
   readonly scope: CommissionScope;
-  /** A `Country` id, an anchor `City` id or a `Zone` id, per `scope`. */
+  /** A `Country` id, a `Market` id or a `Zone` id, per `scope`. */
   readonly refId: string;
   /** Whole units of the country's currency. */
   readonly amount: number;
@@ -34,7 +34,7 @@ export class CommissionSetting extends Entity<string> {
   }) {
     super(params.id);
     const where = `commissionSettings document ${params.id}`;
-    if (params.scope !== 'country' && params.scope !== 'city' && params.scope !== 'zone') {
+    if (params.scope !== 'country' && params.scope !== 'market' && params.scope !== 'zone') {
       throw new InvalidConfigurationError(`${where}: unknown scope '${params.scope}'`);
     }
     if (typeof params.refId !== 'string' || params.refId === '') {
