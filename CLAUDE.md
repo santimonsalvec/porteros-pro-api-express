@@ -1,6 +1,6 @@
 # porteros-pro-api Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-09-29
+Auto-generated from all feature plans. Last updated: 2026-10-15
 
 ## Active Technologies
 - TypeScript ~6.x on Node.js 24 LTS — unchanged, same runtime as the rest of this repository (see `specs/001-porteros-api-migration/plan.md`). + Existing stack (Express 5.2.x, `mongodb` 7.x, `zod`, `uuid`, `pino`) plus three new dependencies scoped to this feature: `cloudinary` 2.x (official Node SDK — the storage provider adapter, see research.md §1); `multer` 2.x with in-memory storage (Express does not parse `multipart/form-data` itself — see research.md §2); `file-type` 22.x (magic-byte content sniffing, so an upload is validated by its actual bytes, not its claimed MIME type or file extension — see research.md §3). (002-cloudinary-image-storage)
@@ -45,6 +45,8 @@ Auto-generated from all feature plans. Last updated: 2026-09-29
 - MongoDB (Atlas, transactions). New collections `invoicingDocuments`, `invoicingSettings` (provider per country) and `taxSettings`; VAT movement types and `taxRateBps`; events `commission.charged/refunded`, `penalty.charged/reversed`; DANE codes on `cities`; Siigo (DIAN stamping and email). (023-electronic-invoicing)
 - TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. Pure geography-first tier resolver (`domain/pricing/tieredRate.ts`) shared by rates and commissions. No new dependency. (024-match-format-pricing)
 - MongoDB. New seeded collection `matchSurfaces` (`scripts/seed-match-surfaces.ts`); optional `modality`/`level` on `rentalRates` and `commissionSettings` (unique indexes replaced); `match.format` on `quotes`/`goalkeeperRequests`; `bookings.dismissedGoalkeeperIds`. (024-match-format-pricing)
+- TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack plus `@turf/boolean-disjoint` (runtime, same `@turf` v7 family already installed; zone border/overlap check). Shared `domain/settings/layered.ts` + `MarketContext`; admin scope via `X-Scope` header. (031-markets)
+- MongoDB (Atlas, transactions). New collection `markets` (draft/enabled/disabled); `zones.marketId` replaces `cityId`; `cities`/`regions` become a billing-only catalog (no `zoneCityId`/`timeZone`); settings `scope: market` replaces `city`; `paymentGatewaySettings` gains `scope`/`refId`; `MatchDetails.marketId`; goalkeeper `billing`; `marketId` attribution on movements, deposits, invoices, incidents; `staffMembers.scopes`. (031-markets)
 
 - TypeScript ~6.x (last JavaScript-hosted compiler generation) on Node.js 24 LTS (Active LTS as of Aug 2026; Node 22 remains Maintenance LTS as a fallback). TypeScript 7.0 (Go-native compiler) is intentionally *not* adopted yet — see research.md for rationale. + Express 5.2.x (web framework); official `mongodb` driver 7.x (no ODM, mirrors the source's raw `MongoDB.Driver` usage); `google-auth-library` 11.x (`OAuth2Client.verifyIdToken`, official equivalent of `Google.Apis.Auth`); `jose` (JWT sign/verify, chosen over legacy `jsonwebtoken` — see research.md); `zod` (request DTO shape validation); `uuid` v9+ (`v7()` for entity ids, matching the source's UUIDv7 convention); `pino` (structured logging, audit-log equivalent); `@opentelemetry/sdk-node` + HTTP/Express auto-instrumentation + OTLP/console exporters (observability parity) (001-porteros-api-migration)
 
@@ -65,10 +67,9 @@ npm test && npm run lint
 TypeScript ~6.x (last JavaScript-hosted compiler generation) on Node.js 24 LTS (Active LTS as of Aug 2026; Node 22 remains Maintenance LTS as a fallback). TypeScript 7.0 (Go-native compiler) is intentionally *not* adopted yet — see research.md for rationale.: Follow standard conventions
 
 ## Recent Changes
+- 031-markets: Markets (sedes) with their own zones and settings inherited from the country, non-touching active zones, goalkeeper billing data and market change, admin scope selector (`X-Scope`) and staff scopes. API, admin and app.
 - 024-match-format-pricing: Added modality/level/surface to quotes and requests, tiered rates and commissions, `POST /goalkeepers/me/bookings/{id}/dismiss`. No new dependency.
 - 023-electronic-invoicing: Added TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. Siigo over REST with the global `fetch`; secrets from Secret Manager (as in 022); reuses 013 (outbox, consumers, sweep) and 011 (ledger). No new dependency.
-- 022-wallet-topups-gateway: Added TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. Wompi via `node:crypto` (SHA-256) and the global `fetch`; secrets from Secret Manager through App Hosting environment variables. No new dependency.
-- 021-match-close-rating-no-show: Added TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. Reused: 018 (incidents, penalty policy, reversal), 020 (check-in, country resolver), 019 (`notifyOnce`), 013 (sweep, outbox, consumers). No new dependency.
 
 
 <!-- MANUAL ADDITIONS START -->
