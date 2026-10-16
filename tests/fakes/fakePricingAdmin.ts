@@ -43,7 +43,7 @@ export class FakeRentalRateAdmin implements IRentalRateAdmin {
     return createIn(
       this.base.rates,
       new RentalRate(input),
-      (a, b) => a.scope === b.scope && a.refId === b.refId && a.durationMinutes === b.durationMinutes && a.modality === b.modality && a.level === b.level,
+      (a, b) => a.scope === b.scope && a.refId === b.refId && a.durationMinutes === b.durationMinutes && a.modality === b.modality,
     );
   }
 
@@ -72,7 +72,7 @@ export class FakeCommissionAdmin implements ICommissionAdmin {
     return createIn(
       this.base.settings,
       new CommissionSetting(input),
-      (a, b) => a.scope === b.scope && a.refId === b.refId && a.modality === b.modality && a.level === b.level,
+      (a, b) => a.scope === b.scope && a.refId === b.refId && a.modality === b.modality,
     );
   }
 

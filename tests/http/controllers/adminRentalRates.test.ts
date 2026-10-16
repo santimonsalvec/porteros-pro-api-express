@@ -4,7 +4,7 @@ import { as } from '../geographyTestHelpers.js';
 import { pricingStaff } from '../pricingTestHelpers.js';
 import { signInClient } from '../operatingBalanceTestHelpers.js';
 
-const CALI_90_FUTBOL_11 = { scope: 'market', refId: 'city-cali', durationMinutes: 90, modality: 'futbol_11', level: 'competitive', amount: 70000 };
+const CALI_90_FUTBOL_11 = { scope: 'market', refId: 'city-cali', durationMinutes: 90, modality: 'futbol_11', amount: 70000 };
 
 describe('/admin/rental-rates (admin spec 004, US1)', () => {
   it('creates, edits the amount and deletes a rate, auditing who and the before and after', async () => {
@@ -62,17 +62,17 @@ describe('/admin/rental-rates (admin spec 004, US1)', () => {
     const existing = (await editor.get('/admin/rental-rates?marketId=city-cali&durationMinutes=60&modality=general')).body.items[0];
 
     const fieldErrors = await editor.post('/admin/rental-rates', { ...CALI_90_FUTBOL_11, modality: null, amount: 1.5 });
-    const levelAlone = await editor.post('/admin/rental-rates', { ...CALI_90_FUTBOL_11, modality: null });
+    const openModality = await editor.post('/admin/rental-rates', { ...CALI_90_FUTBOL_11, modality: 'any' });
     const noCity = await editor.post('/admin/rental-rates', { ...CALI_90_FUTBOL_11, refId: 'nowhere' });
     const noZone = await editor.post('/admin/rental-rates', { ...CALI_90_FUTBOL_11, scope: 'zone', refId: 'nowhere' });
-    const duplicate = await editor.post('/admin/rental-rates', { scope: 'market', refId: 'city-cali', durationMinutes: 60, modality: null, level: null, amount: 1 });
+    const duplicate = await editor.post('/admin/rental-rates', { scope: 'market', refId: 'city-cali', durationMinutes: 60, modality: null, amount: 1 });
     const identityChange = await editor.patch(`/admin/rental-rates/${existing.id}`, { revision: 0, amount: 1, durationMinutes: 90 });
     const stale = await editor.patch(`/admin/rental-rates/${existing.id}`, { revision: 5, amount: 1 });
     const missing = await editor.patch('/admin/rental-rates/nope', { revision: 0, amount: 1 });
     const noReason = await editor.post(`/admin/rental-rates/${existing.id}/delete`, {});
 
     expect([fieldErrors.status, fieldErrors.body.error, Object.keys(fieldErrors.body.fieldErrors)]).toEqual([400, 'validation_failed', ['amount']]);
-    expect([levelAlone.status, levelAlone.body.fieldErrors]).toEqual([400, { level: 'level_requires_modality' }]);
+    expect([openModality.status, openModality.body.error]).toEqual([400, 'validation_failed']);
     expect([noCity.status, noCity.body.error]).toEqual([404, 'market_not_found']);
     expect([noZone.status, noZone.body.error]).toEqual([404, 'zone_not_found']);
     expect([duplicate.status, duplicate.body.error, duplicate.body.existingId]).toEqual([409, 'rate_already_exists', existing.id]);

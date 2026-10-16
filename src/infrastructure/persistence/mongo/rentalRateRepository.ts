@@ -21,11 +21,15 @@ export class RentalRateRepository implements IRentalRateRepository, IRatePresenc
   }
 
   async ensureIndexes(): Promise<void> {
-    // Feature 024: one rate per modality/level tier, so the old unique index must go first.
+    // Feature 024: one rate per modality tier, so the older unique indexes must go first. The
+    // match level (amateur/tournament) was withdrawn: its rates are dropped, as the modality's
+    // general rate now covers every match, and the index no longer includes it.
     await dropIndexIfExists(this.collection, 'scope_refId_durationMinutes');
+    await dropIndexIfExists(this.collection, 'scope_refId_duration_modality_level');
+    await this.collection.deleteMany({ level: { $ne: null } });
     await this.collection.createIndex(
-      { scope: 1, refId: 1, durationMinutes: 1, modality: 1, level: 1 },
-      { name: 'scope_refId_duration_modality_level', unique: true },
+      { scope: 1, refId: 1, durationMinutes: 1, modality: 1 },
+      { name: 'scope_refId_duration_modality', unique: true },
     );
   }
 
@@ -37,7 +41,6 @@ export class RentalRateRepository implements IRentalRateRepository, IRatePresenc
       durationMinutes: doc.durationMinutes as number,
       amount: doc.amount as number,
       modality: (doc.modality as string | undefined) ?? null,
-      level: (doc.level as string | undefined) ?? null,
       revision: doc.revision as number | undefined,
     });
   }
@@ -91,8 +94,8 @@ export class RentalRateRepository implements IRentalRateRepository, IRatePresenc
   }
 
   create(rate: Omit<RentalRateRecord, 'revision' | 'invalid'>): Promise<CreateResult> {
-    const { id, scope, refId, durationMinutes, modality, level, amount } = rate;
-    return createPrice(this.collection, id, { scope, refId, durationMinutes, modality, level }, amount);
+    const { id, scope, refId, durationMinutes, modality, amount } = rate;
+    return createPrice(this.collection, id, { scope, refId, durationMinutes, modality }, amount);
   }
 
   updateAmount(id: string, expectedRevision: number, amount: number): Promise<UpdateResult> {

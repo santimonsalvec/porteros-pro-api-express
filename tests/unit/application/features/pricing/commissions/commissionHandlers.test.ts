@@ -18,7 +18,7 @@ import { pricingKit } from '../pricingTestKit.js';
 
 let kit: ReturnType<typeof pricingKit>;
 const commission = (id: string, scope: 'country' | 'market' | 'zone', refId: string, amount: number, modality: string | null = null) =>
-  kit.commissions.base.seed(new CommissionSetting({ id, scope, refId, amount, modality, level: null }));
+  kit.commissions.base.seed(new CommissionSetting({ id, scope, refId, amount, modality }));
 
 beforeEach(() => {
   kit = pricingKit();
@@ -27,7 +27,7 @@ beforeEach(() => {
 describe('CreateCommissionCommand', () => {
   const create = (input: Partial<CreateCommissionCommand['input']> = {}) =>
     new CreateCommissionCommandHandler(kit).handle(
-      new CreateCommissionCommand({ scope: 'country', refId: 'co', modality: null, level: null, amount: 7000, ...input }),
+      new CreateCommissionCommand({ scope: 'country', refId: 'co', modality: null, amount: 7000, ...input }),
     );
 
   it('creates a country, an anchor-city and a zone commission', async () => {
@@ -44,10 +44,10 @@ describe('CreateCommissionCommand', () => {
     expect(await create({ refId: 've' })).toEqual({ outcome: 'country_without_currency' });
   });
 
-  it('refuses a level without a modality and an amount above the limit', async () => {
-    expect(await create({ level: 'competitive', amount: 100_000_001 })).toEqual({
+  it('refuses the open modality and an amount above the limit', async () => {
+    expect(await create({ modality: 'any' as never, amount: 100_000_001 })).toEqual({
       outcome: 'invalid',
-      fieldErrors: { level: 'level_requires_modality', amount: 'above_limit' },
+      fieldErrors: { modality: 'unknown_modality', amount: 'above_limit' },
     });
   });
 });

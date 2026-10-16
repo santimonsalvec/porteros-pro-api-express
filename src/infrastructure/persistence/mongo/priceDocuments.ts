@@ -1,5 +1,5 @@
 import type { Collection, Document } from 'mongodb';
-import type { MatchLevel, PricedModality } from '../../../domain/bookings/matchFormat.js';
+import type { PricedModality } from '../../../domain/bookings/matchFormat.js';
 import type { CreateResult, PriceFilter, PriceRecord } from '../../../application/features/pricing/common/ports.js';
 import { idFilter } from './idFilter.js';
 
@@ -37,7 +37,6 @@ export function priceRecordOf<Scope extends string>(doc: Document, accepts: (doc
     scope: doc.scope as Scope,
     refId: String(doc.refId),
     modality: (doc.modality as PricedModality | undefined) ?? null,
-    level: (doc.level as MatchLevel | undefined) ?? null,
     amount: doc.amount as number,
     revision: typeof doc.revision === 'number' ? doc.revision : 0,
     invalid,

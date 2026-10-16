@@ -14,7 +14,6 @@ const preview = (input: Partial<PricingPreviewInput> = {}) =>
       zoneId: 'zone-cali-norte',
       durationMinutes: 60,
       modality: 'futbol_11',
-      level: 'competitive',
       startsAtLocal: '2026-09-21T14:00',
       quoteFromLocal: null,
       ...input,
@@ -40,9 +39,9 @@ describe('GetPricingPreviewQuery (admin spec 004, US4)', () => {
         leadMinutes: 60,
         currency: 'COP',
         quotable: { ok: true },
-        rate: { amount: 40000, origin: { scope: 'zone', refId: 'zone-cali-norte', name: 'Norte' }, tier: { modality: null, level: null } },
+        rate: { amount: 40000, origin: { scope: 'zone', refId: 'zone-cali-norte', name: 'Norte' }, tier: { modality: null } },
         surcharge: { amount: 5000, tier: { fromMinutes: 60, toMinutes: 120 } },
-        commission: { amount: 7000, origin: { scope: 'country', refId: 'country-co', name: 'Colombia' }, tier: { modality: null, level: null } },
+        commission: { amount: 7000, origin: { scope: 'country', refId: 'country-co', name: 'Colombia' }, tier: { modality: null } },
         vat: { rateBps: 1900, amount: 1330 },
         totalForGoalkeeper: 8330,
         rules: {
@@ -55,13 +54,13 @@ describe('GetPricingPreviewQuery (admin spec 004, US4)', () => {
     });
   });
 
-  it('uses the most specific tier and level, and the general rate for "any"', async () => {
+  it('uses the most specific tier, and the general rate for "any"', async () => {
     world.rentalRateRepository.seed(new RentalRate({ id: 'f11', scope: 'market', refId: 'city-cali', durationMinutes: 60, amount: 50000, modality: 'futbol_11' }));
     world.commissionSettingRepository.seed(new CommissionSetting({ id: 'c-sur', scope: 'zone', refId: 'zone-cali-sur', amount: 9000 }));
     const sur = await preview({ zoneId: 'zone-cali-sur' });
     const any = await preview({ zoneId: 'zone-cali-sur', modality: 'any' });
     expect(sur).toMatchObject({ preview: { rate: { amount: 45000, origin: { scope: 'zone' } }, commission: { amount: 9000, origin: { scope: 'zone', name: 'Sur' } } } });
-    expect((await preview({ zoneId: 'zone-cali-centro' }))).toMatchObject({ preview: { rate: { amount: 50000, origin: { scope: 'market', name: 'Cali' }, tier: { modality: 'futbol_11', level: null } } } });
+    expect((await preview({ zoneId: 'zone-cali-centro' }))).toMatchObject({ preview: { rate: { amount: 50000, origin: { scope: 'market', name: 'Cali' }, tier: { modality: 'futbol_11' } } } });
     expect(any).toMatchObject({ preview: { rate: { amount: 45000, tier: { modality: null } } } });
   });
 
@@ -121,7 +120,7 @@ describe('GetPricingPreviewQuery — every reason a quote stops, with its screen
   it('charges no VAT where the country has none', async () => {
     const empty = new (await import('../../../../../fakes/fakeTaxSettingsRepository.js')).FakeTaxSettingsRepository();
     const result = await new GetPricingPreviewQueryHandler({ ...world, taxSettings: empty }).handle(
-      new GetPricingPreviewQuery({ zoneId: 'zone-cali-norte', durationMinutes: 60, modality: 'any', level: 'recreational', startsAtLocal: '2026-09-21T14:00', quoteFromLocal: null }),
+      new GetPricingPreviewQuery({ zoneId: 'zone-cali-norte', durationMinutes: 60, modality: 'any', startsAtLocal: '2026-09-21T14:00', quoteFromLocal: null }),
     );
     expect(result).toMatchObject({ preview: { vat: { rateBps: 0, amount: 0 }, totalForGoalkeeper: 7000 } });
   });

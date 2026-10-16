@@ -14,9 +14,11 @@ describe('CommissionSettingRepository (mocked driver)', () => {
     await repositoryWith(collection).ensureIndexes();
 
     expect(collection.dropIndex).toHaveBeenCalledWith('scope_refId');
+    expect(collection.dropIndex).toHaveBeenCalledWith('scope_refId_modality_level');
+    expect(collection.deleteMany).toHaveBeenCalledWith({ level: { $ne: null } });
     expect(collection.createIndex).toHaveBeenCalledWith(
-      { scope: 1, refId: 1, modality: 1, level: 1 },
-      { name: 'scope_refId_modality_level', unique: true },
+      { scope: 1, refId: 1, modality: 1 },
+      { name: 'scope_refId_modality', unique: true },
     );
   });
 
@@ -33,7 +35,7 @@ describe('CommissionSettingRepository (mocked driver)', () => {
         { scope: 'country', refId: { $in: ['country-co'] } },
       ],
     });
-    expect(found[0]).toMatchObject({ scope: 'country', refId: 'country-co', amount: 7000, modality: null, level: null });
+    expect(found[0]).toMatchObject({ scope: 'country', refId: 'country-co', amount: 7000, modality: null });
   });
 
   it('does not query when nothing is asked for', async () => {
@@ -52,7 +54,7 @@ describe('CommissionSettingRepository — admin web (spec 004 of the admin)', ()
     collection.find.mockReturnValue(toArrayResult([stored]));
     const found = await repositoryWith(collection).find({ refs: [{ scope: 'country', refIds: ['co'] }], modality: 'general' });
     expect(collection.find).toHaveBeenCalledWith({ $or: [{ scope: 'country', refId: { $in: ['co'] } }], modality: null });
-    expect(found).toEqual([{ id: 'c1', scope: 'country', refId: 'co', modality: null, level: null, amount: 7000, revision: 0, invalid: false }]);
+    expect(found).toEqual([{ id: 'c1', scope: 'country', refId: 'co', modality: null, amount: 7000, revision: 0, invalid: false }]);
   });
 
   it('marks a seeded commission the domain refuses', async () => {
@@ -66,10 +68,10 @@ describe('CommissionSettingRepository — admin web (spec 004 of the admin)', ()
     collection.insertOne.mockResolvedValueOnce({}).mockRejectedValueOnce(Object.assign(new Error('E11000'), { code: 11000 }));
     collection.findOne.mockResolvedValue({ _id: 'c1' });
     const repository = repositoryWith(collection);
-    const input = { id: 'c2', scope: 'zone' as const, refId: 'poblado', modality: null, level: null, amount: 9000 };
+    const input = { id: 'c2', scope: 'zone' as const, refId: 'poblado', modality: null, amount: 9000 };
 
     expect(await repository.create(input)).toEqual({ outcome: 'created' });
-    expect(collection.insertOne).toHaveBeenCalledWith({ _id: 'c2', scope: 'zone', refId: 'poblado', modality: null, level: null, amount: 9000, revision: 0 });
+    expect(collection.insertOne).toHaveBeenCalledWith({ _id: 'c2', scope: 'zone', refId: 'poblado', modality: null, amount: 9000, revision: 0 });
     expect(await repository.create(input)).toEqual({ outcome: 'duplicate', existingId: 'c1' });
   });
 

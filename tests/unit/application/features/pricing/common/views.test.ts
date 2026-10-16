@@ -20,13 +20,12 @@ const rate: RentalRateRecord = {
   refId: 'bello',
   durationMinutes: 90,
   modality: null,
-  level: null,
   amount: 60000,
   revision: 2,
   invalid: false,
 };
 
-const commission: CommissionRecord = { id: 'c1', scope: 'country', refId: 'co', modality: 'futbol_11', level: null, amount: 7000, revision: 0, invalid: false };
+const commission: CommissionRecord = { id: 'c1', scope: 'country', refId: 'co', modality: 'futbol_11', amount: 7000, revision: 0, invalid: false };
 const countryTarget: PriceTarget = { ...zoneTarget, marketId: null, marketName: null, zoneId: null, zoneName: null, zoneActive: null };
 
 describe('rentalRateView', () => {
@@ -37,7 +36,6 @@ describe('rentalRateView', () => {
       refId: 'bello',
       durationMinutes: 90,
       modality: null,
-      level: null,
       amount: 60000,
       revision: 2,
       invalid: false,

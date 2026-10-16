@@ -1,12 +1,11 @@
 import { IQuery } from '../../../../common/mediator/types.js';
-import type { MatchLevel, Modality } from '../../../../../domain/bookings/matchFormat.js';
+import type { Modality } from '../../../../../domain/bookings/matchFormat.js';
 import type { ResolvedSetting } from '../../../goalkeeperRequests/common/resolveBookingSettings.js';
 
 export interface PricingPreviewInput {
   zoneId: string;
   durationMinutes: number;
   modality: Modality;
-  level: MatchLevel;
   /** `YYYY-MM-DDTHH:mm` in the market's time zone. */
   startsAtLocal: string;
   /** The moment to quote from, same form; `null` = now (FR-013a). */
@@ -34,7 +33,7 @@ export interface PriceOrigin {
   name: string;
 }
 
-type Tier = { modality: string | null; level: string | null };
+type Tier = { modality: string | null };
 
 export interface PricingPreview {
   zone: { id: string; name: string; active: boolean };

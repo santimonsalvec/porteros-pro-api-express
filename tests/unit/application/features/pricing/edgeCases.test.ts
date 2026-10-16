@@ -32,7 +32,7 @@ const NO_CITY_RULES: MarketRuleFields = {
 describe('pricing edge cases', () => {
   it('orders empty names last and keeps equal tiers together', () => {
     expect(['b', null, 'a', null].sort(compareNames)).toEqual(['a', 'b', null, null]);
-    expect(compareTiers({ modality: 'futbol_11', level: null }, { modality: 'futbol_11', level: null })).toBe(0);
+    expect(compareTiers({ modality: 'futbol_11' }, { modality: 'futbol_11' })).toBe(0);
   });
 
   it('reads a market whose country is gone, without a country part', async () => {

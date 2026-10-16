@@ -50,14 +50,14 @@ describe('/admin/commissions (admin spec 004, US3)', () => {
     const impact = await editor.get('/admin/commissions/commission-country-co/delete-impact');
     const duplicate = await editor.post('/admin/commissions', { scope: 'country', refId: 'country-co', amount: 1 });
     const unknown = await editor.post('/admin/commissions', { scope: 'country', refId: 'nowhere', amount: 1 });
-    const levelAlone = await editor.post('/admin/commissions', { ...NORTE, level: 'competitive' });
+    const openModality = await editor.post('/admin/commissions', { ...NORTE, modality: 'any' });
     const stale = await editor.patch('/admin/commissions/commission-country-co', { revision: 3, amount: 1 });
     const missing = await editor.get('/admin/commissions/nope');
 
     expect(impact.body).toEqual({ zoneCount: 5, zoneNames: ['Norte', 'Sur', 'Centro', 'Bello', 'Copacabana'] });
     expect([duplicate.status, duplicate.body.error, duplicate.body.existingId]).toEqual([409, 'commission_already_exists', 'commission-country-co']);
     expect([unknown.status, unknown.body.error]).toEqual([404, 'country_not_found']);
-    expect([levelAlone.status, levelAlone.body.fieldErrors]).toEqual([400, { level: 'level_requires_modality' }]);
+    expect([openModality.status, openModality.body.error]).toEqual([400, 'validation_failed']);
     expect([stale.status, stale.body.error]).toEqual([409, 'stale_revision']);
     expect([missing.status, missing.body.error]).toEqual([404, 'commission_not_found']);
   });

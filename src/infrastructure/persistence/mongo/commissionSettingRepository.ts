@@ -20,11 +20,15 @@ export class CommissionSettingRepository implements ICommissionSettingRepository
   }
 
   async ensureIndexes(): Promise<void> {
-    // Feature 024: one commission per modality/level tier, so the old unique index must go first.
+    // Feature 024: one commission per modality tier, so the older unique indexes must go first.
+    // The match level (amateur/tournament) was withdrawn: its commissions are dropped, as the
+    // modality's general commission now covers every match, and the index no longer includes it.
     await dropIndexIfExists(this.collection, 'scope_refId');
+    await dropIndexIfExists(this.collection, 'scope_refId_modality_level');
+    await this.collection.deleteMany({ level: { $ne: null } });
     await this.collection.createIndex(
-      { scope: 1, refId: 1, modality: 1, level: 1 },
-      { name: 'scope_refId_modality_level', unique: true },
+      { scope: 1, refId: 1, modality: 1 },
+      { name: 'scope_refId_modality', unique: true },
     );
   }
 
@@ -47,7 +51,6 @@ export class CommissionSettingRepository implements ICommissionSettingRepository
       refId: String(doc.refId),
       amount: doc.amount as number,
       modality: (doc.modality as string | undefined) ?? null,
-      level: (doc.level as string | undefined) ?? null,
       revision: doc.revision as number | undefined,
     });
   }
@@ -69,8 +72,8 @@ export class CommissionSettingRepository implements ICommissionSettingRepository
   }
 
   create(commission: Omit<CommissionRecord, 'revision' | 'invalid'>): Promise<CreateResult> {
-    const { id, scope, refId, modality, level, amount } = commission;
-    return createPrice(this.collection, id, { scope, refId, modality, level }, amount);
+    const { id, scope, refId, modality, amount } = commission;
+    return createPrice(this.collection, id, { scope, refId, modality }, amount);
   }
 
   updateAmount(id: string, expectedRevision: number, amount: number): Promise<UpdateResult> {

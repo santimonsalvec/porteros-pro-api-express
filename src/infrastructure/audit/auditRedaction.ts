@@ -4,7 +4,7 @@
  * A field not listed is left out — the log never learns a secret by accident.
  */
 const PRICE_FIELDS = [
-  'id', 'scope', 'refId', 'modality', 'level', 'amount', 'revision', 'invalid', 'currency', 'countryId', 'countryName',
+  'id', 'scope', 'refId', 'modality', 'amount', 'revision', 'invalid', 'currency', 'countryId', 'countryName',
   'marketId', 'marketName', 'zoneName', 'zoneActive', 'targetValid', 'reason',
 ];
 

@@ -24,7 +24,6 @@ function priceView<Scope extends string>(record: PriceRecord<Scope>, target: Pri
     scope: record.scope,
     refId: record.refId,
     modality: record.modality,
-    level: record.level,
     amount: record.amount,
     revision: record.revision,
     invalid: record.invalid,

@@ -12,7 +12,7 @@ export interface RentalRateFilters {
   modality?: PricedModality | 'general';
 }
 
-/** The rates, sorted by market, duration, level (market, then zones by display order) and tier (contracts/pricing-api.md). */
+/** The rates, sorted by market, duration, geographic level (market, then zones by display order) and tier (contracts/pricing-api.md). */
 export class ListRentalRatesQuery extends IQuery<Page<RentalRateView>> {
   constructor(
     readonly filters: RentalRateFilters,

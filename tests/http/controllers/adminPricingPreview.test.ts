@@ -5,7 +5,7 @@ import { pricingStaff } from '../pricingTestHelpers.js';
 import { signInClient } from '../operatingBalanceTestHelpers.js';
 
 const query = (params: Record<string, string>) =>
-  `/admin/pricing/preview?${new URLSearchParams({ zoneId: 'zone-cali-norte', durationMinutes: '60', modality: 'any', level: 'recreational', startsAtLocal: '2026-09-21T14:00', ...params })}`;
+  `/admin/pricing/preview?${new URLSearchParams({ zoneId: 'zone-cali-norte', durationMinutes: '60', modality: 'any', startsAtLocal: '2026-09-21T14:00', ...params })}`;
 
 describe('GET /admin/pricing/preview (admin spec 004, US4)', () => {
   it('breaks a quote down with the origin of each value, writing nothing', async () => {

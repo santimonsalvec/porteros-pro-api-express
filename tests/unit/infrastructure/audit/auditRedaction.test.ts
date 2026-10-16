@@ -128,7 +128,7 @@ describe('redactForAudit', () => {
 
   it('keeps every field of a rate, a commission and booking rules (spec 004 of the admin)', () => {
     const rate = {
-      id: 'r1', scope: 'zone', refId: 'bello', durationMinutes: 90, modality: 'futbol_11', level: 'competitive', amount: 60000,
+      id: 'r1', scope: 'zone', refId: 'bello', durationMinutes: 90, modality: 'futbol_11', amount: 60000,
       revision: 2, invalid: false, currency: 'COP', countryId: 'co', countryName: 'Colombia', marketId: 'med', marketName: 'Medellín',
       zoneName: 'Bello', zoneActive: true, targetValid: true, reason: 'Precio viejo',
     };

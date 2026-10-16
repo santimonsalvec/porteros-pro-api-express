@@ -7,7 +7,6 @@ interface PriceEntity {
   scope: string;
   refId: string;
   modality: string | null;
-  level: string | null;
   amount: number;
   revision: number;
 }
@@ -24,7 +23,6 @@ export function priceRecord<Scope extends string>(entity: PriceEntity): PriceRec
     scope: entity.scope as Scope,
     refId: entity.refId,
     modality: entity.modality as PriceRecord<Scope>['modality'],
-    level: entity.level as PriceRecord<Scope>['level'],
     amount: entity.amount,
     revision: entity.revision,
     invalid: false,

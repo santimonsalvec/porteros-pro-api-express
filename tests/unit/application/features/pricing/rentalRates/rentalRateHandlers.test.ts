@@ -17,8 +17,8 @@ import { GetRentalRateDeleteImpactQueryHandler } from '../../../../../../src/app
 import { pricingKit } from '../pricingTestKit.js';
 
 let kit: ReturnType<typeof pricingKit>;
-const general = { modality: null, level: null };
-const rate = (id: string, scope: 'market' | 'zone', refId: string, durationMinutes: number, amount: number, tier: { modality: string | null; level: string | null } = general) =>
+const general = { modality: null };
+const rate = (id: string, scope: 'market' | 'zone', refId: string, durationMinutes: number, amount: number, tier: { modality: string | null } = general) =>
   kit.rentalRates.base.seed(new RentalRate({ id, scope, refId, durationMinutes, amount, ...tier }));
 
 beforeEach(() => {
@@ -28,7 +28,7 @@ beforeEach(() => {
 describe('CreateRentalRateCommand', () => {
   const create = (input: Partial<CreateRentalRateCommand['input']> = {}) =>
     new CreateRentalRateCommandHandler(kit).handle(
-      new CreateRentalRateCommand({ scope: 'market', refId: 'med', durationMinutes: 90, modality: null, level: null, amount: 55000, ...input }),
+      new CreateRentalRateCommand({ scope: 'market', refId: 'med', durationMinutes: 90, modality: null, amount: 55000, ...input }),
     );
 
   it('creates a city rate and a zone rate', async () => {
@@ -37,10 +37,10 @@ describe('CreateRentalRateCommand', () => {
     expect((await kit.rentalRates.base.findForDuration('bello', 'med', 90)).zone[0]?.amount).toBe(60000);
   });
 
-  it('refuses a level without a modality and an amount above the limit, on their fields', async () => {
-    expect(await create({ level: 'competitive', amount: 100_000_001 })).toEqual({
+  it('refuses the open modality and an amount above the limit, on their fields', async () => {
+    expect(await create({ modality: 'any' as never, amount: 100_000_001 })).toEqual({
       outcome: 'invalid',
-      fieldErrors: { level: 'level_requires_modality', amount: 'above_limit' },
+      fieldErrors: { modality: 'unknown_modality', amount: 'above_limit' },
     });
   });
 
@@ -102,15 +102,15 @@ describe('ListRentalRatesQuery', () => {
   beforeEach(() => {
     rate('r-poblado-90', 'zone', 'poblado', 90, 62000);
     rate('r-bello-90', 'zone', 'bello', 90, 60000);
-    rate('r-f11-90', 'market', 'med', 90, 70000, { modality: 'futbol_11', level: 'competitive' });
+    rate('r-micro-90', 'market', 'med', 90, 45000, { modality: 'micro_futsal' });
     rate('r-city-90', 'market', 'med', 90, 55000);
     rate('r-city-60', 'market', 'med', 60, 40000);
-    rate('r-f11-only-90', 'market', 'med', 90, 65000, { modality: 'futbol_11', level: null });
+    rate('r-f11-90', 'market', 'med', 90, 65000, { modality: 'futbol_11' });
   });
 
   it("lists a city's rates by duration, city before zones (by display order), general before tiers", async () => {
     const result = await list({ marketId: 'med' });
-    expect(result.items.map((item) => item.id)).toEqual(['r-city-60', 'r-city-90', 'r-f11-only-90', 'r-f11-90', 'r-bello-90', 'r-poblado-90']);
+    expect(result.items.map((item) => item.id)).toEqual(['r-city-60', 'r-city-90', 'r-micro-90', 'r-f11-90', 'r-bello-90', 'r-poblado-90']);
     expect(result).toMatchObject({ page: 1, pageSize: 20, totalItems: 6, totalPages: 1 });
     expect(result.items[4]).toMatchObject({ zoneName: 'Bello', zoneActive: true, marketName: 'Medellín', currency: 'COP', targetValid: true });
   });

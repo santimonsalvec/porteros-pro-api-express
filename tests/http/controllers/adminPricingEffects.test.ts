@@ -15,7 +15,7 @@ async function quoteAt(context: Context, token: string, point: { latitude: numbe
   return request(context.app)
     .post('/goalkeeper-requests/quote')
     .set('Authorization', `Bearer ${token}`)
-    .send({ ...point, startsAt: '2026-09-21T15:00:00', goalkeeperCount: 1, durationMinutes: 90, modality: 'any', level: 'recreational', surfaceId: 'synthetic_grass', ...fields });
+    .send({ ...point, startsAt: '2026-09-21T15:00:00', goalkeeperCount: 1, durationMinutes: 90, modality: 'any', surfaceId: 'synthetic_grass', ...fields });
 }
 
 describe('admin price writes reach the quote (admin spec 004)', () => {
@@ -26,9 +26,9 @@ describe('admin price writes reach the quote (admin spec 004)', () => {
 
     const before = await quoteAt(context, client.token, POINTS.caliSur, {});
     const zoneRate = await editor.post('/admin/rental-rates', { scope: 'zone', refId: 'zone-cali-sur', durationMinutes: 90, amount: 60000 });
-    await editor.post('/admin/rental-rates', { scope: 'market', refId: 'city-cali', durationMinutes: 90, modality: 'futbol_11', level: 'competitive', amount: 70000 });
+    await editor.post('/admin/rental-rates', { scope: 'market', refId: 'city-cali', durationMinutes: 90, modality: 'futbol_11', amount: 70000 });
     const zone = await quoteAt(context, client.token, POINTS.caliSur, {});
-    const futbol11 = await quoteAt(context, client.token, POINTS.caliCentro, { modality: 'futbol_11', level: 'competitive' });
+    const futbol11 = await quoteAt(context, client.token, POINTS.caliCentro, { modality: 'futbol_11' });
     const general = await quoteAt(context, client.token, POINTS.caliCentro, {});
     await editor.post(`/admin/rental-rates/${zoneRate.body.id}/delete`, { reason: 'Vuelve al precio de la ciudad' });
     const afterDelete = await quoteAt(context, client.token, POINTS.caliSur, {});

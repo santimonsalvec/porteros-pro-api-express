@@ -41,17 +41,17 @@ describe('RentalRateRepository (mocked driver)', () => {
     expect(found.market.map((rate) => rate.amount)).toEqual([40000]);
   });
 
-  it('keeps every modality/level variant of a level (feature 024)', async () => {
+  it('keeps every modality variant of a level (feature 024)', async () => {
     const collection = createFakeCollection();
-    const f11 = { ...cityDoc, _id: 'rate-city-f11', modality: 'futbol_11', level: 'competitive', amount: 70000 };
+    const f11 = { ...cityDoc, _id: 'rate-city-f11', modality: 'futbol_11', amount: 70000 };
     collection.find.mockReturnValue(toArrayResult([cityDoc, f11]));
     const repository = repositoryWith(collection);
 
     const found = await repository.findForDuration('zone-1', 'city-1', 60);
 
     expect(found.market).toEqual([
-      expect.objectContaining({ modality: null, level: null, amount: 40000 }),
-      expect.objectContaining({ modality: 'futbol_11', level: 'competitive', amount: 70000 }),
+      expect.objectContaining({ modality: null, amount: 40000 }),
+      expect.objectContaining({ modality: 'futbol_11', amount: 70000 }),
     ]);
   });
 
@@ -82,7 +82,7 @@ describe('RentalRateRepository (mocked driver)', () => {
     await expect(repository.findForDuration('zone-1', 'city-1', 60)).rejects.toThrow(InvalidConfigurationError);
   });
 
-  it('ensureIndexes replaces the old index with the unique per-tier one', async () => {
+  it('ensureIndexes replaces the old indexes with the unique per-modality one, dropping level-specific rates', async () => {
     const collection = createFakeCollection();
     collection.dropIndex.mockRejectedValue(Object.assign(new Error('index not found'), { code: 27 }));
     const repository = repositoryWith(collection);
@@ -90,9 +90,11 @@ describe('RentalRateRepository (mocked driver)', () => {
     await repository.ensureIndexes();
 
     expect(collection.dropIndex).toHaveBeenCalledWith('scope_refId_durationMinutes');
+    expect(collection.dropIndex).toHaveBeenCalledWith('scope_refId_duration_modality_level');
+    expect(collection.deleteMany).toHaveBeenCalledWith({ level: { $ne: null } });
     expect(collection.createIndex).toHaveBeenCalledWith(
-      { scope: 1, refId: 1, durationMinutes: 1, modality: 1, level: 1 },
-      { name: 'scope_refId_duration_modality_level', unique: true },
+      { scope: 1, refId: 1, durationMinutes: 1, modality: 1 },
+      { name: 'scope_refId_duration_modality', unique: true },
     );
   });
 });
@@ -147,7 +149,7 @@ describe('RentalRateRepository — admin web (spec 004 of the admin)', () => {
       modality: 'futbol_11',
     });
     expect(found).toEqual([
-      { id: 'r1', scope: 'market', refId: 'city-1', durationMinutes: 90, modality: null, level: null, amount: 55000, revision: 2, invalid: false },
+      { id: 'r1', scope: 'market', refId: 'city-1', durationMinutes: 90, modality: null, amount: 55000, revision: 2, invalid: false },
     ]);
   });
 
@@ -166,9 +168,9 @@ describe('RentalRateRepository — admin web (spec 004 of the admin)', () => {
 
   it('marks a seeded document the domain refuses instead of throwing', async () => {
     const collection = createFakeCollection();
-    collection.find.mockReturnValue(toArrayResult([{ ...stored, amount: 55000.5, level: 'competitive' }]));
+    collection.find.mockReturnValue(toArrayResult([{ ...stored, amount: 55000.5, modality: 'futbol_11' }]));
     const [record] = await repositoryWith(collection).find({ refs: null });
-    expect(record).toMatchObject({ id: 'r1', amount: 55000.5, level: 'competitive', invalid: true });
+    expect(record).toMatchObject({ id: 'r1', amount: 55000.5, modality: 'futbol_11', invalid: true });
   });
 
   it('reads one rate by id', async () => {
@@ -182,11 +184,11 @@ describe('RentalRateRepository — admin web (spec 004 of the admin)', () => {
     const collection = createFakeCollection();
     collection.insertOne.mockResolvedValue({ acknowledged: true });
     const result = await repositoryWith(collection).create({
-      id: 'r2', scope: 'zone', refId: 'zone-1', durationMinutes: 90, modality: null, level: null, amount: 60000,
+      id: 'r2', scope: 'zone', refId: 'zone-1', durationMinutes: 90, modality: null, amount: 60000,
     });
     expect(result).toEqual({ outcome: 'created' });
     expect(collection.insertOne).toHaveBeenCalledWith({
-      _id: 'r2', scope: 'zone', refId: 'zone-1', durationMinutes: 90, modality: null, level: null, amount: 60000, revision: 0,
+      _id: 'r2', scope: 'zone', refId: 'zone-1', durationMinutes: 90, modality: null, amount: 60000, revision: 0,
     });
   });
 
@@ -195,17 +197,17 @@ describe('RentalRateRepository — admin web (spec 004 of the admin)', () => {
     collection.insertOne.mockRejectedValue(Object.assign(new Error('E11000'), { code: 11000 }));
     collection.findOne.mockResolvedValue({ _id: 'r1' });
     const result = await repositoryWith(collection).create({
-      id: 'r2', scope: 'market', refId: 'city-1', durationMinutes: 90, modality: null, level: null, amount: 1,
+      id: 'r2', scope: 'market', refId: 'city-1', durationMinutes: 90, modality: null, amount: 1,
     });
     expect(result).toEqual({ outcome: 'duplicate', existingId: 'r1' });
-    expect(collection.findOne).toHaveBeenCalledWith({ scope: 'market', refId: 'city-1', durationMinutes: 90, modality: null, level: null }, { projection: { _id: 1 } });
+    expect(collection.findOne).toHaveBeenCalledWith({ scope: 'market', refId: 'city-1', durationMinutes: 90, modality: null }, { projection: { _id: 1 } });
   });
 
   it('rethrows any other write error', async () => {
     const collection = createFakeCollection();
     collection.insertOne.mockRejectedValue(new Error('down'));
     await expect(
-      repositoryWith(collection).create({ id: 'r2', scope: 'market', refId: 'c', durationMinutes: 60, modality: null, level: null, amount: 1 }),
+      repositoryWith(collection).create({ id: 'r2', scope: 'market', refId: 'c', durationMinutes: 60, modality: null, amount: 1 }),
     ).rejects.toThrow('down');
   });
 

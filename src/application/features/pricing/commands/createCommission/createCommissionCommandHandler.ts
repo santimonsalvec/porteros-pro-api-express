@@ -11,7 +11,7 @@ export class CreateCommissionCommandHandler implements ICommandHandler<CreateCom
   constructor(private readonly deps: PricingGeographyDependencies & { commissions: ICommissionAdmin; ids: IIdGenerator }) {}
 
   async handle({ input }: CreateCommissionCommand): Promise<CreateCommissionResult> {
-    const issues = [...tierIssues(input.modality, input.level), ...amountLimitIssues('amount', input.amount)];
+    const issues = [...tierIssues(input.modality), ...amountLimitIssues('amount', input.amount)];
     if (issues.length > 0) return { outcome: 'invalid', fieldErrors: fieldErrorsOf(issues) };
 
     const failure = await checkWriteTarget(this.deps, input.scope, input.refId);

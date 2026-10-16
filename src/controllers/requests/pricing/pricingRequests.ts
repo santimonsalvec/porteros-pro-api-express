@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { MATCH_LEVELS, PRICED_MODALITIES } from '../../../domain/bookings/matchFormat.js';
+import { PRICED_MODALITIES } from '../../../domain/bookings/matchFormat.js';
 import { acknowledgeWarningsField, deleteRequestSchema, pageQuery, revisionField } from '../geography/geographyRequests.js';
 
 /**
@@ -11,7 +11,6 @@ import { acknowledgeWarningsField, deleteRequestSchema, pageQuery, revisionField
 export { acknowledgeWarningsField, deleteRequestSchema, revisionField };
 
 export const modalityField = z.enum(PRICED_MODALITIES).nullable();
-export const levelField = z.enum(MATCH_LEVELS).nullable();
 export const durationField = z.union([z.literal(60), z.literal(90), z.literal(120)], {
   errorMap: () => ({ message: 'Must be 60, 90 or 120.' }),
 });
@@ -48,7 +47,6 @@ export const createRentalRateRequestSchema = z
     refId: refIdField,
     durationMinutes: durationField,
     modality: modalityField.default(null),
-    level: levelField.default(null),
     amount: amountField,
   })
   .strict();
@@ -65,7 +63,6 @@ export const createCommissionRequestSchema = z
     scope: z.enum(['country', 'market', 'zone']),
     refId: refIdField,
     modality: modalityField.default(null),
-    level: levelField.default(null),
     amount: amountField,
   })
   .strict();
@@ -136,7 +133,6 @@ export const pricingPreviewQuerySchema = z
     zoneId: z.string({ required_error: 'zoneId is required' }).min(1),
     durationMinutes: z.enum(['60', '90', '120'], { required_error: 'durationMinutes is required' }).transform(Number),
     modality: z.enum([...PRICED_MODALITIES, 'any']),
-    level: z.enum(MATCH_LEVELS),
     startsAtLocal: localDateTimeField,
     quoteFromLocal: localDateTimeField.optional(),
   })

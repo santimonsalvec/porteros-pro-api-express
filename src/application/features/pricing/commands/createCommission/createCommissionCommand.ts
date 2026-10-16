@@ -1,12 +1,11 @@
 import { ICommand } from '../../../../common/mediator/types.js';
-import type { MatchLevel, PricedModality } from '../../../../../domain/bookings/matchFormat.js';
+import type { PricedModality } from '../../../../../domain/bookings/matchFormat.js';
 import type { TargetFailure } from '../../common/pricingGeography.js';
 
 export interface CommissionInput {
   scope: 'country' | 'market' | 'zone';
   refId: string;
   modality: PricedModality | null;
-  level: MatchLevel | null;
   amount: number;
 }
 

@@ -1,5 +1,5 @@
 import type { UnverifiedDiscountSetting } from '../../../../domain/pricing/unverifiedDiscount.js';
-import type { MatchLevel, PricedModality } from '../../../../domain/bookings/matchFormat.js';
+import type { PricedModality } from '../../../../domain/bookings/matchFormat.js';
 import type { BookingSettingsFields } from '../../../../domain/pricing/bookingSettingsRules.js';
 import type { UpdateResult } from '../../geography/common/ports.js';
 import type { MatchTier } from '../../../../domain/pricing/tieredRate.js';
@@ -17,7 +17,6 @@ export interface PriceRecord<Scope extends string> {
   scope: Scope;
   refId: string;
   modality: PricedModality | null;
-  level: MatchLevel | null;
   amount: number;
   revision: number;
   /** The domain refuses the stored document (a seeded mistake): shown marked, fixed by editing it. */

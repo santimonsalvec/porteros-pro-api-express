@@ -11,7 +11,7 @@ export class CreateRentalRateCommandHandler implements ICommandHandler<CreateRen
   constructor(private readonly deps: PricingGeographyDependencies & { rentalRates: IRentalRateAdmin; ids: IIdGenerator }) {}
 
   async handle({ input }: CreateRentalRateCommand): Promise<CreateRentalRateResult> {
-    const issues = [...tierIssues(input.modality, input.level), ...amountLimitIssues('amount', input.amount)];
+    const issues = [...tierIssues(input.modality), ...amountLimitIssues('amount', input.amount)];
     if (issues.length > 0) return { outcome: 'invalid', fieldErrors: fieldErrorsOf(issues) };
 
     const failure = await checkWriteTarget(this.deps, input.scope, input.refId);

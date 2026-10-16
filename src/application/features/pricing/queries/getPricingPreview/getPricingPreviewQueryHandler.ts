@@ -42,7 +42,7 @@ function originOf(document: { scope: string; refId: string }, names: Names): Pri
   return { scope, refId: document.refId, name: names[scope] };
 }
 
-const tierOf = (document: RentalRate | CommissionSetting) => ({ modality: document.modality, level: document.level });
+const tierOf = (document: RentalRate | CommissionSetting) => ({ modality: document.modality });
 
 const DETAILS: Record<NotQuotableOutcome, string> = {
   invalid_start_time: 'La hora debe ser en punto o y media',
@@ -90,7 +90,7 @@ export class GetPricingPreviewQueryHandler implements IQueryHandler<GetPricingPr
     // A chosen moment after the start is a typing mistake; "now" after it just means the match is past.
     if (input.quoteFromLocal !== null && nowMs > startMs) return { outcome: 'invalid', fieldErrors: { quoteFromLocal: 'after_start' } };
 
-    const match: MatchTier = { modality: input.modality, level: input.level };
+    const match: MatchTier = { modality: input.modality };
     const countryId = market.countryId;
     const [evaluation, rates, settingsDocs, commission, country, tax] = await Promise.all([
       evaluateQuoteInArea(this.deps, {
