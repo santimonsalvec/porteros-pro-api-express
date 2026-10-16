@@ -151,7 +151,7 @@ Pantalla: **Catálogos → Superficies** (escribir pide `catalogs.manage`). Desa
 
 **Regla:** lo que el cliente paga **a cada portero** por un partido de cierta duración.
 
-**Dónde:** administrador → **Precios y reglas → Tarifas** (permiso `pricing.manage`). Elige la ciudad ancla y ve una tabla por duración. De una tarifa ya creada solo se cambia el monto; para cambiar su duración, nivel o formato se borra y se crea otra. Borrar pide un motivo y avisa qué zonas dejan de cotizar esa duración.
+**Dónde:** administrador → **Precios y reglas → Tarifas** (permiso `pricing.manage`). Elige la ciudad ancla y ve una tabla por duración. De una tarifa ya creada solo se cambia el monto; para cambiar su duración, destino o modalidad se borra y se crea otra. Borrar pide un motivo y avisa qué zonas dejan de cotizar esa duración.
 
 | Campo | Valores | Descripción |
 |---|---|---|
@@ -159,13 +159,12 @@ Pantalla: **Catálogos → Superficies** (escribir pide `catalogs.manage`). Desa
 | `refId` | Id de zona o de ciudad ancla | A quién aplica (una ciudad que usa las zonas de otra no tiene tarifas: usa las de su ancla) |
 | `durationMinutes` | `60`, `90` o `120` | Duración del partido |
 | `modality` | `micro_futsal`, `futbol_medio`, `futbol_11` o vacío | Vacío = tarifa general |
-| `level` | `recreational`, `competitive` o vacío | Solo junto con una modalidad |
 | `amount` | Entero de 1 a 100.000.000 | Pesos enteros, en la moneda del país |
 
-No puede haber dos tarifas con el mismo nivel, destino, duración, modalidad y nivel de juego.
+No puede haber dos tarifas con el mismo nivel, destino, duración y modalidad.
 
 **Resolución:** para la zona del partido y la duración elegida:
-1. se busca en la **zona**: primero modalidad + nivel, luego solo la modalidad, luego la general;
+1. se busca en la **zona**: primero la modalidad, luego la general;
 2. si no hay ninguna en la zona, lo mismo en la **ciudad ancla** (una tarifa general de la zona gana sobre una de Fútbol 11 de la ciudad);
 3. si no hay ninguna, **no se puede cotizar** esa duración (`rate_not_configured`). Con la modalidad "Cualquiera" solo cuenta la tarifa general.
 
@@ -324,10 +323,10 @@ db.bookingSettings.insertMany([
 |---|---|---|
 | `scope` | `country`, `city` o `zone` | Nivel |
 | `refId` | Id del país, de la ciudad ancla o de la zona | A quién aplica |
-| `modality`, `level` | Como en las tarifas (§4) | Vacíos = comisión general |
+| `modality` | Como en las tarifas (§4) | Vacío = comisión general |
 | `amount` | Entero de 1 a 100.000.000 | Pesos enteros, **neto** (el IVA va aparte, §10) |
 
-**Dónde:** administrador → **Precios y reglas → Comisiones**, con el total con IVA de cada una. Solo se cambia el monto; borrar pide un motivo y avisa qué zonas quedan sin comisión. Dentro de cada nivel se busca modalidad + nivel, luego la modalidad, luego la general, como en las tarifas.
+**Dónde:** administrador → **Precios y reglas → Comisiones**, con el total con IVA de cada una. Solo se cambia el monto; borrar pide un motivo y avisa qué zonas quedan sin comisión. Dentro de cada nivel se busca la modalidad, luego la general, como en las tarifas.
 
 **Efectos en las reglas de fondos** (siempre con comisión + IVA):
 - El portero **no ve partidos ni recibe ofertas** si su saldo es menor que la comisión (+ IVA) más baja de sus zonas habilitadas.

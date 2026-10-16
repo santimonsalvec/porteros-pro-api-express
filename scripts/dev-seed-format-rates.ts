@@ -1,5 +1,5 @@
 /**
- * Development only: adds a small modality/level price matrix (feature 024) to test the tiered
+ * Development only: adds a small per-modality price set (feature 024) to test the tiered
  * rates and commissions, on the database of this machine's MONGODB_CONNECTION_STRING.
  *
  *   npx tsx scripts/dev-seed-format-rates.ts <marketId> <countryId>
@@ -15,14 +15,12 @@ import { MongoClient, type Document } from 'mongodb';
 dotenv.config();
 
 const PREFIX = 'dev-024-';
-const RATES: { modality: string; level?: string; amounts: Record<60 | 90 | 120, number> }[] = [
+const RATES: { modality: string; amounts: Record<60 | 90 | 120, number> }[] = [
   { modality: 'futbol_11', amounts: { 60: 60000, 90: 75000, 120: 90000 } },
-  { modality: 'futbol_11', level: 'competitive', amounts: { 60: 70000, 90: 85000, 120: 100000 } },
   { modality: 'micro_futsal', amounts: { 60: 35000, 90: 45000, 120: 55000 } },
 ];
-const COMMISSIONS: { modality: string; level?: string; amount: number }[] = [
+const COMMISSIONS: { modality: string; amount: number }[] = [
   { modality: 'futbol_11', amount: 10000 },
-  { modality: 'futbol_11', level: 'competitive', amount: 12000 },
   { modality: 'micro_futsal', amount: 5000 },
 ];
 
@@ -48,17 +46,17 @@ try {
     console.log(`tarifas borradas: ${(await rates.deleteMany(ours)).deletedCount}`);
     console.log(`comisiones borradas: ${(await commissions.deleteMany(ours)).deletedCount}`);
   } else {
-    for (const { modality, level, amounts } of RATES) {
+    for (const { modality, amounts } of RATES) {
       for (const [duration, amount] of Object.entries(amounts)) {
-        const _id = `${PREFIX}rate-${modality}-${level ?? 'all'}-${duration}`;
-        const doc = { scope: 'market', refId: first, durationMinutes: Number(duration), amount, modality, ...(level ? { level } : {}) };
+        const _id = `${PREFIX}rate-${modality}-${duration}`;
+        const doc = { scope: 'market', refId: first, durationMinutes: Number(duration), amount, modality };
         await rates.replaceOne({ _id } as Document, doc, { upsert: true });
         console.log(`tarifa ${_id}: ${amount}`);
       }
     }
-    for (const { modality, level, amount } of COMMISSIONS) {
-      const _id = `${PREFIX}commission-${modality}-${level ?? 'all'}`;
-      await commissions.replaceOne({ _id } as Document, { scope: 'country', refId: countryId, amount, modality, ...(level ? { level } : {}) }, { upsert: true });
+    for (const { modality, amount } of COMMISSIONS) {
+      const _id = `${PREFIX}commission-${modality}`;
+      await commissions.replaceOne({ _id } as Document, { scope: 'country', refId: countryId, amount, modality }, { upsert: true });
       console.log(`comisión ${_id}: ${amount}`);
     }
   }

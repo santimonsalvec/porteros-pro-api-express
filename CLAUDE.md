@@ -44,7 +44,7 @@ Auto-generated from all feature plans. Last updated: 2026-10-15
 - TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. Siigo over REST with the global `fetch`; secrets from Secret Manager (as in 022); reuses 013 (outbox, consumers, sweep) and 011 (ledger). No new dependency. (023-electronic-invoicing)
 - MongoDB (Atlas, transactions). New collections `invoicingDocuments`, `invoicingSettings` (provider per country) and `taxSettings`; VAT movement types and `taxRateBps`; events `commission.charged/refunded`, `penalty.charged/reversed`; DANE codes on `cities`; Siigo (DIAN stamping and email). (023-electronic-invoicing)
 - TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. Pure geography-first tier resolver (`domain/pricing/tieredRate.ts`) shared by rates and commissions. No new dependency. (024-match-format-pricing)
-- MongoDB. New seeded collection `matchSurfaces` (`scripts/seed-match-surfaces.ts`); optional `modality`/`level` on `rentalRates` and `commissionSettings` (unique indexes replaced); `match.format` on `quotes`/`goalkeeperRequests`; `bookings.dismissedGoalkeeperIds`. (024-match-format-pricing)
+- MongoDB. New seeded collection `matchSurfaces` (`scripts/seed-match-surfaces.ts`); optional `modality` on `rentalRates` and `commissionSettings` (unique indexes replaced; the amateur/tournament level was withdrawn on 2026-10-16); `match.format` on `quotes`/`goalkeeperRequests`; `bookings.dismissedGoalkeeperIds`. (024-match-format-pricing)
 - TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack plus `@turf/boolean-disjoint` (runtime, same `@turf` v7 family already installed; zone border/overlap check). Shared `domain/settings/layered.ts` + `MarketContext`; admin scope via `X-Scope` header. (031-markets)
 - MongoDB (Atlas, transactions). New collection `markets` (draft/enabled/disabled); `zones.marketId` replaces `cityId`; `cities`/`regions` become a billing-only catalog (no `zoneCityId`/`timeZone`); settings `scope: market` replaces `city`; `paymentGatewaySettings` gains `scope`/`refId`; `MatchDetails.marketId`; goalkeeper `billing`; `marketId` attribution on movements, deposits, invoices, incidents; `staffMembers.scopes`. (031-markets)
 
@@ -68,7 +68,7 @@ TypeScript ~6.x (last JavaScript-hosted compiler generation) on Node.js 24 LTS (
 
 ## Recent Changes
 - 031-markets: Markets (sedes) with their own zones and settings inherited from the country, non-touching active zones, goalkeeper billing data and market change, admin scope selector (`X-Scope`) and staff scopes. API, admin and app.
-- 024-match-format-pricing: Added modality/level/surface to quotes and requests, tiered rates and commissions, `POST /goalkeepers/me/bookings/{id}/dismiss`. No new dependency.
+- 024-match-format-pricing: Added modality/surface to quotes and requests (the amateur/tournament level was withdrawn on 2026-10-16), tiered rates and commissions, `POST /goalkeepers/me/bookings/{id}/dismiss`. No new dependency.
 - 023-electronic-invoicing: Added TypeScript ~6.x on Node.js 24 LTS. Unchanged. + The existing stack only. Siigo over REST with the global `fetch`; secrets from Secret Manager (as in 022); reuses 013 (outbox, consumers, sweep) and 011 (ledger). No new dependency.
 
 
