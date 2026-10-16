@@ -8,6 +8,7 @@ import { GetCityQuery } from '../../application/features/geography/queries/getCi
 import { ListCitiesQuery } from '../../application/features/geography/queries/listCities/listCitiesQuery.js';
 import { ListTimeZonesQuery } from '../../application/features/geography/queries/listTimeZones/listTimeZonesQuery.js';
 import { DeleteZoneCommand } from '../../application/features/geography/commands/deleteZone/deleteZoneCommand.js';
+import { ReorderZonesCommand } from '../../application/features/geography/commands/reorderZones/reorderZonesCommand.js';
 import { SaveZoneCommand, type SaveZoneResult } from '../../application/features/geography/commands/saveZone/saveZoneCommand.js';
 import { GetZoneQuery } from '../../application/features/geography/queries/getZone/getZoneQuery.js';
 import { ListZonesQuery } from '../../application/features/geography/queries/listZones/listZonesQuery.js';
@@ -32,6 +33,7 @@ import {
   listCountriesQuerySchema,
   listRegionsQuerySchema,
   listZonesQuerySchema,
+  reorderZonesRequestSchema,
   updateCityRequestSchema,
   updateCountryRequestSchema,
   updateRegionRequestSchema,
@@ -306,6 +308,39 @@ function registerZoneRoutes(route: Route, mediator: ISender): void {
         throw notFound('market_not_found');
     }
   });
+
+  const zonesOf = async (marketId: string) => {
+    const result = await mediator.send(new ListZonesQuery(marketId));
+    return result.outcome === 'ok' ? { market: result.market, items: result.items } : null;
+  };
+
+  // The order the app shows the zones in, dragged in the admin's list: answers the list as `GET /zones`.
+  route(
+    'post',
+    '/zones/reorder',
+    {
+      permission: 'geography.manage',
+      audit: {
+        action: 'zone.reorder',
+        resourceType: 'zoneOrder',
+        resourceId: (req: Request) => String((req.body as { marketId?: unknown } | undefined)?.marketId ?? ''),
+        before: (req: Request) => zonesOf(String((req.body as { marketId?: unknown } | undefined)?.marketId ?? '')),
+      },
+    },
+    async (req, res) => {
+      const { marketId, zones } = parse(reorderZonesRequestSchema, req.body);
+      const result = await mediator.send(new ReorderZonesCommand(marketId, zones));
+      switch (result.outcome) {
+        case 'reordered':
+          res.status(200).json(await zonesOf(marketId));
+          return;
+        case 'stale':
+          throw stale();
+        case 'market_not_found':
+          throw notFound('market_not_found');
+      }
+    },
+  );
 
   route(
     'post',

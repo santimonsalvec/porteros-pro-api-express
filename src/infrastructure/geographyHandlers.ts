@@ -55,6 +55,8 @@ import { GetZoneQueryHandler } from '../application/features/geography/queries/g
 import { SaveZoneCommand } from '../application/features/geography/commands/saveZone/saveZoneCommand.js';
 import { SaveZoneCommandHandler } from '../application/features/geography/commands/saveZone/saveZoneCommandHandler.js';
 import { DeleteZoneCommand } from '../application/features/geography/commands/deleteZone/deleteZoneCommand.js';
+import { ReorderZonesCommand } from '../application/features/geography/commands/reorderZones/reorderZonesCommand.js';
+import { ReorderZonesCommandHandler } from '../application/features/geography/commands/reorderZones/reorderZonesCommandHandler.js';
 import { DeleteZoneCommandHandler } from '../application/features/geography/commands/deleteZone/deleteZoneCommandHandler.js';
 
 import { ListCountriesQuery } from '../application/features/geography/queries/listCountries/listCountriesQuery.js';
@@ -135,6 +137,7 @@ export function geographyHandlerRegistrations(base: GeographyHandlerDependencies
     { requestType: GetZoneQuery, handler: new GetZoneQueryHandler(deps) },
     { requestType: SaveZoneCommand, handler: new SaveZoneCommandHandler(deps) },
     { requestType: DeleteZoneCommand, handler: new DeleteZoneCommandHandler(deps) },
+    { requestType: ReorderZonesCommand, handler: new ReorderZonesCommandHandler(deps) },
     { requestType: ListCountriesQuery, handler: new ListCountriesQueryHandler(deps) },
     { requestType: GetCountryQuery, handler: new GetCountryQueryHandler(deps) },
     { requestType: ListRegionsQuery, handler: new ListRegionsQueryHandler(deps) },

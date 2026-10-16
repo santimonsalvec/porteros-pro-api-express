@@ -159,6 +159,19 @@ export class FakeAdminZoneRepository extends MapStore<Zone> implements IAdminZon
   async zoneOwnerIds() {
     return [...new Set(this.values().map((z) => z.marketId))];
   }
+
+  async reorder(entries: { id: string; revision: number; displayOrder: number }[]) {
+    let result: 'saved' | 'stale' = 'saved';
+    for (const entry of entries) {
+      const stored = this.items.get(entry.id);
+      if (!stored || stored.revision !== entry.revision) {
+        result = 'stale';
+        continue;
+      }
+      this.items.set(entry.id, new Zone({ ...stored, displayOrder: entry.displayOrder, revision: stored.revision + 1 }));
+    }
+    return result;
+  }
 }
 
 export class FakeAdminDocumentTypeRepository extends MapStore<DocumentType> implements IAdminDocumentTypeRepository {

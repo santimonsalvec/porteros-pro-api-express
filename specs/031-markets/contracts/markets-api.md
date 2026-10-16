@@ -177,6 +177,7 @@ Todas las escrituras se auditan: `market.create`, `market.update`, `market.enabl
 | `POST /admin/zones/validate` | Cuerpo `{ marketId, zoneId?, geometry, active }`. Si choca: `422 zone_conflict` + `{ conflicts: [{ zoneId, zoneName, marketId, marketName }] }`. Se eliminan las advertencias |
 | `POST /admin/zones` | `{ marketId, name, slug, geometry, active, displayOrder }`. Error `zone_conflict` |
 | `PATCH /admin/zones/:id` | Si llega `marketId`: `409 zone_market_immutable`. Si `active` pasa a `true` o cambia la geometría de una zona activa: `zone_conflict` (FR-003a) |
+| `POST /admin/zones/reorder` | *(Agregado el 2026-10-16.)* `{ marketId, zones: [{ id, revision }] }` con **todas** las zonas de la sede en el nuevo orden; deja `displayOrder` en 1, 2, 3… y solo escribe las que cambian de lugar. Responde `{ market, items }` como `GET /admin/zones`. Si falta o sobra una zona, o una revisión es vieja: `409 stale_revision`. Auditoría `zone.reorder` (`zoneOrder`, con la lista antes y después). Permiso `geography.manage` |
 | `acknowledgeWarnings` | **Se elimina** del cuerpo |
 
 ---

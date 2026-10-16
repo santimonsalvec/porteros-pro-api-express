@@ -139,6 +139,19 @@ export class ZoneRepository implements IZoneRepository, IAdminZoneRepository {
     return updateAtRevision(this.collection, zone.id, zone.revision, this.toFields(zone));
   }
 
+  async reorder(entries: { id: string; revision: number; displayOrder: number }[]): Promise<UpdateResult> {
+    const result = await this.collection.bulkWrite(
+      entries.map((entry) => ({
+        updateOne: {
+          filter: { ...idFilter(entry.id), ...(entry.revision === 0 ? { $or: [{ revision: 0 }, { revision: { $exists: false } }] } : { revision: entry.revision }) },
+          update: { $set: { displayOrder: entry.displayOrder }, $inc: { revision: 1 } },
+        },
+      })),
+      { ordered: false },
+    );
+    return result.matchedCount === entries.length ? 'saved' : 'stale';
+  }
+
   delete(id: string): Promise<boolean> {
     return deleteById(this.collection, id);
   }

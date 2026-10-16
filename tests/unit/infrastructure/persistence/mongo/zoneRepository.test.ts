@@ -190,4 +190,29 @@ describe('ZoneRepository.summariesByMarkets (admin lists and readiness)', () => 
     expect(await repositoryWith(collection).summariesByMarkets([])).toEqual([]);
     expect(collection.find).not.toHaveBeenCalled();
   });
+
+  it('reorders with one unordered bulk write guarded by each revision, stale when one moved on', async () => {
+    const collection = createFakeCollection();
+    collection.bulkWrite.mockResolvedValueOnce({ matchedCount: 2 }).mockResolvedValueOnce({ matchedCount: 1 });
+    const repository = repositoryWith(collection);
+    const entries = [
+      { id: 'zone-bello', revision: 0, displayOrder: 1 },
+      { id: 'zone-copacabana', revision: 4, displayOrder: 2 },
+    ];
+
+    expect(await repository.reorder(entries)).toBe('saved');
+    expect(await repository.reorder(entries)).toBe('stale');
+    expect(collection.bulkWrite).toHaveBeenCalledWith(
+      [
+        {
+          updateOne: {
+            filter: { _id: 'zone-bello', $or: [{ revision: 0 }, { revision: { $exists: false } }] },
+            update: { $set: { displayOrder: 1 }, $inc: { revision: 1 } },
+          },
+        },
+        { updateOne: { filter: { _id: 'zone-copacabana', revision: 4 }, update: { $set: { displayOrder: 2 }, $inc: { revision: 1 } } } },
+      ],
+      { ordered: false },
+    );
+  });
 });

@@ -289,6 +289,21 @@ export const geographyPaths = {
       responses: { '200': json('`{ errors, warnings }`'), '400': validation(), ...COMMON, '404': error('`market_not_found`') },
     },
   },
+  '/admin/zones/reorder': {
+    post: {
+      summary: "Sets the order the app shows a market's zones in (`displayOrder` 1, 2, 3…), audited as `zone.reorder` (geography.manage)",
+      tags: ['Admin geography'],
+      security: [{ adminBearerAuth: [] }],
+      requestBody: body('`{ marketId, zones: [{ id, revision }] }`: every zone of the market, in the new order'),
+      responses: {
+        '200': json('`{ market, items }`, as `GET /admin/zones`'),
+        '400': validation(),
+        ...COMMON,
+        '404': error('`market_not_found`'),
+        '409': error('`stale_revision`: a zone was added, removed or edited since the list was read'),
+      },
+    },
+  },
   '/admin/time-zones': {
     get: {
       summary: "The runtime's IANA time zones a city may be saved with (geography.read)",

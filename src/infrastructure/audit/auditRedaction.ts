@@ -48,6 +48,8 @@ const ALLOWED_FIELDS: Readonly<Record<string, readonly string[]>> = {
     'id', 'marketId', 'name', 'slug', 'active', 'displayOrder', 'geometry', 'type', 'coordinates', 'geometryValid', 'inUse',
     'revision', 'reason',
   ],
+  // The order of a market's zones: the list before and after.
+  zoneOrder: ['market', 'items', 'id', 'name', 'displayOrder', 'revision', 'marketId', 'zones'],
   documentType: ['id', 'code', 'name', 'invoiceable', 'inUse', 'revision', 'reason'],
   matchSurface: ['id', 'name', 'active', 'order', 'inUse', 'revision', 'reason'],
   // Users and goalkeepers (spec 005 of the admin): a correction keeps only the last 4 digits of the

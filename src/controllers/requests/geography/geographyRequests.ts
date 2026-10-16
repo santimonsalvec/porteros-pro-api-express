@@ -125,6 +125,18 @@ export const createZoneRequestSchema = z
   })
   .strict();
 
+/** `POST /admin/zones/reorder`: every zone of the market, in the new order, at the revision read. */
+export const reorderZonesRequestSchema = z
+  .object({
+    marketId: id('marketId'),
+    zones: z
+      .array(z.object({ id: id('id'), revision: revisionField }).strict(), { required_error: 'zones is required' })
+      .min(1, 'At least one zone.')
+      .max(500, 'At most 500 zones.')
+      .refine((zones) => new Set(zones.map((zone) => zone.id)).size === zones.length, 'Each zone only once.'),
+  })
+  .strict();
+
 /** `PATCH /admin/zones/:zoneId`: the market of a zone never changes (FR-002a). */
 export const updateZoneRequestSchema = z
   .object({

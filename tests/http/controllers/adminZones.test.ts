@@ -120,5 +120,42 @@ describe('/admin/zones (admin spec 003, US2)', () => {
       ['Laureles', true],
     ]);
   });
-});
 
+  it('reorders the zones of a market, audited with the list before and after', async () => {
+    const context = await buildTestApp();
+    const { reader, editor } = await geographyStaff(context);
+    const listed = await reader.get('/admin/zones?marketId=city-medellin');
+    const [bello, copacabana] = listed.body.items as { id: string; revision: number }[];
+
+    const reordered = await editor.post('/admin/zones/reorder', {
+      marketId: 'city-medellin',
+      zones: [
+        { id: copacabana!.id, revision: copacabana!.revision },
+        { id: bello!.id, revision: bello!.revision },
+      ],
+    });
+    const again = await editor.post('/admin/zones/reorder', { marketId: 'city-medellin', zones: [{ id: bello!.id, revision: bello!.revision }, { id: copacabana!.id, revision: copacabana!.revision }] });
+
+    expect(reordered.status).toBe(200);
+    expect(reordered.body.items.map((z: { id: string; displayOrder: number }) => [z.id, z.displayOrder])).toEqual([
+      ['zone-copacabana', 1],
+      ['zone-bello', 2],
+    ]);
+    expect([again.status, again.body.error]).toEqual([409, 'stale_revision']);
+    const entry = context.adminAuditLog.entries.find((e) => e.action === 'zone.reorder')!;
+    expect([entry.action, entry.resourceType, entry.resourceId]).toEqual(['zone.reorder', 'zoneOrder', 'city-medellin']);
+    expect((entry.before as { items: { id: string }[] }).items.map((z) => z.id)).toEqual(['zone-bello', 'zone-copacabana']);
+    expect((entry.after as { items: { id: string }[] }).items.map((z) => z.id)).toEqual(['zone-copacabana', 'zone-bello']);
+  });
+
+  it('refuses a reorder without geography.manage, with a repeated zone or for an unknown market', async () => {
+    const context = await buildTestApp();
+    const { reader, editor } = await geographyStaff(context);
+    const zones = [{ id: 'zone-bello', revision: 0 }];
+
+    expect((await reader.post('/admin/zones/reorder', { marketId: 'city-medellin', zones })).status).toBe(403);
+    expect((await editor.post('/admin/zones/reorder', { marketId: 'city-medellin', zones: [...zones, ...zones] })).status).toBe(400);
+    const missing = await editor.post('/admin/zones/reorder', { marketId: 'nope', zones });
+    expect([missing.status, missing.body.error]).toEqual([404, 'market_not_found']);
+  });
+});

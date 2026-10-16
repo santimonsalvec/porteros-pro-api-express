@@ -97,6 +97,11 @@ export interface IAdminZoneRepository {
   zoneOwnerIds(): Promise<string[]>;
   create(zone: Zone): Promise<void>;
   update(zone: Zone): Promise<UpdateResult>;
+  /**
+   * Sets each zone's `displayOrder` if it is still at `revision`, and bumps it. `'stale'` when any
+   * of them moved on; the others may already be written (the admin reloads the list either way).
+   */
+  reorder(entries: { id: string; revision: number; displayOrder: number }[]): Promise<UpdateResult>;
   delete(id: string): Promise<boolean>;
 }
 
