@@ -99,17 +99,24 @@ describe('redactForAudit', () => {
     expect(
       redactForAudit('city', {
         id: 'env', name: 'Envigado', region: { id: 'ant', name: 'Antioquia' }, country: { id: 'co', name: 'Colombia', countryCode: 'CO' },
-        timeZone: 'America/Bogota', timeZoneValid: true, daneStateCode: '05', daneCityCode: '05266', zoneCity: { id: 'med', name: 'Medellín' },
-        zoneCount: 0, satelliteCount: 0, state: 'operating', revision: 1, reason: 'r', readiness: { ready: true },
+        daneStateCode: '05', daneCityCode: '05266', revision: 1, reason: 'r', readiness: { ready: true },
       }),
     ).toEqual({
       id: 'env', name: 'Envigado', region: { id: 'ant', name: 'Antioquia' }, country: { id: 'co', name: 'Colombia', countryCode: 'CO' },
-      timeZone: 'America/Bogota', timeZoneValid: true, daneStateCode: '05', daneCityCode: '05266', zoneCity: { id: 'med', name: 'Medellín' },
-      zoneCount: 0, satelliteCount: 0, state: 'operating', revision: 1, reason: 'r',
+      daneStateCode: '05', daneCityCode: '05266', revision: 1, reason: 'r',
+    });
+    expect(
+      redactForAudit('market', {
+        id: 'mkt', name: 'Medellín', countryId: 'co', timeZone: 'America/Bogota', mapCenter: { lat: 6.25, lng: -75.56, zoom: 12 },
+        status: 'enabled', enabledAt: '2026-10-15T00:00:00.000Z', enabledBy: 's-1', disabledAt: null, disabledBy: null, revision: 2, reason: 'r', secret: 'x',
+      }),
+    ).toEqual({
+      id: 'mkt', name: 'Medellín', countryId: 'co', timeZone: 'America/Bogota', mapCenter: { lat: 6.25, lng: -75.56, zoom: 12 },
+      status: 'enabled', enabledAt: '2026-10-15T00:00:00.000Z', enabledBy: 's-1', disabledAt: null, disabledBy: null, revision: 2, reason: 'r',
     });
     const geometry = { type: 'Polygon', coordinates: [[[-75.6, 6.2], [-75.5, 6.2], [-75.5, 6.3], [-75.6, 6.2]]] };
-    expect(redactForAudit('zone', { id: 'z', cityId: 'med', name: 'Laureles', slug: 'laureles', active: false, displayOrder: 3, geometry, geometryValid: true, inUse: true, revision: 4, reason: 'cierre', note: 'n' })).toEqual({
-      id: 'z', cityId: 'med', name: 'Laureles', slug: 'laureles', active: false, displayOrder: 3, geometry, geometryValid: true, inUse: true, revision: 4, reason: 'cierre',
+    expect(redactForAudit('zone', { id: 'z', marketId: 'med', name: 'Laureles', slug: 'laureles', active: false, displayOrder: 3, geometry, geometryValid: true, inUse: true, revision: 4, reason: 'cierre', note: 'n' })).toEqual({
+      id: 'z', marketId: 'med', name: 'Laureles', slug: 'laureles', active: false, displayOrder: 3, geometry, geometryValid: true, inUse: true, revision: 4, reason: 'cierre',
     });
     expect(redactForAudit('documentType', { id: 'cc', code: 'cedula_ciudadania', name: 'Cédula', invoiceable: true, inUse: false, revision: 0, other: 1 })).toEqual({
       id: 'cc', code: 'cedula_ciudadania', name: 'Cédula', invoiceable: true, inUse: false, revision: 0,
@@ -122,7 +129,7 @@ describe('redactForAudit', () => {
   it('keeps every field of a rate, a commission and booking rules (spec 004 of the admin)', () => {
     const rate = {
       id: 'r1', scope: 'zone', refId: 'bello', durationMinutes: 90, modality: 'futbol_11', level: 'competitive', amount: 60000,
-      revision: 2, invalid: false, currency: 'COP', countryId: 'co', countryName: 'Colombia', cityId: 'med', cityName: 'Medellín',
+      revision: 2, invalid: false, currency: 'COP', countryId: 'co', countryName: 'Colombia', marketId: 'med', marketName: 'Medellín',
       zoneName: 'Bello', zoneActive: true, targetValid: true, reason: 'Precio viejo',
     };
     expect(redactForAudit('rentalRate', rate)).toEqual(rate);
@@ -130,7 +137,7 @@ describe('redactForAudit', () => {
     delete (commission as Record<string, unknown>).durationMinutes;
     expect(redactForAudit('commissionSetting', commission)).toEqual(commission);
     const settings = {
-      cityId: 'med', cityName: 'Medellín', countryId: 'co', countryName: 'Colombia', currency: 'COP', revision: 1,
+      marketId: 'med', marketName: 'Medellín', countryId: 'co', countryName: 'Colombia', currency: 'COP', revision: 1,
       own: {
         bookingWindowDays: 7, minNoticeMinutes: 60, freeCancellationMinutes: 60, travelBufferMinutes: 45,
         leadTimeSurcharge: { tiers: [{ fromMinutes: 0, toMinutes: null, amount: 0 }] },
@@ -203,5 +210,23 @@ describe('operations writes (spec 006 of the admin)', () => {
       revision: 1,
       credentialsPresent: false,
     });
+  });
+
+  it("never keeps a goalkeeper's billing data, nor an invoice buyer's address (spec 031)", () => {
+    const goalkeeper = redactForAudit('goalkeeper', {
+      userId: 'gk-1',
+      documentType: 'CC',
+      billing: { cityId: 'mun-med', address: 'Calle 10 # 20-30', addressComplement: 'Apto 301' },
+      address: 'Calle 10 # 20-30',
+    });
+    const document = redactForAudit('invoicingDocument', {
+      documentId: 'd-1',
+      status: 'pending',
+      buyer: { cityId: 'mun-med', address: 'Calle 10 # 20-30', addressComplement: 'Apto 301', email: 'gk@example.com' },
+    });
+
+    expect(goalkeeper).toEqual({ userId: 'gk-1', documentType: 'CC' });
+    expect(document).toEqual({ documentId: 'd-1', status: 'pending' });
+    expect(JSON.stringify([goalkeeper, document])).not.toMatch(/Calle|Apto|mun-med/);
   });
 });

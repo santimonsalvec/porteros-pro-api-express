@@ -31,7 +31,7 @@ describe('the goalkeeper document for the admin (admin spec 005, US5)', () => {
     profiles = new FakeGoalkeeperProfileRepository();
     profiles.seed(new GoalkeeperProfile({
       id: 'gp-1', userId: 'u1', documentType: 'CC', documentNumber: '1020304050', issueDate: NOW, birthDate: new Date('1998-01-01'),
-      documentPhotoAId: 'img-a', documentPhotoBId: 'img-gone', heightCm: 180, weightKg: 80, cityId: 'med', zoneIds: [], activatedAt: NOW,
+      documentPhotoAId: 'img-a', documentPhotoBId: 'img-gone', heightCm: 180, weightKg: 80, marketId: 'med', zoneIds: [], activatedAt: NOW,
     }));
     registrations = new FakeGoalkeeperRegistrationRepository();
     registrations.seed(registration('u1', '1020304050'));

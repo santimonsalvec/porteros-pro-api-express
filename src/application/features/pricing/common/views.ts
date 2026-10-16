@@ -3,16 +3,16 @@ import type { CommissionRecord, PriceRecord, RentalRateRecord } from './ports.js
 
 /**
  * Where a rate or commission points, resolved once per list: the country (and its currency) and,
- * below it, the anchor city and the zone. `valid: false` when the target no longer exists or the
- * city stopped being an anchor (seeded or old data).
+ * below it, the anchor market and the zone. `valid: false` when the target no longer exists or the
+ * market stopped being an anchor (seeded or old data).
  */
 export interface PriceTarget {
   valid: boolean;
   countryId: string | null;
   countryName: string | null;
   currency: string | null;
-  cityId: string | null;
-  cityName: string | null;
+  marketId: string | null;
+  marketName: string | null;
   zoneId: string | null;
   zoneName: string | null;
   zoneActive: boolean | null;
@@ -31,8 +31,8 @@ function priceView<Scope extends string>(record: PriceRecord<Scope>, target: Pri
     currency: target.currency,
     countryId: target.countryId,
     countryName: target.countryName,
-    cityId: target.cityId,
-    cityName: target.cityName,
+    marketId: target.marketId,
+    marketName: target.marketName,
     zoneName: target.zoneName,
     zoneActive: target.zoneActive,
     targetValid: target.valid,

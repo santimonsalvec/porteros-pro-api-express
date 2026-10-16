@@ -7,7 +7,7 @@ import {
   requestCompleteMessage,
 } from '../../../../src/domain/notifications/assignmentMessages.js';
 
-const match = { zoneName: 'Bello', cityName: 'Medellín', startsAt: new Date('2026-10-04T20:00:00.000Z'), timeZone: 'America/Bogota' };
+const match = { zoneName: 'Bello', marketName: 'Medellín', startsAt: new Date('2026-10-04T20:00:00.000Z'), timeZone: 'America/Bogota' };
 const juan = { firstName: 'Juan', lastName: 'Pérez', whatsApp: '+57 300 1234567' };
 const pedro = { firstName: 'Pedro', lastName: 'Gómez', whatsApp: null };
 const ana = { firstName: 'Ana', lastName: 'Ruiz', whatsApp: '+57 310 7654321' };

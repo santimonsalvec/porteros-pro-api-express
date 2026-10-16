@@ -24,12 +24,12 @@ describe('CommissionSettingRepository (mocked driver)', () => {
     const collection = createFakeCollection();
     collection.find.mockReturnValue(toArrayResult([{ _id: 'c-1', scope: 'country', refId: 'country-co', amount: 7000 }]));
 
-    const found = await repositoryWith(collection).findFor({ zoneIds: ['z-1'], cityIds: ['city-a'], countryIds: ['country-co'] });
+    const found = await repositoryWith(collection).findFor({ zoneIds: ['z-1'], marketIds: ['city-a'], countryIds: ['country-co'] });
 
     expect(collection.find).toHaveBeenCalledWith({
       $or: [
         { scope: 'zone', refId: { $in: ['z-1'] } },
-        { scope: 'city', refId: { $in: ['city-a'] } },
+        { scope: 'market', refId: { $in: ['city-a'] } },
         { scope: 'country', refId: { $in: ['country-co'] } },
       ],
     });
@@ -39,7 +39,7 @@ describe('CommissionSettingRepository (mocked driver)', () => {
   it('does not query when nothing is asked for', async () => {
     const collection = createFakeCollection();
 
-    expect(await repositoryWith(collection).findFor({ zoneIds: [], cityIds: [], countryIds: [] })).toEqual([]);
+    expect(await repositoryWith(collection).findFor({ zoneIds: [], marketIds: [], countryIds: [] })).toEqual([]);
     expect(collection.find).not.toHaveBeenCalled();
   });
 });

@@ -7,7 +7,7 @@ function seedDeposit(context: Awaited<ReturnType<typeof buildTestApp>>, status: 
   const deposit = Deposit.start({
     id: '0192f000-0000-7000-8000-000000000001',
     goalkeeperId: 'gk-private-id',
-    countryId: 'country-co',
+    countryId: 'country-co', marketId: 'city-cali',
     gateway: 'wompi',
     environment: 'sandbox',
     amount: 20000,

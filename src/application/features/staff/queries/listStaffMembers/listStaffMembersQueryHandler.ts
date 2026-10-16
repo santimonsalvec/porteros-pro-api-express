@@ -1,3 +1,4 @@
+import type { ScopePlaces } from '../../common/staffViews.js';
 import type { IClock } from '../../../../common/clock.js';
 import type { IQueryHandler } from '../../../../common/mediator/types.js';
 import type { IStaffMemberRepository, IStaffRoleRepository } from '../../common/ports.js';
@@ -8,6 +9,8 @@ export interface StaffQueryDependencies {
   members: IStaffMemberRepository;
   roles: IStaffRoleRepository;
   clock: IClock;
+  /** Spec 031: the names of the scopes' countries and markets. */
+  places?: ScopePlaces;
 }
 
 export class ListStaffMembersQueryHandler implements IQueryHandler<ListStaffMembersQuery, ListStaffMembersResult> {

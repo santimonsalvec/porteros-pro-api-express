@@ -1,23 +1,18 @@
-import { area } from '@turf/area';
-import { featureCollection, lineString } from '@turf/helpers';
-import { intersect } from '@turf/intersect';
+import { booleanDisjoint } from '@turf/boolean-disjoint';
+import { lineString } from '@turf/helpers';
 import { kinks } from '@turf/kinks';
-import { pointToPolygonDistance } from '@turf/point-to-polygon-distance';
 import { simplify } from '@turf/simplify';
 import type { Feature, MultiPolygon, Polygon, Position } from 'geojson';
 import type { ZoneGeometry } from './zone.js';
 
 /**
  * The rules a zone's polygon must follow before it is saved (admin spec 003, research §2), and
- * the warnings it may raise against the other zones of its city. Seeded zones are never checked
+ * the active zones it may not cross or touch (spec 031). Seeded zones are never checked
  * on read: a broken one is only reported (and skipped as a neighbour).
  */
 
 /** Zones are traced from official boundaries: Medellín's have up to ~9.000 positions. */
 export const MAX_ZONE_POSITIONS = 20000;
-/** Overlaps smaller than this are slivers of a shared border drawn by hand. */
-export const OVERLAP_THRESHOLD_SQUARE_METERS = 1000;
-export const FAR_FROM_CITY_KM = 5;
 
 export type GeometryErrorCode =
   | 'geometry_type'
@@ -88,63 +83,55 @@ export function validateZoneGeometry(geometry: unknown): GeometryError[] {
   return errors;
 }
 
-/** Another zone of the same city, as the warnings compare against it. */
-export interface NeighborZone {
+/** An active zone a new or edited one is compared against (spec 031, FR-003). */
+export interface ConflictCandidate {
   id: string;
   name: string;
-  displayOrder: number;
-  active: boolean;
+  marketId: string;
+  marketName: string;
   geometry: ZoneGeometry;
 }
 
-export type GeometryWarning =
-  | { code: 'overlaps_zone'; zoneId: string; zoneName: string; overlapSquareMeters: number; winsZoneId: string; winsZoneName: string }
-  | { code: 'far_from_city_zones'; maxDistanceKm: number };
+export interface ZoneConflict {
+  zoneId: string;
+  zoneName: string;
+  marketId: string;
+  marketName: string;
+}
 
-/** Which zone a point in both resolves to: lower `displayOrder`, then lower id (as `findActiveContainingPoint`). */
-function winner(self: { id: string | null; displayOrder: number }, other: NeighborZone): string | null {
-  if (self.displayOrder !== other.displayOrder) return self.displayOrder < other.displayOrder ? self.id : other.id;
-  // A zone not created yet has no id: the existing one is assumed to win the tie.
-  return self.id !== null && self.id < other.id ? self.id : other.id;
+type Box = [minLng: number, minLat: number, maxLng: number, maxLat: number];
+
+function boxOf(geometry: ZoneGeometry): Box | null {
+  const polygons = polygonsOf(geometry);
+  if (!polygons) return null;
+  const positions = polygons.flat(2) as unknown as number[][];
+  if (positions.length === 0) return null;
+  const lngs = positions.map((position) => position[0]!);
+  const lats = positions.map((position) => position[1]!);
+  return [Math.min(...lngs), Math.min(...lats), Math.max(...lngs), Math.max(...lats)];
+}
+
+/** Whether two bounding boxes overlap or touch: a cheap test before the exact one. */
+export function boundingBoxesTouch(a: ZoneGeometry, b: ZoneGeometry): boolean {
+  const first = boxOf(a);
+  const second = boxOf(b);
+  if (!first || !second) return false;
+  return first[0] <= second[2] && second[0] <= first[2] && first[1] <= second[3] && second[1] <= first[3];
 }
 
 /**
- * Overlaps with the active zones of the city, and how far the polygon reaches from them
- * (decision D-3: warn, never block, since a city has no official boundary). Call only with a
- * polygon `validateZoneGeometry` accepted.
+ * The zones `geometry` is not disjoint from (spec 031, FR-003, research §2): any shared area, a
+ * shared border or a single shared corner counts. `selfId` is the zone being edited, and zones
+ * whose polygon breaks the rules are left out (they are reported apart). Call only with a polygon
+ * `validateZoneGeometry` accepted.
  */
-export function zoneGeometryWarnings(
-  geometry: ZoneGeometry,
-  self: { id: string | null; displayOrder: number },
-  zones: readonly NeighborZone[],
-): GeometryWarning[] {
-  const shape = geometry as unknown as Polygon | MultiPolygon;
-  const others = zones.filter((zone) => zone.active && zone.id !== self.id && validateZoneGeometry(zone.geometry).length === 0);
-  if (others.length === 0) return [];
-
-  const warnings: GeometryWarning[] = [];
-  for (const other of others) {
-    const shared = intersect(featureCollection([feature(shape), feature(other.geometry as unknown as Polygon | MultiPolygon)]));
-    const overlap = shared ? area(shared) : 0;
-    if (overlap > OVERLAP_THRESHOLD_SQUARE_METERS) {
-      const winsZoneId = winner(self, other) ?? 'new';
-      warnings.push({
-        code: 'overlaps_zone',
-        zoneId: other.id,
-        zoneName: other.name,
-        overlapSquareMeters: Math.round(overlap),
-        winsZoneId,
-        winsZoneName: winsZoneId === other.id ? other.name : 'esta zona',
-      });
-    }
-  }
-
-  const vertices = (polygonsOf(shape) ?? []).flat(2) as unknown as number[][];
-  const distanceToCity = (vertex: number[]) =>
-    Math.min(...others.map((other) => Math.max(0, pointToPolygonDistance(vertex as Position, other.geometry as unknown as Polygon | MultiPolygon, { units: 'kilometers' }))));
-  const maxDistanceKm = Math.max(...vertices.map(distanceToCity));
-  if (maxDistanceKm > FAR_FROM_CITY_KM) warnings.push({ code: 'far_from_city_zones', maxDistanceKm: Math.round(maxDistanceKm * 10) / 10 });
-  return warnings;
+export function findZoneConflicts(geometry: ZoneGeometry, selfId: string | null, candidates: readonly ConflictCandidate[]): ZoneConflict[] {
+  const shape = feature(geometry as unknown as Polygon | MultiPolygon);
+  return candidates
+    .filter((other) => other.id !== selfId && validateZoneGeometry(other.geometry).length === 0)
+    .filter((other) => boundingBoxesTouch(geometry, other.geometry))
+    .filter((other) => !booleanDisjoint(shape, feature(other.geometry as unknown as Polygon | MultiPolygon)))
+    .map((other) => ({ zoneId: other.id, zoneName: other.name, marketId: other.marketId, marketName: other.marketName }));
 }
 
 function feature(shape: Polygon | MultiPolygon): Feature<Polygon | MultiPolygon> {

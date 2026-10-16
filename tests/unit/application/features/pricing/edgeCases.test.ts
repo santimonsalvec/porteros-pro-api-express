@@ -1,24 +1,33 @@
 import { describe, expect, it } from 'vitest';
-import { City } from '../../../../../src/domain/locations/city.js';
-import { Region } from '../../../../../src/domain/locations/region.js';
+import { testMarket } from '../../../../fakes/fakeMarketRepository.js';
 import { CommissionSetting } from '../../../../../src/domain/operatingBalance/commissionSetting.js';
 import { compareNames, compareTiers } from '../../../../../src/application/features/pricing/common/ordering.js';
 import { PricingGeography, checkWriteTarget } from '../../../../../src/application/features/pricing/common/pricingGeography.js';
-import { GetCityBookingSettingsQuery } from '../../../../../src/application/features/pricing/queries/getCityBookingSettings/getCityBookingSettingsQuery.js';
-import { GetCityBookingSettingsQueryHandler } from '../../../../../src/application/features/pricing/queries/getCityBookingSettings/getCityBookingSettingsQueryHandler.js';
+import { GetMarketBookingSettingsQuery } from '../../../../../src/application/features/pricing/queries/getMarketBookingSettings/getMarketBookingSettingsQuery.js';
+import { GetMarketBookingSettingsQueryHandler } from '../../../../../src/application/features/pricing/queries/getMarketBookingSettings/getMarketBookingSettingsQueryHandler.js';
 import { ListCommissionsQuery } from '../../../../../src/application/features/pricing/queries/listCommissions/listCommissionsQuery.js';
 import { ListCommissionsQueryHandler } from '../../../../../src/application/features/pricing/queries/listCommissions/listCommissionsQueryHandler.js';
 import { GetCommissionDeleteImpactQuery } from '../../../../../src/application/features/pricing/queries/getCommissionDeleteImpact/getCommissionDeleteImpactQuery.js';
 import { GetCommissionDeleteImpactQueryHandler } from '../../../../../src/application/features/pricing/queries/getCommissionDeleteImpact/getCommissionDeleteImpactQueryHandler.js';
 import { GetRentalRateDeleteImpactQuery } from '../../../../../src/application/features/pricing/queries/getRentalRateDeleteImpact/getRentalRateDeleteImpactQuery.js';
 import { GetRentalRateDeleteImpactQueryHandler } from '../../../../../src/application/features/pricing/queries/getRentalRateDeleteImpact/getRentalRateDeleteImpactQueryHandler.js';
-import { SaveCityBookingSettingsCommand } from '../../../../../src/application/features/pricing/commands/saveCityBookingSettings/saveCityBookingSettingsCommand.js';
-import { SaveCityBookingSettingsCommandHandler } from '../../../../../src/application/features/pricing/commands/saveCityBookingSettings/saveCityBookingSettingsCommandHandler.js';
+import { SaveMarketBookingSettingsCommand } from '../../../../../src/application/features/pricing/commands/saveMarketBookingSettings/saveMarketBookingSettingsCommand.js';
+import { SaveMarketBookingSettingsCommandHandler } from '../../../../../src/application/features/pricing/commands/saveMarketBookingSettings/saveMarketBookingSettingsCommandHandler.js';
 import { RentalRate } from '../../../../../src/domain/pricing/rentalRate.js';
-import type { CityRuleFields } from '../../../../../src/application/features/pricing/common/bookingRules.js';
+import type { MarketRuleFields } from '../../../../../src/application/features/pricing/common/bookingRules.js';
 import { pricingKit } from './pricingTestKit.js';
 
-const NO_CITY_RULES: CityRuleFields = { bookingWindowDays: null, minNoticeMinutes: null, freeCancellationMinutes: null, travelBufferMinutes: null, leadTimeSurcharge: null };
+const NO_CITY_RULES: MarketRuleFields = {
+  bookingWindowDays: null,
+  minNoticeMinutes: null,
+  freeCancellationMinutes: null,
+  travelBufferMinutes: null,
+  leadTimeSurcharge: null,
+  checkInWindow: null,
+  noShowGraceMinutes: null,
+  offerReminderIntervalMinutes: null,
+  offerMaxReminders: null,
+};
 
 describe('pricing edge cases', () => {
   it('orders empty names last and keeps equal tiers together', () => {
@@ -26,30 +35,29 @@ describe('pricing edge cases', () => {
     expect(compareTiers({ modality: 'futbol_11', level: null }, { modality: 'futbol_11', level: null })).toBe(0);
   });
 
-  it('reads a city whose region has no country, without a country part', async () => {
+  it('reads a market whose country is gone, without a country part', async () => {
     const kit = pricingKit();
-    kit.regions.items.set('lost', new Region({ id: 'lost', name: 'Sin país', countryId: null }));
-    kit.cities.items.set('orphan', new City({ id: 'orphan', name: 'Huérfana', regionId: 'lost', zoneCityId: null }));
-    const result = await new GetCityBookingSettingsQueryHandler(kit).handle(new GetCityBookingSettingsQuery('orphan'));
-    expect(result).toMatchObject({ outcome: 'ok', settings: { countryId: null, countryName: null, currency: null, revision: null } });
-    expect(await checkWriteTarget(kit, 'city', 'orphan')).toEqual({ outcome: 'country_without_currency' });
-    expect(await new SaveCityBookingSettingsCommandHandler(kit).handle(new SaveCityBookingSettingsCommand('orphan', null, NO_CITY_RULES, false))).toEqual({ outcome: 'saved' });
+    kit.markets.seed(testMarket({ id: 'orphan', name: 'Huérfana', countryId: 'gone' }));
+    const result = await new GetMarketBookingSettingsQueryHandler(kit).handle(new GetMarketBookingSettingsQuery('orphan'));
+    expect(result).toMatchObject({ outcome: 'ok', settings: { countryName: null, currency: null, revision: null } });
+    expect(await checkWriteTarget(kit, 'market', 'orphan')).toEqual({ outcome: 'country_without_currency' });
+    expect(await new SaveMarketBookingSettingsCommandHandler(kit).handle(new SaveMarketBookingSettingsCommand('orphan', null, NO_CITY_RULES, false))).toEqual({ outcome: 'saved' });
   });
 
-  it('refuses a save on a satellite or unknown city, and a broken value', async () => {
+  it('refuses a save on an unknown market, and a broken value', async () => {
     const kit = pricingKit();
-    const save = (cityId: string, fields = NO_CITY_RULES) => new SaveCityBookingSettingsCommandHandler(kit).handle(new SaveCityBookingSettingsCommand(cityId, null, fields, false));
+    const save = (marketId: string, fields = NO_CITY_RULES) => new SaveMarketBookingSettingsCommandHandler(kit).handle(new SaveMarketBookingSettingsCommand(marketId, null, fields, false));
     expect(await save('med', { ...NO_CITY_RULES, bookingWindowDays: 0 })).toEqual({ outcome: 'invalid', fieldErrors: { bookingWindowDays: 'out_of_range' } });
-    expect(await new GetCityBookingSettingsQueryHandler(kit).handle(new GetCityBookingSettingsQuery('nowhere'))).toEqual({ outcome: 'not_found' });
+    expect(await new GetMarketBookingSettingsQueryHandler(kit).handle(new GetMarketBookingSettingsQuery('nowhere'))).toEqual({ outcome: 'not_found' });
   });
 
   it('marks a target that is gone: a country, a city or a zone of a missing city', async () => {
     const kit = pricingKit();
     const geography = await PricingGeography.load(kit);
     expect(geography.target('country', 'pe').valid).toBe(false);
-    expect(geography.target('city', 'nowhere').valid).toBe(false);
+    expect(geography.target('market', 'nowhere').valid).toBe(false);
     expect(geography.target('zone', 'nowhere').valid).toBe(false);
-    expect(geography.target('city', 'env').valid).toBe(false);
+    expect(geography.target('market', 'env').valid).toBe(false);
     expect(geography.countryOf('nowhere')).toBeNull();
   });
 
@@ -62,7 +70,7 @@ describe('pricing edge cases', () => {
 
   it('weighs the delete of a commission of a city, and of a target that is gone', async () => {
     const kit = pricingKit();
-    kit.commissions.base.seed(new CommissionSetting({ id: 'c-med', scope: 'city', refId: 'med', amount: 8000 }));
+    kit.commissions.base.seed(new CommissionSetting({ id: 'c-med', scope: 'market', refId: 'med', amount: 8000 }));
     kit.commissions.base.seed(new CommissionSetting({ id: 'ghost', scope: 'zone', refId: 'deleted-zone', amount: 5000 }));
     const impact = (id: string) => new GetCommissionDeleteImpactQueryHandler(kit).handle(new GetCommissionDeleteImpactQuery(id));
     expect(await impact('c-med')).toEqual({ outcome: 'ok', impact: { zoneCount: 3, zoneNames: ['Laureles', 'Bello', 'El Poblado'] } });

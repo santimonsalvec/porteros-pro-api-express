@@ -2,11 +2,13 @@ import type { IQueryHandler } from '../../../../common/mediator/types.js';
 import type { IClock } from '../../../../common/clock.js';
 import type { IBackgroundCheckRepository, IGoalkeeperProfileRepository, IGoalkeeperRegistrationRepository } from '../../common/ports.js';
 import type { GoalkeeperProfile } from '../../../../../domain/goalkeepers/goalkeeperProfile.js';
-import type { ICityRepository, IRegionRepository } from '../../../locations/common/ports.js';
+import type { IMarketRepository } from '../../../markets/common/ports.js';
+import { billingWithPlaceNames, type BillingPlaces } from '../../common/billingPlaces.js';
 import {
+  type GoalkeeperBillingView,
   toActiveGoalkeeperResponse,
   toGoalkeeperRegistrationResponse,
-  type GoalkeeperCityView,
+  type GoalkeeperMarketView,
   type GoalkeeperVettingSummary,
 } from '../../common/goalkeeperRegistrationResponse.js';
 import { GetGoalkeeperRegistrationQuery, type GetGoalkeeperRegistrationResult } from './getGoalkeeperRegistrationQuery.js';
@@ -17,8 +19,7 @@ export class GetGoalkeeperRegistrationQueryHandler
   constructor(
     private readonly goalkeeperRegistrationRepository: IGoalkeeperRegistrationRepository,
     private readonly goalkeeperProfileRepository: IGoalkeeperProfileRepository,
-    private readonly cityRepository: ICityRepository,
-    private readonly regionRepository: IRegionRepository,
+    private readonly marketRepository: Pick<IMarketRepository, 'getById'>,
     /** Admin spec 030: the goalkeeper's background checks, for the vetting summary. */
     private readonly vetting?: {
       checks: Pick<IBackgroundCheckRepository, 'listForGoalkeeper'>;
@@ -26,6 +27,8 @@ export class GetGoalkeeperRegistrationQueryHandler
       /** The terms of each zone for goalkeepers without the seal. */
       discounts?: { forZones(zoneIds: readonly string[]): Promise<Map<string, { discountBps: number }>> };
     },
+    /** Spec 031: the names of the billing municipality and its department. */
+    private readonly places?: BillingPlaces,
   ) {}
 
   async handle(query: GetGoalkeeperRegistrationQuery): Promise<GetGoalkeeperRegistrationResult> {
@@ -35,8 +38,13 @@ export class GetGoalkeeperRegistrationQueryHandler
       ? toActiveGoalkeeperResponse(profile)
       : toGoalkeeperRegistrationResponse(await this.goalkeeperRegistrationRepository.getByUserId(query.userId));
 
-    const city = await this.resolveCity(registration.cityId);
-    return { registration: { ...registration, city, ...(profile ? { vetting: await this.vettingOf(profile) } : {}) } };
+    const [market, billing] = await Promise.all([this.resolveMarket(registration.marketId), this.withPlaceNames(registration.billing)]);
+    return { registration: { ...registration, market, billing, ...(profile ? { vetting: await this.vettingOf(profile) } : {}) } };
+  }
+
+  /** The billing data with its municipality's and department's names; `null` names when unknown. */
+  private withPlaceNames(billing: GoalkeeperBillingView): Promise<GoalkeeperBillingView> {
+    return billingWithPlaceNames(billing, this.places);
   }
 
   private async vettingOf(profile: GoalkeeperProfile): Promise<GoalkeeperVettingSummary> {
@@ -65,13 +73,9 @@ export class GetGoalkeeperRegistrationQueryHandler
     return maxBps > 0 ? { minBps: Math.min(...rates), maxBps } : null;
   }
 
-  private async resolveCity(cityId: string | null): Promise<GoalkeeperCityView | null> {
-    if (cityId === null) return null;
-
-    const city = await this.cityRepository.getById(cityId);
-    if (!city) return null;
-
-    const [region] = await this.regionRepository.getByIds([city.regionId]);
-    return { id: city.id, name: city.name, region: region?.name ?? '' };
+  private async resolveMarket(marketId: string | null): Promise<GoalkeeperMarketView | null> {
+    if (marketId === null) return null;
+    const market = await this.marketRepository.getById(marketId);
+    return market ? { id: market.id, name: market.name } : null;
   }
 }

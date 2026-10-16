@@ -33,7 +33,7 @@ async function originalMovementOf(deps: DocumentForMovementDependencies, movemen
  * The invoicing document of one billable ledger movement, created if it doesn't exist yet
  * (research.md §2, §5). Everything comes from the ledger — the amounts, the VAT movement recorded
  * with it (found by its cause key), the buyer's document as it was at the charge — plus the
- * goalkeeper's current name, email and city. A credit note's invoice is created first when
+ * goalkeeper's current name, email and billing address. A credit note's invoice is created first when
  * missing. Idempotent: the source movement is unique. `null` when the movement isn't billable.
  */
 export async function documentForMovement(
@@ -71,6 +71,8 @@ export async function documentForMovement(
       concept: shape.concept,
       goalkeeperId: movement.operatingBalanceId,
       countryId: context.countryId,
+      // The market of what it bills, which never moves with the goalkeeper (spec 031).
+      marketId: movement.marketId,
       sourceEventId,
       sourceMovementId: movement.id,
       vatMovementId: vatMovement?.id ?? null,
@@ -87,7 +89,10 @@ export async function documentForMovement(
         firstName: user?.firstName ?? '',
         lastName: user?.lastName ?? '',
         email: user?.email ?? '',
-        cityId: context.profile.cityId,
+        // Where the goalkeeper lives, from their billing data — never the market they play in (spec 031).
+        cityId: context.profile.billing.cityId ?? '',
+        address: context.profile.billing.address,
+        addressComplement: context.profile.billing.addressComplement,
       },
       occurredAt: movement.occurredAt,
       createdAt: now,

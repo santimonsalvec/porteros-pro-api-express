@@ -32,8 +32,9 @@ export interface BookingConfig {
 export type GetBookingConfigResult =
   | { outcome: 'success'; config: BookingConfig }
   | { outcome: 'location_not_covered' }
-  | { outcome: 'time_zone_not_configured'; cityId: string }
-  | { outcome: 'service_not_configured'; cityId: string; missing: MissingSetting[] };
+  /** The point is in a market out of service now (spec 031, FR-011). */
+  | { outcome: 'market_unavailable'; marketId: string; marketName: string }
+  | { outcome: 'service_not_configured'; marketId: string; missing: MissingSetting[] };
 
 export class GetBookingConfigQuery extends IQuery<GetBookingConfigResult> {
   constructor(public readonly input: { latitude: number; longitude: number }) {

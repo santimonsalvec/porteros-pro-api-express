@@ -4,7 +4,11 @@ import type { RegistrationRow, RegistrationStep, RegistrationSummary } from '../
 
 export interface ListRegistrationsCriteria {
   step?: RegistrationStep;
-  cityId?: string;
+  /** Spec 031: the country of X-Scope; `marketId` narrows it. */
+  countryId?: string;
+  marketId?: string;
+  /** Spec 031: the markets a member who holds only some may see. */
+  marketIds?: readonly string[];
   /** Only those without activity for at least this many days. */
   idleDaysMin?: number;
   page: number;

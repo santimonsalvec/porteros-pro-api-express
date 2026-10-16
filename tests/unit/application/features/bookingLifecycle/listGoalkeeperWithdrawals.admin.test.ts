@@ -4,26 +4,26 @@ import { ListGoalkeeperWithdrawalsQueryHandler } from '../../../../../src/applic
 import { WithdrawalAdminDetails } from '../../../../../src/application/features/bookingLifecycle/common/withdrawalAdminDetails.js';
 import type { Booking } from '../../../../../src/domain/bookings/booking.js';
 import type { Zone } from '../../../../../src/domain/zones/zone.js';
-import type { City } from '../../../../../src/domain/locations/city.js';
+import type { Market } from '../../../../../src/domain/markets/market.js';
 import type { BalanceMovement } from '../../../../../src/domain/operatingBalance/balanceMovement.js';
 import { lifecycleHarness } from './lifecycleHarness.js';
 
 describe('WithdrawalAdminDetails (admin spec 005, research §13)', () => {
   const details = new WithdrawalAdminDetails({
     bookings: { findById: async (id) => (id === 'b1' ? ({ id: 'b1', zoneId: 'z1' } as Booking) : null) },
-    zones: { getManyByIds: async (ids) => (ids.includes('z1') ? [{ id: 'z1', cityId: 'med' } as Zone] : []) },
-    cities: { getByIds: async (ids) => (ids.includes('med') ? [{ id: 'med', name: 'Medellín', timeZone: 'America/Bogota' } as City] : []) },
+    zones: { getManyByIds: async (ids) => (ids.includes('z1') ? [{ id: 'z1', marketId: 'med' } as Zone] : []) },
+    markets: { getByIds: async (ids) => (ids.includes('med') ? [{ id: 'med', name: 'Medellín', timeZone: 'America/Bogota' } as unknown as Market] : []) },
     movements: { findByCauseKey: async (key) => (key === 'commission:b1' ? ({ amount: -7000, currency: 'COP' } as BalanceMovement) : null) },
   });
 
   it("gives each booking its city's clock and the commission charged, positive", async () => {
     expect(await details.forBookings(['b1'])).toEqual(
-      new Map([['b1', { match: { cityName: 'Medellín', timeZone: 'America/Bogota' }, commission: { amount: 7000, currency: 'COP' } }]]),
+      new Map([['b1', { match: { marketName: 'Medellín', timeZone: 'America/Bogota' }, commission: { amount: 7000, currency: 'COP' } }]]),
     );
   });
 
   it('leaves blanks for a booking that no longer exists and has no charge', async () => {
-    expect((await details.forBookings(['gone'])).get('gone')).toEqual({ match: { cityName: null, timeZone: null }, commission: null });
+    expect((await details.forBookings(['gone'])).get('gone')).toEqual({ match: { marketName: null, timeZone: null }, commission: null });
   });
 });
 
@@ -33,7 +33,7 @@ describe('ListGoalkeeperWithdrawalsQuery with admin details', () => {
     const booking = h.match('r1', 1).bookings[0]!;
     await h.acceptAndPay(booking, 'g');
     await h.withdraw(booking.id, 'g');
-    const extra = { match: { cityName: 'Cali', timeZone: 'America/Bogota' }, commission: { amount: 7000, currency: 'COP' } };
+    const extra = { match: { marketName: 'Cali', timeZone: 'America/Bogota' }, commission: { amount: 7000, currency: 'COP' } };
     const handler = new ListGoalkeeperWithdrawalsQueryHandler({
       goalkeeperProfileRepository: h.goalkeeperProfileRepository,
       incidents: h.incidents,

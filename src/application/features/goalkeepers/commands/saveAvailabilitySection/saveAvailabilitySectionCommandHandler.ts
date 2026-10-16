@@ -1,7 +1,7 @@
 import type { ICommandHandler } from '../../../../common/mediator/types.js';
 import type { IIdGenerator } from '../../../auth/common/ports.js';
 import type { IGoalkeeperRegistrationRepository } from '../../common/ports.js';
-import type { ICityRepository } from '../../../locations/common/ports.js';
+import type { IMarketRepository } from '../../../markets/common/ports.js';
 import type { IZoneRepository } from '../../../zones/common/ports.js';
 import { validateAvailabilitySelection } from '../../common/validateAvailabilitySelection.js';
 import { toGoalkeeperRegistrationResponse } from '../../common/goalkeeperRegistrationResponse.js';
@@ -13,7 +13,7 @@ export class SaveAvailabilitySectionCommandHandler
 {
   constructor(
     private readonly goalkeeperRegistrationRepository: IGoalkeeperRegistrationRepository,
-    private readonly cityRepository: ICityRepository,
+    private readonly marketRepository: IMarketRepository,
     private readonly zoneRepository: IZoneRepository,
     private readonly idGenerator: IIdGenerator,
   ) {}
@@ -25,14 +25,14 @@ export class SaveAvailabilitySectionCommandHandler
     }
 
     const validation = await validateAvailabilitySelection(
-      this.cityRepository,
+      this.marketRepository,
       this.zoneRepository,
-      command.cityId,
+      command.marketId,
       command.zoneIds,
     );
     if (!validation.valid) {
-      return validation.outcome === 'invalid_city'
-        ? { outcome: 'invalid_city' }
+      return validation.outcome === 'invalid_market'
+        ? { outcome: 'invalid_market' }
         : { outcome: 'invalid_zones', invalidZoneIds: validation.invalidZoneIds };
     }
     const { zoneIds } = validation;
@@ -42,7 +42,7 @@ export class SaveAvailabilitySectionCommandHandler
       registration = GoalkeeperRegistration.createEmpty(this.idGenerator.newId(), command.userId);
     }
 
-    registration.saveAvailability({ cityId: command.cityId, zoneIds });
+    registration.saveAvailability({ marketId: command.marketId, zoneIds });
 
     if (isNew) {
       await this.goalkeeperRegistrationRepository.add(registration);

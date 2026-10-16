@@ -1,3 +1,4 @@
+import { testMarket } from '../../../../../fakes/fakeMarketRepository.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { CommissionSetting } from '../../../../../../src/domain/operatingBalance/commissionSetting.js';
 import { RentalRate } from '../../../../../../src/domain/pricing/rentalRate.js';
@@ -31,7 +32,7 @@ describe('GetPricingPreviewQuery (admin spec 004, US4)', () => {
       outcome: 'ok',
       preview: {
         zone: { id: 'zone-cali-norte', name: 'Norte', active: true },
-        city: { id: 'city-cali', name: 'Cali' },
+        market: { id: 'city-cali', name: 'Cali' },
         country: { id: 'country-co', name: 'Colombia' },
         timeZone: 'America/Bogota',
         startsAt: '2026-09-21T14:00:00-05:00',
@@ -47,20 +48,20 @@ describe('GetPricingPreviewQuery (admin spec 004, US4)', () => {
         rules: {
           bookingWindowDays: { value: 2, origin: 'country' },
           minNoticeMinutes: { value: 30, origin: 'country' },
-          freeCancellationMinutes: { value: 60, origin: 'default' },
-          travelBufferMinutes: { value: 30, origin: 'default' },
+          freeCancellationMinutes: { value: 60, origin: 'platform' },
+          travelBufferMinutes: { value: 30, origin: 'platform' },
         },
       },
     });
   });
 
   it('uses the most specific tier and level, and the general rate for "any"', async () => {
-    world.rentalRateRepository.seed(new RentalRate({ id: 'f11', scope: 'city', refId: 'city-cali', durationMinutes: 60, amount: 50000, modality: 'futbol_11' }));
+    world.rentalRateRepository.seed(new RentalRate({ id: 'f11', scope: 'market', refId: 'city-cali', durationMinutes: 60, amount: 50000, modality: 'futbol_11' }));
     world.commissionSettingRepository.seed(new CommissionSetting({ id: 'c-sur', scope: 'zone', refId: 'zone-cali-sur', amount: 9000 }));
     const sur = await preview({ zoneId: 'zone-cali-sur' });
     const any = await preview({ zoneId: 'zone-cali-sur', modality: 'any' });
     expect(sur).toMatchObject({ preview: { rate: { amount: 45000, origin: { scope: 'zone' } }, commission: { amount: 9000, origin: { scope: 'zone', name: 'Sur' } } } });
-    expect((await preview({ zoneId: 'zone-cali-centro' }))).toMatchObject({ preview: { rate: { amount: 50000, origin: { scope: 'city', name: 'Cali' }, tier: { modality: 'futbol_11', level: null } } } });
+    expect((await preview({ zoneId: 'zone-cali-centro' }))).toMatchObject({ preview: { rate: { amount: 50000, origin: { scope: 'market', name: 'Cali' }, tier: { modality: 'futbol_11', level: null } } } });
     expect(any).toMatchObject({ preview: { rate: { amount: 45000, tier: { modality: null } } } });
   });
 
@@ -81,7 +82,7 @@ describe('GetPricingPreviewQuery (admin spec 004, US4)', () => {
   });
 
   it('marks an inactive zone, and a duration with no rate', async () => {
-    world.zoneRepository.seed(new Zone({ id: 'zone-off', cityId: 'city-cali', name: 'Apagada', slug: 'off', geometry: { type: 'Polygon', coordinates: [] }, active: false, displayOrder: 9 }));
+    world.zoneRepository.seed(new Zone({ id: 'zone-off', marketId: 'city-cali', name: 'Apagada', slug: 'off', geometry: { type: 'Polygon', coordinates: [] }, active: false, displayOrder: 9 }));
     world.rentalRateRepository.clear();
     expect(await preview({ zoneId: 'zone-off' })).toMatchObject({ preview: { quotable: { ok: false, outcome: 'zone_inactive' }, zone: { active: false } } });
     expect(await preview()).toMatchObject({ preview: { rate: null, quotable: { ok: false, outcome: 'rate_not_configured', target: { screen: 'rentalRates', id: 'city-cali' } } } });
@@ -125,15 +126,8 @@ describe('GetPricingPreviewQuery — every reason a quote stops, with its screen
     expect(result).toMatchObject({ preview: { vat: { rateBps: 0, amount: 0 }, totalForGoalkeeper: 7000 } });
   });
 
-  it('refuses a zone whose city has no time zone, and a time that is not in it', async () => {
-    const { City } = await import('../../../../../../src/domain/locations/city.js');
-    world.cityRepository.seed(new City({ id: 'city-cali', name: 'Cali', regionId: 'region-valle', zoneCityId: null, timeZone: null }));
-    expect(await preview()).toEqual({ outcome: 'time_zone_not_configured', cityId: 'city-cali' });
-  });
-
   it('refuses a start the time zone skips', async () => {
-    const { City } = await import('../../../../../../src/domain/locations/city.js');
-    world.cityRepository.seed(new City({ id: 'city-cali', name: 'Cali', regionId: 'region-valle', zoneCityId: null, timeZone: 'America/New_York' }));
+    world.marketRepository.seed(testMarket({ id: 'city-cali', name: 'Cali', countryId: 'country-co', timeZone: 'America/New_York' }));
     expect(await preview({ startsAtLocal: '2026-03-08T02:30' })).toEqual({ outcome: 'invalid', fieldErrors: { startsAtLocal: 'nonexistent_local_time' } });
     expect(await preview({ startsAtLocal: '2026-03-09T02:30', quoteFromLocal: '2026-03-08T02:30' })).toEqual({ outcome: 'invalid', fieldErrors: { quoteFromLocal: 'nonexistent_local_time' } });
   });

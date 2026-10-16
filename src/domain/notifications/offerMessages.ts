@@ -24,7 +24,7 @@ export function offersChangedMessage(requestId: string): PushMessage {
 
 export interface OfferMatch {
   zoneName: string | null;
-  cityName: string | null;
+  marketName: string | null;
   startsAt: Date;
   timeZone: string;
   durationMinutes: number;
@@ -36,10 +36,10 @@ export interface OfferMatch {
 
 /**
  * Title "Partido disponible · Fútbol 11"; body "Bello · dom 4 oct, 3:00 p. m. · 90 min ·
- * Grama sintética · Torneo", in the match's city time zone. The inbox keeps the same text.
+ * Grama sintética · Torneo", in the market time zone. The inbox keeps the same text.
  */
 export function singleOfferMessage(match: OfferMatch): PushMessage {
-  const place = match.zoneName ?? match.cityName ?? 'tu zona';
+  const place = match.zoneName ?? match.marketName ?? 'tu zona';
   const { format } = match;
   const details = format ? ` · ${format.surfaceName} · ${LEVEL_LABELS[format.level]}` : '';
   return {

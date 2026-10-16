@@ -1,9 +1,12 @@
 import type { Db, Document } from 'mongodb';
 import type { IFutureBookingsProbe, IReferenceUsage, UsageReason } from '../../../application/features/geography/common/ports.js';
+import type { IMarketUsage, MarketUsage, MarketUsageKind } from '../../../application/features/markets/common/marketUsage.js';
 import { BOOKINGS_COLLECTION } from './bookingRepository.js';
 import { GOALKEEPER_REQUESTS_COLLECTION } from './goalkeeperRequestRepository.js';
 import { QUOTES_COLLECTION } from './quoteRepository.js';
 import { DEPOSITS_COLLECTION } from './depositRepository.js';
+import { INVOICING_DOCUMENTS_COLLECTION } from './invoicingDocumentRepository.js';
+import { MARKETS_COLLECTION } from './marketRepository.js';
 
 /** One place to look: a collection and the filter that means "points at it". */
 type Check = readonly [collection: string, filter: Document];
@@ -13,23 +16,19 @@ type Check = readonly [collection: string, filter: Document];
  * store (admin spec 003, research §8–§9). One `findOne` per collection, `_id` only, in order:
  * the first use found is the reason. Deletes are rare, so unindexed fields are acceptable.
  */
-export class MongoReferenceUsage implements IReferenceUsage, IFutureBookingsProbe {
+export class MongoReferenceUsage implements IReferenceUsage, IFutureBookingsProbe, IMarketUsage {
   constructor(private readonly db: Db) {}
 
   async regionUsage(regionId: string): Promise<UsageReason | null> {
     return (await this.any([['cities', { regionId }]])) ? 'region_has_cities' : null;
   }
 
+  /** A municipality is only billing data (spec 031): it is in use when a goalkeeper lives there. */
   async cityUsage(cityId: string): Promise<UsageReason | null> {
-    if (await this.any([['zones', { cityId }]])) return 'city_has_zones';
-    if (await this.any([['cities', { zoneCityId: cityId }]])) return 'city_is_anchor';
     const inUse = await this.any([
-      ['goalkeeperProfiles', { cityId }],
-      ['goalkeeperRegistrations', { 'availability.cityId': cityId }],
-      [GOALKEEPER_REQUESTS_COLLECTION, { 'match.cityId': cityId }],
-      ['rentalRates', { scope: 'city', refId: cityId }],
-      ['bookingSettings', { scope: 'city', refId: cityId }],
-      ['commissionSettings', { scope: 'city', refId: cityId }],
+      ['goalkeeperProfiles', { 'billing.cityId': cityId }],
+      ['goalkeeperRegistrations', { 'billing.cityId': cityId }],
+      [INVOICING_DOCUMENTS_COLLECTION, { 'buyer.cityId': cityId }],
     ]);
     return inUse ? 'city_in_use' : null;
   }
@@ -86,24 +85,62 @@ export class MongoReferenceUsage implements IReferenceUsage, IFutureBookingsProb
   }
 
   async countryOperates(countryId: string): Promise<boolean> {
-    const [deposits, regionIds] = await Promise.all([
+    const [deposits, marketIds] = await Promise.all([
       this.any([[DEPOSITS_COLLECTION, { countryId }]]),
-      this.db.collection('regions').distinct('_id', { countryId }).then((ids) => ids.map(String)),
+      this.db.collection(MARKETS_COLLECTION).distinct('_id', { countryId }).then((ids) => ids.map(String)),
     ]);
     if (deposits) return true;
-    if (regionIds.length === 0) return false;
-    const cityIds = (await this.db.collection('cities').distinct('_id', { regionId: { $in: regionIds } })).map(String);
-    if (cityIds.length === 0) return false;
+    if (marketIds.length === 0) return false;
     return this.any([
-      ['goalkeeperProfiles', { cityId: { $in: cityIds } }],
-      [GOALKEEPER_REQUESTS_COLLECTION, { 'match.cityId': { $in: cityIds } }],
+      ['goalkeeperProfiles', { marketId: { $in: marketIds } }],
+      [GOALKEEPER_REQUESTS_COLLECTION, { 'match.marketId': { $in: marketIds } }],
     ]);
   }
 
-  async hasFutureRequestsInArea(anchorCityId: string, now: Date): Promise<boolean> {
-    const zoneIds = (await this.db.collection('zones').distinct('_id', { cityId: anchorCityId })).map(String);
+  async hasFutureRequestsInArea(marketId: string, now: Date): Promise<boolean> {
+    const zoneIds = (await this.db.collection('zones').distinct('_id', { marketId })).map(String);
     if (zoneIds.length === 0) return false;
     return this.any([[GOALKEEPER_REQUESTS_COLLECTION, { zoneId: { $in: zoneIds }, active: true, startsAt: { $gt: now } }]]);
+  }
+
+  /**
+   * What points at a market, kind by kind in the order of data-model §12; the first kind with
+   * records is the answer. Bookings carry the zone, not the market, so they count by its zones.
+   */
+  async marketUsage(marketId: string): Promise<MarketUsage | null> {
+    const scoped = { scope: 'market', refId: marketId };
+    const byMarket = { marketId };
+    const zoneIds = (await this.db.collection('zones').distinct('_id', byMarket)).map(String);
+    const groups: [MarketUsageKind, Check[]][] = [
+      ['zones', [['zones', byMarket]]],
+      [
+        'settings',
+        ['bookingSettings', 'rentalRates', 'commissionSettings', 'unverifiedDiscounts', 'paymentGatewaySettings'].map((name) => [name, scoped] as const),
+      ],
+      [
+        'goalkeepers',
+        [
+          ['goalkeeperRegistrations', { 'availability.marketId': marketId }],
+          ['goalkeeperProfiles', byMarket],
+        ],
+      ],
+      [
+        'bookings',
+        [
+          [QUOTES_COLLECTION, { 'match.marketId': marketId }],
+          [GOALKEEPER_REQUESTS_COLLECTION, { 'match.marketId': marketId }],
+          ...(zoneIds.length > 0 ? [[BOOKINGS_COLLECTION, { zoneId: { $in: zoneIds } }] as const] : []),
+        ],
+      ],
+      ['records', ['balanceMovements', DEPOSITS_COLLECTION, INVOICING_DOCUMENTS_COLLECTION, 'goalkeeperIncidents'].map((name) => [name, byMarket] as const)],
+      ['staffScopes', [['staffMembers', { scopes: { $elemMatch: { kind: 'market', id: marketId } } }]]],
+    ];
+    for (const [kind, checks] of groups) {
+      const counts = await Promise.all(checks.map(([collection, filter]) => this.db.collection(collection).countDocuments(filter)));
+      const count = counts.reduce((sum, value) => sum + value, 0);
+      if (count > 0) return { kind, count };
+    }
+    return null;
   }
 
   /** All the checks at once: against a remote database, waiting for each in turn is the slow part. */

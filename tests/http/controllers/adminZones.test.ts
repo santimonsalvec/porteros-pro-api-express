@@ -7,24 +7,22 @@ const square = (lng: number, lat: number) => ({
   type: 'Polygon',
   coordinates: [[[lng, lat], [lng + 0.02, lat], [lng + 0.02, lat + 0.02], [lng, lat + 0.02], [lng, lat]]],
 });
-const LAURELES = { cityId: 'city-medellin', name: 'Laureles', slug: 'laureles', geometry: square(-75.6, 6.24), active: true, displayOrder: 3 };
+const LAURELES = { marketId: 'city-medellin', name: 'Laureles', slug: 'laureles', geometry: square(-75.6, 6.24), active: true, displayOrder: 3 };
 
 describe('/admin/zones (admin spec 003, US2)', () => {
-  it("lists an anchor city's zones, and names the anchor of a satellite", async () => {
+  it("lists a market's zones, and answers an unknown one", async () => {
     const context = await buildTestApp();
     const { reader } = await geographyStaff(context);
 
-    const listed = await reader.get('/admin/zones?cityId=city-medellin');
-    const satellite = await reader.get('/admin/zones?cityId=city-envigado');
-    const missing = await reader.get('/admin/zones?cityId=nope');
+    const listed = await reader.get('/admin/zones?marketId=city-medellin');
+    const missing = await reader.get('/admin/zones?marketId=nope');
     const noCity = await reader.get('/admin/zones');
 
     expect(listed.status).toBe(200);
-    expect(listed.body.city).toEqual({ id: 'city-medellin', name: 'Medellín' });
+    expect(listed.body.market).toEqual({ id: 'city-medellin', name: 'Medellín' });
     expect(listed.body.items.map((z: { id: string }) => z.id)).toEqual(['zone-bello', 'zone-copacabana']);
     expect(listed.body.items[0].geometry).toBeUndefined();
-    expect([satellite.status, satellite.body.error, satellite.body.anchorCity]).toEqual([409, 'zone_city_not_anchor', { id: 'city-medellin', name: 'Medellín' }]);
-    expect([missing.status, missing.body.error]).toEqual([404, 'city_not_found']);
+    expect([missing.status, missing.body.error]).toEqual([404, 'market_not_found']);
     expect(noCity.status).toBe(400);
   });
 
@@ -34,11 +32,10 @@ describe('/admin/zones (admin spec 003, US2)', () => {
     await editor.post('/admin/zones', LAURELES);
     const entries = context.adminAuditLog.entries.length;
 
-    const overlap = await editor.post('/admin/zones/validate', { cityId: 'city-medellin', geometry: square(-75.59, 6.24) });
-    const broken = await editor.post('/admin/zones/validate', { cityId: 'city-medellin', geometry: { type: 'Polygon', coordinates: [[[0, 0], [1, 1], [0, 0]]] } });
+    const overlap = await editor.post('/admin/zones/validate', { marketId: 'city-medellin', geometry: square(-75.59, 6.24) });
+    const broken = await editor.post('/admin/zones/validate', { marketId: 'city-medellin', geometry: { type: 'Polygon', coordinates: [[[0, 0], [1, 1], [0, 0]]] } });
 
-    expect(overlap.status).toBe(200);
-    expect(overlap.body).toMatchObject({ errors: [], warnings: [{ code: 'overlaps_zone', data: { zoneName: 'Laureles' } }] });
+    expect([overlap.status, overlap.body.error, overlap.body.conflicts[0].zoneName]).toEqual([422, 'zone_conflict', 'Laureles']);
     expect(broken.body.errors.map((e: { code: string }) => e.code)).toEqual(['ring_too_short']);
     expect(context.adminAuditLog.entries.length).toBe(entries);
   });
@@ -77,11 +74,10 @@ describe('/admin/zones (admin spec 003, US2)', () => {
     const broken = await editor.post('/admin/zones', { ...LAURELES, slug: 'otra', geometry: { type: 'Polygon', coordinates: [[[0, 0], [1, 0], [1, 1], [0.5, -1], [0, 0]]] } });
     const taken = await editor.post('/admin/zones', { ...LAURELES, geometry: square(-75.4, 6.24) });
     const held = await editor.post('/admin/zones', { ...LAURELES, slug: 'pisada', geometry: square(-75.59, 6.24) });
-    const satellite = await editor.post('/admin/zones', { ...LAURELES, cityId: 'city-envigado', slug: 'en-satelite' });
     const noReason = await editor.patch(`/admin/zones/${id}`, { revision: 0, active: false });
     const redrawNoReason = await editor.patch(`/admin/zones/${id}`, { revision: 0, geometry: square(-75.601, 6.24) });
     const stale = await editor.patch(`/admin/zones/${id}`, { revision: 9, name: 'Laureles' });
-    const moved = await editor.patch(`/admin/zones/${id}`, { revision: 0, cityId: 'city-bogota' });
+    const moved = await editor.patch(`/admin/zones/${id}`, { revision: 0, marketId: 'city-bogota' });
     const inUse = await editor.post(`/admin/zones/${id}/delete`, { reason: 'Limpieza' });
 
     expect([broken.status, broken.body.error, Object.keys(broken.body.fieldErrors), broken.body.geometryErrors[0].code]).toEqual([
@@ -91,12 +87,11 @@ describe('/admin/zones (admin spec 003, US2)', () => {
       'self_intersection',
     ]);
     expect([taken.status, taken.body.error, Object.keys(taken.body.fieldErrors ?? {})]).toEqual([409, 'zone_slug_taken', ['slug']]);
-    expect([held.status, held.body.error, held.body.warnings[0].code]).toEqual([409, 'warnings_unacknowledged', 'overlaps_zone']);
-    expect([satellite.status, satellite.body.error]).toEqual([409, 'zone_city_not_anchor']);
+    expect([held.status, held.body.error]).toEqual([422, 'zone_conflict']);
     expect([noReason.status, Object.keys(noReason.body.fieldErrors)]).toEqual([400, ['reason']]);
     expect([redrawNoReason.status, Object.keys(redrawNoReason.body.fieldErrors)]).toEqual([400, ['reason']]);
     expect([stale.status, stale.body.error]).toEqual([409, 'stale_revision']);
-    expect(moved.status).toBe(400);
+    expect([moved.status, moved.body.error]).toEqual([409, 'zone_market_immutable']);
     expect([inUse.status, inUse.body.error]).toEqual([409, 'zone_in_use']);
   });
 
@@ -106,9 +101,9 @@ describe('/admin/zones (admin spec 003, US2)', () => {
     const client = await signInClient(context, 'sub-0001');
 
     expect((await reader.post('/admin/zones', LAURELES)).status).toBe(403);
-    expect((await reader.post('/admin/zones/validate', { cityId: 'city-medellin', geometry: LAURELES.geometry })).status).toBe(403);
+    expect((await reader.post('/admin/zones/validate', { marketId: 'city-medellin', geometry: LAURELES.geometry })).status).toBe(403);
     expect((await reader.patch('/admin/zones/zone-bello', { revision: 0, name: 'Bello' })).status).toBe(403);
-    expect((await as(context, client.token).get('/admin/zones?cityId=city-medellin')).status).toBe(401);
+    expect((await as(context, client.token).get('/admin/zones?marketId=city-medellin')).status).toBe(401);
   });
 
   it("gives the map the city's polygons apart, simplified, with whether each is valid", async () => {
@@ -116,8 +111,7 @@ describe('/admin/zones (admin spec 003, US2)', () => {
     const { reader, editor } = await geographyStaff(context);
     await editor.post('/admin/zones', LAURELES);
 
-    const shapes = await reader.get('/admin/zones/shapes?cityId=city-medellin');
-    const satellite = await reader.get('/admin/zones/shapes?cityId=city-envigado');
+    const shapes = await reader.get('/admin/zones/shapes?marketId=city-medellin');
 
     expect(shapes.status).toBe(200);
     expect(shapes.body.items.map((z: { name: string; geometryValid: boolean }) => [z.name, z.geometryValid])).toEqual([
@@ -125,7 +119,6 @@ describe('/admin/zones (admin spec 003, US2)', () => {
       ['Copacabana', false],
       ['Laureles', true],
     ]);
-    expect([satellite.status, satellite.body.error]).toEqual([409, 'zone_city_not_anchor']);
   });
 });
 

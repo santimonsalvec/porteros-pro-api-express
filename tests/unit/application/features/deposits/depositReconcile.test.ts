@@ -124,7 +124,7 @@ describe('DepositReconcileJob', () => {
     const first = (await harness.start('gk-1')).deposit;
     const second = (await harness.start('gk-2')).deposit;
     // gk-1's operating balance can no longer be resolved: its profile moved to a city without a country.
-    harness.operatingBalance.profiles.seed(buildGoalkeeperProfile('gk-1', { cityId: 'city-orphan' }));
+    harness.operatingBalance.profiles.seed(buildGoalkeeperProfile('gk-1', { marketId: 'city-orphan' }));
     harness.gateway.answer(harness.answer(first.reference, 'APPROVED'), harness.answer(second.reference, 'APPROVED'));
 
     expect(await runAt(harness, first.createdAt, 15)).toBe('2 checked, 1 applied, 0 expired, 1 failed');

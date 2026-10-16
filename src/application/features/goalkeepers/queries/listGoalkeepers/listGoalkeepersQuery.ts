@@ -6,7 +6,11 @@ import type { GoalkeeperRow } from '../../common/adminViews.js';
 
 export interface ListGoalkeepersCriteria {
   q?: string;
-  cityId?: string;
+  /** Spec 031: the country of X-Scope; `marketId` narrows it. */
+  countryId?: string;
+  marketId?: string;
+  /** Spec 031: the markets a member who holds only some may see. */
+  marketIds?: readonly string[];
   zoneId?: string;
   suspended?: boolean;
   availableForOffers?: boolean;

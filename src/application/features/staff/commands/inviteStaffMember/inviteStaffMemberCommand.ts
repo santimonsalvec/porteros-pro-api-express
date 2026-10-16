@@ -1,9 +1,10 @@
 import { ICommand } from '../../../../common/mediator/types.js';
+import { PLATFORM_SCOPE, type StaffScope } from '../../../../../domain/staff/staffScope.js';
 import type { StaffActor } from '../../../../../domain/staff/staffActor.js';
 
 export type InviteStaffMemberResult =
   | { outcome: 'invited' | 'reinvited'; staffId: string }
-  | { outcome: 'already_member' | 'role_not_found' | 'invalid_email' | 'owner_requires_owner' };
+  | { outcome: 'already_member' | 'role_not_found' | 'invalid_email' | 'owner_requires_owner' | 'scopes_required' | 'scope_not_found' };
 
 /**
  * Invites an email to the admin web with a role; it activates on the first Google sign-in with
@@ -15,6 +16,8 @@ export class InviteStaffMemberCommand extends ICommand<InviteStaffMemberResult> 
     readonly roleId: string,
     /** Who invites: only an owner (or a script) may invite to the owner role. */
     readonly actor: StaffActor,
+    /** Where the member may work (spec 031); the whole platform when absent (scripts). */
+    readonly scopes: readonly StaffScope[] = [PLATFORM_SCOPE],
   ) {
     super();
   }

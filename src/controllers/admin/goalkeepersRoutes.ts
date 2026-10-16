@@ -5,6 +5,7 @@ import { GetGoalkeeperAdminQuery } from '../../application/features/goalkeepers/
 import { GetGoalkeeperDocumentQuery } from '../../application/features/goalkeepers/queries/getGoalkeeperDocument/getGoalkeeperDocumentQuery.js';
 import { CorrectGoalkeeperDocumentCommand } from '../../application/features/goalkeepers/commands/correctGoalkeeperDocument/correctGoalkeeperDocumentCommand.js';
 import { ApiError } from '../apiError.js';
+import { canSeeMarket, countryScopeCriteria } from './scopeCriteria.js';
 import { ListGoalkeeperRegistrationsQuery } from '../../application/features/goalkeepers/queries/listGoalkeeperRegistrations/listGoalkeeperRegistrationsQuery.js';
 import { GetGoalkeeperRegistrationAdminQuery } from '../../application/features/goalkeepers/queries/getGoalkeeperRegistrationAdmin/getGoalkeeperRegistrationAdminQuery.js';
 import { correctDocumentRequestSchema, listGoalkeepersQuerySchema, listRegistrationsQuerySchema } from '../requests/goalkeepers/goalkeepersAdminRequests.js';
@@ -18,7 +19,8 @@ import { conflict, invalidFields, notFound, parse, stale, type Route } from './g
  */
 export function registerGoalkeeperAdminRoutes(route: Route, mediator: ISender): void {
   route('get', '/goalkeepers', 'goalkeepers.read', async (req, res) => {
-    const result = await mediator.send(new ListGoalkeepersQuery(parse(listGoalkeepersQuerySchema, req.query)));
+    const { marketId, ...criteria } = parse(listGoalkeepersQuerySchema, req.query);
+    const result = await mediator.send(new ListGoalkeepersQuery({ ...criteria, ...countryScopeCriteria(req, marketId) }));
     if (result.outcome === 'search_too_broad') {
       throw new ApiError(400, 'search_too_broad', 'The search finds too many users; narrow it down.');
     }
@@ -27,7 +29,7 @@ export function registerGoalkeeperAdminRoutes(route: Route, mediator: ISender): 
 
   route('get', '/goalkeepers/:userId', 'goalkeepers.read', async (req, res) => {
     const result = await mediator.send(new GetGoalkeeperAdminQuery(userIdOf(req)));
-    if (result.outcome === 'not_a_goalkeeper') throw goalkeeperNotFound();
+    if (result.outcome === 'not_a_goalkeeper' || !canSeeMarket(req, result.goalkeeper.market?.id)) throw goalkeeperNotFound();
     res.status(200).json(result.goalkeeper);
   });
 
@@ -83,7 +85,8 @@ export function registerGoalkeeperAdminRoutes(route: Route, mediator: ISender): 
   );
 
   route('get', '/goalkeeper-registrations', 'goalkeepers.registrations.review', async (req, res) => {
-    res.status(200).json(await mediator.send(new ListGoalkeeperRegistrationsQuery(parse(listRegistrationsQuerySchema, req.query))));
+    const { marketId, ...criteria } = parse(listRegistrationsQuerySchema, req.query);
+    res.status(200).json(await mediator.send(new ListGoalkeeperRegistrationsQuery({ ...criteria, ...countryScopeCriteria(req, marketId) })));
   });
 
   route('get', '/goalkeeper-registrations/:userId', 'goalkeepers.registrations.review', async (req, res) => {

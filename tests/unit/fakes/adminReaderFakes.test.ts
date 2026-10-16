@@ -69,8 +69,8 @@ describe('the admin reader fakes (admin spec 005)', () => {
 
   it('the goalkeeper reader filters by every criterion, and averages, counts and lists', async () => {
     const profiles = new FakeGoalkeeperProfileRepository();
-    profiles.seed(buildGoalkeeperProfile('g1', { cityId: 'med', zoneIds: ['z1'], suspendedUntil: new Date('2026-10-20'), availableForOffers: false }));
-    profiles.seed(buildGoalkeeperProfile('g2', { cityId: 'cali', zoneIds: ['z2'] }));
+    profiles.seed(buildGoalkeeperProfile('g1', { marketId: 'med', zoneIds: ['z1'], suspendedUntil: new Date('2026-10-20'), availableForOffers: false }));
+    profiles.seed(buildGoalkeeperProfile('g2', { marketId: 'cali', zoneIds: ['z2'] }));
     const operatingBalances = { operatingBalances: () => [{ goalkeeperId: 'g2', balance: 50000, currency: 'COP' }] } as unknown as FakeOperatingBalanceStore;
     const bookings = new FakeBookingRepository();
     bookings.seed(buildBooking({ id: 'b2', goalkeeperId: 'g1', status: 'assigned', assignedAt: NOW, startsAt: new Date('2026-10-14T00:00:00.000Z') }));
@@ -84,7 +84,7 @@ describe('the admin reader fakes (admin spec 005)', () => {
 
     expect(await ids({})).toEqual(['g1', 'g2']);
     expect(await ids({ userIds: ['g2'] })).toEqual(['g2']);
-    expect(await ids({ cityId: 'med' })).toEqual(['g1']);
+    expect(await ids({ marketId: 'med' })).toEqual(['g1']);
     expect(await ids({ zoneId: 'z2' })).toEqual(['g2']);
     expect(await ids({ suspended: true })).toEqual(['g1']);
     expect(await ids({ availableForOffers: true })).toEqual(['g2']);

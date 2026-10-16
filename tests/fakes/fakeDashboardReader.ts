@@ -36,7 +36,7 @@ export class FakeDashboardReader implements IDashboardReader {
   readonly contexts: DashboardReadContext[] = [];
   goalkeeperIds: string[] = [];
 
-  async goalkeeperIdsInCities(): Promise<string[]> {
+  async goalkeeperIdsInMarkets(): Promise<string[]> {
     return this.goalkeeperIds;
   }
 

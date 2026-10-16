@@ -7,7 +7,7 @@ import { signInStaff } from '../adminTestHelpers.js';
 const APP_ROUTES: ['get' | 'post', string][] = [
   ['get', '/auth/me'],
   ['get', '/clients/me'],
-  ['get', '/zones?cityId=city-cali'],
+  ['get', '/zones?marketId=city-cali'],
   ['get', '/locations/cities?countryCode=CO'],
   ['get', '/notifications'],
   ['post', '/devices'],

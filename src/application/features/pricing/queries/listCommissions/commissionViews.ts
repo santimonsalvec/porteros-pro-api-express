@@ -13,7 +13,7 @@ export async function commissionViews(
   deps: CommissionViewDependencies,
   records: readonly CommissionRecord[],
 ): Promise<{ views: CommissionView[]; geography: PricingGeography }> {
-  const geography = await PricingGeography.load(deps, records.filter((record) => record.scope === 'city').map((record) => record.refId));
+  const geography = await PricingGeography.load(deps);
   const targets = records.map((record) => geography.target(record.scope, record.refId));
   const vat = await vatRatesOf(deps.taxSettings, targets.map((target) => target.countryId));
   const views = records.map((record, index) => {

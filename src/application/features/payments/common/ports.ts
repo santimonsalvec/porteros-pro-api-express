@@ -1,3 +1,4 @@
+import type { GatewayScope } from '../../../../domain/payments/gatewaySettings.js';
 import type { GatewayEnvironment, GatewayName, PaymentGatewaySettings } from '../../../../domain/payments/gatewaySettings.js';
 import type { Deposit, DepositCheck, DepositStatus } from '../../../../domain/deposits/deposit.js';
 import type { LedgerOwner } from '../../operatingBalance/common/operatingBalanceLedger.js';
@@ -61,6 +62,12 @@ export interface IPaymentSecrets {
 
 export interface IPaymentGatewaySettingsRepository {
   getByCountry(countryId: string): Promise<PaymentGatewaySettings | null>;
+  /** A country's settings or a market's override (spec 031). */
+  getFor(scope: GatewayScope, refId: string): Promise<PaymentGatewaySettings | null>;
+  /** The country's settings and its markets' overrides. */
+  listForCountry(countryId: string): Promise<PaymentGatewaySettings[]>;
+  /** Removes a market's override, so it uses its country's again. */
+  deleteMarketOverride(marketId: string): Promise<'deleted' | 'not_found'>;
   /** A country's first settings; `stale` when it already has some (admin spec 007, FR-025). */
   create(settings: PaymentGatewaySettings): Promise<'saved' | 'stale'>;
   /** Writes only at `expectedRevision`; `stale` when someone else saved first. */

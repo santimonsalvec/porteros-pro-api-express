@@ -26,6 +26,8 @@ const BUYER: ProviderBuyer = {
   lastName: 'Portera',
   email: 'ana@example.com',
   cityId: 'city-medellin',
+  address: 'Calle 10 # 20-30',
+  addressComplement: 'Apto 301',
   cityName: 'Medellín',
   stateCode: '05',
   cityCode: '05001',
@@ -39,6 +41,7 @@ function doc(overrides: Partial<Parameters<typeof InvoicingDocument.create>[0]> 
     concept: 'commission',
     goalkeeperId: 'gk-1',
     countryId: 'country-co',
+    marketId: 'city-cali',
     sourceEventId: 'e-1',
     sourceMovementId: 'm-1',
     vatMovementId: 'm-2',
@@ -92,7 +95,7 @@ describe('SiigoInvoicingProvider', () => {
       id_type: '13',
       identification: '1020304050',
       name: ['Ana', 'Portera'],
-      address: { address: 'Medellín', city: { state_code: '05', city_code: '05001' } },
+      address: { address: 'Calle 10 # 20-30, Apto 301', city: { state_code: '05', city_code: '05001' } },
       contacts: [{ email: 'ana@example.com' }],
     });
     const invoice = calls[3]!;
@@ -108,6 +111,14 @@ describe('SiigoInvoicingProvider', () => {
       stamp: { send: true },
       mail: { send: true },
     });
+  });
+
+  it("names the city as the address of a document issued before the billing data existed (spec 031)", async () => {
+    const { fetchFn, calls } = siigo({ ...AUTH, ...NO_CUSTOMER, ...CREATE_CUSTOMER, 'POST /v1/invoices': () => ({ status: 201, body: accepted }) });
+
+    await new SiigoInvoicingProvider('https://api.siigo.com', fetchFn, () => NOW).createInvoice(doc(), { ...BUYER, address: null, addressComplement: null }, CONTEXT);
+
+    expect(calls[2]!.body).toMatchObject({ address: { address: 'Medellín' } });
   });
 
   it('reuses the token and an existing buyer', async () => {

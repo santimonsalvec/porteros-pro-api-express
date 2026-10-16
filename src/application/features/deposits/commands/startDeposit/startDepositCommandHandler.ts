@@ -40,9 +40,9 @@ export class StartDepositCommandHandler implements ICommandHandler<StartDepositC
   async handle(command: StartDepositCommand): Promise<StartDepositResult> {
     const context = await resolveGoalkeeperOperatingBalanceContext(this.deps.context, command.goalkeeperId);
     if (context.kind === 'not_a_goalkeeper') return { outcome: 'not_a_goalkeeper' };
-    if (context.kind === 'operating_balance_not_configured') return { outcome: 'operating_balance_not_configured', cityId: context.cityId };
+    if (context.kind === 'operating_balance_not_configured') return { outcome: 'operating_balance_not_configured', marketId: context.marketId };
 
-    const settings = await usableSettings(this.deps.settingsRepository, context.countryId, context.currency);
+    const settings = await usableSettings(this.deps.settingsRepository, { countryId: context.countryId, marketId: context.profile.marketId }, context.currency);
     if (!settings) return { outcome: 'deposits_unavailable' };
     if (!settings.amounts.includes(command.amount)) return { outcome: 'invalid_amount', amounts: settings.amounts };
     if (!(await acceptedCurrentTerms(this.deps.termsRepository, command.goalkeeperId, this.deps.settings.termsVersion))) {
@@ -66,6 +66,7 @@ export class StartDepositCommandHandler implements ICommandHandler<StartDepositC
       id: this.deps.idGenerator.newId(),
       goalkeeperId: command.goalkeeperId,
       countryId: context.countryId,
+      marketId: context.profile.marketId,
       gateway: settings.gateway,
       environment: settings.publicConfig.environment,
       amount: command.amount,

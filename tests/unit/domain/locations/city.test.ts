@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { City } from '../../../../src/domain/locations/city.js';
 
-const base = { id: 'med', name: 'Medellín', regionId: 'ant', zoneCityId: null };
+const base = { id: 'med', name: 'Medellín', regionId: 'ant' };
 
 describe('City revision', () => {
   it('defaults to 0 and keeps a stored value', () => {

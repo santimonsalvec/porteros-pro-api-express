@@ -26,7 +26,7 @@ describe('admin price writes reach the quote (admin spec 004)', () => {
 
     const before = await quoteAt(context, client.token, POINTS.caliSur, {});
     const zoneRate = await editor.post('/admin/rental-rates', { scope: 'zone', refId: 'zone-cali-sur', durationMinutes: 90, amount: 60000 });
-    await editor.post('/admin/rental-rates', { scope: 'city', refId: 'city-cali', durationMinutes: 90, modality: 'futbol_11', level: 'competitive', amount: 70000 });
+    await editor.post('/admin/rental-rates', { scope: 'market', refId: 'city-cali', durationMinutes: 90, modality: 'futbol_11', level: 'competitive', amount: 70000 });
     const zone = await quoteAt(context, client.token, POINTS.caliSur, {});
     const futbol11 = await quoteAt(context, client.token, POINTS.caliCentro, { modality: 'futbol_11', level: 'competitive' });
     const general = await quoteAt(context, client.token, POINTS.caliCentro, {});
@@ -44,8 +44,8 @@ describe('admin price writes reach the quote (admin spec 004)', () => {
     const context = await buildTestApp();
     const { editor } = await pricingStaff(context);
     const client = await signInClient(context, 'sub-0403');
-    const cityRate120 = (await editor.get('/admin/rental-rates?cityId=city-cali&durationMinutes=120')).body.items.find(
-      (item: { scope: string }) => item.scope === 'city',
+    const cityRate120 = (await editor.get('/admin/rental-rates?marketId=city-cali&durationMinutes=120')).body.items.find(
+      (item: { scope: string }) => item.scope === 'market',
     );
 
     const before = await quoteAt(context, client.token, POINTS.caliCentro, { durationMinutes: 120 });
@@ -100,6 +100,8 @@ describe('admin booking-rule writes reach the quote (admin spec 004)', () => {
     goalkeeperPenalties: null,
     checkInWindow: null,
     noShowGraceMinutes: null,
+    offerReminderIntervalMinutes: null,
+    offerMaxReminders: null,
   };
 
   it('quotes with the window, notice and surcharge the admin saves', async () => {
@@ -128,13 +130,17 @@ describe('admin booking-rule writes reach the quote (admin spec 004)', () => {
     const { revision } = (await editor.get('/admin/booking-settings/countries/country-co')).body;
     await editor.put('/admin/booking-settings/countries/country-co', { revision, ...COLOMBIA });
 
-    await editor.put('/admin/booking-settings/cities/city-cali', {
+    await editor.put('/admin/booking-settings/markets/city-cali', {
       revision: null,
       bookingWindowDays: 1,
       minNoticeMinutes: null,
       freeCancellationMinutes: null,
       travelBufferMinutes: null,
       leadTimeSurcharge: null,
+      checkInWindow: null,
+      noShowGraceMinutes: null,
+      offerReminderIntervalMinutes: null,
+      offerMaxReminders: null,
     });
     const tomorrow = await quoteAt(context, client.token, POINTS.caliNorte, { startsAt: '2026-09-22T15:00:00' });
     const tooSoon = await quoteAt(context, client.token, POINTS.caliNorte, { startsAt: '2026-09-21T13:30:00' });

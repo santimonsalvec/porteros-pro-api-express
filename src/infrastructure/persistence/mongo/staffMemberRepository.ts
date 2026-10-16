@@ -2,6 +2,7 @@ import type { ClientSession, Collection, Db, Document } from 'mongodb';
 import type { IStaffMemberRepository, StaffMemberListQuery } from '../../../application/features/staff/common/ports.js';
 import { StaffMember, type StaffStatus } from '../../../domain/staff/staffMember.js';
 import { OWNER_ROLE_ID } from '../../../domain/staff/staffRole.js';
+import { readScopes } from '../../../domain/staff/staffScope.js';
 
 export const STAFF_MEMBERS_COLLECTION = 'staffMembers';
 
@@ -15,6 +16,7 @@ function toDocument(member: StaffMember): Document {
     displayName: member.displayName,
     userId: member.userId,
     roleIds: [...member.roleIds],
+    scopes: member.scopes.map((scope) => ({ ...scope })),
     status: member.status,
     invitedBy: member.invitedBy,
     invitedAt: member.invitedAt,
@@ -32,6 +34,7 @@ function fromDocument(doc: Document): StaffMember {
     displayName: (doc.displayName as string | null | undefined) ?? null,
     userId: (doc.userId as string | null | undefined) ?? null,
     roleIds: doc.roleIds as string[],
+    scopes: readScopes(doc.scopes),
     status: doc.status as StaffStatus,
     invitedBy: doc.invitedBy as string,
     invitedAt: new Date(doc.invitedAt as Date),

@@ -5,7 +5,7 @@ import { GetGoalkeeperRegistrationAdminQuery } from '../../../../../../src/appli
 import { GetGoalkeeperRegistrationAdminQueryHandler } from '../../../../../../src/application/features/goalkeepers/queries/getGoalkeeperRegistrationAdmin/getGoalkeeperRegistrationAdminQueryHandler.js';
 import { GoalkeeperRegistration } from '../../../../../../src/domain/goalkeepers/goalkeeperRegistration.js';
 import { User } from '../../../../../../src/domain/users/user.js';
-import type { City } from '../../../../../../src/domain/locations/city.js';
+import type { Market } from '../../../../../../src/domain/markets/market.js';
 import type { Zone } from '../../../../../../src/domain/zones/zone.js';
 import { FakeGoalkeeperRegistrationRepository } from '../../../../../fakes/fakeGoalkeeperRegistrationRepository.js';
 import { FakeUserRepository } from '../../../../../fakes/fakeUserRepository.js';
@@ -30,7 +30,8 @@ describe('registrations in progress (admin spec 005, US7)', () => {
       r.saveIdentification({ documentType: 'CC', documentNumber: '1020304050', issueDate: daysAgo(4000), birthDate: daysAgo(9000) });
       r.identification.documentPhotoAId = 'a';
       r.identification.documentPhotoBId = 'b';
-      r.availability = { cityId: 'med', zoneIds: ['z1'] };
+      r.availability = { marketId: 'med', zoneIds: ['z1'] };
+      r.saveBilling({ cityId: 'env', address: 'Cra 43 # 10-20' });
     }));
     const done = registration('u3', 1);
     done.status = 'active';
@@ -41,8 +42,15 @@ describe('registrations in progress (admin spec 005, US7)', () => {
     deps = {
       registrations,
       users,
-      cities: { getByIds: async (ids) => (ids.includes('med') ? [{ id: 'med', name: 'Medellín' } as City] : []) },
+      markets: {
+        getByIds: async (ids) => (ids.includes('med') ? [{ id: 'med', name: 'Medellín' } as unknown as Market] : []),
+        listByCountry: async () => [{ id: 'med', name: 'Medellín' } as unknown as Market],
+      },
       zones: { getManyByIds: async (ids) => (ids.includes('z1') ? [{ id: 'z1', name: 'El Poblado' } as Zone] : []) },
+      places: {
+        cities: { getById: async (id) => (id === 'env' ? ({ id: 'env', name: 'Envigado', regionId: 'ant' } as never) : null) },
+        regions: { getByIds: async (ids) => (ids.includes('ant') ? [{ id: 'ant', name: 'Antioquia' } as never] : []) },
+      },
       clock: { now: () => NOW },
     };
   });
@@ -50,10 +58,10 @@ describe('registrations in progress (admin spec 005, US7)', () => {
   it('lists the stuck ones first with their step, a summary per step and a page', async () => {
     const result = await new ListGoalkeeperRegistrationsQueryHandler(deps).handle(new ListGoalkeeperRegistrationsQuery({ page: 1, pageSize: 20 }));
 
-    expect(result.summary).toEqual({ identification: 1, physicalData: 1, availability: 0, ready: 0 });
+    expect(result.summary).toEqual({ identification: 1, physicalData: 1, availability: 0, billing: 0, ready: 0 });
     expect(result.items).toEqual([
-      { userId: 'u1', name: 'Camilo D', email: 'camilo@x.co', step: 'identification', completeSections: [], cityName: null, createdAt: expect.any(String), updatedAt: daysAgo(12).toISOString(), idleDays: 12 },
-      expect.objectContaining({ userId: 'u2', name: null, email: null, step: 'physicalData', completeSections: ['identification', 'availability'], cityName: 'Medellín', idleDays: 3 }),
+      { userId: 'u1', name: 'Camilo D', email: 'camilo@x.co', step: 'identification', completeSections: [], marketName: null, createdAt: expect.any(String), updatedAt: daysAgo(12).toISOString(), idleDays: 12 },
+      expect.objectContaining({ userId: 'u2', name: null, email: null, step: 'physicalData', completeSections: ['identification', 'availability', 'billing'], marketName: 'Medellín', idleDays: 3 }),
     ]);
     expect(result).toMatchObject({ page: 1, pageSize: 20, totalItems: 2, totalPages: 1 });
   });
@@ -79,7 +87,8 @@ describe('registrations in progress (admin spec 005, US7)', () => {
         sections: {
           identification: { complete: true, fields: { documentNumber: 'complete' } },
           physicalData: { complete: false, fields: { heightCm: 'missing', weightKg: 'missing' }, values: { heightCm: null, weightKg: null } },
-          availability: { complete: true, city: { id: 'med', name: 'Medellín' }, zones: [{ id: 'z1', name: 'El Poblado' }] },
+          availability: { complete: true, market: { id: 'med', name: 'Medellín' }, zones: [{ id: 'z1', name: 'El Poblado' }] },
+          billing: { complete: true, cityId: 'env', cityName: 'Envigado', stateName: 'Antioquia', address: 'Cra 43 # 10-20', addressComplement: null },
         },
       },
     });

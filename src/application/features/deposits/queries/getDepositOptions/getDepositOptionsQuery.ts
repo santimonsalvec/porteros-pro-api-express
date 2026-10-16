@@ -13,7 +13,7 @@ export type GetDepositOptionsResult =
       options: DepositOption[];
     }
   | { outcome: 'not_a_goalkeeper' }
-  | { outcome: 'operating_balance_not_configured'; cityId: string };
+  | { outcome: 'operating_balance_not_configured'; marketId: string };
 
 /** The amounts a goalkeeper can deposit, each with its cost and net (contracts §1). */
 export class GetDepositOptionsQuery extends IQuery<GetDepositOptionsResult> {

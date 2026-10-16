@@ -1,14 +1,16 @@
+import type { ReadinessResult } from './readiness.js';
 import type { Country } from '../../../../domain/countries/country.js';
 import type { BookingSettings } from '../../../../domain/pricing/bookingSettings.js';
 import type { DocumentType } from '../../../../domain/goalkeepers/documentType.js';
 import type { City } from '../../../../domain/locations/city.js';
+import type { Market } from '../../../../domain/markets/market.js';
 import type { Region } from '../../../../domain/locations/region.js';
 import type { MatchSurface } from '../../../../domain/pricing/matchSurface.js';
 import type { Zone } from '../../../../domain/zones/zone.js';
 
 /**
  * The admin's write side of the reference data (spec 003 of the admin). Separate from the
- * read-only ports the app uses (`ICityRepository`, `IZoneRepository`…), which stay narrow.
+ * read-only ports the app uses (`IMarketRepository`, `IZoneRepository`…), which stay narrow.
  * Every `update` is optimistic: it writes only when the stored `revision` still equals the
  * entity's, and bumps it (research §5).
  */
@@ -50,23 +52,15 @@ export interface IAdminRegionRepository {
 }
 
 export interface CityListQuery extends PageRequest {
-  /** Only cities of these regions (a country is resolved to its regions by the caller). */
+  /** Only municipalities of these regions (a country is resolved to its regions by the caller). */
   regionIds?: string[];
   q?: string;
-  /** `true`: cities that own their zones (`zoneCityId = null`); `false`: satellites. */
-  anchor?: boolean;
-  /** Needs `zoneOwnerIds`: operating = a satellite or a city with zones of its own. */
-  state?: 'operating' | 'available';
-  /** The cities that have at least one zone (any state), from the zones collection. */
-  zoneOwnerIds?: string[];
 }
 
 export interface IAdminCityRepository {
   list(query: CityListQuery): Promise<Found<City>>;
   getById(id: string): Promise<City | null>;
   getByIds(ids: string[]): Promise<City[]>;
-  /** Satellites per anchor id. */
-  countSatellites(anchorIds: string[]): Promise<Map<string, number>>;
   /** Cities per region id. */
   countByRegion(regionIds: string[]): Promise<Map<string, number>>;
   create(city: City): Promise<void>;
@@ -77,7 +71,7 @@ export interface IAdminCityRepository {
 /** A zone without its polygon. */
 export interface ZoneSummary {
   id: string;
-  cityId: string;
+  marketId: string;
   name: string;
   slug: string;
   active: boolean;
@@ -86,18 +80,20 @@ export interface ZoneSummary {
 }
 
 export interface IAdminZoneRepository {
-  /** Every zone of the city, active or not, by `displayOrder` then id. */
-  listByCity(cityId: string): Promise<Zone[]>;
+  /** Every zone of the market, active or not, by `displayOrder` then id. */
+  listByMarket(marketId: string): Promise<Zone[]>;
+  /** Every active zone of every market: the zones a new or reactivated one must not touch (FR-003). */
+  listActive(): Promise<Zone[]>;
   /**
-   * The zones of several cities without their polygons, in one read: the lists and the readiness.
+   * The zones of several markets without their polygons, in one read: the lists and the readiness.
    * Real polygons weigh up to ~300 KB each, so they are read only where they are drawn.
    */
-  summariesByCities(cityIds: string[]): Promise<ZoneSummary[]>;
+  summariesByMarkets(marketIds: string[]): Promise<ZoneSummary[]>;
   getById(id: string): Promise<Zone | null>;
   findBySlug(slug: string): Promise<Zone | null>;
-  /** Zones per city id (any state). */
-  countByCity(cityIds: string[]): Promise<Map<string, number>>;
-  /** Every city id that has at least one zone (any state). */
+  /** Zones per market id (any state). */
+  countByMarket(marketIds: string[]): Promise<Map<string, number>>;
+  /** Every market id that has at least one zone (any state). */
   zoneOwnerIds(): Promise<string[]>;
   create(zone: Zone): Promise<void>;
   update(zone: Zone): Promise<UpdateResult>;
@@ -124,8 +120,6 @@ export interface IAdminMatchSurfaceRepository {
 /** Why a reference document cannot be deleted (or its key changed): the first use found. */
 export type UsageReason =
   | 'region_has_cities'
-  | 'city_has_zones'
-  | 'city_is_anchor'
   | 'city_in_use'
   | 'zone_in_use'
   | 'document_type_in_use'
@@ -134,7 +128,7 @@ export type UsageReason =
 /** Looks across the collections that point at reference data (research §8 and §9). */
 export interface IReferenceUsage {
   regionUsage(regionId: string): Promise<UsageReason | null>;
-  cityUsage(cityId: string): Promise<UsageReason | null>;
+  cityUsage(marketId: string): Promise<UsageReason | null>;
   zoneUsage(zoneId: string): Promise<UsageReason | null>;
   /** Goalkeepers store the document type's code, not its id. */
   documentTypeUsage(code: string): Promise<UsageReason | null>;
@@ -148,27 +142,28 @@ export interface IReferenceUsage {
 }
 
 export interface IFutureBookingsProbe {
-  /** An active request in the anchor city's zones that starts after `now`. */
-  hasFutureRequestsInArea(anchorCityId: string, now: Date): Promise<boolean>;
+  /** An active request in the market's zones that starts after `now`. */
+  hasFutureRequestsInArea(marketId: string, now: Date): Promise<boolean>;
 }
 
-/** Whether each operating city can quote, and how many required items it misses (US3). */
+/** Whether each market can quote, and how many required items it misses (US3; spec 031). */
 export interface ReadinessSummary {
   ready: boolean;
   missingCount: number;
 }
 
 export interface IReadinessSummary {
-  /** Only for the given cities, which the caller knows are operating. */
-  summarize(cities: City[]): Promise<Map<string, ReadinessSummary>>;
+  summarize(markets: Market[]): Promise<Map<string, ReadinessSummary>>;
+  /** One market's whole checklist, items included (spec 031: enabling needs it complete). */
+  check(market: Market): Promise<ReadinessResult>;
 }
 
-/** Which durations have a rate, for many city- and zone-scope refs in one read (readiness). */
+/** Which durations have a rate, for many market- and zone-scope refs in one read (readiness). */
 export interface IRatePresence {
-  pricedDurations(refs: { cityIds: string[]; zoneIds: string[] }): Promise<{ scope: 'city' | 'zone'; refId: string; durationMinutes: number }[]>;
+  pricedDurations(refs: { marketIds: string[]; zoneIds: string[] }): Promise<{ scope: 'market' | 'zone'; refId: string; durationMinutes: number }[]>;
 }
 
-/** The booking rules of many cities and countries in one read (readiness). */
+/** The booking rules of many markets and countries in one read (readiness). */
 export interface IBookingSettingsBatch {
-  findMany(refs: { cityIds: string[]; countryIds: string[] }): Promise<BookingSettings[]>;
+  findMany(refs: { marketIds: string[]; countryIds: string[] }): Promise<BookingSettings[]>;
 }

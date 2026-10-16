@@ -1,16 +1,15 @@
+import { FakeMarketRepository, testMarket } from '../../../../fakes/fakeMarketRepository.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { CommissionResolver } from '../../../../../src/application/features/operatingBalance/common/commissionResolver.js';
-import { City } from '../../../../../src/domain/locations/city.js';
 import { Region } from '../../../../../src/domain/locations/region.js';
 import { CommissionSetting } from '../../../../../src/domain/operatingBalance/commissionSetting.js';
 import { Zone } from '../../../../../src/domain/zones/zone.js';
-import { FakeCityRepository } from '../../../../fakes/fakeCityRepository.js';
 import { FakeCommissionSettingRepository } from '../../../../fakes/fakeCommissionSettingRepository.js';
 import { FakeRegionRepository } from '../../../../fakes/fakeRegionRepository.js';
 import { FakeZoneRepository } from '../../../../fakes/fakeZoneRepository.js';
 
-const zone = (id: string, cityId: string) =>
-  new Zone({ id, cityId, name: id, slug: id, geometry: { type: 'Polygon', coordinates: [] }, active: true, displayOrder: 1 });
+const zone = (id: string, marketId: string) =>
+  new Zone({ id, marketId, name: id, slug: id, geometry: { type: 'Polygon', coordinates: [] }, active: true, displayOrder: 1 });
 
 let settings: FakeCommissionSettingRepository;
 let resolver: CommissionResolver;
@@ -18,22 +17,22 @@ let resolver: CommissionResolver;
 beforeEach(() => {
   settings = new FakeCommissionSettingRepository();
   const zones = new FakeZoneRepository();
-  const cities = new FakeCityRepository();
+  const cities = new FakeMarketRepository();
   const regions = new FakeRegionRepository();
   regions.seed(new Region({ id: 'region-antioquia', name: 'Antioquia', countryId: 'country-co' }));
   regions.seed(new Region({ id: 'region-valle', name: 'Valle', countryId: 'country-co' }));
   regions.seed(new Region({ id: 'region-x', name: 'X', countryId: 'country-mx' }));
-  cities.seed(new City({ id: 'city-medellin', name: 'Medellín', regionId: 'region-antioquia', zoneCityId: null }));
-  cities.seed(new City({ id: 'city-cali', name: 'Cali', regionId: 'region-valle', zoneCityId: null }));
-  cities.seed(new City({ id: 'city-cdmx', name: 'CDMX', regionId: 'region-x', zoneCityId: null }));
+  cities.seed(testMarket({ id: 'city-medellin', name: 'Medellín', countryId: 'country-co' }));
+  cities.seed(testMarket({ id: 'city-cali', name: 'Cali', countryId: 'country-co' }));
+  cities.seed(testMarket({ id: 'city-cdmx', name: 'CDMX', countryId: 'country-mx' }));
   zones.seed(zone('zone-laureles', 'city-medellin'));
   zones.seed(zone('zone-poblado', 'city-medellin'));
   zones.seed(zone('zone-cali-norte', 'city-cali'));
   zones.seed(zone('zone-cdmx', 'city-cdmx'));
   settings.seed(new CommissionSetting({ id: 'c-co', scope: 'country', refId: 'country-co', amount: 7000 }));
-  settings.seed(new CommissionSetting({ id: 'c-med', scope: 'city', refId: 'city-medellin', amount: 8000 }));
+  settings.seed(new CommissionSetting({ id: 'c-med', scope: 'market', refId: 'city-medellin', amount: 8000 }));
   settings.seed(new CommissionSetting({ id: 'c-lau', scope: 'zone', refId: 'zone-laureles', amount: 9000 }));
-  resolver = new CommissionResolver(settings, zones, cities, regions);
+  resolver = new CommissionResolver(settings, zones, cities);
 });
 
 describe('CommissionResolver — US3: zone, then anchor city, then country', () => {
@@ -63,9 +62,9 @@ describe('CommissionResolver — US3: zone, then anchor city, then country', () 
 
 describe('CommissionResolver — feature 024: modality and level tiers', () => {
   beforeEach(() => {
-    settings.seed(new CommissionSetting({ id: 'c-med-f11', scope: 'city', refId: 'city-medellin', amount: 10000, modality: 'futbol_11' }));
+    settings.seed(new CommissionSetting({ id: 'c-med-f11', scope: 'market', refId: 'city-medellin', amount: 10000, modality: 'futbol_11' }));
     settings.seed(
-      new CommissionSetting({ id: 'c-med-f11-c', scope: 'city', refId: 'city-medellin', amount: 12000, modality: 'futbol_11', level: 'competitive' }),
+      new CommissionSetting({ id: 'c-med-f11-c', scope: 'market', refId: 'city-medellin', amount: 12000, modality: 'futbol_11', level: 'competitive' }),
     );
     settings.seed(new CommissionSetting({ id: 'c-co-micro', scope: 'country', refId: 'country-co', amount: 5000, modality: 'micro_futsal' }));
   });

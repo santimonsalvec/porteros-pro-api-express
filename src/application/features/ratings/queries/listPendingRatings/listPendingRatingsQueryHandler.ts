@@ -6,7 +6,7 @@ import type { IUserRepository } from '../../../auth/common/ports.js';
 import { loadContacts } from '../../../goalkeeperRequests/common/contacts.js';
 import { loadBookingItemContext } from '../../../goalkeeperRequests/common/goalkeeperBookingResponse.js';
 import type { IBookingRepository, IGoalkeeperRequestRepository } from '../../../goalkeeperRequests/common/ports.js';
-import type { ICityRepository } from '../../../locations/common/ports.js';
+import type { IMarketRepository } from '../../../markets/common/ports.js';
 import type { IZoneRepository } from '../../../zones/common/ports.js';
 import type { IRatingRepository } from '../../common/ports.js';
 import { ListPendingRatingsQuery, type ListPendingRatingsResult, type PendingRatingItem } from './listPendingRatingsQuery.js';
@@ -16,7 +16,7 @@ export interface ListPendingRatingsDependencies {
   ratingRepository: IRatingRepository;
   requestRepository: IGoalkeeperRequestRepository;
   zoneRepository: IZoneRepository;
-  cityRepository: ICityRepository;
+  marketRepository: IMarketRepository;
   userRepository: IUserRepository;
   clock: IClock;
 }
@@ -46,7 +46,7 @@ export class ListPendingRatingsQueryHandler implements IQueryHandler<ListPending
         side,
         question: side === 'client' ? 'goalkeeper_arrived' : 'payment_received',
         zoneName: context.zoneNames.get(match.zoneId) ?? null,
-        cityName: context.cityNames.get(match.cityId) ?? null,
+        marketName: context.marketNames.get(match.marketId) ?? null,
         startsAt: booking.startsAt.toISOString(),
         startsAtLocal: match.startsAtLocal,
         // Only the name: the WhatsApp was for the match (019), and ratings are private.

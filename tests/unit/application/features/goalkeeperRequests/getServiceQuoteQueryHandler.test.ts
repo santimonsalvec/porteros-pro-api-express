@@ -1,10 +1,9 @@
+import { FakeMarketRepository, testMarket } from '../../../../fakes/fakeMarketRepository.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { CommissionSetting } from '../../../../../src/domain/operatingBalance/commissionSetting.js';
 import { MatchFormat } from '../../../../../src/domain/bookings/matchFormat.js';
 import { MatchSurface } from '../../../../../src/domain/pricing/matchSurface.js';
 import { Country } from '../../../../../src/domain/countries/country.js';
-import { City } from '../../../../../src/domain/locations/city.js';
-import { Region } from '../../../../../src/domain/locations/region.js';
 import { BookingSettings, type LeadTimeSurcharge } from '../../../../../src/domain/pricing/bookingSettings.js';
 import { InvalidConfigurationError } from '../../../../../src/domain/pricing/invalidConfigurationError.js';
 import { RentalRate } from '../../../../../src/domain/pricing/rentalRate.js';
@@ -15,7 +14,6 @@ import { parseStartsAt } from '../../../../../src/application/features/goalkeepe
 import { FakeBookingSettingsRepository } from '../../../../fakes/fakeBookingSettingsRepository.js';
 import { FakeCommissionSettingRepository } from '../../../../fakes/fakeCommissionSettingRepository.js';
 import { CommissionResolver } from '../../../../../src/application/features/operatingBalance/common/commissionResolver.js';
-import { FakeCityRepository } from '../../../../fakes/fakeCityRepository.js';
 import { FakeCountryRepository } from '../../../../fakes/fakeCountryRepository.js';
 import { FixedClock } from '../../../../fakes/fakeClock.js';
 import { FakeRegionRepository } from '../../../../fakes/fakeRegionRepository.js';
@@ -28,13 +26,13 @@ import { POINTS, QUOTE_NOW, seedQuoteWorld, QUOTE_FORMAT_FIELDS } from '../../..
 class Harness {
   readonly zoneRepository = new FakeZoneRepository();
   readonly countryRepository = new FakeCountryRepository();
-  readonly cityRepository = new FakeCityRepository();
+  readonly marketRepository = new FakeMarketRepository();
   readonly regionRepository = new FakeRegionRepository();
   readonly rentalRateRepository = new FakeRentalRateRepository();
   readonly matchSurfaceRepository = new FakeMatchSurfaceRepository();
   readonly bookingSettingsRepository = new FakeBookingSettingsRepository();
   readonly commissionSettingRepository = new FakeCommissionSettingRepository();
-  readonly commissionResolver = new CommissionResolver(this.commissionSettingRepository, this.zoneRepository, this.cityRepository, this.regionRepository);
+  readonly commissionResolver = new CommissionResolver(this.commissionSettingRepository, this.zoneRepository, this.marketRepository);
   readonly clock = new FixedClock(QUOTE_NOW);
   readonly handler: GetServiceQuoteQueryHandler;
 
@@ -42,8 +40,7 @@ class Harness {
     seedQuoteWorld(this);
     this.handler = new GetServiceQuoteQueryHandler(
       this.zoneRepository,
-      this.cityRepository,
-      this.regionRepository,
+      this.marketRepository,
       this.countryRepository,
       this.rentalRateRepository,
       this.bookingSettingsRepository,
@@ -95,7 +92,7 @@ describe('GetServiceQuoteQueryHandler — Story 1: price a booking', () => {
       },
       area: {
         zoneId: 'zone-cali-norte',
-        cityId: 'city-cali',
+        marketId: 'city-cali',
         freeCancellationMinutes: null,
         commission: 7000,
         travelBufferMinutes: null,
@@ -112,7 +109,7 @@ describe('GetServiceQuoteQueryHandler — Story 1: price a booking', () => {
       h.rentalRateRepository.seed(zoneRate('f11', 70000, 'futbol_11'));
       h.rentalRateRepository.seed(zoneRate('f11-c', 80000, 'futbol_11', 'competitive'));
       h.commissionSettingRepository.seed(
-        new CommissionSetting({ id: 'c-f11', scope: 'city', refId: 'city-cali', amount: 10000, modality: 'futbol_11' }),
+        new CommissionSetting({ id: 'c-f11', scope: 'market', refId: 'city-cali', amount: 10000, modality: 'futbol_11' }),
       );
     });
 
@@ -129,7 +126,7 @@ describe('GetServiceQuoteQueryHandler — Story 1: price a booking', () => {
 
     it("keeps the zone's general rate over its city's modality rate (geography first)", async () => {
       h.rentalRateRepository.seed(
-        new RentalRate({ id: 'city-micro', scope: 'city', refId: 'city-cali', durationMinutes: 60, amount: 99000, modality: 'micro_futsal' }),
+        new RentalRate({ id: 'city-micro', scope: 'market', refId: 'city-cali', durationMinutes: 60, amount: 99000, modality: 'micro_futsal' }),
       );
 
       expect(await h.quote('2026-09-21T15:00:00', { modality: 'micro_futsal' })).toMatchObject({ quote: { unitRate: 40000 } });
@@ -314,7 +311,7 @@ describe('GetServiceQuoteQueryHandler — Story 2: city-rate fallback', () => {
   it('reports the zone the point fell in, not the city the rate came from', async () => {
     const result = await h.quote('2026-09-21T15:00:00', { ...POINTS.caliCentro, durationMinutes: 90 });
 
-    expect(result).toMatchObject({ outcome: 'success', area: { zoneId: 'zone-cali-centro', cityId: 'city-cali' } });
+    expect(result).toMatchObject({ outcome: 'success', area: { zoneId: 'zone-cali-centro', marketId: 'city-cali' } });
   });
 
   it('applies the city rate per goalkeeper', async () => {
@@ -343,7 +340,7 @@ describe('GetServiceQuoteQueryHandler — Story 2: city-rate fallback', () => {
 
     const result = await bare.quote('2026-09-21T15:00:00', { ...POINTS.caliNorte });
 
-    expect(result).toEqual({ outcome: 'rate_not_configured', zoneId: 'zone-cali-norte', cityId: 'city-cali', durationMinutes: 60 });
+    expect(result).toEqual({ outcome: 'rate_not_configured', zoneId: 'zone-cali-norte', marketId: 'city-cali', durationMinutes: 60 });
     expect(result).not.toHaveProperty('quote');
   });
 });
@@ -363,14 +360,14 @@ describe('GetServiceQuoteQueryHandler — Story 3: refusals', () => {
     expect(result).toEqual({ outcome: 'location_not_covered' });
   });
 
-  it('treats a location inside only an inactive zone as not covered', async () => {
+  it('treats a location inside only an inactive zone of an operating market as temporarily unavailable (spec 031)', async () => {
     h.zoneRepository.seed(
-      new Zone({ id: 'zone-off', cityId: 'city-cali', name: 'Off', slug: 'cali-co-off', geometry: box(10, 11, -71, -70), active: false, displayOrder: 1 }),
+      new Zone({ id: 'zone-off', marketId: 'city-cali', name: 'Off', slug: 'cali-co-off', geometry: box(10, 11, -71, -70), active: false, displayOrder: 1 }),
     );
 
     const result = await h.quote('2026-09-21T15:00:00', { latitude: 10.5, longitude: -70.5 });
 
-    expect(result).toEqual({ outcome: 'location_not_covered' });
+    expect(result).toEqual({ outcome: 'market_unavailable', marketId: 'city-cali', marketName: 'Cali' });
   });
 
   it.each(['2026-09-21T15:15:00', '2026-09-21T15:45:00', '2026-09-21T15:00:30', '2026-09-21T15:00:00.500'])(
@@ -452,14 +449,14 @@ describe('GetServiceQuoteQueryHandler — Story 3: refusals', () => {
   it('resolves overlapping zones deterministically: lowest displayOrder, then lowest id', async () => {
     // Both overlap Cali Norte (displayOrder 1, rates of its own). Neither has rates → the city fallback (41.000) reveals which won.
     h.zoneRepository.seed(
-      new Zone({ id: 'zone-z-first', cityId: 'city-cali', name: 'Z', slug: 'cali-co-z', geometry: box(3.4, 3.5, -76.55, -76.45), active: true, displayOrder: 0 }),
+      new Zone({ id: 'zone-z-first', marketId: 'city-cali', name: 'Z', slug: 'cali-co-z', geometry: box(3.4, 3.5, -76.55, -76.45), active: true, displayOrder: 0 }),
     );
     expect(await h.quote('2026-09-21T15:00:00')).toMatchObject({ quote: { unitRate: 41000 } });
     expect(await h.quote('2026-09-21T15:00:00')).toMatchObject({ quote: { unitRate: 41000 } }); // same answer every time
 
     const tied = new Harness();
     tied.zoneRepository.seed(
-      new Zone({ id: 'zone-a-tie', cityId: 'city-cali', name: 'A', slug: 'cali-co-a', geometry: box(3.4, 3.5, -76.55, -76.45), active: true, displayOrder: 1 }),
+      new Zone({ id: 'zone-a-tie', marketId: 'city-cali', name: 'A', slug: 'cali-co-a', geometry: box(3.4, 3.5, -76.55, -76.45), active: true, displayOrder: 1 }),
     );
     // Same displayOrder (1) as Cali Norte: 'zone-a-tie' sorts before 'zone-cali-norte'.
     expect(await tied.quote('2026-09-21T15:00:00')).toMatchObject({ quote: { unitRate: 41000 } });
@@ -524,7 +521,7 @@ describe('GetServiceQuoteQueryHandler — Story 4: per-country configuration wit
 
     expect(result).toEqual({
       outcome: 'service_not_configured',
-      cityId: 'city-cali',
+      marketId: 'city-cali',
       missing: ['bookingWindowDays', 'minNoticeMinutes', 'leadTimeSurcharge'],
     });
     expect(result).not.toHaveProperty('quote');
@@ -574,12 +571,12 @@ describe('GetServiceQuoteQueryHandler — Story 4: per-country configuration wit
   });
 
   it('applies a city override only to that city; a sibling city keeps the country values', async () => {
-    h.cityRepository.seed(new City({ id: 'city-buga', name: 'Buga', regionId: 'region-valle', zoneCityId: null, timeZone: 'America/Bogota' }));
+    h.marketRepository.seed(testMarket({ id: 'city-buga', name: 'Buga', countryId: 'country-co', timeZone: 'America/Bogota' }));
     h.zoneRepository.seed(
-      new Zone({ id: 'zone-buga', cityId: 'city-buga', name: 'Centro', slug: 'buga-co-centro', geometry: box(4.0, 4.1, -76.4, -76.3), active: true, displayOrder: 1 }),
+      new Zone({ id: 'zone-buga', marketId: 'city-buga', name: 'Centro', slug: 'buga-co-centro', geometry: box(4.0, 4.1, -76.4, -76.3), active: true, displayOrder: 1 }),
     );
-    h.rentalRateRepository.seed(new RentalRate({ id: 'rate-buga', scope: 'city', refId: 'city-buga', durationMinutes: 60, amount: 30000 }));
-    h.bookingSettingsRepository.seed(new BookingSettings({ id: 'cali-override', scope: 'city', refId: 'city-cali', bookingWindowDays: 4 }));
+    h.rentalRateRepository.seed(new RentalRate({ id: 'rate-buga', scope: 'market', refId: 'city-buga', durationMinutes: 60, amount: 30000 }));
+    h.bookingSettingsRepository.seed(new BookingSettings({ id: 'cali-override', scope: 'market', refId: 'city-cali', bookingWindowDays: 4 }));
     const buga = { latitude: 4.05, longitude: -76.35 };
 
     expect(await h.quote('2026-09-24T15:00:00', { ...POINTS.caliNorte })).toMatchObject({ outcome: 'success' }); // Cali: 4 days
@@ -588,31 +585,13 @@ describe('GetServiceQuoteQueryHandler — Story 4: per-country configuration wit
 
   it('resolves each setting on its own: a city that overrides only the tiers inherits window and notice', async () => {
     h.bookingSettingsRepository.seed(
-      new BookingSettings({ id: 'cali-tiers', scope: 'city', refId: 'city-cali', leadTimeSurcharge: { tiers: [{ fromMinutes: 0, toMinutes: null, amount: 7000 }] } }),
+      new BookingSettings({ id: 'cali-tiers', scope: 'market', refId: 'city-cali', leadTimeSurcharge: { tiers: [{ fromMinutes: 0, toMinutes: null, amount: 7000 }] } }),
     );
 
     expect(await h.quote('2026-09-21T15:00:00')).toMatchObject({ quote: { surcharge: 7000 } }); // own tiers
     expect(await h.quote('2026-09-23T00:00:00')).toEqual({ outcome: 'outside_booking_window', bookingWindowDays: 2 }); // country's window
     h.clock.set('2026-09-21T19:45:00.000Z');
     expect(await h.quote('2026-09-21T15:00:00')).toEqual({ outcome: 'insufficient_notice', minNoticeMinutes: 30 }); // country's notice
-  });
-
-  it('cannot quote a city whose region has no country recorded, even with complete city-level settings, because the currency is the country\'s', async () => {
-    h.regionRepository.seed(new Region({ id: 'region-orphan', name: 'Orphan' })); // no countryId
-    h.cityRepository.seed(new City({ id: 'city-orphan', name: 'Orphan', regionId: 'region-orphan', zoneCityId: null, timeZone: 'America/Bogota' }));
-    h.zoneRepository.seed(
-      new Zone({ id: 'zone-orphan', cityId: 'city-orphan', name: 'Z', slug: 'orphan-z', geometry: box(6, 6.1, -70.1, -70), active: true, displayOrder: 1 }),
-    );
-    h.rentalRateRepository.seed(new RentalRate({ id: 'rate-orphan', scope: 'city', refId: 'city-orphan', durationMinutes: 60, amount: 20000 }));
-    const orphan = { latitude: 6.05, longitude: -70.05 };
-
-    expect(await h.quote('2026-09-21T15:00:00', orphan)).toMatchObject({
-      outcome: 'service_not_configured',
-      missing: ['bookingWindowDays', 'minNoticeMinutes', 'leadTimeSurcharge', 'currency', 'commission'],
-    });
-
-    h.bookingSettingsRepository.seed(new BookingSettings({ id: 'orphan-city', scope: 'city', refId: 'city-orphan', bookingWindowDays: 2, minNoticeMinutes: 30, leadTimeSurcharge: COP(1, 1) }));
-    expect(await h.quote('2026-09-21T15:00:00', orphan)).toEqual({ outcome: 'service_not_configured', cityId: 'city-orphan', missing: ['currency', 'commission'] });
   });
 
   it('never lets two countries share values or currencies', async () => {
@@ -639,7 +618,7 @@ describe('GetServiceQuoteQueryHandler — Story 4: per-country configuration wit
 
     const result = await h.quote('2026-09-21T15:00:00');
 
-    expect(result).toEqual({ outcome: 'service_not_configured', cityId: 'city-cali', missing: ['currency'] });
+    expect(result).toEqual({ outcome: 'service_not_configured', marketId: 'city-cali', missing: ['currency'] });
     expect(result).not.toHaveProperty('quote');
   });
 
@@ -647,7 +626,7 @@ describe('GetServiceQuoteQueryHandler — Story 4: per-country configuration wit
     const empty = new Harness();
     empty.countryRepository.clear();
 
-    expect(await empty.quote('2026-09-21T15:00:00')).toEqual({ outcome: 'service_not_configured', cityId: 'city-cali', missing: ['currency'] });
+    expect(await empty.quote('2026-09-21T15:00:00')).toEqual({ outcome: 'service_not_configured', marketId: 'city-cali', missing: ['currency'] });
   });
 
   it('lists a missing currency after the other missing settings', async () => {
@@ -665,21 +644,15 @@ describe('GetServiceQuoteQueryHandler — Story 4: per-country configuration wit
     await expect(h.quote('2026-09-21T15:00:00')).rejects.toThrow(InvalidConfigurationError);
   });
 
-  it('refuses a city with no time zone, without guessing another', async () => {
-    h.cityRepository.seed(new City({ id: 'city-cali', name: 'Cali', regionId: 'region-valle', zoneCityId: null, timeZone: null }));
-
-    expect(await h.quote('2026-09-21T15:00:00')).toEqual({ outcome: 'time_zone_not_configured', cityId: 'city-cali' });
-  });
-
   it('treats a time zone that is not a real IANA identifier as broken configuration', async () => {
-    h.cityRepository.seed(new City({ id: 'city-cali', name: 'Cali', regionId: 'region-valle', zoneCityId: null, timeZone: 'Mars/Olympus' }));
+    h.marketRepository.seed(testMarket({ id: 'city-cali', name: 'Cali', countryId: 'country-co', timeZone: 'Mars/Olympus' }));
 
     await expect(h.quote('2026-09-21T15:00:00')).rejects.toThrow(InvalidConfigurationError);
   });
 
   it('fails loudly, not with a wrong answer, when a zone points at a city that does not exist', async () => {
     h.zoneRepository.seed(
-      new Zone({ id: 'zone-dangling', cityId: 'city-missing', name: 'D', slug: 'd', geometry: box(50, 51, 10, 11), active: true, displayOrder: 1 }),
+      new Zone({ id: 'zone-dangling', marketId: 'city-missing', name: 'D', slug: 'd', geometry: box(50, 51, 10, 11), active: true, displayOrder: 1 }),
     );
 
     await expect(h.quote('2026-09-21T15:00:00', { latitude: 50.5, longitude: 10.5 })).rejects.toThrow(/city-missing/);
@@ -715,8 +688,7 @@ describe('GetServiceQuoteQueryHandler — read-only guarantee (FR-020, SC-007)',
 
     const handler = new GetServiceQuoteQueryHandler(
       watch('zones', h.zoneRepository),
-      watch('cities', h.cityRepository),
-      watch('regions', h.regionRepository),
+      watch('markets', h.marketRepository),
       watch('countries', h.countryRepository),
       watch('rates', h.rentalRateRepository),
       watch('settings', h.bookingSettingsRepository),
@@ -733,8 +705,8 @@ describe('GetServiceQuoteQueryHandler — read-only guarantee (FR-020, SC-007)',
 
     const allowed = new Set([
       'zones.findActiveContainingPoint',
-      'cities.getById',
-      'regions.getByIds',
+      'zones.findAnyContainingPoint',
+      'markets.getById',
       'countries.getById',
       'rates.findForDuration',
       'settings.findFor',
@@ -746,7 +718,7 @@ describe('GetServiceQuoteQueryHandler — read-only guarantee (FR-020, SC-007)',
 
   it("carries the city's free-cancellation period over the country's, internally only", async () => {
     h.bookingSettingsRepository.seed(
-      new BookingSettings({ id: 'settings-cali', scope: 'city', refId: 'city-cali', freeCancellationMinutes: 90 }),
+      new BookingSettings({ id: 'settings-cali', scope: 'market', refId: 'city-cali', freeCancellationMinutes: 90 }),
     );
 
     const result = await h.quote('2026-09-21T15:00:00');
@@ -758,11 +730,11 @@ describe('GetServiceQuoteQueryHandler — read-only guarantee (FR-020, SC-007)',
   it('refuses to quote a zone with no commission configured, naming it among the missing settings', async () => {
     h.commissionSettingRepository.clear();
 
-    expect(await h.quote('2026-09-21T15:00:00')).toEqual({ outcome: 'service_not_configured', cityId: 'city-cali', missing: ['commission'] });
+    expect(await h.quote('2026-09-21T15:00:00')).toEqual({ outcome: 'service_not_configured', marketId: 'city-cali', missing: ['commission'] });
   });
 
   it('fixes the zone commission and the travel margin for the quote', async () => {
-    h.bookingSettingsRepository.seed(new BookingSettings({ id: 'cali-margin', scope: 'city', refId: 'city-cali', travelBufferMinutes: 45 }));
+    h.bookingSettingsRepository.seed(new BookingSettings({ id: 'cali-margin', scope: 'market', refId: 'city-cali', travelBufferMinutes: 45 }));
 
     expect(await h.quote('2026-09-21T15:00:00')).toMatchObject({ outcome: 'success', area: { commission: 7000, travelBufferMinutes: 45 } });
   });

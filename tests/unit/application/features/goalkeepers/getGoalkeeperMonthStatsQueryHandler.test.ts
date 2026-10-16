@@ -1,3 +1,4 @@
+import { FakeMarketRepository } from '../../../../fakes/fakeMarketRepository.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { GetGoalkeeperMonthStatsQuery } from '../../../../../src/application/features/goalkeepers/queries/getGoalkeeperMonthStats/getGoalkeeperMonthStatsQuery.js';
 import { GetGoalkeeperMonthStatsQueryHandler } from '../../../../../src/application/features/goalkeepers/queries/getGoalkeeperMonthStats/getGoalkeeperMonthStatsQueryHandler.js';
@@ -7,13 +8,10 @@ import {
   type BookingStatus,
 } from '../../../../../src/domain/bookings/booking.js';
 import { GoalkeeperPrice } from '../../../../../src/domain/bookings/goalkeeperPrice.js';
-import { City } from '../../../../../src/domain/locations/city.js';
 import { FakeBookingRepository } from '../../../../fakes/fakeBookingRepository.js';
-import { FakeCityRepository } from '../../../../fakes/fakeCityRepository.js';
 import { FixedClock } from '../../../../fakes/fakeClock.js';
 import { FakeCountryRepository } from '../../../../fakes/fakeCountryRepository.js';
 import { FakeGoalkeeperProfileRepository } from '../../../../fakes/fakeGoalkeeperProfileRepository.js';
-import { FakeRegionRepository } from '../../../../fakes/fakeRegionRepository.js';
 import { buildRequest, buildRequestBookings } from '../../../../fixtures/quoteFixtures.js';
 import { buildGoalkeeperProfile, seedOperatingBalanceWorld } from '../../../../fixtures/operatingBalanceFixtures.js';
 
@@ -46,19 +44,17 @@ function booking(
 }
 
 let profiles: FakeGoalkeeperProfileRepository;
-let cities: FakeCityRepository;
+let cities: FakeMarketRepository;
 let bookings: FakeBookingRepository;
 let clock: FixedClock;
 let handler: GetGoalkeeperMonthStatsQueryHandler;
 
 beforeEach(() => {
   profiles = new FakeGoalkeeperProfileRepository();
-  cities = new FakeCityRepository();
-  const regions = new FakeRegionRepository();
+  cities = new FakeMarketRepository();
   const countries = new FakeCountryRepository();
   seedOperatingBalanceWorld({
-    cityRepository: cities,
-    regionRepository: regions,
+    marketRepository: cities,
     countryRepository: countries,
   });
   bookings = new FakeBookingRepository();
@@ -66,8 +62,7 @@ beforeEach(() => {
   handler = new GetGoalkeeperMonthStatsQueryHandler({
     context: {
       goalkeeperProfileRepository: profiles,
-      cityRepository: cities,
-      regionRepository: regions,
+      marketRepository: cities,
       countryLookup: countries,
     },
     bookingRepository: bookings,
@@ -233,23 +228,11 @@ describe('GetGoalkeeperMonthStatsQueryHandler — refusals', () => {
   });
 
   it('refuses a country without currency, like the operatingBalance', async () => {
-    profiles.seed(buildGoalkeeperProfile('gk-3', { cityId: 'city-orphan' }));
+    profiles.seed(buildGoalkeeperProfile('gk-3', { marketId: 'city-orphan' }));
 
     expect(await handler.handle(new GetGoalkeeperMonthStatsQuery('gk-3'))).toEqual({
       outcome: 'operating_balance_not_configured',
-      cityId: 'city-orphan',
-    });
-  });
-
-  it('refuses a city without time zone', async () => {
-    cities.seed(
-      new City({ id: 'city-palmira', name: 'Palmira', regionId: 'region-valle', zoneCityId: null }),
-    );
-    profiles.seed(buildGoalkeeperProfile('gk-4', { cityId: 'city-palmira' }));
-
-    expect(await handler.handle(new GetGoalkeeperMonthStatsQuery('gk-4'))).toEqual({
-      outcome: 'time_zone_not_configured',
-      cityId: 'city-palmira',
+      marketId: 'city-orphan',
     });
   });
 });

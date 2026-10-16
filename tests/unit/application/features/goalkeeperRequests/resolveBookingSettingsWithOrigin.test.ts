@@ -12,25 +12,25 @@ const country = new BookingSettings({
   leadTimeSurcharge: tiers,
   travelBufferMinutes: 30,
 });
-const city = new BookingSettings({ id: 'med', scope: 'city', refId: 'city-med', travelBufferMinutes: 45, bookingWindowDays: 3 });
+const city = new BookingSettings({ id: 'med', scope: 'market', refId: 'city-med', travelBufferMinutes: 45, bookingWindowDays: 3 });
 
 describe('resolveBookingSettingsWithOrigin', () => {
   it("says, field by field, whether the value is the city's, the country's or a default", () => {
-    expect(resolveBookingSettingsWithOrigin({ city, country })).toEqual({
-      bookingWindowDays: { value: 3, origin: 'city' },
+    expect(resolveBookingSettingsWithOrigin({ market: city, country })).toEqual({
+      bookingWindowDays: { value: 3, origin: 'market' },
       minNoticeMinutes: { value: 60, origin: 'country' },
       leadTimeSurcharge: { value: tiers, origin: 'country' },
-      travelBufferMinutes: { value: 45, origin: 'city' },
-      freeCancellationMinutes: { value: 60, origin: 'default' },
+      travelBufferMinutes: { value: 45, origin: 'market' },
+      freeCancellationMinutes: { value: 60, origin: 'platform' },
     });
   });
 
   it('defaults the travel buffer to 30 when nobody sets it', () => {
-    expect(resolveBookingSettingsWithOrigin({ city: null, country: null }).travelBufferMinutes).toEqual({ value: 30, origin: 'default' });
+    expect(resolveBookingSettingsWithOrigin({ market: null, country: null }).travelBufferMinutes).toEqual({ value: 30, origin: 'platform' });
   });
 
   it('leaves a required value missing, with no origin', () => {
-    expect(resolveBookingSettingsWithOrigin({ city: null, country: null })).toMatchObject({
+    expect(resolveBookingSettingsWithOrigin({ market: null, country: null })).toMatchObject({
       bookingWindowDays: { value: null, origin: null },
       minNoticeMinutes: { value: null, origin: null },
       leadTimeSurcharge: { value: null, origin: null },

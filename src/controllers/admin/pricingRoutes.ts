@@ -16,12 +16,12 @@ import { ListCommissionsQuery } from '../../application/features/pricing/queries
 import { GetPricingPreviewQuery } from '../../application/features/pricing/queries/getPricingPreview/getPricingPreviewQuery.js';
 import { ListPricingAreasQuery } from '../../application/features/pricing/queries/listPricingAreas/listPricingAreasQuery.js';
 import { SaveCountryBookingSettingsCommand, type SaveBookingSettingsResult } from '../../application/features/pricing/commands/saveCountryBookingSettings/saveCountryBookingSettingsCommand.js';
-import { SaveCityBookingSettingsCommand, type SaveCityBookingSettingsResult } from '../../application/features/pricing/commands/saveCityBookingSettings/saveCityBookingSettingsCommand.js';
+import { SaveMarketBookingSettingsCommand, type SaveMarketBookingSettingsResult } from '../../application/features/pricing/commands/saveMarketBookingSettings/saveMarketBookingSettingsCommand.js';
 import { GetCountryBookingSettingsQuery } from '../../application/features/pricing/queries/getCountryBookingSettings/getCountryBookingSettingsQuery.js';
-import { GetCityBookingSettingsQuery, type GetCityBookingSettingsResult } from '../../application/features/pricing/queries/getCityBookingSettings/getCityBookingSettingsQuery.js';
+import { GetMarketBookingSettingsQuery, type GetMarketBookingSettingsResult } from '../../application/features/pricing/queries/getMarketBookingSettings/getMarketBookingSettingsQuery.js';
 import { ApiError } from '../apiError.js';
 import {
-  cityBookingSettingsRequestSchema,
+  marketBookingSettingsRequestSchema,
   countryBookingSettingsRequestSchema,
   createCommissionRequestSchema,
   createRentalRateRequestSchema,
@@ -58,17 +58,13 @@ export function registerPricingRoutes(route: Route, mediator: ISender): void {
 
 const param = (req: Request, name: string) => String(req.params[name]);
 
-/** A price that cannot point at its target: unknown → 404; a satellite city or no currency → 409. */
+/** A price that cannot point at its target: unknown → 404; no currency → 409. */
 export function targetError(failure: TargetFailure): ApiError {
   switch (failure.outcome) {
     case 'zone_not_found':
-    case 'city_not_found':
+    case 'market_not_found':
     case 'country_not_found':
       return notFound(failure.outcome);
-    case 'city_not_anchor':
-      return new ApiError(409, 'city_not_anchor', 'This city uses the zones of another; its prices and rules are its anchor city\'s.', undefined, {
-        anchorCityId: failure.anchorCityId,
-      });
     case 'country_without_currency':
       return conflict('country_without_currency', 'The country has no currency to price in.');
   }
@@ -240,31 +236,24 @@ function registerCommissionRoutes(route: Route, mediator: ISender): void {
 
 const VALIDATION_MESSAGE = 'One or more fields are missing or invalid.';
 
-/** A satellite city's rules are its anchor's: `409` with where to go. */
-const notAnchor = (anchorCityId: string) =>
-  new ApiError(409, 'city_not_anchor', "This city uses the zones of another; its prices and rules are its anchor city's.", undefined, { anchorCityId });
-
 function registerBookingSettingsRoutes(route: Route, mediator: ISender): void {
   const countryView = async (countryId: string) => {
     const result = await mediator.send(new GetCountryBookingSettingsQuery(countryId));
     if (result.outcome === 'not_found') throw notFound('country_not_found');
     return result.settings;
   };
-  const cityView = async (cityId: string) => {
-    const result: GetCityBookingSettingsResult = await mediator.send(new GetCityBookingSettingsQuery(cityId));
-    if (result.outcome === 'not_found') throw notFound('city_not_found');
-    if (result.outcome === 'city_not_anchor') throw notAnchor(result.anchorCityId);
+  const marketView = async (marketId: string) => {
+    const result: GetMarketBookingSettingsResult = await mediator.send(new GetMarketBookingSettingsQuery(marketId));
+    if (result.outcome === 'not_found') throw notFound('market_not_found');
     return result.settings;
   };
-  const sendSaved = async (res: Response, result: SaveBookingSettingsResult | SaveCityBookingSettingsResult, view: () => Promise<unknown>, notFoundCode: string) => {
+  const sendSaved = async (res: Response, result: SaveBookingSettingsResult | SaveMarketBookingSettingsResult, view: () => Promise<unknown>, notFoundCode: string) => {
     switch (result.outcome) {
       case 'saved':
         res.status(200).json(await view());
         return;
       case 'not_found':
         throw notFound(notFoundCode);
-      case 'city_not_anchor':
-        throw notAnchor(result.anchorCityId);
       case 'stale':
         throw stale();
       case 'invalid':
@@ -279,12 +268,12 @@ function registerBookingSettingsRoutes(route: Route, mediator: ISender): void {
     }
   };
 
-  route('get', '/booking-settings/countries/:countryId', 'pricing.read', async (req, res) => {
+  route('get', '/booking-settings/countries/:countryId', { permission: 'pricing.read', level: 'country' }, async (req, res) => {
     res.status(200).json(await countryView(req.params.countryId));
   });
 
-  route('get', '/booking-settings/cities/:cityId', 'pricing.read', async (req, res) => {
-    res.status(200).json(await cityView(req.params.cityId));
+  route('get', '/booking-settings/markets/:marketId', 'pricing.read', async (req, res) => {
+    res.status(200).json(await marketView(req.params.marketId));
   });
 
   route(
@@ -292,6 +281,7 @@ function registerBookingSettingsRoutes(route: Route, mediator: ISender): void {
     '/booking-settings/countries/:countryId',
     {
       permission: 'pricing.manage',
+      level: 'country',
       audit: {
         action: 'bookingSettings.country.update',
         resourceType: 'bookingSettings',
@@ -309,21 +299,21 @@ function registerBookingSettingsRoutes(route: Route, mediator: ISender): void {
 
   route(
     'put',
-    '/booking-settings/cities/:cityId',
+    '/booking-settings/markets/:marketId',
     {
       permission: 'pricing.manage',
       audit: {
-        action: 'bookingSettings.city.update',
+        action: 'bookingSettings.market.update',
         resourceType: 'bookingSettings',
-        resourceId: (req) => param(req, 'cityId'),
-        before: (req) => cityView(param(req, 'cityId')).catch(() => null),
+        resourceId: (req) => param(req, 'marketId'),
+        before: (req) => marketView(param(req, 'marketId')).catch(() => null),
       },
     },
     async (req, res) => {
-      const { revision, acknowledgeWarnings, ...fields } = parse(cityBookingSettingsRequestSchema, req.body);
-      const cityId = req.params.cityId;
-      const result = await mediator.send(new SaveCityBookingSettingsCommand(cityId, revision, fields, acknowledgeWarnings ?? false));
-      await sendSaved(res, result, () => cityView(cityId), 'city_not_found');
+      const { revision, acknowledgeWarnings, ...fields } = parse(marketBookingSettingsRequestSchema, req.body);
+      const marketId = req.params.marketId;
+      const result = await mediator.send(new SaveMarketBookingSettingsCommand(marketId, revision, fields, acknowledgeWarnings ?? false));
+      await sendSaved(res, result, () => marketView(marketId), 'market_not_found');
     },
   );
 }

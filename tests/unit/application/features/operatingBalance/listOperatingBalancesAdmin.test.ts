@@ -1,12 +1,11 @@
+import { FakeMarketRepository, testMarket } from '../../../../fakes/fakeMarketRepository.js';
 import { describe, expect, it } from 'vitest';
 import { ListOperatingBalancesAdminQuery } from '../../../../../src/application/features/operatingBalance/queries/listOperatingBalancesAdmin/listOperatingBalancesAdminQuery.js';
 import { ListOperatingBalancesAdminQueryHandler } from '../../../../../src/application/features/operatingBalance/queries/listOperatingBalancesAdmin/listOperatingBalancesAdminQueryHandler.js';
 import { Country } from '../../../../../src/domain/countries/country.js';
-import { City } from '../../../../../src/domain/locations/city.js';
 import { Region } from '../../../../../src/domain/locations/region.js';
 import { User } from '../../../../../src/domain/users/user.js';
 import { buildGoalkeeperProfile } from '../../../../fixtures/operatingBalanceFixtures.js';
-import { FakeCityRepository } from '../../../../fakes/fakeCityRepository.js';
 import { FakeGoalkeeperProfileRepository } from '../../../../fakes/fakeGoalkeeperProfileRepository.js';
 import { FakeRegionRepository } from '../../../../fakes/fakeRegionRepository.js';
 import { FakeUserRepository } from '../../../../fakes/fakeUserRepository.js';
@@ -24,15 +23,15 @@ function person(id: string, first: string, last: string) {
 async function setup() {
   const operatingBalances = new FakeOperatingBalanceStore();
   const profiles = new FakeGoalkeeperProfileRepository();
-  const cities = new FakeCityRepository();
+  const cities = new FakeMarketRepository();
   const regions = new FakeRegionRepository();
   const users = new FakeUserRepository();
   regions.seed(new Region({ id: 'region-valle', name: 'Valle', countryId: 'country-co' }));
   regions.seed(new Region({ id: 'region-lima', name: 'Lima', countryId: 'country-pe' }));
-  cities.seed(new City({ id: 'city-cali', name: 'Cali', regionId: 'region-valle', zoneCityId: null, timeZone: 'America/Bogota' }));
-  cities.seed(new City({ id: 'city-lima', name: 'Lima', regionId: 'region-lima', zoneCityId: null, timeZone: 'America/Lima' }));
-  for (const [id, cityId, first, last] of [['gk-1', 'city-cali', 'Juan', 'Pérez'], ['gk-2', 'city-cali', 'Ana', 'Ruiz'], ['gk-3', 'city-lima', 'Luis', 'Soto'], ['gk-4', 'city-cali', 'Sin', 'Movimientos']] as const) {
-    profiles.seed(buildGoalkeeperProfile(id, { cityId }));
+  cities.seed(testMarket({ id: 'city-cali', name: 'Cali', countryId: 'country-co', timeZone: 'America/Bogota' }));
+  cities.seed(testMarket({ id: 'city-lima', name: 'Lima', countryId: 'country-pe', timeZone: 'America/Lima' }));
+  for (const [id, marketId, first, last] of [['gk-1', 'city-cali', 'Juan', 'Pérez'], ['gk-2', 'city-cali', 'Ana', 'Ruiz'], ['gk-3', 'city-lima', 'Luis', 'Soto'], ['gk-4', 'city-cali', 'Sin', 'Movimientos']] as const) {
+    profiles.seed(buildGoalkeeperProfile(id, { marketId }));
     users.seed(person(id, first, last));
   }
   const movement = (goalkeeperId: string, amount: number) =>
@@ -49,16 +48,16 @@ async function setup() {
       cancellation: null,
       reason: 'Prueba',
       invoicing: null,
+      marketId: 'city-cali',
     } as never);
   await movement('gk-1', 18536);
   await movement('gk-2', 5000);
   await movement('gk-3', 1000);
   const colombia = new Country({ id: 'country-co', name: 'Colombia', dialCode: '+57', countryCode: 'CO', currency: 'COP' });
   const handler = new ListOperatingBalancesAdminQueryHandler({
-    reader: new FakeOperatingBalanceAdminReader({ operatingBalances, profiles, cities, regions }),
+    reader: new FakeOperatingBalanceAdminReader({ operatingBalances, profiles, markets: cities }),
     users,
-    cities,
-    regions,
+    markets: cities,
     countries: { getById: async (id: string) => (id === colombia.id ? colombia : null) },
   });
   return { handler, operatingBalances };
@@ -74,7 +73,7 @@ describe('ListOperatingBalancesAdminQueryHandler', () => {
     expect(result.page.items.map((row) => row.goalkeeper.userId)).toEqual(['gk-3', 'gk-2', 'gk-1']);
     expect(result.page.items[2]).toEqual({
       goalkeeper: { userId: 'gk-1', name: 'Juan Pérez' },
-      cityName: 'Cali',
+      marketName: 'Cali',
       countryId: 'country-co',
       countryName: 'Colombia',
       balance: 18536,
@@ -116,12 +115,13 @@ describe('ListOperatingBalancesAdminQueryHandler', () => {
       cancellation: null,
       reason: 'Prueba',
       invoicing: null,
+      marketId: 'city-cali',
     } as never);
 
     const result = await handler.handle(new ListOperatingBalancesAdminQuery({ sort: 'balance_asc', page: 1, pageSize: 20 }));
     const row = result.page.items.find((item) => item.goalkeeper.userId === 'gk-5');
-    expect(row).toMatchObject({ cityName: null, countryId: null, countryName: null, goalkeeper: { name: null } });
+    expect(row).toMatchObject({ marketName: null, countryId: null, countryName: null, goalkeeper: { name: null } });
     const lima = result.page.items.find((item) => item.goalkeeper.userId === 'gk-3');
-    expect(lima).toMatchObject({ cityName: 'Lima', countryId: 'country-pe', countryName: null });
+    expect(lima).toMatchObject({ marketName: 'Lima', countryId: 'country-pe', countryName: null });
   });
 });

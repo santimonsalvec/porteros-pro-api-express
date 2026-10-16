@@ -32,8 +32,11 @@ const EXPECTED: [area: string, areaName: string, permission: string, description
   ['invoicing', 'Facturación', 'invoicing.read', 'Ver facturas y notas crédito'],
   ['invoicing', 'Facturación', 'invoicing.retry', 'Reintentar una factura rechazada'],
   ['invoicing', 'Facturación', 'invoicing.settings.manage', 'Configurar el proveedor de facturación por país'],
-  ['geography', 'Geografía', 'geography.read', 'Ver países, regiones, ciudades y zonas'],
-  ['geography', 'Geografía', 'geography.manage', 'Crear y editar países, regiones, ciudades y zonas'],
+  ['markets', 'Sedes', 'markets.read', 'Ver las sedes y su lista de chequeo'],
+  ['markets', 'Sedes', 'markets.manage', 'Crear sedes y editar su nombre, zona horaria y mapa'],
+  ['markets', 'Sedes', 'markets.lifecycle', 'Habilitar, deshabilitar y eliminar sedes'],
+  ['geography', 'Geografía', 'geography.read', 'Ver países, departamentos, municipios y zonas'],
+  ['geography', 'Geografía', 'geography.manage', 'Crear y editar países, departamentos, municipios y zonas'],
   ['catalogs', 'Catálogos', 'catalogs.manage', 'Editar tipos de documento y superficies'],
   ['pricing', 'Precios y reglas', 'pricing.read', 'Ver tarifas, comisiones, reglas de reserva e IVA'],
   ['pricing', 'Precios y reglas', 'pricing.manage', 'Cambiar tarifas, comisiones, reglas de reserva e IVA'],
@@ -46,13 +49,13 @@ const EXPECTED: [area: string, areaName: string, permission: string, description
 ];
 
 describe('permission catalog', () => {
-  it('lists the 37 permissions of 18 areas, in the contract order', () => {
+  it('lists the 40 permissions of 19 areas, in the contract order', () => {
     const flattened = PERMISSION_AREAS.flatMap((area) =>
       area.permissions.map((permission) => [area.id, area.name, permission.id, permission.description]),
     );
 
     expect(flattened).toEqual(EXPECTED);
-    expect(PERMISSION_AREAS).toHaveLength(18);
+    expect(PERMISSION_AREAS).toHaveLength(19);
     expect(PERMISSION_CATALOG).toEqual(EXPECTED.map(([, , permission]) => permission));
   });
 

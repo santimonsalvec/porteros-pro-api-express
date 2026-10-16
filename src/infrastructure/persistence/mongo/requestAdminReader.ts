@@ -1,3 +1,4 @@
+import { MARKETS_COLLECTION } from './marketRepository.js';
 import type { Collection, Db, Document } from 'mongodb';
 import type {
   BookingMoneyRecord,
@@ -26,8 +27,7 @@ const MONEY_KEYS = ['commission', 'commission_vat', 'commission_refund', 'commis
  * `kind` + `bookingId`; ratings and cases by `bookingId`; offers by `offer_request`.
  */
 export class RequestAdminReader implements IRequestAdminReader {
-  private readonly regions: Collection<Document>;
-  private readonly cities: Collection<Document>;
+  private readonly markets: Collection<Document>;
   private readonly requests: Collection<Document>;
   private readonly bookings: Collection<Document>;
   private readonly movements: Collection<Document>;
@@ -37,8 +37,7 @@ export class RequestAdminReader implements IRequestAdminReader {
   private readonly notifications: Collection<Document>;
 
   constructor(db: Db) {
-    this.regions = db.collection('regions');
-    this.cities = db.collection('cities');
+    this.markets = db.collection(MARKETS_COLLECTION);
     this.requests = db.collection(GOALKEEPER_REQUESTS_COLLECTION);
     this.bookings = db.collection(BOOKINGS_COLLECTION);
     this.movements = db.collection(BALANCE_MOVEMENTS_COLLECTION);
@@ -48,11 +47,9 @@ export class RequestAdminReader implements IRequestAdminReader {
     this.notifications = db.collection(NOTIFICATIONS_COLLECTION);
   }
 
-  async cityIdsOfCountry(countryId: string): Promise<string[]> {
-    const regions = await this.regions.find({ countryId } as Document, { projection: { _id: 1 } }).toArray();
-    if (regions.length === 0) return [];
-    const cities = await this.cities.find({ regionId: { $in: regions.map((doc) => doc._id) } } as Document, { projection: { _id: 1 } }).toArray();
-    return cities.map((doc) => String(doc._id));
+  async marketIdsOfCountry(countryId: string): Promise<string[]> {
+    const markets = await this.markets.find({ countryId } as Document, { projection: { _id: 1 } }).toArray();
+    return markets.map((doc) => String(doc._id));
   }
 
   async requestIdsOfGoalkeeper(goalkeeperId: string, limit: number): Promise<string[]> {
@@ -60,17 +57,17 @@ export class RequestAdminReader implements IRequestAdminReader {
     return ids.slice(0, limit).map(String);
   }
 
-  async requestIdsInCities(requestIds: readonly string[], cityIds: readonly string[]): Promise<string[]> {
-    if (requestIds.length === 0 || cityIds.length === 0) return [];
+  async requestIdsInMarkets(requestIds: readonly string[], marketIds: readonly string[]): Promise<string[]> {
+    if (requestIds.length === 0 || marketIds.length === 0) return [];
     const docs = await this.requests
-      .find({ _id: { $in: [...requestIds] }, 'match.cityId': { $in: [...cityIds] } } as Document, { projection: { _id: 1 } })
+      .find({ _id: { $in: [...requestIds] }, 'match.marketId': { $in: [...marketIds] } } as Document, { projection: { _id: 1 } })
       .toArray();
     return docs.map((doc) => String(doc._id));
   }
 
   async list(filter: RequestListFilter): Promise<{ items: RequestListRecord[]; totalItems: number }> {
     // A country without cities, or a goalkeeper without requests, matches nothing.
-    if (filter.cityIds?.length === 0 || filter.requestIds?.length === 0) return { items: [], totalItems: 0 };
+    if (filter.marketIds?.length === 0 || filter.requestIds?.length === 0) return { items: [], totalItems: 0 };
     const [result] = await this.requests.aggregate<{ items: Document[]; total: { count: number }[] }>(requestsListPipeline(filter)).toArray();
     return { items: (result?.items ?? []).map(toListRecord), totalItems: result?.total[0]?.count ?? 0 };
   }
@@ -115,7 +112,7 @@ function toListRecord(doc: Document): RequestListRecord {
     clientId: doc.clientId as string,
     startsAt: new Date(doc.startsAt as Date),
     timeZone: match.timeZone as string,
-    cityId: match.cityId as string,
+    marketId: match.marketId as string,
     zoneId: doc.zoneId as string,
     goalkeeperCount: match.goalkeeperCount as number,
     counts: {

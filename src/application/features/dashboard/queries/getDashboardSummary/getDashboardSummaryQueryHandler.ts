@@ -1,3 +1,4 @@
+import { withinAllowed } from '../../../markets/common/marketRestriction.js';
 import type { IClock } from '../../../../common/clock.js';
 import type { IQueryHandler } from '../../../../common/mediator/types.js';
 import { AREA_PERMISSIONS, DASHBOARD_AREAS, type DashboardArea } from '../../common/areas.js';
@@ -23,7 +24,8 @@ export class GetDashboardSummaryQueryHandler implements IQueryHandler<GetDashboa
   async handle({ filter, permissions }: GetDashboardSummaryQuery): Promise<GetDashboardSummaryResult> {
     const resolved = await resolveDashboardScope(this.deps.geography, filter);
     if (resolved.outcome !== 'ok') return resolved;
-    const { scope } = resolved;
+    // Spec 031: a member who holds only some markets counts only theirs.
+    const scope = filter.marketIds ? { ...resolved.scope, marketIds: withinAllowed(resolved.scope.marketIds ?? undefined, filter.marketIds)! } : resolved.scope;
     const now = this.deps.clock.now();
     const windows = dashboardWindows(scope.timeZone, now);
 
@@ -32,7 +34,7 @@ export class GetDashboardSummaryQueryHandler implements IQueryHandler<GetDashboa
       scope,
       windows,
       now,
-      goalkeeperIds: () => (goalkeeperIds ??= scope.cityIds === null ? Promise.resolve(null) : this.deps.reader.goalkeeperIdsInCities(scope.cityIds)),
+      goalkeeperIds: () => (goalkeeperIds ??= scope.marketIds === null ? Promise.resolve(null) : this.deps.reader.goalkeeperIdsInMarkets(scope.marketIds)),
     };
 
     const visible = DASHBOARD_AREAS.filter((area) => permissions.includes(AREA_PERMISSIONS[area]));
@@ -48,7 +50,7 @@ export class GetDashboardSummaryQueryHandler implements IQueryHandler<GetDashboa
       }
     });
 
-    const shown = { countryId: scope.countryId, cityId: scope.cityId, timeZone: scope.timeZone, timeZoneSource: scope.timeZoneSource, timeZoneFallback: scope.timeZoneFallback };
+    const shown = { countryId: scope.countryId, marketId: scope.marketId, timeZone: scope.timeZone, timeZoneSource: scope.timeZoneSource, timeZoneFallback: scope.timeZoneFallback };
     return { outcome: 'ok', summary: { computedAt: now, scope: { ...shown, today: windows.today, week: windows.week }, areas } };
   }
 

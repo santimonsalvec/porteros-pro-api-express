@@ -21,6 +21,7 @@ const incident = GoalkeeperIncident.rehydrate({
   goalkeeperId: 'gk-1',
   bookingId: 'b-1',
   requestId: 'r-1',
+  marketId: 'city-cali',
   startsAt: new Date('2026-09-21T20:00:00.000Z'),
   occurredAt: at,
   noticeMinutes: 90,

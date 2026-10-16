@@ -1,5 +1,6 @@
 import type { VerificationMethod, VettingTier } from '../../../../domain/goalkeepers/vetting.js';
 import type { BackgroundCheckAlert } from './adminPorts.js';
+import type { BillingView } from './billingPlaces.js';
 /**
  * What the admin web sees of a goalkeeper and of a registration in progress (admin spec 005,
  * contracts/users-goalkeepers-api.md §3–§4). The document number and its photos are never part of
@@ -15,7 +16,7 @@ export interface RatingSummary {
 export interface GoalkeeperRow {
   userId: string;
   name: string | null;
-  city: { id: string; name: string } | null;
+  market: { id: string; name: string } | null;
   zoneCount: number;
   availableForOffers: boolean;
   suspendedUntil: string | null;
@@ -39,7 +40,7 @@ export interface GoalkeeperDetail {
   heightCm: number;
   weightKg: number;
   activatedAt: string;
-  city: { id: string; name: string; timeZone: string | null } | null;
+  market: { id: string; name: string; timeZone: string } | null;
   zones: { id: string; name: string; active: boolean }[];
   availableForOffers: boolean;
   suspendedUntil: string | null;
@@ -56,6 +57,8 @@ export interface GoalkeeperDetail {
     withdrawalCount: number;
     noShowCount: number;
   };
+  /** Spec 031: where they live, for their invoices; read-only in the admin (U10). */
+  billing: BillingView;
 }
 
 /** The audited read of the document (FR-008). */
@@ -75,7 +78,7 @@ export interface DocumentCorrectionAudit {
   version: string;
 }
 
-export type RegistrationStep = 'identification' | 'physicalData' | 'availability' | 'ready';
+export type RegistrationStep = 'identification' | 'physicalData' | 'availability' | 'billing' | 'ready';
 export type SectionName = Exclude<RegistrationStep, 'ready'>;
 export type FieldStatus = 'complete' | 'missing';
 
@@ -85,7 +88,7 @@ export interface RegistrationRow {
   email: string | null;
   step: RegistrationStep;
   completeSections: SectionName[];
-  cityName: string | null;
+  marketName: string | null;
   createdAt: string;
   updatedAt: string;
   idleDays: number;
@@ -100,7 +103,8 @@ export interface RegistrationDetail {
   sections: {
     identification: { complete: boolean; fields: Record<string, FieldStatus> };
     physicalData: { complete: boolean; fields: Record<string, FieldStatus>; values: { heightCm: number | null; weightKg: number | null } };
-    availability: { complete: boolean; city: { id: string; name: string } | null; zones: { id: string; name: string }[] };
+    availability: { complete: boolean; market: { id: string; name: string } | null; zones: { id: string; name: string }[] };
+    billing: { complete: boolean } & BillingView;
   };
   createdAt: string;
   updatedAt: string;

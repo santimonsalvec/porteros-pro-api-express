@@ -53,7 +53,8 @@ export class FakeGoalkeeperRegistrationRepository implements IGoalkeeperRegistra
   async inProgress(filter: RegistrationListFilter): Promise<GoalkeeperRegistration[]> {
     return [...this.registrations.values()]
       .filter((registration) => registration.status === 'in_progress')
-      .filter((registration) => filter.cityId === undefined || registration.availability.cityId === filter.cityId)
+      .filter((registration) => filter.marketId === undefined || registration.availability.marketId === filter.marketId)
+      .filter((registration) => filter.marketIds === undefined || filter.marketIds.includes(registration.availability.marketId ?? ''))
       .filter((registration) => !filter.updatedBefore || registration.updatedAt <= filter.updatedBefore)
       .sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime());
   }

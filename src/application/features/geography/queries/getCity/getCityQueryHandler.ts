@@ -8,8 +8,7 @@ export class GetCityQueryHandler implements IQueryHandler<GetCityQuery, GetCityR
   async handle(query: GetCityQuery): Promise<GetCityResult> {
     const city = await this.deps.cities.getById(query.cityId);
     if (!city) return { outcome: 'not_found' };
-    // The city page reads its checklist from `/admin/readiness`; writes read this view for the audit.
-    const [view] = await toCityViews([city], this.deps, false);
+    const [view] = await toCityViews([city], this.deps);
     return { outcome: 'ok', city: view! };
   }
 }

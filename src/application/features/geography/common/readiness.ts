@@ -1,7 +1,6 @@
 import type { Country } from '../../../../domain/countries/country.js';
 import { isInvoiceableDocumentType } from '../../../../domain/goalkeepers/documentType.js';
-import type { City } from '../../../../domain/locations/city.js';
-import { daneCodesValid } from '../../../../domain/locations/locationRules.js';
+import type { Market } from '../../../../domain/markets/market.js';
 import type { BookingSettings } from '../../../../domain/pricing/bookingSettings.js';
 import { InvalidConfigurationError } from '../../../../domain/pricing/invalidConfigurationError.js';
 import type { IDocumentTypeRepository } from '../../goalkeepers/common/ports.js';
@@ -11,7 +10,6 @@ import type { IInvoicingSettingsRepository } from '../../invoicing/common/ports.
 import type { IPaymentGatewaySettingsRepository } from '../../payments/common/ports.js';
 import type { ICommissionSettingRepository, ITaxSettingsRepository } from '../../operatingBalance/common/ports.js';
 import type {
-  IAdminCityRepository,
   IAdminCountryRepository,
   IAdminRegionRepository,
   IAdminZoneRepository,
@@ -22,21 +20,21 @@ import type {
 } from './ports.js';
 
 /**
- * What a country or an operating city still needs to quote (business-settings §17, admin spec
- * 003 US3). It reads the same data and runs the same functions as the quote, so "ready" means a
- * quote there does not fail for configuration (FR-023).
+ * What a country or a market still needs to quote (business-settings §17, admin spec 003 US3;
+ * spec 031, FR-008). It reads the same data and runs the same functions as the quote, so "ready"
+ * means a quote there does not fail for configuration (SC-003).
  */
 
 export type ReadinessTarget =
   | {
       kind: 'admin';
       screen:
-        | 'city'
+        | 'market'
         | 'region'
         | 'country'
         | 'zones'
         | 'documentTypes'
-        // Prices and booking rules (admin spec 004): a city's, or a country's.
+        // Prices and booking rules (admin spec 004): a market's, or a country's.
         | 'rentalRates'
         | 'commissions'
         | 'countryCommissions'
@@ -61,7 +59,6 @@ export interface ReadinessResult extends ReadinessSummary {
 export interface ReadinessDependencies {
   countries: IAdminCountryRepository;
   regions: IAdminRegionRepository;
-  cities: IAdminCityRepository;
   zones: IAdminZoneRepository;
   bookingSettings: IBookingSettingsBatch;
   rentalRates: IRatePresence;
@@ -93,71 +90,58 @@ function summarize(items: ReadinessItem[]): ReadinessResult {
 const listWords = (values: readonly (string | number)[]) =>
   values.length <= 1 ? values.join('') : `${values.slice(0, -1).join(', ')} y ${values.at(-1)}`;
 
-/** One operating city: see `readinessForCities`. */
-export async function cityReadiness(deps: ReadinessDependencies, city: City): Promise<ReadinessResult> {
-  return (await readinessForCities(deps, [city])).get(city.id)!;
+/** One market: see `readinessForMarkets`. */
+export async function marketReadiness(deps: ReadinessDependencies, market: Market): Promise<ReadinessResult> {
+  return (await readinessForMarkets(deps, [market])).get(market.id)!;
 }
 
 const unique = (values: (string | null | undefined)[]) => [...new Set(values.filter((value): value is string => !!value))];
 
 /**
- * The checklist of several operating cities, read in four rounds whatever their number: their
- * anchors; the regions; countries, zones and rules; rates and commissions. Each round is one
- * query per source, so a dashboard costs the same with 3 cities or 30. A satellite is judged by
- * its anchor (where the quote happens), its DANE codes by itself.
+ * The checklist of several markets, read in two rounds whatever their number: countries, zones
+ * and rules; then rates and commissions. Each round is one query per source, so a dashboard costs
+ * the same with 3 markets or 30.
  */
-export async function readinessForCities(deps: ReadinessDependencies, cities: City[]): Promise<Map<string, ReadinessResult>> {
-  if (cities.length === 0) return new Map();
-  const known = new Map(cities.map((city) => [city.id, city]));
-  const missingAnchors = unique(cities.map((city) => city.zoneCityId)).filter((id) => !known.has(id));
-  for (const anchor of missingAnchors.length > 0 ? await deps.cities.getByIds(missingAnchors) : []) known.set(anchor.id, anchor);
-  const anchorOf = (city: City) => (city.zoneCityId ? (known.get(city.zoneCityId) ?? city) : city);
-  const anchors = unique(cities.map((city) => anchorOf(city).id)).map((id) => known.get(id)!);
-
-  const regions = new Map((await deps.regions.getByIds(unique([...known.values()].map((city) => city.regionId)))).map((region) => [region.id, region]));
-  const countryIdOf = (city: City) => regions.get(city.regionId)?.countryId ?? null;
-  const countryIds = unique([...known.values()].map(countryIdOf));
-  const anchorIds = anchors.map((anchor) => anchor.id);
+export async function readinessForMarkets(deps: ReadinessDependencies, markets: readonly Market[]): Promise<Map<string, ReadinessResult>> {
+  if (markets.length === 0) return new Map();
+  const marketIds = markets.map((market) => market.id);
+  const countryIds = unique(markets.map((market) => market.countryId));
 
   const [countries, zones, settings] = await Promise.all([
     deps.countries.getByIds(countryIds),
-    deps.zones.summariesByCities(anchorIds),
-    deps.bookingSettings.findMany({ cityIds: anchorIds, countryIds }),
+    deps.zones.summariesByMarkets(marketIds),
+    deps.bookingSettings.findMany({ marketIds, countryIds }),
   ]);
   const countryById = new Map(countries.map((country) => [country.id, country]));
   const activeZones = zones.filter((zone) => zone.active);
   const zoneIds = activeZones.map((zone) => zone.id);
   const [priced, commissions] = await Promise.all([
-    deps.rentalRates.pricedDurations({ cityIds: anchorIds, zoneIds }),
-    deps.commissions.findFor({ zoneIds, cityIds: anchorIds, countryIds }),
+    deps.rentalRates.pricedDurations({ marketIds, zoneIds }),
+    deps.commissions.findFor({ zoneIds, marketIds, countryIds }),
   ]);
 
   const results = new Map<string, ReadinessResult>();
-  for (const city of cities) {
-    const anchor = anchorOf(city);
-    const anchorZoneIds = activeZones.filter((zone) => zone.cityId === anchor.id).map((zone) => zone.id);
+  for (const market of markets) {
+    const marketZoneIds = activeZones.filter((zone) => zone.marketId === market.id).map((zone) => zone.id);
     results.set(
-      city.id,
+      market.id,
       summarize(
-        cityItems({
-          city,
-          anchor,
-          regionName: regions.get(city.regionId)?.name ?? null,
-          country: countryById.get(countryIdOf(city) ?? '') ?? null,
-          anchorCountry: countryById.get(countryIdOf(anchor) ?? '') ?? null,
-          zoneIds: anchorZoneIds,
+        marketItems({
+          market,
+          country: countryById.get(market.countryId) ?? null,
+          zoneIds: marketZoneIds,
           pricedDurations: priced
-            .filter((rate) => (rate.scope === 'city' ? rate.refId === anchor.id : anchorZoneIds.includes(rate.refId)))
+            .filter((rate) => (rate.scope === 'market' ? rate.refId === market.id : marketZoneIds.includes(rate.refId)))
             .map((rate) => rate.durationMinutes),
           settings: {
-            city: settings.find((item) => item.scope === 'city' && item.refId === anchor.id) ?? null,
-            country: settings.find((item) => item.scope === 'country' && item.refId === countryIdOf(anchor)) ?? null,
+            market: settings.find((item) => item.scope === 'market' && item.refId === market.id) ?? null,
+            country: settings.find((item) => item.scope === 'country' && item.refId === market.countryId) ?? null,
           },
           commissions: commissions.filter(
             (item) =>
-              (item.scope === 'zone' && anchorZoneIds.includes(item.refId)) ||
-              (item.scope === 'city' && item.refId === anchor.id) ||
-              (item.scope === 'country' && item.refId === countryIdOf(anchor)),
+              (item.scope === 'zone' && marketZoneIds.includes(item.refId)) ||
+              (item.scope === 'market' && item.refId === market.id) ||
+              (item.scope === 'country' && item.refId === market.countryId),
           ),
         }),
       ),
@@ -166,56 +150,40 @@ export async function readinessForCities(deps: ReadinessDependencies, cities: Ci
   return results;
 }
 
-interface CityFacts {
-  city: City;
-  anchor: City;
-  regionName: string | null;
+interface MarketFacts {
+  market: Market;
   country: Country | null;
-  anchorCountry: Country | null;
   zoneIds: string[];
   pricedDurations: number[];
-  settings: { city: BookingSettings | null; country: BookingSettings | null };
+  settings: { market: BookingSettings | null; country: BookingSettings | null };
   commissions: { scope: string }[];
 }
 
-/** The checklist of one city from what was read (§17), in its order. */
-function cityItems(facts: CityFacts): ReadinessItem[] {
-  const { city, anchor, country, zoneIds, settings, commissions } = facts;
-  const anchorName = anchor.id === city.id ? '' : ` (de ${anchor.name})`;
-  const items: ReadinessItem[] = [
-    check('region_country', country !== null, country ? `${facts.regionName} · ${country.name}` : 'La región no tiene país', admin('region', city.regionId)),
-    check(
-      'time_zone',
-      anchor.timeZone !== null && isValidTimeZone(anchor.timeZone),
-      anchor.timeZone ? `${anchor.timeZone}${anchorName}` : `Sin zona horaria${anchorName}`,
-      admin('city', anchor.id),
-    ),
-  ];
-  if (country?.countryCode === 'CO') {
-    const complete = city.daneStateCode !== null && city.daneCityCode !== null && daneCodesValid(city.daneStateCode, city.daneCityCode);
-    items.push(check('dane_codes', complete, complete ? `${city.daneStateCode} · ${city.daneCityCode}` : 'Faltan los códigos DANE', admin('city', city.id)));
-  }
+/** The checklist of one market from what was read (§17), in its order. */
+function marketItems(facts: MarketFacts): ReadinessItem[] {
+  const { market, country, zoneIds, settings, commissions } = facts;
   const durations = DURATIONS.filter((duration) => facts.pricedDurations.includes(duration));
-  const cityLevel = commissions.filter((item) => item.scope !== 'country');
-  items.push(
+  const marketLevel = commissions.filter((item) => item.scope !== 'country');
+  return [
+    check('country', country !== null && country.currency !== null, country ? `${country.name} · ${country.currency ?? 'sin moneda'}` : 'El país no existe', admin('country', market.countryId)),
+    check('time_zone', isValidTimeZone(market.timeZone), market.timeZone, admin('market', market.id)),
     check(
       'zones',
       zoneIds.length > 0,
-      zoneIds.length > 0 ? `${zoneIds.length} ${zoneIds.length === 1 ? 'zona activa' : 'zonas activas'}${anchorName}` : `Sin zonas activas${anchorName}`,
-      admin('zones', anchor.id),
+      zoneIds.length > 0 ? `${zoneIds.length} ${zoneIds.length === 1 ? 'zona activa' : 'zonas activas'}` : 'Sin zonas activas',
+      admin('zones', market.id),
     ),
-    check('rental_rates', durations.length > 0, durations.length > 0 ? `${listWords(durations)} min` : 'Sin tarifas', admin('rentalRates', anchor.id)),
-    bookingSettingsItem(settings, facts.anchorCountry, anchor.id),
-    check('commission', commissions.length > 0, commissions.length > 0 ? 'Configurada' : 'Sin comisión', admin('commissions', anchor.id)),
-    check('city_booking_settings', settings.city !== null, settings.city ? 'Reglas propias de la ciudad' : 'Usa las del país', admin('bookingSettings', anchor.id), true),
-    check('city_commission', cityLevel.length > 0, cityLevel.length > 0 ? 'Comisión propia' : 'Usa la del país', admin('commissions', anchor.id), true),
-  );
-  return items;
+    check('rental_rates', durations.length > 0, durations.length > 0 ? `${listWords(durations)} min` : 'Sin tarifas', admin('rentalRates', market.id)),
+    bookingSettingsItem(settings, country, market.id),
+    check('commission', commissions.length > 0, commissions.length > 0 ? 'Configurada' : 'Sin comisión', admin('commissions', market.id)),
+    check('market_booking_settings', settings.market !== null, settings.market ? 'Reglas propias de la sede' : 'Usa las del país', admin('bookingSettings', market.id), true),
+    check('market_commission', marketLevel.length > 0, marketLevel.length > 0 ? 'Comisión propia' : 'Usa la del país', admin('commissions', market.id), true),
+  ];
 }
 
 /** The quote's own judgement of the rules and currency (`areaSettingsFrom`). */
-function bookingSettingsItem(settings: CityFacts['settings'], country: Country | null, anchorId: string): ReadinessItem {
-  const target = admin('bookingSettings', anchorId);
+function bookingSettingsItem(settings: MarketFacts['settings'], country: Country | null, marketId: string): ReadinessItem {
+  const target = admin('bookingSettings', marketId);
   try {
     const result = areaSettingsFrom(settings, country);
     return check('booking_settings', result.ok, result.ok ? 'Completas' : `Falta: ${result.missing.join(', ')}`, target);
@@ -231,8 +199,8 @@ const hasMinimumRules = (settings: BookingSettings | null) =>
 export async function countryReadiness(deps: ReadinessDependencies, country: Country): Promise<ReadinessResult> {
   const [regions, settings, commissions, tax, gateway, invoicing, documentTypes] = await Promise.all([
     deps.regions.getByCountry(country.id),
-    deps.bookingSettings.findMany({ cityIds: [], countryIds: [country.id] }),
-    deps.commissions.findFor({ zoneIds: [], cityIds: [], countryIds: [country.id] }),
+    deps.bookingSettings.findMany({ marketIds: [], countryIds: [country.id] }),
+    deps.commissions.findFor({ zoneIds: [], marketIds: [], countryIds: [country.id] }),
     deps.taxSettings.getByCountry(country.id),
     deps.gatewaySettings.getByCountry(country.id),
     deps.invoicingSettings.getByCountry(country.id),
@@ -242,7 +210,8 @@ export async function countryReadiness(deps: ReadinessDependencies, country: Cou
   return summarize([
     check('currency', country.currency !== null && CURRENCY.test(country.currency), country.currency ?? 'Sin moneda', admin('country', country.id)),
     check('country_code', COUNTRY_CODE.test(country.countryCode), country.countryCode, admin('country', country.id)),
-    check('regions', regions.length > 0, `${regions.length} ${regions.length === 1 ? 'región' : 'regiones'}`, admin('region')),
+    // Departments only hold the municipalities of the goalkeepers' billing data (spec 031).
+    check('regions', regions.length > 0, `${regions.length} ${regions.length === 1 ? 'departamento' : 'departamentos'}`, admin('region'), true),
     check('booking_settings', hasMinimumRules(settings[0] ?? null), hasMinimumRules(settings[0] ?? null) ? 'Completas' : 'Faltan reglas del país', admin('countryBookingSettings', country.id)),
     check('commission', commissions.length > 0, commissions.length > 0 ? 'Configurada' : 'Sin comisión del país', admin('countryCommissions', country.id)),
     check('tax', tax !== null, tax ? 'Configurado' : 'Sin IVA configurado', admin('taxSettings', country.id)),
@@ -257,12 +226,16 @@ export async function countryReadiness(deps: ReadinessDependencies, country: Cou
   ]);
 }
 
-/** The city list's summary of each operating city (`IReadinessSummary`). */
+/** The market list's summary of each market (`IReadinessSummary`). */
 export class ReadinessSummarizer implements IReadinessSummary {
   constructor(private readonly deps: ReadinessDependencies) {}
 
-  async summarize(cities: City[]): Promise<Map<string, ReadinessSummary>> {
-    const results = await readinessForCities(this.deps, cities);
+  async summarize(markets: Market[]): Promise<Map<string, ReadinessSummary>> {
+    const results = await readinessForMarkets(this.deps, markets);
     return new Map([...results].map(([id, { ready, missingCount }]) => [id, { ready, missingCount }]));
+  }
+
+  check(market: Market): Promise<ReadinessResult> {
+    return marketReadiness(this.deps, market);
   }
 }

@@ -20,13 +20,13 @@ describe('UnverifiedDiscountRepository (mocked driver, admin spec 030)', () => {
 
   it('reads the levels of some zones, cities and countries in one query', async () => {
     const collection = createFakeCollection();
-    collection.find.mockReturnValue(toArrayResult([{ _id: 'd-1', scope: 'city', refId: 'med', discountBps: 1000, revision: 2 }]));
+    collection.find.mockReturnValue(toArrayResult([{ _id: 'd-1', scope: 'market', refId: 'med', discountBps: 1000, revision: 2 }]));
 
-    const found = await repositoryWith(collection).findFor({ zoneIds: ['z'], cityIds: ['med'], countryIds: [] });
+    const found = await repositoryWith(collection).findFor({ zoneIds: ['z'], marketIds: ['med'], countryIds: [] });
 
-    expect(found).toEqual([expect.objectContaining({ id: 'd-1', scope: 'city', refId: 'med', discountBps: 1000, verifiedPriorityMinutes: null, revision: 2 })]);
-    expect(collection.find).toHaveBeenCalledWith({ $or: [{ scope: 'zone', refId: { $in: ['z'] } }, { scope: 'city', refId: { $in: ['med'] } }] });
-    expect(await repositoryWith(createFakeCollection()).findFor({ zoneIds: [], cityIds: [], countryIds: [] })).toEqual([]);
+    expect(found).toEqual([expect.objectContaining({ id: 'd-1', scope: 'market', refId: 'med', discountBps: 1000, verifiedPriorityMinutes: null, revision: 2 })]);
+    expect(collection.find).toHaveBeenCalledWith({ $or: [{ scope: 'zone', refId: { $in: ['z'] } }, { scope: 'market', refId: { $in: ['med'] } }] });
+    expect(await repositoryWith(createFakeCollection()).findFor({ zoneIds: [], marketIds: [], countryIds: [] })).toEqual([]);
   });
 
   it('creates at revision 0 and reports a level that already has one', async () => {

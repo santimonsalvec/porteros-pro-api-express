@@ -6,6 +6,10 @@ import type { CaseAdminItem } from '../../common/caseAdminViews.js';
 export interface ListCasesAdminCriteria {
   status?: CaseStatus;
   countryId?: string;
+  /** Spec 031: one market, from X-Scope; wins over the country. */
+  marketId?: string;
+  /** Spec 031: the markets a member who holds only some may see. */
+  marketIds?: readonly string[];
   type?: CaseType;
   from?: Date;
   to?: Date;

@@ -11,7 +11,7 @@ import { InvoicingSettingsRepository } from '../../../../../src/infrastructure/p
 import { createFakeCollection, toArrayCursor } from '../../../../fakes/fakeMongoCollection.js';
 
 const NOW = new Date('2026-09-29T12:00:00.000Z');
-const BUYER = { documentType: 'CC', documentNumber: '1', firstName: 'Ana', lastName: 'P', email: 'a@e.co', cityId: 'city-cali' };
+const BUYER = { documentType: 'CC', documentNumber: '1', firstName: 'Ana', lastName: 'P', email: 'a@e.co', cityId: 'city-cali', address: null, addressComplement: null };
 
 function dbWith(collection: ReturnType<typeof createFakeCollection>): Db {
   return { collection: () => collection as unknown as Collection<Document> } as unknown as Db;
@@ -23,6 +23,7 @@ const document = InvoicingDocument.create({
   concept: 'commission',
   goalkeeperId: 'gk-1',
   countryId: 'country-co',
+  marketId: 'city-cali',
   sourceEventId: 'e-1',
   sourceMovementId: 'm-1',
   vatMovementId: 'm-2',
@@ -48,6 +49,7 @@ describe('InvoicingDocumentRepository (mocked driver)', () => {
     expect(collection.createIndex.mock.calls).toEqual([
       [{ sourceMovementId: 1 }, { name: 'source_unique', unique: true }],
       [{ goalkeeperId: 1, occurredAt: -1, _id: -1 }, { name: 'goalkeeper_occurred' }],
+      [{ marketId: 1, issuedAt: -1 }, { name: 'market_issued' }],
       [{ status: 1, nextAttemptAt: 1 }, { name: 'status_next' }],
     ]);
   });

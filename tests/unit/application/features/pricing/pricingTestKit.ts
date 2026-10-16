@@ -12,7 +12,7 @@ const square = { type: 'Polygon' as const, coordinates: [[[-75.6, 6.2], [-75.58,
 export function pricingKit() {
   const kit = geographyKit();
   const zone = (id: string, name: string, displayOrder: number, active = true) =>
-    kit.zones.items.set(id, new Zone({ id, cityId: 'med', name, slug: id, geometry: square, active, displayOrder }));
+    kit.zones.items.set(id, new Zone({ id, marketId: 'med', name, slug: id, geometry: square, active, displayOrder }));
   zone('bello', 'Bello', 2);
   zone('poblado', 'El Poblado', 3);
   zone('robledo', 'Robledo', 4, false);

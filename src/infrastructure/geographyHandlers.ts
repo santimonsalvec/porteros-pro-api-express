@@ -1,4 +1,22 @@
+import { CreateMarketCommand } from '../application/features/markets/commands/createMarket/createMarketCommand.js';
+import { CreateMarketCommandHandler } from '../application/features/markets/commands/createMarket/createMarketCommandHandler.js';
+import { UpdateMarketCommand } from '../application/features/markets/commands/updateMarket/updateMarketCommand.js';
+import { UpdateMarketCommandHandler } from '../application/features/markets/commands/updateMarket/updateMarketCommandHandler.js';
+import { GetMarketQuery } from '../application/features/markets/queries/getMarket/getMarketQuery.js';
+import { GetMarketQueryHandler } from '../application/features/markets/queries/getMarket/getMarketQueryHandler.js';
+import { ListMarketsQuery } from '../application/features/markets/queries/listMarkets/listMarketsQuery.js';
+import { ListMarketsQueryHandler } from '../application/features/markets/queries/listMarkets/listMarketsQueryHandler.js';
 import type { HandlerRegistration } from '../application/common/mediator/mediator.js';
+import type { IAdminMarketRepository } from '../application/features/markets/common/ports.js';
+import type { IMarketUsage } from '../application/features/markets/common/marketUsage.js';
+import { EnableMarketCommand } from '../application/features/markets/commands/enableMarket/enableMarketCommand.js';
+import { EnableMarketCommandHandler } from '../application/features/markets/commands/enableMarket/enableMarketCommandHandler.js';
+import { DisableMarketCommand } from '../application/features/markets/commands/disableMarket/disableMarketCommand.js';
+import { DisableMarketCommandHandler } from '../application/features/markets/commands/disableMarket/disableMarketCommandHandler.js';
+import { DeleteMarketCommand } from '../application/features/markets/commands/deleteMarket/deleteMarketCommand.js';
+import { DeleteMarketCommandHandler } from '../application/features/markets/commands/deleteMarket/deleteMarketCommandHandler.js';
+import { GetMarketReadinessQuery } from '../application/features/markets/queries/getMarketReadiness/getMarketReadinessQuery.js';
+import { GetMarketReadinessQueryHandler } from '../application/features/markets/queries/getMarketReadiness/getMarketReadinessQueryHandler.js';
 import type { IClock } from '../application/common/clock.js';
 import type { IIdGenerator } from '../application/features/auth/common/ports.js';
 import type { IDocumentTypeRepository } from '../application/features/goalkeepers/common/ports.js';
@@ -76,11 +94,14 @@ export interface GeographyHandlerDependencies extends ReadinessDependencies {
   countries: IAdminCountryRepository;
   regions: IAdminRegionRepository;
   cities: IAdminCityRepository;
+  markets: IAdminMarketRepository;
   zones: IAdminZoneRepository;
   /** Read by the readiness (`getAll`) and edited by the catalog screens. */
   documentTypes: IDocumentTypeRepository & IAdminDocumentTypeRepository;
   surfaces: IAdminMatchSurfaceRepository;
   usage: IReferenceUsage;
+  /** What keeps a market from being deleted (spec 031, data-model §12). */
+  marketUsage: IMarketUsage;
   futureBookings: IFutureBookingsProbe;
   ids: IIdGenerator;
   clock: IClock;
@@ -91,10 +112,18 @@ export interface GeographyHandlerDependencies extends ReadinessDependencies {
  * composition root and the HTTP tests' fake-backed one so both register exactly the same set.
  */
 export function geographyHandlerRegistrations(base: GeographyHandlerDependencies): HandlerRegistration[] {
-  // The city list's readiness column is the same checklist as the readiness page (US3).
+  // The market list's readiness column is the same checklist as the readiness page (US3).
   const deps = { ...base, readiness: new ReadinessSummarizer(base) };
   return [
     { requestType: GetReadinessQuery, handler: new GetReadinessQueryHandler(deps) },
+    { requestType: ListMarketsQuery, handler: new ListMarketsQueryHandler(deps) },
+    { requestType: GetMarketQuery, handler: new GetMarketQueryHandler(deps) },
+    { requestType: CreateMarketCommand, handler: new CreateMarketCommandHandler(deps) },
+    { requestType: UpdateMarketCommand, handler: new UpdateMarketCommandHandler(deps) },
+    { requestType: EnableMarketCommand, handler: new EnableMarketCommandHandler(deps) },
+    { requestType: DisableMarketCommand, handler: new DisableMarketCommandHandler(deps) },
+    { requestType: DeleteMarketCommand, handler: new DeleteMarketCommandHandler(deps) },
+    { requestType: GetMarketReadinessQuery, handler: new GetMarketReadinessQueryHandler(deps) },
     { requestType: ListTimeZonesQuery, handler: new ListTimeZonesQueryHandler() },
     { requestType: ListCitiesQuery, handler: new ListCitiesQueryHandler(deps) },
     { requestType: GetCityQuery, handler: new GetCityQueryHandler(deps) },

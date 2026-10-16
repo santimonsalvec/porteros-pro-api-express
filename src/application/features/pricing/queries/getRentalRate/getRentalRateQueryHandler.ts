@@ -10,7 +10,7 @@ export class GetRentalRateQueryHandler implements IQueryHandler<GetRentalRateQue
   async handle({ rateId }: GetRentalRateQuery): Promise<GetRentalRateResult> {
     const record = await this.deps.rentalRates.getById(rateId);
     if (!record) return { outcome: 'not_found' };
-    const geography = await PricingGeography.load(this.deps, record.scope === 'city' ? [record.refId] : []);
+    const geography = await PricingGeography.load(this.deps);
     return { outcome: 'ok', rate: rentalRateView(record, geography.target(record.scope, record.refId)) };
   }
 }

@@ -1,6 +1,6 @@
 import { IQuery } from '../../../../common/mediator/types.js';
+import type { MarketStatus } from '../../../../../domain/markets/market.js';
 import type { ReadinessItem } from '../../common/readiness.js';
-import type { CityState } from '../../common/views.js';
 
 export interface CountryReadinessView {
   countryId: string;
@@ -11,15 +11,14 @@ export interface CountryReadinessView {
 
 export interface CountryDashboard {
   country: CountryReadinessView;
-  /** Only the operating cities: most cities of a country are loaded in bulk and never opened. */
-  cities: { cityId: string; name: string; regionName: string; ready: boolean; missingCount: number }[];
-  availableCityCount: number;
+  /** Every market of the country, with its checklist summary. */
+  markets: { marketId: string; name: string; status: MarketStatus; ready: boolean; missingCount: number }[];
 }
 
-export interface CityReadinessView {
-  cityId: string;
+export interface MarketReadinessView {
+  marketId: string;
   name: string;
-  state: CityState;
+  status: MarketStatus;
   ready: boolean;
   missingCount: number;
   items: ReadinessItem[];
@@ -28,16 +27,16 @@ export interface CityReadinessView {
 
 export type GetReadinessResult =
   | { outcome: 'country'; dashboard: CountryDashboard }
-  | { outcome: 'city'; readiness: CityReadinessView }
+  | { outcome: 'market'; readiness: MarketReadinessView }
   | { outcome: 'country_not_found' }
-  | { outcome: 'city_not_found' };
+  | { outcome: 'market_not_found' };
 
-/** What a country or a city still needs to quote (admin spec 003, US3, `GET /admin/readiness`). */
+/** What a country or a market still needs to quote (admin spec 003, US3; spec 031, `GET /admin/readiness`). */
 export class GetReadinessQuery extends IQuery<GetReadinessResult> {
-  /** Use `ofCountry` or `ofCity`. */
+  /** Use `ofCountry` or `ofMarket`. */
   constructor(
     readonly countryId: string | null,
-    readonly cityId: string | null,
+    readonly marketId: string | null,
   ) {
     super();
   }
@@ -46,7 +45,7 @@ export class GetReadinessQuery extends IQuery<GetReadinessResult> {
     return new GetReadinessQuery(countryId, null);
   }
 
-  static ofCity(cityId: string): GetReadinessQuery {
-    return new GetReadinessQuery(null, cityId);
+  static ofMarket(marketId: string): GetReadinessQuery {
+    return new GetReadinessQuery(null, marketId);
   }
 }

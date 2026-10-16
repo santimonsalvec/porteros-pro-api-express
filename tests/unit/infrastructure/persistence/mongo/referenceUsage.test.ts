@@ -28,27 +28,20 @@ function databaseWith(used: Record<string, Document[]> = {}, distinct: Record<st
 const ID_ONLY = { projection: { _id: 1 } };
 
 describe('MongoReferenceUsage', () => {
-  describe('cityUsage', () => {
+  describe('cityUsage (a billing municipality, spec 031)', () => {
     it.each([
-      ['zones', { cityId: 'med' }, 'city_has_zones'],
-      ['cities', { zoneCityId: 'med' }, 'city_is_anchor'],
-      ['goalkeeperProfiles', { cityId: 'med' }, 'city_in_use'],
-      ['goalkeeperRegistrations', { 'availability.cityId': 'med' }, 'city_in_use'],
-      ['goalkeeperRequests', { 'match.cityId': 'med' }, 'city_in_use'],
-      ['rentalRates', { scope: 'city', refId: 'med' }, 'city_in_use'],
-      ['bookingSettings', { scope: 'city', refId: 'med' }, 'city_in_use'],
-      ['commissionSettings', { scope: 'city', refId: 'med' }, 'city_in_use'],
-    ])('finds a use in %s', async (collection, filter, reason) => {
+      ['goalkeeperProfiles', { 'billing.cityId': 'med' }],
+      ['goalkeeperRegistrations', { 'billing.cityId': 'med' }],
+      ['invoicingDocuments', { 'buyer.cityId': 'med' }],
+    ])('finds a use in %s', async (collection, filter) => {
       const { usage } = databaseWith({ [collection]: [filter] });
-      expect(await usage.cityUsage('med')).toBe(reason);
+      expect(await usage.cityUsage('med')).toBe('city_in_use');
     });
 
-    it('reports zones before anything else, and nothing when unused', async () => {
-      const both = databaseWith({ zones: [{ cityId: 'med' }], goalkeeperProfiles: [{ cityId: 'med' }] });
-      expect(await both.usage.cityUsage('med')).toBe('city_has_zones');
-      const { usage, collections } = databaseWith();
+    it('is null when no goalkeeper lives there', async () => {
+      const { usage, collections } = databaseWith({ zones: [{ marketId: 'med' }] });
       expect(await usage.cityUsage('med')).toBeNull();
-      expect(collections.get('zones')!.findOne).toHaveBeenCalledWith({ cityId: 'med' }, ID_ONLY);
+      expect(collections.get('goalkeeperProfiles')!.findOne).toHaveBeenCalledWith({ 'billing.cityId': 'med' }, ID_ONLY);
     });
   });
 
@@ -81,14 +74,13 @@ describe('MongoReferenceUsage', () => {
       expect(await databaseWith().usage.regionUsage('ant')).toBeNull();
     });
 
-    it('a country operates with deposits, or goalkeepers or requests in its cities', async () => {
-      const cities = { regions: ['ant'], cities: ['med'] };
+    it('a country operates with deposits, or goalkeepers or requests in its markets', async () => {
+      const markets = { markets: ['med'] };
       expect(await databaseWith({ deposits: [{ countryId: 'co' }] }).usage.countryOperates('co')).toBe(true);
-      expect(await databaseWith({ goalkeeperProfiles: [{ cityId: { $in: ['med'] } }] }, { regions: ['ant'], cities: ['med'] }).usage.countryOperates('co')).toBe(
-        true,
-      );
-      expect(await databaseWith({ goalkeeperRequests: [{ 'match.cityId': { $in: ['med'] } }] }, cities).usage.countryOperates('co')).toBe(true);
-      expect(await databaseWith({}, cities).usage.countryOperates('co')).toBe(false);
+      expect(await databaseWith({ goalkeeperProfiles: [{ marketId: { $in: ['med'] } }] }, markets).usage.countryOperates('co')).toBe(true);
+      expect(await databaseWith({ goalkeeperRequests: [{ 'match.marketId': { $in: ['med'] } }] }, markets).usage.countryOperates('co')).toBe(true);
+      expect(await databaseWith({}, markets).usage.countryOperates('co')).toBe(false);
+      expect(await databaseWith({}).usage.countryOperates('co')).toBe(false);
     });
   });
 
@@ -125,12 +117,68 @@ describe('MongoReferenceUsage', () => {
 
       await usage.hasFutureRequestsInArea('med', now);
 
-      expect(collections.get('zones')!.distinct).toHaveBeenCalledWith('_id', { cityId: 'med' });
+      expect(collections.get('zones')!.distinct).toHaveBeenCalledWith('_id', { marketId: 'med' });
       expect(requests().findOne).toHaveBeenCalledWith({ zoneId: { $in: ['z1'] }, active: true, startsAt: { $gt: now } }, ID_ONLY);
     });
 
     it('is false when the anchor has no zones', async () => {
       expect(await databaseWith().usage.hasFutureRequestsInArea('med', new Date())).toBe(false);
+    });
+  });
+
+  describe('marketUsage (spec 031, data-model §12)', () => {
+    /** A database whose `countDocuments` answers per collection and filter. */
+    function countingDatabase(counts: Record<string, [Document, number][]>, zoneIds: string[] = []) {
+      const collections = new Map<string, FakeMongoCollection>();
+      const db = {
+        collection: (name: string) => {
+          let collection = collections.get(name);
+          if (!collection) {
+            collection = createFakeCollection();
+            collection.countDocuments.mockImplementation(async (filter: Document) =>
+              (counts[name] ?? []).find(([match]) => JSON.stringify(match) === JSON.stringify(filter))?.[1] ?? 0,
+            );
+            collection.distinct.mockResolvedValue(name === 'zones' ? zoneIds : []);
+            collections.set(name, collection);
+          }
+          return collection;
+        },
+      } as unknown as Db;
+      return new MongoReferenceUsage(db);
+    }
+
+    it('is null for a market nothing points at', async () => {
+      expect(await countingDatabase({}).marketUsage('bog')).toBeNull();
+    });
+
+    it.each([
+      ['zones', { zones: [[{ marketId: 'bog' }, 2]] }, { kind: 'zones', count: 2 }],
+      [
+        'settings',
+        { rentalRates: [[{ scope: 'market', refId: 'bog' }, 3]], paymentGatewaySettings: [[{ scope: 'market', refId: 'bog' }, 1]] },
+        { kind: 'settings', count: 4 },
+      ],
+      [
+        'goalkeepers',
+        { goalkeeperProfiles: [[{ marketId: 'bog' }, 1]], goalkeeperRegistrations: [[{ 'availability.marketId': 'bog' }, 2]] },
+        { kind: 'goalkeepers', count: 3 },
+      ],
+      ['bookings', { quotes: [[{ 'match.marketId': 'bog' }, 1]], goalkeeperRequests: [[{ 'match.marketId': 'bog' }, 1]] }, { kind: 'bookings', count: 2 }],
+      ['records', { balanceMovements: [[{ marketId: 'bog' }, 5]], invoicingDocuments: [[{ marketId: 'bog' }, 1]] }, { kind: 'records', count: 6 }],
+      ['staffScopes', { staffMembers: [[{ scopes: { $elemMatch: { kind: 'market', id: 'bog' } } }, 1]] }, { kind: 'staffScopes', count: 1 }],
+    ] as const)('counts %s', async (_kind, counts, expected) => {
+      expect(await countingDatabase(counts as unknown as Record<string, [Document, number][]>).marketUsage('bog')).toEqual(expected);
+    });
+
+    it('answers the first kind in order, and counts bookings by the market zones', async () => {
+      const usage = countingDatabase(
+        { zones: [[{ marketId: 'bog' }, 1]], staffMembers: [[{ scopes: { $elemMatch: { kind: 'market', id: 'bog' } } }, 4]] },
+        ['z-1'],
+      );
+      expect(await usage.marketUsage('bog')).toEqual({ kind: 'zones', count: 1 });
+
+      const bookings = countingDatabase({ bookings: [[{ zoneId: { $in: ['z-1'] } }, 2]] }, ['z-1']);
+      expect(await bookings.marketUsage('bog')).toEqual({ kind: 'bookings', count: 2 });
     });
   });
 });

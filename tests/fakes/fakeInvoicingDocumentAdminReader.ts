@@ -12,6 +12,7 @@ export class FakeInvoicingDocumentAdminReader implements IInvoicingDocumentAdmin
       .filter((document) => !filter.status || document.status === filter.status)
       .filter((document) => !filter.kind || document.kind === filter.kind)
       .filter((document) => !filter.countryId || document.countryId === filter.countryId)
+      .filter((document) => !filter.marketIds || filter.marketIds.includes(document.marketId))
       .filter((document) => !filter.from || document.occurredAt >= filter.from)
       .filter((document) => !filter.to || document.occurredAt < filter.to)
       .filter((document) => !filter.stale || document.isStale(now))

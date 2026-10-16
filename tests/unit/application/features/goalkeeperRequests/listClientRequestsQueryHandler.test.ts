@@ -1,13 +1,12 @@
+import { FakeMarketRepository, testMarket } from '../../../../fakes/fakeMarketRepository.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { toRequestResponse } from '../../../../../src/application/features/goalkeeperRequests/common/requestResponse.js';
 import { ListClientRequestsQuery } from '../../../../../src/application/features/goalkeeperRequests/queries/listClientRequests/listClientRequestsQuery.js';
 import { ListClientRequestsQueryHandler } from '../../../../../src/application/features/goalkeeperRequests/queries/listClientRequests/listClientRequestsQueryHandler.js';
 import { Booking } from '../../../../../src/domain/bookings/booking.js';
-import { City } from '../../../../../src/domain/locations/city.js';
 import { Zone } from '../../../../../src/domain/zones/zone.js';
 import { FakeBookingRepository } from '../../../../fakes/fakeBookingRepository.js';
 import { FakeGoalkeeperRequestRepository } from '../../../../fakes/fakeGoalkeeperRequestRepository.js';
-import { FakeCityRepository } from '../../../../fakes/fakeCityRepository.js';
 import { FixedClock } from '../../../../fakes/fakeClock.js';
 import { FakeZoneRepository } from '../../../../fakes/fakeZoneRepository.js';
 import { FakeUserRepository } from '../../../../fakes/fakeUserRepository.js';
@@ -26,7 +25,7 @@ const requestAt = buildRequest;
 function zone(id: string, name: string): Zone {
   return new Zone({
     id,
-    cityId: 'city-cali',
+    marketId: 'city-cali',
     name,
     slug: id,
     geometry: { type: 'Polygon', coordinates: [] },
@@ -38,7 +37,7 @@ function zone(id: string, name: string): Zone {
 let requests: FakeGoalkeeperRequestRepository;
 let bookings: FakeBookingRepository;
 let zones: FakeZoneRepository;
-let cities: FakeCityRepository;
+let cities: FakeMarketRepository;
 let users: FakeUserRepository;
 let clock: FixedClock;
 let handler: ListClientRequestsQueryHandler;
@@ -48,8 +47,8 @@ beforeEach(() => {
   bookings = new FakeBookingRepository();
   zones = new FakeZoneRepository();
   zones.seed(zone('zone-cali-norte', 'Cali Norte'));
-  cities = new FakeCityRepository();
-  cities.seed(new City({ id: 'city-cali', name: 'Cali', regionId: 'region-valle', zoneCityId: null }));
+  cities = new FakeMarketRepository();
+  cities.seed(testMarket({ id: 'city-cali', name: 'Cali', countryId: 'country-co' }));
   users = new FakeUserRepository();
   clock = new FixedClock(NOW);
   handler = new ListClientRequestsQueryHandler(requests, bookings, zones, cities, users, clock);
@@ -98,27 +97,27 @@ describe('ListClientRequestsQueryHandler — US1: the client sees their bookings
     expect(item).toEqual({
       ...toRequestResponse(stored, buildRequestBookings(stored), new Date(NOW)),
       zoneName: 'Cali Norte',
-      cityName: 'Cali',
+      marketName: 'Cali',
     });
     expect(item?.total).toBe(120000);
   });
 
   it('shows the current name of a renamed city', async () => {
     seed(requestAt('tomorrow', at(1 * DAY)));
-    cities.seed(new City({ id: 'city-cali', name: 'Santiago de Cali', regionId: 'region-valle', zoneCityId: null }));
+    cities.seed(testMarket({ id: 'city-cali', name: 'Santiago de Cali', countryId: 'country-co' }));
 
-    expect((await list()).items[0]?.cityName).toBe('Santiago de Cali');
+    expect((await list()).items[0]?.marketName).toBe('Santiago de Cali');
   });
 
   it('still lists a booking whose zone or city no longer exists, with a null name', async () => {
     seed(requestAt('gone-zone', at(1 * DAY), { zoneId: 'zone-deleted' }));
-    seed(requestAt('gone-city', at(2 * DAY), { cityId: 'city-deleted' }));
+    seed(requestAt('gone-city', at(2 * DAY), { marketId: 'city-deleted' }));
 
     const result = await list();
 
-    expect(result.items.map(({ requestId, zoneName, cityName }) => ({ requestId, zoneName, cityName }))).toEqual([
-      { requestId: 'gone-zone', zoneName: null, cityName: 'Cali' },
-      { requestId: 'gone-city', zoneName: 'Cali Norte', cityName: null },
+    expect(result.items.map(({ requestId, zoneName, marketName }) => ({ requestId, zoneName, marketName }))).toEqual([
+      { requestId: 'gone-zone', zoneName: null, marketName: 'Cali' },
+      { requestId: 'gone-city', zoneName: 'Cali Norte', marketName: null },
     ]);
   });
 

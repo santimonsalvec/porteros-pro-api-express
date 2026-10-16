@@ -5,7 +5,7 @@ import { groupedOfferMessage, localWhen, singleOfferMessage } from '../../../../
 
 const match = {
   zoneName: 'Bello',
-  cityName: 'Medellín',
+  marketName: 'Medellín',
   startsAt: new Date('2026-10-04T20:00:00.000Z'),
   timeZone: 'America/Bogota',
   durationMinutes: 90,
@@ -47,7 +47,7 @@ describe('offer messages', () => {
 
   it('falls back to the city name, then to "tu zona"', () => {
     expect(singleOfferMessage({ ...match, zoneName: null }).body).toMatch(/^Medellín · /);
-    expect(singleOfferMessage({ ...match, zoneName: null, cityName: null }).body).toMatch(/^tu zona · /);
+    expect(singleOfferMessage({ ...match, zoneName: null, marketName: null }).body).toMatch(/^tu zona · /);
   });
 
   it('groups several offers and opens the available-matches list', () => {

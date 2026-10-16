@@ -88,6 +88,11 @@ export interface BalanceMovementProps {
   invoicing: InvoicingSnapshot;
   /** The VAT rate a VAT movement was charged at (basis points); absent/null on every other type (feature 023). */
   taxRateBps?: number | null;
+  /**
+   * The market it happened in, written once (spec 031, FR-043): the booking's for its charges, what
+   * a refund or reversal gives back keeps the original's, the goalkeeper's market then for the rest.
+   */
+  marketId: string;
 }
 
 /**
@@ -123,6 +128,7 @@ export function assertMovementShape(fields: Omit<BalanceMovementProps, 'id' | 'o
     throw new Error('BalanceMovement: reason is only recorded on an administrative adjustment or a debt waiver');
   }
   if (!fields.causeKey) throw new Error('BalanceMovement: causeKey is required');
+  if (typeof fields.marketId !== 'string' || fields.marketId.trim() === '') throw new Error('BalanceMovement: marketId is required');
   const rate = fields.taxRateBps ?? null;
   if (VAT_MOVEMENT_TYPES.includes(fields.type)) {
     if (rate === null || !Number.isInteger(rate) || rate < 0 || rate > 10_000) {
@@ -152,6 +158,7 @@ export class BalanceMovement extends Entity<string> {
   readonly reason: string | null;
   readonly invoicing: InvoicingSnapshot;
   readonly taxRateBps: number | null;
+  readonly marketId: string;
 
   private constructor(props: BalanceMovementProps) {
     super(props.id);
@@ -174,6 +181,7 @@ export class BalanceMovement extends Entity<string> {
     this.reason = props.reason;
     this.invoicing = props.invoicing;
     this.taxRateBps = props.taxRateBps ?? null;
+    this.marketId = props.marketId;
   }
 
   static rehydrate(props: BalanceMovementProps): BalanceMovement {

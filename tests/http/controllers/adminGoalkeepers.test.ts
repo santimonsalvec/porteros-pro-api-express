@@ -11,7 +11,7 @@ async function world() {
   const later = new Date(context.clock.now().getTime() + 3 * 24 * 60 * 60 * 1000);
   context.goalkeeperProfileRepository.seed(buildGoalkeeperProfile(keeper.userId, { suspendedUntil: later, availableForOffers: false }));
   const other = await signInClient(context, 'sub-0002');
-  context.goalkeeperProfileRepository.seed(buildGoalkeeperProfile(other.userId, { cityId: 'city-other', zoneIds: [] }));
+  context.goalkeeperProfileRepository.seed(buildGoalkeeperProfile(other.userId, { marketId: 'city-other', zoneIds: [] }));
   const client = await signInClient(context, 'sub-0003');
   const owner = await signInStaff(context, { key: 'owner', userId: 'owner-user' });
   return { context, keeper, other, client, owner, later };
@@ -34,7 +34,7 @@ describe('admin goalkeepers (spec 005 of the admin, US2)', () => {
       userId: keeper.userId, name: 'Ana Portera', availableForOffers: false, suspendedUntil: later.toISOString(), balance: 0, rating: null, blocked: false,
     }));
 
-    expect(ids(await get(context, '/admin/goalkeepers?cityId=city-other', owner.token))).toEqual([other.userId]);
+    expect(ids(await get(context, '/admin/goalkeepers?marketId=city-other', owner.token))).toEqual([other.userId]);
     expect(ids(await get(context, '/admin/goalkeepers?suspended=true', owner.token))).toEqual([keeper.userId]);
     expect(ids(await get(context, '/admin/goalkeepers?availableForOffers=true', owner.token))).toEqual([other.userId]);
     expect(ids(await get(context, '/admin/goalkeepers?balanceBelow=1', owner.token)).length).toBe(2);

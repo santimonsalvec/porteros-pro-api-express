@@ -4,6 +4,8 @@ import type { IIdGenerator } from '../../../auth/common/ports.js';
 import { normalizeStaffEmail, StaffMember } from '../../../../../domain/staff/staffMember.js';
 import { canAssignRole } from '../../../../../domain/staff/teamRules.js';
 import type { IStaffMemberRepository, IStaffRoleRepository } from '../../common/ports.js';
+import { scopesRefusal } from '../../common/scopeChecks.js';
+import type { ScopePlaces } from '../../common/staffViews.js';
 import { InviteStaffMemberCommand, type InviteStaffMemberResult } from './inviteStaffMemberCommand.js';
 
 export interface InviteStaffMemberDependencies {
@@ -11,6 +13,7 @@ export interface InviteStaffMemberDependencies {
   roles: IStaffRoleRepository;
   ids: IIdGenerator;
   clock: IClock;
+  places?: ScopePlaces;
 }
 
 /** A new invitation, or 7 more days (and maybe another role) for one still pending. */
@@ -22,16 +25,18 @@ export class InviteStaffMemberCommandHandler implements ICommandHandler<InviteSt
     if (!email) return { outcome: 'invalid_email' };
     if (!(await this.deps.roles.getById(command.roleId))) return { outcome: 'role_not_found' };
     if (!canAssignRole(command.actor, '', command.roleId)) return { outcome: 'owner_requires_owner' };
+    const refusal = await scopesRefusal(command.scopes, this.deps.places);
+    if (refusal) return { outcome: refusal };
 
     const now = this.deps.clock.now();
     const existing = await this.deps.members.findByEmail(email);
     if (existing && existing.status !== 'invited') return { outcome: 'already_member' };
     if (existing) {
-      await this.deps.members.update(existing.reinvite(command.roleId, command.actor.staffId, now));
+      await this.deps.members.update(existing.reinvite(command.roleId, command.actor.staffId, now, command.scopes));
       return { outcome: 'reinvited', staffId: existing.id };
     }
 
-    const member = StaffMember.invite({ id: this.deps.ids.newId(), email, roleId: command.roleId, invitedBy: command.actor.staffId }, now);
+    const member = StaffMember.invite({ id: this.deps.ids.newId(), email, roleId: command.roleId, invitedBy: command.actor.staffId, scopes: command.scopes }, now);
     await this.deps.members.add(member);
     return { outcome: 'invited', staffId: member.id };
   }

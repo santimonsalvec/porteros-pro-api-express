@@ -14,7 +14,7 @@ export interface RatingListItem {
   answer: boolean;
   comment: string | null;
   createdAt: string;
-  match: { startsAt: string; timeZone: string; city: PlaceRef } | null;
+  match: { startsAt: string; timeZone: string; market: PlaceRef } | null;
   requestId: string;
   bookingId: string;
   caseId: string | null;

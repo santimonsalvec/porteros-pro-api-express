@@ -1,8 +1,9 @@
 import { readRevision } from '../common/revision.js';
+import { resolveLayered } from '../settings/layered.js';
 import { InvalidConfigurationError } from './invalidConfigurationError.js';
 
-export type UnverifiedDiscountScope = 'country' | 'city' | 'zone';
-const SCOPES: readonly string[] = ['country', 'city', 'zone'];
+export type UnverifiedDiscountScope = 'country' | 'market' | 'zone';
+const SCOPES: readonly string[] = ['country', 'market', 'zone'];
 
 /** The platform's ceiling for the discount (admin spec 030, clarification 3): 30 %. */
 export const MAX_UNVERIFIED_DISCOUNT_BPS = 3000;
@@ -11,7 +12,7 @@ export const VERIFIED_PRIORITY_MINUTES_DEFAULT = 15;
 export const MAX_VERIFIED_PRIORITY_MINUTES = 1440;
 
 /**
- * How goalkeepers without the verification seal are treated at a country, an anchor city or a
+ * How goalkeepers without the verification seal are treated at a country, a market or a
  * zone (admin spec 030): how much less the client pays — and the goalkeeper earns — when one takes
  * the match (FR-017/FR-018, basis points), and how long a new booking is offered only to verified
  * goalkeepers first (FR-015). Each value is optional (`null` = inherit); the most specific level
@@ -20,7 +21,7 @@ export const MAX_VERIFIED_PRIORITY_MINUTES = 1440;
 export class UnverifiedDiscountSetting {
   readonly id: string;
   readonly scope: UnverifiedDiscountScope;
-  /** A `Country` id, an anchor `City` id or a `Zone` id, per `scope`. */
+  /** A `Country` id, a `Market` id or a `Zone` id, per `scope`. */
   readonly refId: string;
   readonly discountBps: number | null;
   readonly verifiedPriorityMinutes: number | null;
@@ -48,25 +49,23 @@ export class UnverifiedDiscountSetting {
   }
 }
 
-export type SettingOrigin = UnverifiedDiscountScope | 'default';
+export type SettingOrigin = UnverifiedDiscountScope | 'platform';
 export type UnverifiedLevels = readonly [UnverifiedDiscountSetting | undefined, UnverifiedDiscountSetting | undefined, UnverifiedDiscountSetting | undefined];
 
-/** The first level of `[zone, city, country]` that sets `field`, else the default. */
+/** The first level of `[zone, market, country]` that sets `field`, else the platform's value. */
 function effective(levels: UnverifiedLevels, field: 'discountBps' | 'verifiedPriorityMinutes', fallback: number): { value: number; origin: SettingOrigin } {
-  for (const level of levels) {
-    const value = level?.[field];
-    if (value !== null && value !== undefined) return { value, origin: level!.scope };
-  }
-  return { value: fallback, origin: 'default' };
+  const [zone, market, country] = levels;
+  const resolved = resolveLayered({ zone: zone?.[field], market: market?.[field], country: country?.[field] }, fallback);
+  return { value: resolved.value!, origin: resolved.origin as SettingOrigin };
 }
 
-/** The discount of `[zone, city, country]`; 0 when no level sets it. */
+/** The discount of `[zone, market, country]`; 0 when no level sets it. */
 export function effectiveDiscount(levels: UnverifiedLevels): { discountBps: number; origin: SettingOrigin } {
   const { value, origin } = effective(levels, 'discountBps', 0);
   return { discountBps: value, origin };
 }
 
-/** The verified-only window of `[zone, city, country]`; 15 minutes when no level sets it. */
+/** The verified-only window of `[zone, market, country]`; 15 minutes when no level sets it. */
 export function effectivePriority(levels: UnverifiedLevels): { verifiedPriorityMinutes: number; origin: SettingOrigin } {
   const { value, origin } = effective(levels, 'verifiedPriorityMinutes', VERIFIED_PRIORITY_MINUTES_DEFAULT);
   return { verifiedPriorityMinutes: value, origin };

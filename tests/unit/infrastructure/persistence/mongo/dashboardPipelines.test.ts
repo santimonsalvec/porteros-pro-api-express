@@ -34,10 +34,10 @@ describe('matchesPipeline (admin spec 008, research §3)', () => {
 
   it("narrows to the scope's cities (index city_startsAt) and counts nothing for a country without cities", () => {
     expect(matchesPipeline(windows, ['medellin', 'bello'], 'America/Bogota')[0]).toEqual({
-      $match: { startsAt: { $gte: WEEK.from, $lt: WEEK.to }, 'match.cityId': { $in: ['medellin', 'bello'] } },
+      $match: { startsAt: { $gte: WEEK.from, $lt: WEEK.to }, 'match.marketId': { $in: ['medellin', 'bello'] } },
     });
     expect(matchesPipeline(windows, [], 'America/Bogota')[0]).toEqual({
-      $match: { startsAt: { $gte: WEEK.from, $lt: WEEK.to }, 'match.cityId': { $in: [] } },
+      $match: { startsAt: { $gte: WEEK.from, $lt: WEEK.to }, 'match.marketId': { $in: [] } },
     });
   });
 
@@ -81,9 +81,9 @@ describe('toRequestsArea', () => {
 describe('goalkeepersSummaryPipeline (research §4, Clarifications)', () => {
   const NOW = new Date('2026-10-13T14:00:00.000Z');
 
-  it('reads the active profiles of the scope (index cityId_activatedAt) with their block', () => {
+  it('reads the active profiles of the scope (index market_activatedAt) with their block', () => {
     const pipeline = goalkeepersSummaryPipeline(['medellin'], NOW);
-    expect(pipeline[0]).toEqual({ $match: { cityId: { $in: ['medellin'] } } });
+    expect(pipeline[0]).toEqual({ $match: { marketId: { $in: ['medellin'] } } });
     expect(stage(pipeline, '$lookup')[0]).toEqual({
       $lookup: { from: 'userBlocks', localField: 'userId', foreignField: '_id', as: 'block', pipeline: [{ $match: { blocked: true } }, { $project: { _id: 1 } }] },
     });

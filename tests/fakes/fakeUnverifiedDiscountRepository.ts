@@ -10,11 +10,11 @@ export class FakeUnverifiedDiscountRepository implements IUnverifiedDiscountRepo
     return setting;
   }
 
-  async findFor(refs: { zoneIds: string[]; cityIds: string[]; countryIds: string[] }): Promise<UnverifiedDiscountSetting[]> {
+  async findFor(refs: { zoneIds: string[]; marketIds: string[]; countryIds: string[] }): Promise<UnverifiedDiscountSetting[]> {
     return [...this.items.values()].filter(
       (setting) =>
         (setting.scope === 'zone' && refs.zoneIds.includes(setting.refId)) ||
-        (setting.scope === 'city' && refs.cityIds.includes(setting.refId)) ||
+        (setting.scope === 'market' && refs.marketIds.includes(setting.refId)) ||
         (setting.scope === 'country' && refs.countryIds.includes(setting.refId)),
     );
   }

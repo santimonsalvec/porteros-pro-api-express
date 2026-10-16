@@ -1,46 +1,41 @@
-import type { City } from '../../../../domain/locations/city.js';
+import type { Market } from '../../../../domain/markets/market.js';
 import type { ZoneGeometry } from '../../../../domain/zones/zone.js';
-import { validateZoneGeometry, zoneGeometryWarnings, type GeometryError } from '../../../../domain/zones/zoneGeometry.js';
-import type { IAdminCityRepository, IAdminZoneRepository } from './ports.js';
-import { warning, type Warning } from './warnings.js';
+import { findZoneConflicts, validateZoneGeometry, type GeometryError, type ZoneConflict } from '../../../../domain/zones/zoneGeometry.js';
+import type { IAdminMarketRepository } from '../../markets/common/ports.js';
+import type { IAdminZoneRepository } from './ports.js';
 
-/** Where a zone may live: an existing city that owns its zones (`zoneCityId = null`). */
-export type ZoneCityCheck =
-  | { outcome: 'ok'; city: City }
-  | { outcome: 'city_not_found' }
-  | { outcome: 'zone_city_not_anchor'; anchorCity: { id: string; name: string } };
+/** Where a zone may live: an existing market (spec 031, FR-002). */
+export type ZoneMarketCheck = { outcome: 'ok'; market: Market } | { outcome: 'market_not_found' };
 
-export async function checkZoneCity(cities: IAdminCityRepository, cityId: string): Promise<ZoneCityCheck> {
-  const city = await cities.getById(cityId);
-  if (!city) return { outcome: 'city_not_found' };
-  if (city.zoneCityId === null) return { outcome: 'ok', city };
-  const anchor = await cities.getById(city.zoneCityId);
-  return { outcome: 'zone_city_not_anchor', anchorCity: { id: city.zoneCityId, name: anchor?.name ?? '' } };
+export async function checkZoneMarket(markets: Pick<IAdminMarketRepository, 'getById'>, marketId: string): Promise<ZoneMarketCheck> {
+  const market = await markets.getById(marketId);
+  return market ? { outcome: 'ok', market } : { outcome: 'market_not_found' };
 }
 
 export interface GeometryReview {
   errors: GeometryError[];
-  warnings: Warning[];
+  /** The active zones, of any market, the polygon crosses or touches (FR-003). */
+  conflicts: ZoneConflict[];
 }
 
 /**
- * The polygon's errors and, when it has none, its warnings against the other zones of the city
- * (research §2–§3). `self.id` is the zone being edited, left out of the comparison.
+ * The polygon's errors and, when it has none and it would be active, the active zones of every
+ * market it crosses or touches (spec 031, FR-003, research §2). `selfId` is the zone being
+ * edited, left out of the comparison. An inactive zone is never checked: it blocks nothing.
  */
 export async function reviewZoneGeometry(
-  zones: IAdminZoneRepository,
-  cityId: string,
+  deps: { zones: Pick<IAdminZoneRepository, 'listActive'>; markets: Pick<IAdminMarketRepository, 'getByIds'> },
   geometry: unknown,
-  self: { id: string | null; displayOrder: number },
+  selfId: string | null,
+  active: boolean,
 ): Promise<GeometryReview> {
   const errors = validateZoneGeometry(geometry);
-  if (errors.length > 0) return { errors, warnings: [] };
-  const found = zoneGeometryWarnings(geometry as ZoneGeometry, self, await zones.listByCity(cityId));
-  return {
-    errors: [],
-    // The domain's warnings carry exactly the data of their message (`WarningData`).
-    warnings: found.map(({ code, ...data }) => warning(code, data as never)),
-  };
+  if (errors.length > 0 || !active) return { errors, conflicts: [] };
+  const others = await deps.zones.listActive();
+  const markets = await deps.markets.getByIds([...new Set(others.map((zone) => zone.marketId))]);
+  const nameOf = new Map(markets.map((market) => [market.id, market.name]));
+  const candidates = others.map((zone) => ({ id: zone.id, name: zone.name, marketId: zone.marketId, marketName: nameOf.get(zone.marketId) ?? '', geometry: zone.geometry }));
+  return { errors: [], conflicts: findZoneConflicts(geometry as ZoneGeometry, selfId, candidates) };
 }
 
 /** A new zone goes last unless it says otherwise. */

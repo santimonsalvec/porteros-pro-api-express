@@ -8,7 +8,7 @@ import {
   requestPartiallyExpiredMessage,
 } from '../../../../src/domain/notifications/outcomeMessages.js';
 
-const match = { zoneName: 'Bello', cityName: 'Medellín', startsAt: new Date('2026-10-04T20:00:00.000Z'), timeZone: 'America/Bogota' };
+const match = { zoneName: 'Bello', marketName: 'Medellín', startsAt: new Date('2026-10-04T20:00:00.000Z'), timeZone: 'America/Bogota' };
 
 describe('outcome messages (feature 016)', () => {
   it('tells the client no goalkeeper was found, or only some', () => {

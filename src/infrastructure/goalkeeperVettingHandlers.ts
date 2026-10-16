@@ -4,7 +4,7 @@ import type { IUserRepository } from '../application/features/auth/common/ports.
 import type { IImageRepository } from '../application/features/images/common/ports.js';
 import type { IRatingRepository } from '../application/features/ratings/common/ports.js';
 import type { IStaffMemberRepository } from '../application/features/staff/common/ports.js';
-import type { ICityRepository } from '../application/features/locations/common/ports.js';
+import type { IMarketRepository } from '../application/features/markets/common/ports.js';
 import type { IUserAdminReader, IUserBlockRepository } from '../application/features/users/common/ports.js';
 import { VerifyGoalkeeperCommand } from '../application/features/goalkeepers/commands/verifyGoalkeeper/verifyGoalkeeperCommand.js';
 import { VerifyGoalkeeperCommandHandler } from '../application/features/goalkeepers/commands/verifyGoalkeeper/verifyGoalkeeperCommandHandler.js';
@@ -41,7 +41,7 @@ export interface GoalkeeperVettingHandlerDependencies extends VettingDependencie
   blocks: Pick<IUserBlockRepository, 'findByUserId' | 'findByUserIds'>;
   /** The name search of the referrer picker. */
   userReader: Pick<IUserAdminReader, 'findIds'>;
-  cities: Pick<ICityRepository, 'getByIds'>;
+  markets: Pick<IMarketRepository, 'getByIds'>;
   /** Verifies by reputation right after a validation (research §7). */
   reputation: { evaluate(goalkeeperId: string): Promise<unknown> };
 }

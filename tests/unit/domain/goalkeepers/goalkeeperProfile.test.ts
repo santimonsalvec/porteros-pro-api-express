@@ -14,7 +14,7 @@ const params = {
   documentPhotoBId: 'img-b',
   heightCm: 185,
   weightKg: 80,
-  cityId: 'city-cali',
+  marketId: 'city-cali',
   zoneIds: ['zone-1'],
   activatedAt: new Date('2026-09-01'),
 };
@@ -44,7 +44,7 @@ describe('GoalkeeperProfile vetting (admin spec 030)', () => {
       documentPhotoBId: 'img-b',
     });
     registration.savePhysicalData({ heightCm: 185, weightKg: 80 });
-    registration.saveAvailability({ cityId: 'city-cali', zoneIds: ['zone-1'] });
+    registration.saveAvailability({ marketId: 'city-cali', zoneIds: ['zone-1'] });
 
     const profile = GoalkeeperProfile.createFromRegistration('profile-1', registration);
 

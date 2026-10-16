@@ -33,6 +33,8 @@ export interface GoalkeeperIncidentProps {
   goalkeeperId: string;
   bookingId: string;
   requestId: string;
+  /** The booking's market (spec 031, FR-043); written once. */
+  marketId: string;
   startsAt: Date;
   occurredAt: Date;
   noticeMinutes: number;
@@ -54,6 +56,7 @@ export class GoalkeeperIncident extends Entity<string> {
   readonly goalkeeperId: string;
   readonly bookingId: string;
   readonly requestId: string;
+  readonly marketId: string;
   readonly startsAt: Date;
   readonly occurredAt: Date;
   readonly noticeMinutes: number;
@@ -72,6 +75,7 @@ export class GoalkeeperIncident extends Entity<string> {
     this.kind = props.kind;
     this.goalkeeperId = props.goalkeeperId;
     this.bookingId = props.bookingId;
+    this.marketId = props.marketId;
     this.requestId = props.requestId;
     this.startsAt = new Date(props.startsAt);
     this.occurredAt = new Date(props.occurredAt);

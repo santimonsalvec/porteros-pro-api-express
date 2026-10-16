@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { resolveOfferReminders } from '../../../../../src/application/features/notifications/common/offerReminders.js';
+import { BookingSettings } from '../../../../../src/domain/pricing/bookingSettings.js';
 import { offerHarness } from './offerHarness.js';
 
 const minutes = (n: number) => n * 60_000;
@@ -178,5 +180,55 @@ describe('OfferSender', () => {
     };
 
     await expect(h.sender.send(new Map([['g1', bookings]]), h.clock.now(), 'first')).resolves.toMatchObject({ entriesCreated: 0 });
+  });
+});
+
+describe('OfferSender reminders by market (spec 031, FR-017)', () => {
+  it("round: stops after the market's maximum, over the country's", async () => {
+    const h = offerHarness();
+    h.bookingSettingsRepository.seed(new BookingSettings({ id: 'co', scope: 'country', refId: 'country-co', offerMaxReminders: 2 }));
+    h.bookingSettingsRepository.seed(new BookingSettings({ id: 'med', scope: 'market', refId: 'city-medellin', offerMaxReminders: 1 }));
+    await h.phone('g1');
+    const { bookings } = h.match('r1', 30);
+    await h.sender.send(new Map([['g1', bookings]]), h.clock.now(), 'first');
+
+    let pushes = 0;
+    for (let round = 0; round < 4; round += 1) {
+      h.clock.advance(minutes(5));
+      pushes += (await h.sender.send(new Map([['g1', bookings]]), h.clock.now(), 'round')).pushed;
+    }
+
+    expect(pushes).toBe(1);
+  });
+
+  it("round: keeps the market's interval between pushes", async () => {
+    const h = offerHarness();
+    h.bookingSettingsRepository.seed(new BookingSettings({ id: 'med', scope: 'market', refId: 'city-medellin', offerReminderIntervalMinutes: 15 }));
+    await h.phone('g1');
+    const { bookings } = h.match('r1', 30);
+    await h.sender.send(new Map([['g1', bookings]]), h.clock.now(), 'first');
+
+    h.clock.advance(minutes(10));
+    expect((await h.sender.send(new Map([['g1', bookings]]), h.clock.now(), 'round')).pushed).toBe(0);
+    h.clock.advance(minutes(5));
+    expect((await h.sender.send(new Map([['g1', bookings]]), h.clock.now(), 'round')).pushed).toBe(1);
+  });
+});
+
+describe('resolveOfferReminders', () => {
+  const platform = { maxReminders: 3, intervalMinutes: 5 };
+
+  it('takes the market, then the country, then the environment as the platform value', () => {
+    const country = new BookingSettings({ id: 'co', scope: 'country', refId: 'co', offerReminderIntervalMinutes: 10, offerMaxReminders: 2 });
+    const market = new BookingSettings({ id: 'm', scope: 'market', refId: 'm', offerMaxReminders: 0 });
+
+    expect(resolveOfferReminders({ market, country }, platform)).toEqual({
+      maxReminders: { value: 0, origin: 'market' },
+      intervalMinutes: { value: 10, origin: 'country' },
+    });
+    expect(resolveOfferReminders({ market: null, country: null }, platform)).toEqual({
+      maxReminders: { value: 3, origin: 'platform' },
+      intervalMinutes: { value: 5, origin: 'platform' },
+    });
   });
 });

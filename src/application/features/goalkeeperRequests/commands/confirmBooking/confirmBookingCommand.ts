@@ -12,6 +12,8 @@ export type ConfirmBookingResult =
   | { outcome: 'replayed'; request: RequestResponse }
   /** Never existed, malformed id, removed after expiry, or another client's — indistinguishable. */
   | { outcome: 'quote_not_found' }
+  /** The quote's market stopped taking requests since it was issued (spec 031, FR-011). */
+  | { outcome: 'market_unavailable'; marketId: string; marketName: string }
   /** Past its expiry but not yet removed by the database. */
   | { outcome: 'quote_expired' }
   /** The client already holds an active request for that zone and start (from another quote). */

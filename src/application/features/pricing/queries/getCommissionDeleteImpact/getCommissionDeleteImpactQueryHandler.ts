@@ -12,14 +12,14 @@ export class GetCommissionDeleteImpactQueryHandler implements IQueryHandler<GetC
   async handle({ commissionId }: GetCommissionDeleteImpactQuery): Promise<DeleteImpactResult> {
     const removed = await this.deps.commissions.getById(commissionId);
     if (!removed) return { outcome: 'not_found' };
-    const geography = await PricingGeography.load(this.deps, removed.scope === 'city' ? [removed.refId] : []);
+    const geography = await PricingGeography.load(this.deps);
     const zones = this.zonesCoveredBy(removed, geography);
-    const cityIds = [...new Set(zones.map((zone) => zone.cityId))];
-    const countryIds = [...new Set(cityIds.flatMap((cityId) => geography.countryOf(cityId)?.id ?? []))];
+    const marketIds = [...new Set(zones.map((zone) => zone.marketId))];
+    const countryIds = [...new Set(marketIds.flatMap((marketId) => geography.countryOf(marketId)?.id ?? []))];
     const commissions = await this.deps.commissions.find({
       refs: [
         { scope: 'zone', refIds: zones.map((zone) => zone.id) },
-        { scope: 'city', refIds: cityIds },
+        { scope: 'market', refIds: marketIds },
         { scope: 'country', refIds: countryIds },
       ],
     });
@@ -27,22 +27,22 @@ export class GetCommissionDeleteImpactQueryHandler implements IQueryHandler<GetC
       commissions.filter(
         (item) =>
           (item.scope === 'zone' && item.refId === zone.id) ||
-          (item.scope === 'city' && item.refId === zone.cityId) ||
-          (item.scope === 'country' && item.refId === geography.countryOf(zone.cityId)?.id),
+          (item.scope === 'market' && item.refId === zone.marketId) ||
+          (item.scope === 'country' && item.refId === geography.countryOf(zone.marketId)?.id),
       ),
     );
     return { outcome: 'ok', impact };
   }
 
-  /** The zones a commission applies to: its zone, its city's zones, or every zone of its country. */
+  /** The zones a commission applies to: its zone, its market's zones, or every zone of its country. */
   private zonesCoveredBy(removed: CommissionRecord, geography: PricingGeography): ZoneSummary[] {
     switch (removed.scope) {
       case 'zone':
         return [geography.zone(removed.refId) ?? []].flat();
-      case 'city':
+      case 'market':
         return geography.zones(removed.refId);
       case 'country':
-        return geography.citiesOf(removed.refId).flatMap((city) => geography.zones(city.id));
+        return geography.marketsOf(removed.refId).flatMap((market) => geography.zones(market.id));
     }
   }
 }

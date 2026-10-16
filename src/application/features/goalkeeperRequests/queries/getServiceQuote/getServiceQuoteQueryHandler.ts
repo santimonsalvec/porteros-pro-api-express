@@ -1,6 +1,6 @@
 import type { IClock } from '../../../../common/clock.js';
 import type { IQueryHandler } from '../../../../common/mediator/types.js';
-import type { ICityRepository, IRegionRepository } from '../../../locations/common/ports.js';
+import type { IMarketRepository } from '../../../markets/common/ports.js';
 import type { IZoneRepository } from '../../../zones/common/ports.js';
 import type {
   IBookingSettingsRepository,
@@ -23,8 +23,7 @@ import { GetServiceQuoteQuery, type GetServiceQuoteResult } from './getServiceQu
 export class GetServiceQuoteQueryHandler implements IQueryHandler<GetServiceQuoteQuery, GetServiceQuoteResult> {
   constructor(
     private readonly zoneRepository: IZoneRepository,
-    private readonly cityRepository: ICityRepository,
-    private readonly regionRepository: IRegionRepository,
+    private readonly marketRepository: Pick<IMarketRepository, 'getById'>,
     private readonly countryLookup: ICountryLookup,
     private readonly rentalRateRepository: IRentalRateRepository,
     private readonly bookingSettingsRepository: IBookingSettingsRepository,
@@ -44,22 +43,22 @@ export class GetServiceQuoteQueryHandler implements IQueryHandler<GetServiceQuot
     if (!surface?.active) return { outcome: 'unknown_surface', surfaceId };
     const format = new MatchFormat({ modality, level, surfaceId: surface.id, surfaceName: surface.name });
 
-    // (1)(2) Which active zone contains the point, and the (anchor) city that owns it: it supplies
+    // (1)(2) Which active zone contains the point, and the market that owns it: it supplies
     //        the time zone, the rate fallback and the settings scope.
-    const area = await resolveServiceArea(this.zoneRepository, this.cityRepository, latitude, longitude);
+    const area = await resolveServiceArea(this.zoneRepository, this.marketRepository, latitude, longitude);
+    if (area.outcome === 'market_unavailable') return { outcome: 'market_unavailable', marketId: area.market.id, marketName: area.market.name };
     if (area.outcome !== 'ok') return area;
-    const { zone, city, timeZone } = area;
+    const { zone, market, timeZone } = area;
 
     // (3)–(9) Start, configuration, notice, window, rate, surcharge and totals.
     const priced = await evaluateQuoteInArea(
       {
-        regionRepository: this.regionRepository,
         countryLookup: this.countryLookup,
         rentalRateRepository: this.rentalRateRepository,
         bookingSettingsRepository: this.bookingSettingsRepository,
         commissionResolver: this.commissionResolver,
       },
-      { zone, city, timeZone, startsAt, goalkeeperCount, durationMinutes, match: { modality, level }, nowMs },
+      { zone, market, timeZone, startsAt, goalkeeperCount, durationMinutes, match: { modality, level }, nowMs },
     );
     if (priced.outcome !== 'priced') return priced;
 
@@ -81,7 +80,7 @@ export class GetServiceQuoteQueryHandler implements IQueryHandler<GetServiceQuot
       },
       area: {
         zoneId: zone.id,
-        cityId: city.id,
+        marketId: market.id,
         freeCancellationMinutes: priced.freeCancellationMinutes,
         commission: priced.commission,
         travelBufferMinutes: priced.travelBufferMinutes,

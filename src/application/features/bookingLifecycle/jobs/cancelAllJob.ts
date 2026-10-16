@@ -92,7 +92,7 @@ export class CancelAllJob implements IScheduledJob {
         this.deps.logger.warn({ outcome: 'cancel_all_skipped', requestId, reason: context.kind, goalkeeperId }, '"Cancel all" skipped a request');
         return null;
       }
-      owners.set(goalkeeperId, { goalkeeperId, currency: context.currency, invoicing: context.invoicing });
+      owners.set(goalkeeperId, { goalkeeperId, currency: context.currency, invoicing: context.invoicing, marketId: context.profile.marketId });
     }
     return owners;
   }

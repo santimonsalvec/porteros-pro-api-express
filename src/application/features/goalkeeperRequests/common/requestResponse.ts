@@ -37,7 +37,7 @@ export interface RequestResponse {
   latitude: number;
   longitude: number;
   zoneId: string;
-  cityId: string;
+  marketId: string;
   startsAt: string;
   startsAtLocal: string;
   timeZone: string;
@@ -65,7 +65,7 @@ export interface ListedRequestResponse extends RequestResponse {
   /** `null` when the zone no longer exists. */
   zoneName: string | null;
   /** `null` when the city no longer exists. */
-  cityName: string | null;
+  marketName: string | null;
 }
 
 /** The goalkeepers holding these bookings, whose contacts the response needs. */
@@ -96,7 +96,7 @@ export function toRequestResponse(
     latitude: match.latitude,
     longitude: match.longitude,
     zoneId: match.zoneId,
-    cityId: match.cityId,
+    marketId: match.marketId,
     startsAt: match.startsAt.toISOString(),
     startsAtLocal: match.startsAtLocal,
     timeZone: match.timeZone,

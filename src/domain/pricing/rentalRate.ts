@@ -4,15 +4,15 @@ import type { MatchLevel, PricedModality } from '../bookings/matchFormat.js';
 import { InvalidConfigurationError } from './invalidConfigurationError.js';
 import { parseTier } from './tier.js';
 
-export type RentalRateScope = 'zone' | 'city';
+export type RentalRateScope = 'zone' | 'market';
 export type RentalDurationMinutes = 60 | 90 | 120;
 
 const ALLOWED_DURATIONS: readonly number[] = [60, 90, 120];
 
-/** Price for ONE goalkeeper for one duration, at a zone or at an (anchor) city. Externally seeded, read-only here. */
+/** Price for ONE goalkeeper for one duration, at a zone or at a market. Externally seeded, read-only here. */
 export class RentalRate extends Entity<string> {
   readonly scope: RentalRateScope;
-  /** A `Zone` id when `scope` is `'zone'`; an anchor `City` id when `'city'`. */
+  /** A `Zone` id when `scope` is `'zone'`; a `Market` id when `'market'`. */
   readonly refId: string;
   readonly durationMinutes: RentalDurationMinutes;
   /** Whole currency units (`40000` = 40.000 COP). The currency is the country's, never stored per rate. */
@@ -36,7 +36,7 @@ export class RentalRate extends Entity<string> {
   }) {
     super(params.id);
     const where = `rentalRates document ${params.id}`;
-    if (params.scope !== 'zone' && params.scope !== 'city') {
+    if (params.scope !== 'zone' && params.scope !== 'market') {
       throw new InvalidConfigurationError(`${where}: unknown scope '${params.scope}'`);
     }
     if (typeof params.refId !== 'string' || params.refId === '') {

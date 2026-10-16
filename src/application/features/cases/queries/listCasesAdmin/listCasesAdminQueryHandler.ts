@@ -1,3 +1,4 @@
+import { withinAllowed } from '../../../markets/common/marketRestriction.js';
 import type { IQueryHandler } from '../../../../common/mediator/types.js';
 import { pageOf } from '../../../geography/common/views.js';
 import { caseItems } from '../../common/caseAdminViews.js';
@@ -17,10 +18,12 @@ export class ListCasesAdminQueryHandler implements IQueryHandler<ListCasesAdminQ
       requestIds: undefined,
       order: criteria.order ?? 'default',
     };
-    if (criteria.countryId) {
-      // Cases don't store their place: the country is narrowed through the matching cases' requests.
-      const [cityIds, requestIds] = await Promise.all([this.deps.requestReader.cityIdsOfCountry(criteria.countryId), this.deps.cases.requestIdsMatching(filter)]);
-      filter.requestIds = await this.deps.requestReader.requestIdsInCities(requestIds, cityIds);
+    if (criteria.countryId || criteria.marketId || criteria.marketIds) {
+      // Cases don't store their place: the market or country is narrowed through the matching cases' requests.
+      const selected = criteria.marketId ? [criteria.marketId] : criteria.countryId ? await this.deps.requestReader.marketIdsOfCountry(criteria.countryId) : undefined;
+      const marketIds = withinAllowed(selected, criteria.marketIds)!;
+      const requestIds = await this.deps.cases.requestIdsMatching(filter);
+      filter.requestIds = await this.deps.requestReader.requestIdsInMarkets(requestIds, marketIds);
     }
     const skip = (criteria.page - 1) * criteria.pageSize;
     const [found, totalItems] = await Promise.all([this.deps.cases.search(filter, skip, criteria.pageSize), this.deps.cases.countMatching(filter)]);

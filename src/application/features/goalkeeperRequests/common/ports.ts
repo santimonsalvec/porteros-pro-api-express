@@ -20,20 +20,20 @@ export interface IMatchSurfaceRepository {
 
 /** Minimal, read-only — mirrors `IZoneRepository`'s reference-data shape. */
 export interface IRentalRateRepository {
-  /** Every zone-scope and city-scope rate for that duration, one per modality/level tier (024). */
+  /** Every zone-scope and market-scope rate for that duration, one per modality/level tier (024). */
   findForDuration(
     zoneId: string,
-    cityId: string,
+    marketId: string,
     durationMinutes: number,
-  ): Promise<{ zone: RentalRate[]; city: RentalRate[] }>;
+  ): Promise<{ zone: RentalRate[]; market: RentalRate[] }>;
 }
 
 /** Minimal, read-only. `countryId` may be `null` when it cannot be determined. */
 export interface IBookingSettingsRepository {
   findFor(
-    cityId: string,
+    marketId: string,
     countryId: string | null,
-  ): Promise<{ city: BookingSettings | null; country: BookingSettings | null }>;
+  ): Promise<{ market: BookingSettings | null; country: BookingSettings | null }>;
 }
 
 /**
@@ -218,7 +218,8 @@ export type BookingConfirmationOutcome =
   | 'quote_expired'
   | 'duplicate_request'
   | 'confirmation_in_progress'
-  | 'cancel_all_not_available';
+  | 'cancel_all_not_available'
+  | 'market_unavailable';
 
 /** Audit trail of every confirmation attempt (FR-024). */
 export interface IBookingAuditLogger {

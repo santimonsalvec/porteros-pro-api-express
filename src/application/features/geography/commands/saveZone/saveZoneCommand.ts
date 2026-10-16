@@ -1,7 +1,6 @@
 import { ICommand } from '../../../../common/mediator/types.js';
-import type { GeometryError } from '../../../../../domain/zones/zoneGeometry.js';
-import type { Warning } from '../../common/warnings.js';
-import type { ZoneCityCheck } from '../../common/zoneChecks.js';
+import type { GeometryError, ZoneConflict } from '../../../../../domain/zones/zoneGeometry.js';
+import type { ZoneMarketCheck } from '../../common/zoneChecks.js';
 
 export interface ZoneFields {
   name: string;
@@ -20,34 +19,36 @@ export type SaveZoneResult =
   | { outcome: 'stale' }
   | { outcome: 'zone_slug_taken' }
   | { outcome: 'invalid_geometry'; errors: GeometryError[] }
+  | { outcome: 'zone_conflict'; conflicts: ZoneConflict[] }
+  | { outcome: 'zone_market_immutable' }
   | { outcome: 'reason_required' }
-  | { outcome: 'warnings'; warnings: Warning[] }
-  | Exclude<ZoneCityCheck, { outcome: 'ok' }>;
+  | Exclude<ZoneMarketCheck, { outcome: 'ok' }>;
 
 /**
- * Creates a zone in an anchor city, or edits one (admin spec 003, US2). Deactivating it, or
- * redrawing a zone that goalkeepers or bookings point at, needs a reason (clarification 4).
- * The city of a zone never changes.
+ * Creates a zone in a market, or edits one (admin spec 003, US2; spec 031). An active zone never
+ * crosses or touches another active one (FR-003, FR-003a), and a zone never changes market
+ * (FR-002a). Deactivating it, or redrawing a zone something points at, needs a reason.
  */
 export class SaveZoneCommand extends ICommand<SaveZoneResult> {
   /** Use `create` or `edit`. */
   constructor(
     readonly zoneId: string | null,
-    readonly cityId: string | null,
+    readonly marketId: string | null,
     readonly revision: number,
     readonly fields: Partial<ZoneFields>,
     readonly reason: string | null,
-    readonly acknowledgeWarnings: boolean,
   ) {
     super();
   }
 
-  static create(fields: ZoneFields & { cityId: string }, acknowledgeWarnings = false): SaveZoneCommand {
-    const { cityId, ...rest } = fields;
-    return new SaveZoneCommand(null, cityId, 0, rest, null, acknowledgeWarnings);
+  static create(fields: ZoneFields & { marketId: string }): SaveZoneCommand {
+    const { marketId, ...rest } = fields;
+    return new SaveZoneCommand(null, marketId, 0, rest, null);
   }
 
-  static edit(zoneId: string, revision: number, changes: Partial<ZoneFields>, reason: string | null = null, acknowledgeWarnings = false): SaveZoneCommand {
-    return new SaveZoneCommand(zoneId, null, revision, changes, reason, acknowledgeWarnings);
+  /** `changes.marketId`, when sent, must be the zone's own. */
+  static edit(zoneId: string, revision: number, changes: Partial<ZoneFields> & { marketId?: string }, reason: string | null = null): SaveZoneCommand {
+    const { marketId, ...rest } = changes;
+    return new SaveZoneCommand(zoneId, marketId ?? null, revision, rest, reason);
   }
 }

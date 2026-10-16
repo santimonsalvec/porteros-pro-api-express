@@ -3,7 +3,7 @@ import { IQuery } from '../../../../common/mediator/types.js';
 export interface ReferrerOption {
   userId: string;
   name: string | null;
-  city: { id: string; name: string } | null;
+  market: { id: string; name: string } | null;
 }
 
 /** Who can refer a goalkeeper: validated or verified goalkeepers, not blocked, by name (contracts C9). */

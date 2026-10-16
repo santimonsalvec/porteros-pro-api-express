@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { commissionRefundDraft } from '../../../../../src/application/features/operatingBalance/common/operatingBalanceLedger.js';
 import { assertMovementShape } from '../../../../../src/domain/operatingBalance/balanceMovement.js';
 
-const owner = { goalkeeperId: 'gk-1', currency: 'COP', invoicing: { documentType: 'CC', documentNumber: '1' } };
+const owner = { goalkeeperId: 'gk-1', currency: 'COP', invoicing: { documentType: 'CC', documentNumber: '1' }, marketId: 'city-cali' };
 const at = new Date('2026-10-04T19:00:00.000Z');
 
 describe('commissionRefundDraft', () => {
@@ -27,6 +27,7 @@ describe('commissionRefundDraft', () => {
       cancellation: { by: 'system', at, reason: 'cancel_all' },
       reason: null,
       invoicing: owner.invoicing,
+      marketId: 'city-cali',
     });
     expect(() => assertMovementShape(draft)).not.toThrow();
   });

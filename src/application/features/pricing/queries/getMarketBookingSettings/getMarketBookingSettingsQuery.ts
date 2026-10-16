@@ -1,29 +1,27 @@
 import { IQuery } from '../../../../common/mediator/types.js';
-import type { BookingSettingsWithOrigin } from '../../../goalkeeperRequests/common/resolveBookingSettings.js';
-import type { CityRuleFields } from '../../common/bookingRules.js';
+import type { EffectiveMarketRules, MarketRuleFields } from '../../common/bookingRules.js';
 
-export interface CityBookingSettingsView {
-  cityId: string;
-  cityName: string;
+export interface MarketBookingSettingsView {
+  marketId: string;
+  marketName: string;
   countryId: string | null;
   countryName: string | null;
   currency: string | null;
-  /** The city's own values; `null` = inherits. */
-  own: CityRuleFields;
-  country: CityRuleFields;
-  /** What the quote reads here, and from which level (FR-006). */
-  effective: BookingSettingsWithOrigin;
+  /** The market's own values; `null` = inherits. */
+  own: MarketRuleFields;
+  country: MarketRuleFields;
+  /** What applies here, and from which level (FR-006; spec 031, FR-014). */
+  effective: EffectiveMarketRules;
   invalid: boolean;
   revision: number | null;
 }
 
-export type GetCityBookingSettingsResult =
-  | { outcome: 'ok'; settings: CityBookingSettingsView }
-  | { outcome: 'not_found' }
-  | { outcome: 'city_not_anchor'; anchorCityId: string };
+export type GetMarketBookingSettingsResult =
+  | { outcome: 'ok'; settings: MarketBookingSettingsView }
+  | { outcome: 'not_found' };
 
-export class GetCityBookingSettingsQuery extends IQuery<GetCityBookingSettingsResult> {
-  constructor(readonly cityId: string) {
+export class GetMarketBookingSettingsQuery extends IQuery<GetMarketBookingSettingsResult> {
+  constructor(readonly marketId: string) {
     super();
   }
 }

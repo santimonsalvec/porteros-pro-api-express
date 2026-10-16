@@ -17,7 +17,7 @@ describe('noticeViolations', () => {
 
   it('refuses the country when its own notice is not above its buffer', () => {
     expect(noticeViolations(colombia({ minNoticeMinutes: 30, travelBufferMinutes: 30 }), [], DEFAULTS)).toEqual([
-      { cityId: null, cityName: 'Colombia', minNoticeMinutes: 30, travelBufferMinutes: 30, origins: { minNoticeMinutes: 'country', travelBufferMinutes: 'country' } },
+      { marketId: null, marketName: 'Colombia', minNoticeMinutes: 30, travelBufferMinutes: 30, origins: { minNoticeMinutes: 'country', travelBufferMinutes: 'country' } },
     ]);
   });
 
@@ -25,8 +25,8 @@ describe('noticeViolations', () => {
     expect(
       noticeViolations(colombia({ minNoticeMinutes: 30 }), [{ id: 'med', name: 'Medellín', rules: level({ travelBufferMinutes: 45 }) }], DEFAULTS),
     ).toEqual([
-      { cityId: null, cityName: 'Colombia', minNoticeMinutes: 30, travelBufferMinutes: 30, origins: { minNoticeMinutes: 'country', travelBufferMinutes: 'default' } },
-      { cityId: 'med', cityName: 'Medellín', minNoticeMinutes: 30, travelBufferMinutes: 45, origins: { minNoticeMinutes: 'country', travelBufferMinutes: 'city' } },
+      { marketId: null, marketName: 'Colombia', minNoticeMinutes: 30, travelBufferMinutes: 30, origins: { minNoticeMinutes: 'country', travelBufferMinutes: 'platform' } },
+      { marketId: 'med', marketName: 'Medellín', minNoticeMinutes: 30, travelBufferMinutes: 45, origins: { minNoticeMinutes: 'country', travelBufferMinutes: 'market' } },
     ]);
   });
 

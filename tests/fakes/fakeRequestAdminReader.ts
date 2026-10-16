@@ -10,18 +10,16 @@ import { countsOf, requestStatusFromCounts } from '../../src/domain/bookings/req
 import { OFFER_TYPE } from '../../src/domain/notifications/offerMessages.js';
 import type { FakeBookingLifecycleStore } from './fakeBookingLifecycleStore.js';
 import type { FakeBookingRepository } from './fakeBookingRepository.js';
-import type { FakeCityRepository } from './fakeCityRepository.js';
+import type { FakeMarketRepository } from './fakeMarketRepository.js';
 import type { FakeGoalkeeperRequestRepository } from './fakeGoalkeeperRequestRepository.js';
 import type { FakeNotificationRepository } from './fakeNotificationRepository.js';
-import type { FakeRegionRepository } from './fakeRegionRepository.js';
 import type { FakeOperatingBalanceStore } from './fakeOperatingBalanceStore.js';
 
 /** The admin's request reads over the in-memory stores, filtering like the Mongo reader (admin spec 006). */
 export class FakeRequestAdminReader implements IRequestAdminReader {
   constructor(
     private readonly stores: {
-      regions: FakeRegionRepository;
-      cities: FakeCityRepository;
+      markets: FakeMarketRepository;
       requests: FakeGoalkeeperRequestRepository;
       bookings: FakeBookingRepository;
       operatingBalance: FakeOperatingBalanceStore;
@@ -30,9 +28,8 @@ export class FakeRequestAdminReader implements IRequestAdminReader {
     },
   ) {}
 
-  async cityIdsOfCountry(countryId: string): Promise<string[]> {
-    const regions = new Set([...this.stores.regions.regions.values()].filter((region) => region.countryId === countryId).map((region) => region.id));
-    return [...this.stores.cities.cities.values()].filter((city) => regions.has(city.regionId)).map((city) => city.id);
+  async marketIdsOfCountry(countryId: string): Promise<string[]> {
+    return [...this.stores.markets.markets.values()].filter((market) => market.countryId === countryId).map((market) => market.id);
   }
 
   async requestIdsOfGoalkeeper(goalkeeperId: string, limit: number): Promise<string[]> {
@@ -40,10 +37,10 @@ export class FakeRequestAdminReader implements IRequestAdminReader {
     return [...ids].slice(0, limit);
   }
 
-  async requestIdsInCities(requestIds: readonly string[], cityIds: readonly string[]): Promise<string[]> {
+  async requestIdsInMarkets(requestIds: readonly string[], marketIds: readonly string[]): Promise<string[]> {
     return this.stores.requests
       .all()
-      .filter((request) => requestIds.includes(request.id) && cityIds.includes(request.match.cityId))
+      .filter((request) => requestIds.includes(request.id) && marketIds.includes(request.match.marketId))
       .map((request) => request.id);
   }
 
@@ -53,7 +50,7 @@ export class FakeRequestAdminReader implements IRequestAdminReader {
       .filter((request) => !filter.from || request.startsAt.getTime() >= filter.from.getTime())
       .filter((request) => !filter.to || request.startsAt.getTime() < filter.to.getTime())
       .filter((request) => filter.zoneId === undefined || request.zoneId === filter.zoneId)
-      .filter((request) => filter.cityIds === undefined || filter.cityIds.includes(request.match.cityId))
+      .filter((request) => filter.marketIds === undefined || filter.marketIds.includes(request.match.marketId))
       .filter((request) => filter.clientId === undefined || request.clientId === filter.clientId)
       .filter((request) => filter.requestIds === undefined || filter.requestIds.includes(request.id))
       .map((request): RequestListRecord => ({
@@ -61,7 +58,7 @@ export class FakeRequestAdminReader implements IRequestAdminReader {
         clientId: request.clientId,
         startsAt: request.startsAt,
         timeZone: request.match.timeZone,
-        cityId: request.match.cityId,
+        marketId: request.match.marketId,
         zoneId: request.zoneId,
         goalkeeperCount: request.match.goalkeeperCount,
         counts: countsOf(this.stores.bookings.all().filter((booking) => booking.requestId === request.id)),

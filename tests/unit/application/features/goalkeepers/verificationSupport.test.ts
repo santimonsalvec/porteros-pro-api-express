@@ -1,3 +1,4 @@
+import { FakeMarketRepository, testMarket } from '../../../../fakes/fakeMarketRepository.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { UploadVerificationEvidenceCommand } from '../../../../../src/application/features/goalkeepers/commands/uploadVerificationEvidence/uploadVerificationEvidenceCommand.js';
 import { UploadVerificationEvidenceCommandHandler } from '../../../../../src/application/features/goalkeepers/commands/uploadVerificationEvidence/uploadVerificationEvidenceCommandHandler.js';
@@ -5,9 +6,7 @@ import { ListReferrerOptionsQuery } from '../../../../../src/application/feature
 import { ListReferrerOptionsQueryHandler } from '../../../../../src/application/features/goalkeepers/queries/listReferrerOptions/listReferrerOptionsQueryHandler.js';
 import { StoreImageCommand } from '../../../../../src/application/features/images/commands/storeImage/storeImageCommand.js';
 import { PENDING_VETTING } from '../../../../../src/domain/goalkeepers/vetting.js';
-import { City } from '../../../../../src/domain/locations/city.js';
 import { User } from '../../../../../src/domain/users/user.js';
-import { FakeCityRepository } from '../../../../fakes/fakeCityRepository.js';
 import { FakeSender } from '../../../../fakes/fakeSender.js';
 import { FakeUserRepository } from '../../../../fakes/fakeUserRepository.js';
 import { VALIDATED_VETTING, VERIFIED_VETTING } from '../../../../fixtures/vettingFixtures.js';
@@ -48,8 +47,8 @@ describe('UploadVerificationEvidence (admin spec 030, contracts C8)', () => {
 describe('ListReferrerOptions (contracts C9)', () => {
   it('offers validated and verified goalkeepers who are not blocked, never the goalkeeper themself', async () => {
     const users = new FakeUserRepository();
-    const cities = new FakeCityRepository();
-    cities.seed(new City({ id: 'city-cali', name: 'Cali', regionId: 'r', zoneCityId: null }));
+    const cities = new FakeMarketRepository();
+    cities.seed(testMarket({ id: 'city-cali', name: 'Cali', countryId: 'country-co' }));
     for (const [id, first] of [['gk-1', 'Ana'], ['gk-2', 'Andrés'], ['gk-3', 'Anita'], ['gk-4', 'Antonio'], ['gk-5', 'Andrea']] as const) {
       const user = User.createFromExternalIdentity({ id, email: `${id}@example.com`, displayName: null, provider: 'google', subject: id });
       user.completeProfile(first, 'Portera', '+57', '300 000 0000');
@@ -65,12 +64,12 @@ describe('ListReferrerOptions (contracts C9)', () => {
       profiles: h.profiles,
       users,
       blocks: h.blocks,
-      cities,
+      markets: cities,
     });
 
     const result = await handler.handle(new ListReferrerOptionsQuery('an', 'gk-1'));
 
-    expect(result).toEqual({ items: [{ userId: 'gk-2', name: 'Andrés Portera', city: { id: 'city-cali', name: 'Cali' } }] });
+    expect(result).toEqual({ items: [{ userId: 'gk-2', name: 'Andrés Portera', market: { id: 'city-cali', name: 'Cali' } }] });
   });
 
   it('needs at least two characters to search', async () => {
@@ -79,7 +78,7 @@ describe('ListReferrerOptions (contracts C9)', () => {
       profiles: h.profiles,
       users: new FakeUserRepository(),
       blocks: h.blocks,
-      cities: new FakeCityRepository(),
+      markets: new FakeMarketRepository(),
     });
 
     expect(await handler.handle(new ListReferrerOptionsQuery('a', 'gk-1'))).toEqual({ items: [] });

@@ -21,6 +21,7 @@ function draft(overrides: Partial<MovementDraft> = {}): MovementDraft {
     cancellation: null,
     reason: null,
     invoicing: COLOMBIA_INVOICING,
+    marketId: 'city-cali',
     ...overrides,
   };
 }
@@ -122,6 +123,7 @@ describe('MongoOperatingBalanceStore (mocked driver)', () => {
       references: { bookingId: 'b-1' },
       cancellation: null,
       reason: null,
+      marketId: 'city-cali',
       invoicing: COLOMBIA_INVOICING,
     });
 

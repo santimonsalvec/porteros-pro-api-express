@@ -70,7 +70,7 @@ export function lifecycleHarness() {
     requestRepository: h.requestRepository,
     bookingRepository: h.bookingRepository,
     zoneRepository: h.zoneRepository,
-    cityRepository: h.cityRepository,
+    marketRepository: h.marketRepository,
     notifications: h.notifications,
     pushNotifier: h.pushNotifier,
     processed: new FakeProcessedEventStore(),
@@ -81,10 +81,10 @@ export function lifecycleHarness() {
   // Operating balances: goalkeepers live in Cali (Colombia, COP), so their ledger owner resolves.
   const regionRepository = new FakeRegionRepository();
   const countryRepository = new FakeCountryRepository();
-  seedOperatingBalanceWorld({ cityRepository: h.cityRepository, regionRepository, countryRepository });
-  const operatingBalanceContext = { goalkeeperProfileRepository: h.goalkeeperProfileRepository, cityRepository: h.cityRepository, regionRepository, countryLookup: countryRepository };
+  seedOperatingBalanceWorld({ marketRepository: h.marketRepository, countryRepository });
+  const operatingBalanceContext = { goalkeeperProfileRepository: h.goalkeeperProfileRepository, marketRepository: h.marketRepository, countryLookup: countryRepository };
   const ledger = new OperatingBalanceLedger(operatingBalance, operatingBalance, idGenerator, h.clock);
-  const owner = (goalkeeperId: string): LedgerOwner => ({ goalkeeperId, currency: 'COP', invoicing: COLOMBIA_INVOICING });
+  const owner = (goalkeeperId: string): LedgerOwner => ({ goalkeeperId, currency: 'COP', invoicing: COLOMBIA_INVOICING, marketId: 'city-cali' });
   const cancelAllJob = new CancelAllJob({
     requestRepository: h.requestRepository,
     bookingRepository: h.bookingRepository,
@@ -97,7 +97,7 @@ export function lifecycleHarness() {
   const goalkeeperNotices = new GoalkeeperCancellationNoticeHandler({
     requestRepository: h.requestRepository,
     zoneRepository: h.zoneRepository,
-    cityRepository: h.cityRepository,
+    marketRepository: h.marketRepository,
     notifications: h.notifications,
     pushNotifier: h.pushNotifier,
     processed: new FakeProcessedEventStore(),
@@ -157,7 +157,7 @@ export function lifecycleHarness() {
     bookingRepository: h.bookingRepository,
     requestRepository: h.requestRepository,
     zoneRepository: h.zoneRepository,
-    cityRepository: h.cityRepository,
+    marketRepository: h.marketRepository,
     relay,
     idGenerator,
     clock: h.clock,
@@ -170,7 +170,7 @@ export function lifecycleHarness() {
   const withdrawalNotices = new WithdrawalNoticeHandler({
     requestRepository: h.requestRepository,
     zoneRepository: h.zoneRepository,
-    cityRepository: h.cityRepository,
+    marketRepository: h.marketRepository,
     notifications: h.notifications,
     pushNotifier: h.pushNotifier,
     processed: new FakeProcessedEventStore(),
@@ -186,7 +186,7 @@ export function lifecycleHarness() {
     bookingRepository: h.bookingRepository,
     userRepository: users,
     zoneRepository: h.zoneRepository,
-    cityRepository: h.cityRepository,
+    marketRepository: h.marketRepository,
     notifications: h.notifications,
     pushNotifier: h.pushNotifier,
     processed: new FakeProcessedEventStore(),
@@ -199,7 +199,7 @@ export function lifecycleHarness() {
     bookingRepository: h.bookingRepository,
     userRepository: users,
     zoneRepository: h.zoneRepository,
-    cityRepository: h.cityRepository,
+    marketRepository: h.marketRepository,
     notifications: h.notifications,
     pushNotifier: h.pushNotifier,
     idGenerator,
@@ -209,14 +209,14 @@ export function lifecycleHarness() {
   // Check-in (feature 020).
   const imageRepository = new FakeImageRepository();
   const windowResolver = () =>
-    createCheckInWindowResolver({ cityRepository: h.cityRepository, regionRepository, bookingSettingsRepository, logger: lifecycleLogger });
+    createCheckInWindowResolver({ marketRepository: h.marketRepository, bookingSettingsRepository, logger: lifecycleLogger });
   const checkInHandler = new CheckInToBookingCommandHandler({
     goalkeeperProfileRepository: h.goalkeeperProfileRepository,
     imageRepository,
     bookingRepository: h.bookingRepository,
     requestRepository: h.requestRepository,
     zoneRepository: h.zoneRepository,
-    cityRepository: h.cityRepository,
+    marketRepository: h.marketRepository,
     userRepository: users,
     windowResolver,
     store,
@@ -238,7 +238,7 @@ export function lifecycleHarness() {
   const checkInNotices = new CheckInNoticeHandler({
     requestRepository: h.requestRepository,
     zoneRepository: h.zoneRepository,
-    cityRepository: h.cityRepository,
+    marketRepository: h.marketRepository,
     notifications: h.notifications,
     pushNotifier: h.pushNotifier,
     processed: new FakeProcessedEventStore(),
@@ -251,7 +251,7 @@ export function lifecycleHarness() {
     requestRepository: h.requestRepository,
     userRepository: users,
     zoneRepository: h.zoneRepository,
-    cityRepository: h.cityRepository,
+    marketRepository: h.marketRepository,
     notifications: h.notifications,
     pushNotifier: h.pushNotifier,
     idGenerator,
@@ -273,7 +273,7 @@ export function lifecycleHarness() {
     ratingRepository,
     requestRepository: h.requestRepository,
     zoneRepository: h.zoneRepository,
-    cityRepository: h.cityRepository,
+    marketRepository: h.marketRepository,
     userRepository: users,
     clock: h.clock,
   });
@@ -286,12 +286,12 @@ export function lifecycleHarness() {
     relay,
     idGenerator,
     clock: h.clock,
-    graceResolver: () => createNoShowGraceResolver({ cityRepository: h.cityRepository, regionRepository, bookingSettingsRepository, logger: lifecycleLogger }),
+    graceResolver: () => createNoShowGraceResolver({ marketRepository: h.marketRepository, bookingSettingsRepository, logger: lifecycleLogger }),
   });
   const noShowNotices = new NoShowNoticeHandler({
     requestRepository: h.requestRepository,
     zoneRepository: h.zoneRepository,
-    cityRepository: h.cityRepository,
+    marketRepository: h.marketRepository,
     notifications: h.notifications,
     pushNotifier: h.pushNotifier,
     processed: new FakeProcessedEventStore(),

@@ -1,18 +1,12 @@
 import type { Country } from '../../../../domain/countries/country.js';
-import type { City } from '../../../../domain/locations/city.js';
-import type {
-  IAdminCityRepository,
-  IAdminCountryRepository,
-  IAdminRegionRepository,
-  IAdminZoneRepository,
-  ZoneSummary,
-} from '../../geography/common/ports.js';
+import type { Market } from '../../../../domain/markets/market.js';
+import type { IAdminCountryRepository, IAdminZoneRepository, ZoneSummary } from '../../geography/common/ports.js';
+import type { IAdminMarketRepository } from '../../markets/common/ports.js';
 import type { PriceTarget } from './views.js';
 
 export interface PricingGeographyDependencies {
   countries: IAdminCountryRepository;
-  regions: IAdminRegionRepository;
-  cities: IAdminCityRepository;
+  markets: Pick<IAdminMarketRepository, 'getById' | 'getByIds' | 'list'>;
   zones: IAdminZoneRepository;
 }
 
@@ -21,80 +15,75 @@ const NO_TARGET: PriceTarget = {
   countryId: null,
   countryName: null,
   currency: null,
-  cityId: null,
-  cityName: null,
+  marketId: null,
+  marketName: null,
   zoneId: null,
   zoneName: null,
   zoneActive: null,
 };
 
 /**
- * The geography prices hang from, read once per request (admin spec 004): every city that owns
- * zones plus the ones asked for, their zones without polygons, their regions and countries. A few
- * dozen cities and a few hundred zones, so lists join and sort in memory.
+ * The geography prices hang from, read once per request (admin spec 004; spec 031): every market,
+ * their zones without polygons and their countries. A few dozen markets and a few hundred zones,
+ * so lists join and sort in memory.
  */
 export class PricingGeography {
   private readonly zoneById: Map<string, ZoneSummary>;
 
   private constructor(
-    private readonly cityById: Map<string, City>,
-    private readonly countryOfRegion: Map<string, string | null>,
+    private readonly marketById: Map<string, Market>,
     private readonly countryById: Map<string, Country>,
-    private readonly zonesOfCity: Map<string, ZoneSummary[]>,
+    private readonly zonesOfMarket: Map<string, ZoneSummary[]>,
   ) {
-    this.zoneById = new Map([...zonesOfCity.values()].flat().map((zone) => [zone.id, zone]));
+    this.zoneById = new Map([...zonesOfMarket.values()].flat().map((zone) => [zone.id, zone]));
   }
 
-  static async load(deps: PricingGeographyDependencies, cityIds: readonly string[] = []): Promise<PricingGeography> {
-    const ownerIds = await deps.zones.zoneOwnerIds();
-    const ids = [...new Set([...ownerIds, ...cityIds])];
-    const [cities, zones] = await Promise.all([deps.cities.getByIds(ids), deps.zones.summariesByCities(ids)]);
-    const regions = await deps.regions.getByIds([...new Set(cities.map((city) => city.regionId))]);
-    const countries = await deps.countries.getByIds([...new Set(regions.flatMap((region) => region.countryId ?? []))]);
-    const zonesOfCity = new Map<string, ZoneSummary[]>();
-    for (const zone of zones) zonesOfCity.set(zone.cityId, [...(zonesOfCity.get(zone.cityId) ?? []), zone]);
+  static async load(deps: PricingGeographyDependencies): Promise<PricingGeography> {
+    const markets = await deps.markets.list();
+    const zones = await deps.zones.summariesByMarkets(markets.map((market) => market.id));
+    const countries = await deps.countries.getByIds([...new Set(markets.map((market) => market.countryId))]);
+    const zonesOfMarket = new Map<string, ZoneSummary[]>();
+    for (const zone of zones) zonesOfMarket.set(zone.marketId, [...(zonesOfMarket.get(zone.marketId) ?? []), zone]);
     return new PricingGeography(
-      new Map(cities.map((city) => [city.id, city])),
-      new Map(regions.map((region) => [region.id, region.countryId])),
+      new Map(markets.map((market) => [market.id, market])),
       new Map(countries.map((country) => [country.id, country])),
-      zonesOfCity,
+      zonesOfMarket,
     );
   }
 
-  /** The countries read here, by name. */
+  /** The countries of the markets, by name. */
   countries(): Country[] {
     return [...this.countryById.values()].sort((a, b) => a.name.localeCompare(b.name, 'es'));
   }
 
-  /** The cities read here that own zones, by name. */
-  zoneOwners(): City[] {
-    return [...this.cityById.values()].filter((city) => this.zones(city.id).length > 0).sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  /** Every market, by name. */
+  markets(): Market[] {
+    return [...this.marketById.values()].sort((a, b) => a.name.localeCompare(b.name, 'es'));
   }
 
-  zones(cityId: string): ZoneSummary[] {
-    return this.zonesOfCity.get(cityId) ?? [];
+  zones(marketId: string): ZoneSummary[] {
+    return this.zonesOfMarket.get(marketId) ?? [];
   }
 
   zone(zoneId: string): ZoneSummary | null {
     return this.zoneById.get(zoneId) ?? null;
   }
 
-  city(cityId: string): City | null {
-    return this.cityById.get(cityId) ?? null;
+  market(marketId: string): Market | null {
+    return this.marketById.get(marketId) ?? null;
   }
 
-  /** The anchor cities read here that belong to the country. */
-  citiesOf(countryId: string): City[] {
-    return [...this.cityById.values()].filter((city) => city.zoneCityId === null && this.countryOf(city.id)?.id === countryId);
+  /** The markets of the country, by name. */
+  marketsOf(countryId: string): Market[] {
+    return this.markets().filter((market) => market.countryId === countryId);
   }
 
-  countryOf(cityId: string): Country | null {
-    const city = this.cityById.get(cityId);
-    const countryId = city ? this.countryOfRegion.get(city.regionId) : null;
-    return countryId ? (this.countryById.get(countryId) ?? null) : null;
+  countryOf(marketId: string): Country | null {
+    const market = this.marketById.get(marketId);
+    return market ? (this.countryById.get(market.countryId) ?? null) : null;
   }
 
-  /** The country, anchor city and zone of a price document. */
+  /** The country, market and zone of a price document. */
   target(scope: string, refId: string): PriceTarget {
     if (scope === 'country') {
       const country = this.countryById.get(refId);
@@ -102,14 +91,14 @@ export class PricingGeography {
     }
     const zone = scope === 'zone' ? this.zone(refId) : null;
     if (scope === 'zone' && !zone) return NO_TARGET;
-    const city = this.city(zone?.cityId ?? refId);
-    if (!city) return NO_TARGET;
-    const country = this.countryOf(city.id);
+    const market = this.market(zone?.marketId ?? refId);
+    if (!market) return NO_TARGET;
+    const country = this.countryOf(market.id);
     return {
-      valid: city.zoneCityId === null,
+      valid: true,
       ...(country ? countryPart(country) : { countryId: null, countryName: null, currency: null }),
-      cityId: city.id,
-      cityName: city.name,
+      marketId: market.id,
+      marketName: market.name,
       zoneId: zone?.id ?? null,
       zoneName: zone?.name ?? null,
       zoneActive: zone?.active ?? null,
@@ -122,14 +111,11 @@ function countryPart(country: Country) {
 }
 
 /** Why a price cannot point at a target. */
-export type TargetFailure =
-  | { outcome: 'zone_not_found' | 'city_not_found' | 'country_not_found' | 'country_without_currency' }
-  | { outcome: 'city_not_anchor'; anchorCityId: string };
+export type TargetFailure = { outcome: 'zone_not_found' | 'market_not_found' | 'country_not_found' | 'country_without_currency' };
 
 /**
- * Whether a new price may point at this target: it exists, a city is an anchor (prices of a city
- * that uses another's zones are its anchor's), and its country has a currency to price in.
- * `null` when it may.
+ * Whether a new price may point at this target: it exists, and its country has a currency to
+ * price in. `null` when it may.
  */
 export async function checkWriteTarget(deps: PricingGeographyDependencies, scope: string, refId: string): Promise<TargetFailure | null> {
   if (scope === 'country') {
@@ -139,10 +125,8 @@ export async function checkWriteTarget(deps: PricingGeographyDependencies, scope
   }
   const zone = scope === 'zone' ? await deps.zones.getById(refId) : null;
   if (scope === 'zone' && !zone) return { outcome: 'zone_not_found' };
-  const city = await deps.cities.getById(zone?.cityId ?? refId);
-  if (!city) return { outcome: 'city_not_found' };
-  if (city.zoneCityId !== null) return { outcome: 'city_not_anchor', anchorCityId: city.zoneCityId };
-  const countryId = (await deps.regions.getById(city.regionId))?.countryId ?? null;
-  const country = countryId ? await deps.countries.getById(countryId) : null;
+  const market = await deps.markets.getById(zone?.marketId ?? refId);
+  if (!market) return { outcome: 'market_not_found' };
+  const country = await deps.countries.getById(market.countryId);
   return country?.currency ? null : { outcome: 'country_without_currency' };
 }

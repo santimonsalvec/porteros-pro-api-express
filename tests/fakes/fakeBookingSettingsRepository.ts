@@ -16,17 +16,17 @@ export class FakeBookingSettingsRepository implements IBookingSettingsRepository
   }
 
   async findFor(
-    cityId: string,
+    marketId: string,
     countryId: string | null,
-  ): Promise<{ city: BookingSettings | null; country: BookingSettings | null }> {
+  ): Promise<{ market: BookingSettings | null; country: BookingSettings | null }> {
     return {
-      city: this.settings.find((item) => item.scope === 'city' && item.refId === cityId) ?? null,
+      market: this.settings.find((item) => item.scope === 'market' && item.refId === marketId) ?? null,
       country:
         countryId === null ? null : (this.settings.find((item) => item.scope === 'country' && item.refId === countryId) ?? null),
     };
   }
 
-  async findMany(refs: { cityIds: string[]; countryIds: string[] }): Promise<BookingSettings[]> {
-    return this.settings.filter((item) => (item.scope === 'city' ? refs.cityIds : refs.countryIds).includes(item.refId));
+  async findMany(refs: { marketIds: string[]; countryIds: string[] }): Promise<BookingSettings[]> {
+    return this.settings.filter((item) => (item.scope === 'market' ? refs.marketIds : refs.countryIds).includes(item.refId));
   }
 }

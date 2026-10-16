@@ -10,6 +10,7 @@ export function buildDocument(overrides: Partial<InvoicingDocumentProps> = {}): 
     concept: 'commission',
     goalkeeperId: 'gk-1',
     countryId: 'country-co',
+    marketId: 'city-cali',
     sourceEventId: 'e-1',
     sourceMovementId: `m-${overrides.id ?? 'doc-1'}`,
     vatMovementId: 'm-vat',
@@ -20,7 +21,7 @@ export function buildDocument(overrides: Partial<InvoicingDocumentProps> = {}): 
     vat: 1330,
     vatRateBps: 1900,
     currency: 'COP',
-    buyer: { documentType: 'CC', documentNumber: '1020304050', firstName: 'Juan', lastName: 'Pérez', email: 'juan@x.co', cityId: 'city-cali' },
+    buyer: { documentType: 'CC', documentNumber: '1020304050', firstName: 'Juan', lastName: 'Pérez', email: 'juan@x.co', cityId: 'city-cali', address: null, addressComplement: null },
     occurredAt: NOW,
     createdAt: NOW,
   });

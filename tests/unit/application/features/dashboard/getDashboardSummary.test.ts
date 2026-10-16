@@ -11,8 +11,8 @@ const REQUEST_STATUSES = ['searching', 'partially_assigned', 'assigned', 'comple
 
 const geography: IDashboardGeography = {
   countryExists: async (id) => id === 'co',
-  getCity: async (id) => (id === 'medellin' ? { id, countryId: 'co', timeZone: 'America/Bogota' } : id === 'cdmx' ? { id, countryId: 'mx', timeZone: 'America/Mexico_City' } : null),
-  citiesOfCountry: async () => [{ id: 'medellin', countryId: 'co', timeZone: 'America/Bogota' }],
+  getMarket: async (id) => (id === 'medellin' ? { id, countryId: 'co', timeZone: 'America/Bogota' } : id === 'cdmx' ? { id, countryId: 'mx', timeZone: 'America/Mexico_City' } : null),
+  marketsOfCountry: async () => [{ id: 'medellin', countryId: 'co', timeZone: 'America/Bogota' }],
 };
 
 const ALL: Permission[] = ['dashboard.read', 'requests.read', 'goalkeepers.read', 'goalkeepers.registrations.review', 'cases.read', 'invoicing.read', 'deposits.read', 'operating_balances.read'];
@@ -38,7 +38,7 @@ describe('GetDashboardSummaryQueryHandler (admin spec 008, research §1)', () =>
       return value;
     };
     const reader: IDashboardReader = {
-      goalkeeperIdsInCities: async () => {
+      goalkeeperIdsInMarkets: async () => {
         goalkeeperLookups += 1;
         return ['gk-1'];
       },
@@ -101,25 +101,25 @@ describe('GetDashboardSummaryQueryHandler (admin spec 008, research §1)', () =>
   });
 
   it('answers a scope error without reading any area', async () => {
-    expect(await handler.handle(new GetDashboardSummaryQuery({ countryId: 'co', cityId: 'cdmx' }, ALL))).toEqual({ outcome: 'city_not_in_country' });
-    expect(await handler.handle(new GetDashboardSummaryQuery({ cityId: 'medellin' }, ALL))).toEqual({ outcome: 'invalid' });
+    expect(await handler.handle(new GetDashboardSummaryQuery({ countryId: 'co', marketId: 'cdmx' }, ALL))).toEqual({ outcome: 'market_not_in_country' });
+    expect(await handler.handle(new GetDashboardSummaryQuery({ marketId: 'medellin' }, ALL))).toEqual({ outcome: 'invalid' });
     expect(await handler.handle(new GetDashboardSummaryQuery({ countryId: 'pe' }, ALL))).toEqual({ outcome: 'country_not_found' });
     expect(calls).toEqual([]);
   });
 
   it("hands each area the scope and today's and this week's windows, and the scope back", async () => {
-    const result = await handler.handle(new GetDashboardSummaryQuery({ countryId: 'co', cityId: 'medellin' }, ['dashboard.read', 'cases.read']));
+    const result = await handler.handle(new GetDashboardSummaryQuery({ countryId: 'co', marketId: 'medellin' }, ['dashboard.read', 'cases.read']));
     if (result.outcome !== 'ok') throw new Error('expected ok');
     expect(result.summary.scope).toEqual({
       countryId: 'co',
-      cityId: 'medellin',
+      marketId: 'medellin',
       timeZone: 'America/Bogota',
-      timeZoneSource: 'city',
+      timeZoneSource: 'market',
       timeZoneFallback: null,
       today: { from: new Date('2026-10-13T05:00:00.000Z'), to: new Date('2026-10-14T05:00:00.000Z') },
       week: { from: new Date('2026-10-12T05:00:00.000Z'), to: new Date('2026-10-19T05:00:00.000Z') },
     });
-    expect(contexts[0]).toMatchObject({ now: NOW, scope: { cityIds: ['medellin'] }, windows: { days: expect.any(Array) } });
+    expect(contexts[0]).toMatchObject({ now: NOW, scope: { marketIds: ['medellin'] }, windows: { days: expect.any(Array) } });
   });
 
   it("looks the scope's goalkeepers up once for every area that needs them, and not at all for the platform", async () => {

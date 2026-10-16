@@ -27,7 +27,7 @@ const settingsDoc = {
 const deposit = Deposit.start({
   id: '0192-abcd',
   goalkeeperId: 'gk-1',
-  countryId: 'country-co',
+  countryId: 'country-co', marketId: 'city-cali',
   gateway: 'wompi',
   environment: 'sandbox',
   amount: 20000,
@@ -43,7 +43,8 @@ describe('PaymentGatewaySettingsRepository (mocked driver)', () => {
 
     const settings = await new PaymentGatewaySettingsRepository(dbWith(collection)).getByCountry('country-co');
 
-    expect(collection.findOne).toHaveBeenCalledWith({ _id: 'country-co' });
+    // A document from before spec 031 (keyed by the country) still reads as the country's.
+    expect(collection.findOne).toHaveBeenCalledWith({ $or: [{ scope: 'country', refId: 'country-co' }, { _id: 'country-co', scope: { $exists: false } }] });
     expect(settings?.options()[0]).toEqual({ amount: 10000, cost: 1149, net: 8851 });
   });
 
@@ -65,12 +66,12 @@ describe('PaymentGatewaySettingsRepository (mocked driver)', () => {
 
     await new PaymentGatewaySettingsRepository(dbWith(collection)).create(created.settings);
 
-    expect(collection.insertOne).toHaveBeenCalledWith({ ...settingsDoc, revision: 0 });
+    expect(collection.insertOne).toHaveBeenCalledWith({ ...settingsDoc, _id: 'country:country-co', scope: 'country', refId: 'country-co', countryId: 'country-co', revision: 0 });
   });
 });
 
 describe('DepositRepository (mocked driver)', () => {
-  it('creates its three indexes', async () => {
+  it('creates its four indexes', async () => {
     const collection = createFakeCollection();
     collection.createIndex.mockResolvedValue('ok');
 
@@ -79,6 +80,7 @@ describe('DepositRepository (mocked driver)', () => {
     expect(collection.createIndex.mock.calls).toEqual([
       [{ reference: 1 }, { name: 'reference_unique', unique: true }],
       [{ goalkeeperId: 1, createdAt: -1, _id: -1 }, { name: 'goalkeeper_created' }],
+      [{ marketId: 1, createdAt: -1 }, { name: 'market_created' }],
       [{ status: 1, nextCheckAt: 1 }, { name: 'status_nextCheck' }],
     ]);
   });

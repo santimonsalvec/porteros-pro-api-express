@@ -1,3 +1,4 @@
+import type { BillingData } from '../../src/domain/goalkeepers/billing.js';
 import type { IGoalkeeperProfileRepository } from '../../src/application/features/goalkeepers/common/ports.js';
 import { GoalkeeperProfile } from '../../src/domain/goalkeepers/goalkeeperProfile.js';
 import type { Vetting } from '../../src/domain/goalkeepers/vetting.js';
@@ -43,8 +44,12 @@ export class FakeGoalkeeperProfileRepository implements IGoalkeeperProfileReposi
     });
   }
 
-  async updateAvailability(userId: string, cityId: string, zoneIds: string[]): Promise<GoalkeeperProfile | null> {
-    return this.patch(userId, { cityId, zoneIds });
+  async updateAvailability(userId: string, marketId: string, zoneIds: string[]): Promise<GoalkeeperProfile | null> {
+    return this.patch(userId, { marketId, zoneIds });
+  }
+
+  async updateBilling(userId: string, billing: BillingData): Promise<GoalkeeperProfile | null> {
+    return this.patch(userId, { billing: { ...billing } });
   }
 
   async findOfferCandidates(zoneIds: readonly string[]): Promise<GoalkeeperProfile[]> {
@@ -83,6 +88,11 @@ export class FakeGoalkeeperProfileRepository implements IGoalkeeperProfileReposi
    * *right now*, and does the read and the write in one synchronous step (no `await`
    * in between) so two overlapping updates can never lose each other's fields.
    */
+  /** The profile side of a market change (spec 031), for the fake store. */
+  applyMarketChange(userId: string, marketId: string, zoneIds: string[], now: Date): Promise<GoalkeeperProfile | null> {
+    return this.patch(userId, { marketId, zoneIds, marketChangedAt: now });
+  }
+
   private async patch(userId: string, changes: Partial<GoalkeeperProfile>): Promise<GoalkeeperProfile | null> {
     const current = [...this.profiles.values()].find((profile) => profile.userId === userId);
     if (!current) return null;

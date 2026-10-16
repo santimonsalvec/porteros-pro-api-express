@@ -1,12 +1,12 @@
 import type { IBookingRepository } from '../../goalkeeperRequests/common/ports.js';
-import type { ICityRepository } from '../../locations/common/ports.js';
+import type { IMarketRepository } from '../../markets/common/ports.js';
 import type { IBalanceMovementRepository } from '../../operatingBalance/common/ports.js';
 import type { IZoneRepository } from '../../zones/common/ports.js';
 
 /** What the admin view adds to a withdrawal (admin spec 005, research §13). */
 export interface WithdrawalAdminExtra {
-  /** The match's city, so its date is shown on that city's clock. */
-  match: { cityName: string | null; timeZone: string | null };
+  /** The match's market, so its date is shown on that market's clock. */
+  match: { marketName: string | null; timeZone: string | null };
   /** The commission charged for the booking (its net amount); `null` when none was charged. */
   commission: { amount: number; currency: string } | null;
 }
@@ -25,7 +25,7 @@ export class WithdrawalAdminDetails implements IWithdrawalAdminDetails {
     private readonly deps: {
       bookings: Pick<IBookingRepository, 'findById'>;
       zones: Pick<IZoneRepository, 'getManyByIds'>;
-      cities: Pick<ICityRepository, 'getByIds'>;
+      markets: Pick<IMarketRepository, 'getByIds'>;
       movements: Pick<IBalanceMovementRepository, 'findByCauseKey'>;
     },
   ) {}
@@ -33,8 +33,8 @@ export class WithdrawalAdminDetails implements IWithdrawalAdminDetails {
   async forBookings(bookingIds: readonly string[]): Promise<Map<string, WithdrawalAdminExtra>> {
     const bookings = await Promise.all(bookingIds.map((id) => this.deps.bookings.findById(id)));
     const zones = await this.deps.zones.getManyByIds([...new Set(bookings.flatMap((booking) => (booking ? [booking.zoneId] : [])))]);
-    const cities = await this.deps.cities.getByIds([...new Set(zones.map((zone) => zone.cityId))]);
-    const cityOfZone = new Map(zones.map((zone) => [zone.id, cities.find((city) => city.id === zone.cityId) ?? null]));
+    const markets = await this.deps.markets.getByIds([...new Set(zones.map((zone) => zone.marketId))]);
+    const cityOfZone = new Map(zones.map((zone) => [zone.id, markets.find((market) => market.id === zone.marketId) ?? null]));
     const charges = await Promise.all(bookingIds.map((id) => this.deps.movements.findByCauseKey(`commission:${id}`)));
 
     return new Map(
@@ -45,7 +45,7 @@ export class WithdrawalAdminDetails implements IWithdrawalAdminDetails {
         return [
           id,
           {
-            match: { cityName: city?.name ?? null, timeZone: city?.timeZone ?? null },
+            match: { marketName: city?.name ?? null, timeZone: city?.timeZone ?? null },
             commission: charge ? { amount: Math.abs(charge.amount), currency: charge.currency } : null,
           },
         ];

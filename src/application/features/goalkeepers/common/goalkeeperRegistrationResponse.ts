@@ -2,12 +2,18 @@ import type { GoalkeeperRegistration } from '../../../../domain/goalkeepers/goal
 import type { GoalkeeperProfile } from '../../../../domain/goalkeepers/goalkeeperProfile.js';
 import { computeGoalkeeperSections, type GoalkeeperSectionsView } from './goalkeeperSections.js';
 import type { VettingTier } from '../../../../domain/goalkeepers/vetting.js';
+import { isBillingComplete, type BillingData } from '../../../../domain/goalkeepers/billing.js';
 
-/** Display data for the saved `cityId`; `region` is the region's name, same convention as `GET /locations/cities`. */
-export interface GoalkeeperCityView {
+/** Display data for the saved `marketId` (spec 031). */
+export interface GoalkeeperMarketView {
   id: string;
   name: string;
-  region: string;
+}
+
+/** The billing data; the names are resolved only on `GET /goalkeepers/me` (spec 031, contract A6). */
+export interface GoalkeeperBillingView extends BillingData {
+  cityName?: string | null;
+  stateName?: string | null;
 }
 
 export interface GoalkeeperRegistrationResponse {
@@ -21,16 +27,17 @@ export interface GoalkeeperRegistrationResponse {
   documentPhotoBSubmitted: boolean;
   heightCm: number | null;
   weightKg: number | null;
-  cityId: string | null;
+  marketId: string | null;
   serviceZoneIds: string[];
+  billing: GoalkeeperBillingView;
   /** The "available for offers" switch (feature 015); null unless the goalkeeper is active. */
   availableForOffers: boolean | null;
   /**
-   * Resolved from `cityId`. Present (`null` when there is no saved city, or it no longer
-   * resolves) only on `GET /goalkeepers/me`; the write endpoints omit it to avoid
-   * two extra lookups on every autosave.
+   * Resolved from `marketId`. Present (`null` when there is no saved market, or it no longer
+   * resolves) only on `GET /goalkeepers/me`; the write endpoints omit it to avoid an extra
+   * lookup on every autosave.
    */
-  city?: GoalkeeperCityView | null;
+  market?: GoalkeeperMarketView | null;
   /**
    * Where the goalkeeper stands with the team (admin spec 030, contracts A1); only on
    * `GET /goalkeepers/me` and only once active. Never who decided nor how they were verified.
@@ -69,8 +76,9 @@ export function toGoalkeeperRegistrationResponse(registration: GoalkeeperRegistr
       documentPhotoBSubmitted: false,
       heightCm: null,
       weightKg: null,
-      cityId: null,
+      marketId: null,
       serviceZoneIds: [],
+      billing: { cityId: null, address: null, addressComplement: null },
       availableForOffers: null,
     };
   }
@@ -86,8 +94,9 @@ export function toGoalkeeperRegistrationResponse(registration: GoalkeeperRegistr
     documentPhotoBSubmitted: registration.identification.documentPhotoBId !== null,
     heightCm: registration.physicalData.heightCm,
     weightKg: registration.physicalData.weightKg,
-    cityId: registration.availability.cityId,
+    marketId: registration.availability.marketId,
     serviceZoneIds: registration.availability.zoneIds,
+    billing: { ...registration.billing },
     availableForOffers: null,
   };
 }
@@ -105,6 +114,7 @@ export function toActiveGoalkeeperResponse(profile: GoalkeeperProfile): Goalkeep
       identification: { complete: true },
       physicalData: { complete: true },
       availability: { complete: true },
+      billing: { complete: isBillingComplete(profile.billing) },
     },
     documentType: profile.documentType,
     documentNumber: profile.documentNumber,
@@ -114,8 +124,9 @@ export function toActiveGoalkeeperResponse(profile: GoalkeeperProfile): Goalkeep
     documentPhotoBSubmitted: true,
     heightCm: profile.heightCm,
     weightKg: profile.weightKg,
-    cityId: profile.cityId,
+    marketId: profile.marketId,
     serviceZoneIds: profile.zoneIds,
+    billing: { ...profile.billing },
     availableForOffers: profile.availableForOffers,
   };
 }

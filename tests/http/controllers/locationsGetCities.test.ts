@@ -15,28 +15,25 @@ async function signIn(
   return exchange.body.accessToken as string;
 }
 
-describe('GET /locations/cities', () => {
-  it('returns matching cities with hasZones, without requiring a complete profile', async () => {
+describe('GET /locations/cities (billing municipalities, spec 031 §A3)', () => {
+  it('finds municipalities with official codes and their department, without requiring a complete profile', async () => {
     const { app, googleValidator } = await buildTestApp();
     const accessToken = await signIn(app, googleValidator, 'good-token', 'sub-1');
 
     const response = await request(app).get('/locations/cities?q=medel').set('Authorization', `Bearer ${accessToken}`);
 
     expect(response.status).toBe(200);
-    expect(response.body.cities).toEqual(
-      expect.arrayContaining([expect.objectContaining({ name: 'Medellín', region: 'Antioquia', hasZones: true })]),
-    );
+    expect(response.body.cities).toEqual([{ id: 'city-medellin', name: 'Medellín', stateName: 'Antioquia' }]);
   });
 
-  it('lists the cities with active zones for an empty q', async () => {
+  it('answers nothing for an empty q', async () => {
     const { app, googleValidator } = await buildTestApp();
     const accessToken = await signIn(app, googleValidator, 'good-token', 'sub-2');
 
     const response = await request(app).get('/locations/cities?q=').set('Authorization', `Bearer ${accessToken}`);
 
     expect(response.status).toBe(200);
-    expect(response.body.cities.length).toBeGreaterThan(0);
-    expect(response.body.cities.every((city: { hasZones: boolean }) => city.hasZones)).toBe(true);
+    expect(response.body.cities).toEqual([]);
   });
 
   it('rejects requests with no token', async () => {
@@ -47,19 +44,18 @@ describe('GET /locations/cities', () => {
     expect(response.status).toBe(401);
   });
 
-  it('shows a city the admin created, and one that now uses an anchor as having zones (admin spec 003)', async () => {
+  it('shows a municipality the admin created once it has its codes (admin spec 003)', async () => {
     const context = await buildTestApp();
     const { editor } = await geographyStaff(context);
     const accessToken = await signIn(context.app, context.googleValidator, 'good-token', 'sub-3');
     const search = (q: string) => request(context.app).get(`/locations/cities?q=${q}`).set('Authorization', `Bearer ${accessToken}`);
 
-    await editor.post('/admin/cities', { name: 'Sabaneta', regionId: 'region-antioquia' });
-    const created = await search('sabane');
-    await editor.patch('/admin/cities/city-bogota', { revision: 0, zoneCityId: 'city-medellin' });
-    const satellite = await search('bogo');
+    const created = await editor.post('/admin/cities', { name: 'Sabaneta', regionId: 'region-antioquia' });
+    const withoutCodes = await search('sabane');
+    await editor.patch(`/admin/cities/${created.body.id}`, { revision: 0, daneStateCode: '05', daneCityCode: '05631' });
+    const withCodes = await search('sabane');
 
-    expect(created.body.cities).toEqual([expect.objectContaining({ name: 'Sabaneta', region: 'Antioquia', hasZones: false })]);
-    expect(satellite.body.cities).toEqual([expect.objectContaining({ id: 'city-bogota', hasZones: true })]);
-    expect(Object.keys(satellite.body.cities[0])).not.toContain('revision');
+    expect(withoutCodes.body.cities).toEqual([]);
+    expect(withCodes.body.cities).toEqual([{ id: created.body.id, name: 'Sabaneta', stateName: 'Antioquia' }]);
   });
 });

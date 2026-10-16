@@ -94,18 +94,18 @@ export class OfferEligibilityService {
   private async snapshotsFor(profiles: readonly GoalkeeperProfile[]): Promise<SnapshotWithFunds[]> {
     if (profiles.length === 0) return [];
     const ids = profiles.map((profile) => profile.userId);
-    const cityIds = [...new Set(profiles.map((profile) => profile.cityId))];
+    const marketIds = [...new Set(profiles.map((profile) => profile.marketId))];
     const [operatingBalances, commissions, held, cityRates] = await Promise.all([
       this.deps.operatingBalanceRepository.findByGoalkeeperIds(ids),
       this.deps.commissionResolver.resolveForZones([...new Set(profiles.flatMap((profile) => profile.zoneIds))]),
       this.deps.bookingRepository.findAssignedToGoalkeepers(ids),
-      Promise.all(cityIds.map(async (cityId) => [cityId, await this.deps.vatRates.forCity(cityId)] as const)),
+      Promise.all(marketIds.map(async (marketId) => [marketId, await this.deps.vatRates.forMarket(marketId)] as const)),
     ]);
     const rates = new Map(cityRates);
     const balances = new Map(operatingBalances.map((operatingBalance) => [operatingBalance.goalkeeperId, operatingBalance.balance]));
     return profiles.map((profile) => {
       const balance = balances.get(profile.userId) ?? 0;
-      const vatRateBps = rates.get(profile.cityId) ?? 0;
+      const vatRateBps = rates.get(profile.marketId) ?? 0;
       const funds = offersStatus(balance, profile.zoneIds.map((zoneId) => commissions.get(zoneId) ?? null), vatRateBps);
       return {
         snapshot: {

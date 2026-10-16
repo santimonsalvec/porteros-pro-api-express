@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { UnverifiedDiscountResolver } from '../../../../../src/application/features/pricing/common/unverifiedDiscountResolver.js';
 import { FakeBookingSettingsRepository } from '../../../../fakes/fakeBookingSettingsRepository.js';
-import { FakeCityRepository } from '../../../../fakes/fakeCityRepository.js';
+import { FakeMarketRepository } from '../../../../fakes/fakeMarketRepository.js';
 import { FakeCountryRepository } from '../../../../fakes/fakeCountryRepository.js';
 import { FakeRegionRepository } from '../../../../fakes/fakeRegionRepository.js';
 import { FakeRentalRateRepository } from '../../../../fakes/fakeRentalRateRepository.js';
@@ -15,7 +15,7 @@ let resolver: UnverifiedDiscountResolver;
 beforeEach(() => {
   const world = {
     zoneRepository: new FakeZoneRepository(),
-    cityRepository: new FakeCityRepository(),
+    marketRepository: new FakeMarketRepository(),
     regionRepository: new FakeRegionRepository(),
     countryRepository: new FakeCountryRepository(),
     rentalRateRepository: new FakeRentalRateRepository(),
@@ -23,7 +23,7 @@ beforeEach(() => {
   };
   seedQuoteWorld(world);
   discounts = new FakeUnverifiedDiscountRepository();
-  resolver = new UnverifiedDiscountResolver(discounts, world.zoneRepository, world.cityRepository, world.regionRepository);
+  resolver = new UnverifiedDiscountResolver(discounts, world.zoneRepository, world.marketRepository);
 });
 
 describe('UnverifiedDiscountResolver (admin spec 030, FR-018)', () => {
@@ -33,7 +33,7 @@ describe('UnverifiedDiscountResolver (admin spec 030, FR-018)', () => {
 
   it('a zone inherits from its city, the city from its country, and the most specific wins', async () => {
     discounts.seed('country', 'country-co', 500, 'co', 30);
-    discounts.seed('city', 'city-cali', 1000);
+    discounts.seed('market', 'city-cali', 1000);
     discounts.seed('zone', 'zone-cali-norte', 1500, 'norte', 5);
 
     expect(await resolver.forZones(['zone-cali-norte', 'zone-cali-sur'])).toEqual(

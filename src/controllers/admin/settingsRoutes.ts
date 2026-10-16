@@ -1,3 +1,8 @@
+import type { Request } from 'express';
+import type { GatewayScope } from '../../domain/payments/gatewaySettings.js';
+import { ListGatewaySettingsQuery } from '../../application/features/payments/queries/listGatewaySettings/listGatewaySettingsQuery.js';
+import { DeleteMarketGatewayOverrideCommand } from '../../application/features/payments/commands/deleteMarketGatewayOverride/deleteMarketGatewayOverrideCommand.js';
+import { gatewaySettingsListQuerySchema } from '../requests/payments/gatewaySettingsRequest.js';
 import type { ISender } from '../../application/common/mediator/types.js';
 import { SetInvoicingSettingsCommand } from '../../application/features/invoicing/commands/setInvoicingSettings/setInvoicingSettingsCommand.js';
 import { GetInvoicingSettingsQuery } from '../../application/features/invoicing/queries/getInvoicingSettings/getInvoicingSettingsQuery.js';
@@ -23,7 +28,7 @@ const invalid = (fieldErrors: Record<string, string>) => new ApiError(400, 'vali
  */
 export function registerSettingsRoutes(route: Route, mediator: ISender): void {
   // The sign-in code's expiry, one for the app and the admin web (admin spec 009, US4).
-  route('get', '/access-settings', 'access.settings.manage', async (_req, res) => {
+  route('get', '/access-settings', { permission: 'access.settings.manage', level: 'platform' }, async (_req, res) => {
     res.status(200).json(await mediator.send(new GetAccessSettingsQuery()));
   });
 
@@ -32,6 +37,7 @@ export function registerSettingsRoutes(route: Route, mediator: ISender): void {
     '/access-settings',
     {
       permission: 'access.settings.manage',
+      level: 'platform',
       audit: {
         action: 'accessSettings.update',
         resourceType: 'accessSettings',
@@ -54,31 +60,49 @@ export function registerSettingsRoutes(route: Route, mediator: ISender): void {
     },
   );
 
-  route('get', '/payment-gateways/:countryId', 'payments.settings.manage', async (req, res) => {
-    const result = await mediator.send(new GetGatewaySettingsQuery(req.params.countryId));
-    if (result.outcome === 'not_found') throw settingsNotFound('No payment gateway is configured for this country.');
+  // The country's settings and each market's override (spec 031, contract E).
+  route('get', '/payment-gateways', 'payments.settings.manage', async (req, res) => {
+    const { countryId } = parse(gatewaySettingsListQuerySchema, req.query);
+    const result = await mediator.send(new ListGatewaySettingsQuery(countryId));
+    if (result.outcome === 'country_not_found') throw countryNotFound();
+    res.status(200).json({ country: result.country, markets: result.markets });
+  });
+
+  /** `country` or `market`: never a zone (spec 031, FR-032). */
+  const scopeOf = (req: Request): GatewayScope => {
+    const scope = String(req.params.scope);
+    if (scope !== 'country' && scope !== 'market') throw new ApiError(400, 'invalid_scope', 'Payment settings are set for a country or a market.');
+    return scope;
+  };
+
+  route('get', '/payment-gateways/:scope/:refId', 'payments.settings.manage', async (req, res) => {
+    const result = await mediator.send(new GetGatewaySettingsQuery(scopeOf(req), req.params.refId));
+    if (result.outcome === 'not_found') throw settingsNotFound('No payment gateway is configured here.');
     res.status(200).json(result.settings);
   });
 
   route(
     'put',
-    '/payment-gateways/:countryId',
+    '/payment-gateways/:scope/:refId',
     {
       permission: 'payments.settings.manage',
       audit: {
         action: 'paymentGatewaySettings.update',
         resourceType: 'paymentGatewaySettings',
-        resourceId: (req) => String(req.params.countryId),
-        before: (req) => settingsBefore(mediator.send(new GetGatewaySettingsQuery(String(req.params.countryId)))),
+        resourceId: (req) => `${String(req.params.scope)}:${String(req.params.refId)}`,
+        before: (req) => settingsBefore(mediator.send(new GetGatewaySettingsQuery(scopeOf(req), String(req.params.refId)))).catch(() => null),
       },
     },
     async (req, res) => {
+      const scope = scopeOf(req);
       const { revision, gateway, publicConfig, costs, amounts } = parse(gatewaySettingsRequestSchema, req.body);
-      const result = await mediator.send(new SetGatewaySettingsCommand(req.adminAccess!.userId, req.params.countryId, gateway, publicConfig, costs, amounts, revision));
+      const result = await mediator.send(new SetGatewaySettingsCommand(req.adminAccess!.userId, scope, req.params.refId, gateway, publicConfig, costs, amounts, revision));
       switch (result.outcome) {
         case 'saved':
           res.status(200).json(result.settings);
           return;
+        case 'market_not_found':
+          throw new ApiError(404, 'market_not_found', 'That market does not exist.');
         case 'country_not_found':
           throw countryNotFound();
         case 'invalid':
@@ -86,6 +110,26 @@ export function registerSettingsRoutes(route: Route, mediator: ISender): void {
         case 'stale':
           throw stale();
       }
+    },
+  );
+
+  route(
+    'post',
+    '/payment-gateways/market/:refId/delete',
+    {
+      permission: 'payments.settings.manage',
+      audit: {
+        action: 'paymentGatewaySettings.delete',
+        resourceType: 'paymentGatewaySettings',
+        resourceId: (req) => `market:${String(req.params.refId)}`,
+        before: (req) => settingsBefore(mediator.send(new GetGatewaySettingsQuery('market', String(req.params.refId)))),
+      },
+    },
+    async (req, res) => {
+      const result = await mediator.send(new DeleteMarketGatewayOverrideCommand(req.params.refId));
+      if (result.outcome === 'not_found') throw settingsNotFound('This market has no override.');
+      // `res.json` is what writes the audit entry: the 204 goes out with an empty body.
+      res.status(204).json(null);
     },
   );
 

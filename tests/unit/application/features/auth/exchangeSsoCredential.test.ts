@@ -22,7 +22,7 @@ function makeGoalkeeperProfile(userId: string): GoalkeeperProfile {
     documentPhotoBId: 'img-b',
     heightCm: 180,
     weightKg: 75,
-    cityId: 'city-1',
+    marketId: 'city-1',
     zoneIds: ['zone-1'],
     activatedAt: new Date('2026-01-01'),
   });

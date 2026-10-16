@@ -55,7 +55,7 @@ export interface ScheduledItem {
   id: string;
   requestId?: string;
   startsAt: string;
-  cityName: string | null;
+  marketName: string | null;
   timeZone: string | null;
 }
 

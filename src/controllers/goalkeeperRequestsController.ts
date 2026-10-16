@@ -32,16 +32,16 @@ function locationNotCovered(): ApiError {
   return new ApiError(400, 'location_not_covered', 'The location is outside every service zone.');
 }
 
+/** The point is in a market that is out of service right now (spec 031, FR-011). */
+function marketUnavailable(marketName: string): ApiError {
+  return new ApiError(409, 'market_unavailable', 'This market is temporarily out of service.', undefined, { marketName });
+}
+
 // The 422s mean the business has not set this area up — they are logged so operators notice an
 // unconfigured launch area. The response body is unaffected.
 
-function timeZoneNotConfigured(source: string, cityId: string): ApiError {
-  logger.warn({ outcome: 'time_zone_not_configured', cityId }, `${source} refused: area not configured`);
-  return new ApiError(422, 'time_zone_not_configured', 'The time zone for this area is not configured.');
-}
-
-function serviceNotConfigured(source: string, cityId: string, missing: MissingSetting[]): ApiError {
-  logger.warn({ outcome: 'service_not_configured', cityId, missing }, `${source} refused: area not configured`);
+function serviceNotConfigured(source: string, marketId: string, missing: MissingSetting[]): ApiError {
+  logger.warn({ outcome: 'service_not_configured', marketId, missing }, `${source} refused: area not configured`);
   return new ApiError(422, 'service_not_configured', 'The service is not configured for this area.', undefined, { missing });
 }
 
@@ -71,10 +71,10 @@ export function createGoalkeeperRequestsController(deps: GoalkeeperRequestsContr
         return;
       case 'location_not_covered':
         throw locationNotCovered();
-      case 'time_zone_not_configured':
-        throw timeZoneNotConfigured('Booking config', result.cityId);
+      case 'market_unavailable':
+        throw marketUnavailable(result.marketName);
       case 'service_not_configured':
-        throw serviceNotConfigured('Booking config', result.cityId, result.missing);
+        throw serviceNotConfigured('Booking config', result.marketId, result.missing);
     }
   });
 
@@ -106,13 +106,13 @@ export function createGoalkeeperRequestsController(deps: GoalkeeperRequestsContr
           // The area has no free-cancellation period: the default was stored. Logged so operations
           // configure it; the response is unaffected (FR-014).
           logger.warn(
-            { outcome: 'free_cancellation_not_configured', cityId: result.cityId },
+            { outcome: 'free_cancellation_not_configured', marketId: result.marketId },
             'Quote issued with the default free-cancellation period',
           );
         }
         if (result.travelBufferDefaulted) {
           logger.warn(
-            { outcome: 'travel_buffer_not_configured', cityId: result.cityId },
+            { outcome: 'travel_buffer_not_configured', marketId: result.marketId },
             'Quote issued with the default travel margin',
           );
         }
@@ -124,6 +124,8 @@ export function createGoalkeeperRequestsController(deps: GoalkeeperRequestsContr
         });
       case 'location_not_covered':
         throw locationNotCovered();
+      case 'market_unavailable':
+        throw marketUnavailable(result.marketName);
       case 'invalid_start_time':
         throw new ApiError(
           400,
@@ -150,13 +152,11 @@ export function createGoalkeeperRequestsController(deps: GoalkeeperRequestsContr
         throw new ApiError(400, 'outside_booking_window', 'The start time is beyond how far ahead a match can be booked.', undefined, {
           bookingWindowDays: result.bookingWindowDays,
         });
-      case 'time_zone_not_configured':
-        throw timeZoneNotConfigured('Quote', result.cityId);
       case 'service_not_configured':
-        throw serviceNotConfigured('Quote', result.cityId, result.missing);
+        throw serviceNotConfigured('Quote', result.marketId, result.missing);
       case 'rate_not_configured':
         logger.warn(
-          { outcome: result.outcome, cityId: result.cityId, zoneId: result.zoneId, durationMinutes: result.durationMinutes },
+          { outcome: result.outcome, marketId: result.marketId, zoneId: result.zoneId, durationMinutes: result.durationMinutes },
           'Quote refused: area not configured',
         );
         throw new ApiError(422, 'rate_not_configured', 'No price is configured for this duration in this area.');
@@ -187,6 +187,8 @@ export function createGoalkeeperRequestsController(deps: GoalkeeperRequestsContr
         return;
       case 'quote_not_found':
         throw new ApiError(404, 'quote_not_found', 'No quote with that id exists for this client; request a new quote.');
+      case 'market_unavailable':
+        throw marketUnavailable(result.marketName);
       case 'quote_expired':
         throw new ApiError(410, 'quote_expired', 'The quote has expired; request a new quote.');
       case 'duplicate_request':

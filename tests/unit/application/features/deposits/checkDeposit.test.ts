@@ -150,7 +150,7 @@ describe('checkDepositWithGateway', () => {
   it("records a failure to credit (the operatingBalance can't be resolved) and lets it through", async () => {
     const { harness, deposit, at, deps, stored, log } = await setup();
     harness.gateway.answer(harness.answer(deposit.reference, 'APPROVED'));
-    harness.operatingBalance.profiles.seed(buildGoalkeeperProfile('gk-1', { cityId: 'city-orphan' }));
+    harness.operatingBalance.profiles.seed(buildGoalkeeperProfile('gk-1', { marketId: 'city-orphan' }));
 
     await expect(checkDepositWithGateway(deps(), await stored(), at(20), STAFF)).rejects.toThrow();
     expect(log()[0]).toMatchObject({ answer: 'APPROVED', result: 'failed', statusAfter: 'pending' });

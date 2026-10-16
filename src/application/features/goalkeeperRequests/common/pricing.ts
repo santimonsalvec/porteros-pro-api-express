@@ -3,11 +3,11 @@ import type { RentalRate } from '../../../../domain/pricing/rentalRate.js';
 import { resolveTiered, type MatchTier } from '../../../../domain/pricing/tieredRate.js';
 
 /**
- * The zone's rates first, then the city's, each through modality + level → modality → general
+ * The zone's rates first, then the market's, each through modality + level → modality → general
  * (feature 024); `null` when none applies (never treated as free).
  */
-export function selectUnitRate(rates: { zone: RentalRate[]; city: RentalRate[] }, match: MatchTier): RentalRate | null {
-  return resolveTiered([rates.zone, rates.city], match);
+export function selectUnitRate(rates: { zone: RentalRate[]; market: RentalRate[] }, match: MatchTier): RentalRate | null {
+  return resolveTiered([rates.zone, rates.market], match);
 }
 
 /**

@@ -9,14 +9,14 @@ export const BOOKING_CANCELLED_TYPE = 'booking.cancelled';
 
 export interface OutcomeMatch {
   zoneName: string | null;
-  cityName: string | null;
+  marketName: string | null;
   startsAt: Date;
   timeZone: string;
 }
 
 /** "en Bello · dom 4 oct, 3:00 p. m." */
 export function where(match: OutcomeMatch): string {
-  return `en ${match.zoneName ?? match.cityName ?? 'tu zona'} · ${localWhen(match.startsAt, match.timeZone)}`;
+  return `en ${match.zoneName ?? match.marketName ?? 'tu zona'} · ${localWhen(match.startsAt, match.timeZone)}`;
 }
 
 /** "7.000 COP": Colombian thousands separator, whole units. */

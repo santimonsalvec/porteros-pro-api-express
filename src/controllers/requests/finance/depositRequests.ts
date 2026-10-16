@@ -5,7 +5,8 @@ import { FROM_BEFORE_TO, fromBeforeTo, idField, instantField } from './financeFi
 
 const filters = {
   status: z.enum(DEPOSIT_STATUSES).optional(),
-  countryId: idField.optional(),
+  // The country comes from X-Scope (spec 031, contract B1); `marketId` narrows it.
+  marketId: z.string().trim().min(1).max(100).optional(),
   goalkeeperId: idField.optional(),
   from: instantField.optional(),
   to: instantField.optional(),

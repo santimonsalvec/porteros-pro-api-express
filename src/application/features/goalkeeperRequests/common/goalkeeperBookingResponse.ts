@@ -3,7 +3,7 @@ import { discountFor } from '../../../../domain/pricing/unverifiedDiscount.js';
 import type { Booking } from '../../../../domain/bookings/booking.js';
 import type { GoalkeeperRequest } from '../../../../domain/bookings/goalkeeperRequest.js';
 import { contactsVisibleAt, contactsVisibleFrom } from '../../../../domain/bookings/contactVisibility.js';
-import type { ICityRepository } from '../../locations/common/ports.js';
+import type { IMarketRepository } from '../../markets/common/ports.js';
 import type { IZoneRepository } from '../../zones/common/ports.js';
 import type { Contact } from './contacts.js';
 import { toMatchFormatResponse, type MatchFormatResponse } from './matchFormatResponse.js';
@@ -17,8 +17,8 @@ export interface AvailableBookingItem {
   requestId: string;
   zoneId: string;
   zoneName: string | null;
-  cityId: string;
-  cityName: string | null;
+  marketId: string;
+  marketName: string | null;
   startsAt: string;
   startsAtLocal: string;
   timeZone: string;
@@ -65,23 +65,23 @@ export interface AgendaItem extends AvailableBookingItem {
 export interface BookingItemContext {
   requests: Map<string, GoalkeeperRequest>;
   zoneNames: Map<string, string>;
-  cityNames: Map<string, string>;
+  marketNames: Map<string, string>;
 }
 
 /** One read for the requests, one for zone names and one for city names — whatever the page size. */
 export async function loadBookingItemContext(
-  deps: { requestRepository: IGoalkeeperRequestRepository; zoneRepository: IZoneRepository; cityRepository: ICityRepository },
+  deps: { requestRepository: IGoalkeeperRequestRepository; zoneRepository: IZoneRepository; marketRepository: IMarketRepository },
   bookings: readonly Booking[],
 ): Promise<BookingItemContext> {
-  if (bookings.length === 0) return { requests: new Map(), zoneNames: new Map(), cityNames: new Map() };
+  if (bookings.length === 0) return { requests: new Map(), zoneNames: new Map(), marketNames: new Map() };
   const requests = await deps.requestRepository.findByIds([...new Set(bookings.map((booking) => booking.requestId))]);
   const zoneIds = [...new Set(requests.map((request) => request.match.zoneId))];
-  const cityIds = [...new Set(requests.map((request) => request.match.cityId))];
-  const [zones, cities] = await Promise.all([deps.zoneRepository.getManyByIds(zoneIds), deps.cityRepository.getByIds(cityIds)]);
+  const marketIds = [...new Set(requests.map((request) => request.match.marketId))];
+  const [zones, markets] = await Promise.all([deps.zoneRepository.getManyByIds(zoneIds), deps.marketRepository.getByIds(marketIds)]);
   return {
     requests: new Map(requests.map((request) => [request.id, request])),
     zoneNames: new Map(zones.map((zone) => [zone.id, zone.name])),
-    cityNames: new Map(cities.map((city) => [city.id, city.name])),
+    marketNames: new Map(markets.map((market) => [market.id, market.name])),
   };
 }
 
@@ -94,8 +94,8 @@ export function toAvailableItem(booking: Booking, context: BookingItemContext, v
     requestId: booking.requestId,
     zoneId: match.zoneId,
     zoneName: context.zoneNames.get(match.zoneId) ?? null,
-    cityId: match.cityId,
-    cityName: context.cityNames.get(match.cityId) ?? null,
+    marketId: match.marketId,
+    marketName: context.marketNames.get(match.marketId) ?? null,
     startsAt: match.startsAt.toISOString(),
     startsAtLocal: match.startsAtLocal,
     timeZone: match.timeZone,
@@ -125,7 +125,7 @@ function earningsFor(booking: Booking, viewerTier: VettingTier): { earnings: num
   return { earnings: booking.price.total };
 }
 
-/** The check-in window values of each request in `context`, one country lookup per city. */
+/** The check-in window values of each request in `context`, one country lookup per market. */
 export async function loadCheckInWindows(context: BookingItemContext, resolve: CheckInWindowResolver): Promise<Map<string, CheckInWindowConfig>> {
   const requests = [...context.requests.values()];
   const configs = await Promise.all(requests.map((request) => resolve(request)));

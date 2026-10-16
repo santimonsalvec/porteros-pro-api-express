@@ -2,7 +2,7 @@
  * Development only: adds a small modality/level price matrix (feature 024) to test the tiered
  * rates and commissions, on the database of this machine's MONGODB_CONNECTION_STRING.
  *
- *   npx tsx scripts/dev-seed-format-rates.ts <cityId> <countryId>
+ *   npx tsx scripts/dev-seed-format-rates.ts <marketId> <countryId>
  *   npx tsx scripts/dev-seed-format-rates.ts --remove
  *
  * Every document it writes has an id starting with `dev-024-`, so `--remove` deletes exactly them
@@ -34,7 +34,7 @@ if (!connectionString) {
 const [first, countryId] = process.argv.slice(2);
 const remove = first === '--remove';
 if (!remove && (!first || !countryId)) {
-  console.error('Uso: npx tsx scripts/dev-seed-format-rates.ts <cityId> <countryId> | --remove');
+  console.error('Uso: npx tsx scripts/dev-seed-format-rates.ts <marketId> <countryId> | --remove');
   process.exit(1);
 }
 
@@ -51,7 +51,7 @@ try {
     for (const { modality, level, amounts } of RATES) {
       for (const [duration, amount] of Object.entries(amounts)) {
         const _id = `${PREFIX}rate-${modality}-${level ?? 'all'}-${duration}`;
-        const doc = { scope: 'city', refId: first, durationMinutes: Number(duration), amount, modality, ...(level ? { level } : {}) };
+        const doc = { scope: 'market', refId: first, durationMinutes: Number(duration), amount, modality, ...(level ? { level } : {}) };
         await rates.replaceOne({ _id } as Document, doc, { upsert: true });
         console.log(`tarifa ${_id}: ${amount}`);
       }

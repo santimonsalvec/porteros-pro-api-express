@@ -1,13 +1,13 @@
 import { IQuery } from '../../../../common/mediator/types.js';
 import type { StoredBookingSettings } from '../../common/ports.js';
-import type { SETTING_DEFAULTS } from '../../common/bookingRules.js';
+import type { SettingDefaults } from '../../common/bookingRules.js';
 
 export interface CountryBookingSettingsView {
   countryId: string;
   countryName: string;
   currency: string | null;
   own: StoredBookingSettings;
-  defaults: typeof SETTING_DEFAULTS;
+  defaults: SettingDefaults;
   invalid: boolean;
   /** `null` while the country has no rules saved yet. */
   revision: number | null;

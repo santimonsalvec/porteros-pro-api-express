@@ -25,3 +25,6 @@ export const gatewaySettingsRequestSchema = z
   .strict();
 
 export type GatewaySettingsRequest = z.infer<typeof gatewaySettingsRequestSchema>;
+
+/** `GET /admin/payment-gateways?countryId=` (spec 031, contract E). */
+export const gatewaySettingsListQuerySchema = z.object({ countryId: z.string({ required_error: 'countryId is required' }).trim().min(1) }).strict();

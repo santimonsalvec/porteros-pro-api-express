@@ -20,10 +20,10 @@ describe('goalkeepersListPipeline (admin spec 005, research §5)', () => {
   });
 
   it('filters the profile by users, city, zone, suspension and offers before the join', () => {
-    const pipeline = goalkeepersListPipeline({ ...BASE, userIds: ['u1'], cityId: 'med', zoneId: 'poblado', suspended: true, availableForOffers: false });
+    const pipeline = goalkeepersListPipeline({ ...BASE, userIds: ['u1'], marketId: 'med', zoneId: 'poblado', suspended: true, availableForOffers: false });
 
     expect(matches(pipeline)[0]).toEqual({
-      userId: { $in: ['u1'] }, cityId: 'med', zoneIds: 'poblado', suspendedUntil: { $gt: NOW }, availableForOffers: false,
+      userId: { $in: ['u1'] }, marketId: 'med', zoneIds: 'poblado', suspendedUntil: { $gt: NOW }, availableForOffers: false,
     });
   });
 

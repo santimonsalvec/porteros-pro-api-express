@@ -29,8 +29,17 @@ export interface DepositOption {
   net: number;
 }
 
+/** Where settings apply (spec 031, FR-032): a whole country, or one of its markets; never a zone. */
+export const GATEWAY_SCOPES = ['country', 'market'] as const;
+export type GatewayScope = (typeof GATEWAY_SCOPES)[number];
+
 export interface PaymentGatewaySettingsProps {
+  /** The country they belong to; a market's override is in its country's currency. */
   countryId: string;
+  /** `country` (the default) or `market`, which overrides its country's. */
+  scope?: GatewayScope;
+  /** The country's or the market's id; the country's when absent. */
+  refId?: string;
   gateway: GatewayName;
   publicConfig: GatewayPublicConfig;
   currency: string;
@@ -69,6 +78,7 @@ function isBps(value: number): boolean {
 /** Every rule a country's settings must satisfy; each problem names its field. Empty = valid. */
 export function settingsProblems(props: Omit<PaymentGatewaySettingsProps, 'updatedAt' | 'updatedBy'>): string[] {
   const problems: string[] = [];
+  if (props.scope !== undefined && !(GATEWAY_SCOPES as readonly string[]).includes(props.scope)) problems.push(`scope: must be country or market`);
   if (!isGateway(props.gateway)) problems.push(`gateway: '${String(props.gateway)}' is not supported`);
   const environment = props.publicConfig?.environment;
   if (environment !== 'sandbox' && environment !== 'production') {
@@ -99,6 +109,9 @@ export function settingsProblems(props: Omit<PaymentGatewaySettingsProps, 'updat
  * offered (feature 022). One per country. Amounts are kept sorted ascending.
  */
 export class PaymentGatewaySettings extends Entity<string> {
+  readonly countryId: string;
+  readonly scope: GatewayScope;
+  readonly refId: string;
   readonly gateway: GatewayName;
   readonly publicConfig: GatewayPublicConfig;
   readonly currency: string;
@@ -109,7 +122,12 @@ export class PaymentGatewaySettings extends Entity<string> {
   readonly revision: number;
 
   private constructor(props: PaymentGatewaySettingsProps) {
-    super(props.countryId);
+    const scope = props.scope ?? 'country';
+    const refId = props.refId ?? props.countryId;
+    super(`${scope}:${refId}`);
+    this.countryId = props.countryId;
+    this.scope = scope;
+    this.refId = refId;
     this.gateway = props.gateway;
     this.publicConfig = { publicKey: props.publicConfig.publicKey, environment: props.publicConfig.environment };
     this.currency = props.currency;
@@ -118,10 +136,6 @@ export class PaymentGatewaySettings extends Entity<string> {
     this.updatedAt = new Date(props.updatedAt);
     this.updatedBy = props.updatedBy;
     this.revision = props.revision ?? 0;
-  }
-
-  get countryId(): string {
-    return this.id;
   }
 
   /** An administrator's change: invalid input is answered with its problems, never thrown. */
@@ -134,7 +148,7 @@ export class PaymentGatewaySettings extends Entity<string> {
   static rehydrate(props: PaymentGatewaySettingsProps): PaymentGatewaySettings {
     const problems = settingsProblems(props);
     if (problems.length > 0) {
-      throw new InvalidConfigurationError(`paymentGatewaySettings document ${props.countryId}: ${problems.join('; ')}`);
+      throw new InvalidConfigurationError(`paymentGatewaySettings document ${props.scope ?? 'country'}:${props.refId ?? props.countryId}: ${problems.join('; ')}`);
     }
     return new PaymentGatewaySettings(props);
   }

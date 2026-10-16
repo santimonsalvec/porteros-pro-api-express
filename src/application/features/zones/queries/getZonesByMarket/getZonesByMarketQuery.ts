@@ -9,15 +9,16 @@ export interface ZoneOption {
   geometry: ZoneGeometry;
 }
 
-export type GetZonesByCityOutcome = 'success' | 'city_not_found' | 'no_zones_configured';
+export type GetZonesByMarketOutcome = 'success' | 'market_not_found' | 'no_zones_configured';
 
-export interface GetZonesByCityResult {
-  outcome: GetZonesByCityOutcome;
+export interface GetZonesByMarketResult {
+  outcome: GetZonesByMarketOutcome;
   zones?: ZoneOption[];
 }
 
-export class GetZonesByCityQuery extends IQuery<GetZonesByCityResult> {
-  constructor(public readonly cityId: string) {
+/** The active zones of an enabled market, for the goalkeeper's availability (spec 031, contract A2). */
+export class GetZonesByMarketQuery extends IQuery<GetZonesByMarketResult> {
+  constructor(public readonly marketId: string) {
     super();
   }
 }

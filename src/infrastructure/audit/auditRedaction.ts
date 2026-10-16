@@ -5,7 +5,7 @@
  */
 const PRICE_FIELDS = [
   'id', 'scope', 'refId', 'modality', 'level', 'amount', 'revision', 'invalid', 'currency', 'countryId', 'countryName',
-  'cityId', 'cityName', 'zoneName', 'zoneActive', 'targetValid', 'reason',
+  'marketId', 'marketName', 'zoneName', 'zoneActive', 'targetValid', 'reason',
 ];
 
 const ALLOWED_FIELDS: Readonly<Record<string, readonly string[]>> = {
@@ -37,12 +37,15 @@ const ALLOWED_FIELDS: Readonly<Record<string, readonly string[]>> = {
   // Geography and catalogs (spec 003 of the admin): reference data, nothing personal or secret.
   country: ['id', 'name', 'countryCode', 'dialCode', 'currency', 'operating', 'regionCount', 'revision', 'reason'],
   region: ['id', 'name', 'countryId', 'countryName', 'cityCount', 'revision', 'reason'],
-  city: [
-    'id', 'name', 'region', 'country', 'countryCode', 'timeZone', 'timeZoneValid', 'daneStateCode', 'daneCityCode',
-    'zoneCity', 'zoneCount', 'satelliteCount', 'state', 'revision', 'reason',
+  // A municipality of the billing catalog (spec 031).
+  city: ['id', 'name', 'region', 'country', 'countryCode', 'daneStateCode', 'daneCityCode', 'revision', 'reason'],
+  // Where the service operates (spec 031): reference data, nothing personal or secret.
+  market: [
+    'id', 'name', 'countryId', 'timeZone', 'mapCenter', 'lat', 'lng', 'zoom', 'status', 'enabledAt', 'enabledBy',
+    'disabledAt', 'disabledBy', 'revision', 'reason',
   ],
   zone: [
-    'id', 'cityId', 'name', 'slug', 'active', 'displayOrder', 'geometry', 'type', 'coordinates', 'geometryValid', 'inUse',
+    'id', 'marketId', 'name', 'slug', 'active', 'displayOrder', 'geometry', 'type', 'coordinates', 'geometryValid', 'inUse',
     'revision', 'reason',
   ],
   documentType: ['id', 'code', 'name', 'invoiceable', 'inUse', 'revision', 'reason'],
@@ -63,13 +66,13 @@ const ALLOWED_FIELDS: Readonly<Record<string, readonly string[]>> = {
   // Finance (spec 007 of the admin): a forced reconciliation keeps its outcome, never the payment's
   // references; an export keeps its filters and how many rows left, never a row.
   deposit: ['depositId', 'status', 'answer', 'result', 'statusAfter'],
-  deposits: ['status', 'countryId', 'goalkeeperId', 'from', 'to', 'rows'],
-  invoicingDocuments: ['status', 'kind', 'countryId', 'goalkeeperId', 'from', 'to', 'stale', 'rows'],
+  deposits: ['status', 'countryId', 'marketId', 'goalkeeperId', 'from', 'to', 'rows'],
+  invoicingDocuments: ['status', 'kind', 'countryId', 'marketId', 'goalkeeperId', 'from', 'to', 'stale', 'rows'],
   // Prices and booking rules (spec 004 of the admin): configuration values, nothing personal or secret.
   rentalRate: [...PRICE_FIELDS, 'durationMinutes'],
   commissionSetting: [...PRICE_FIELDS, 'vatRateBps', 'vatAmount', 'totalWithVat'],
   bookingSettings: [
-    'countryId', 'countryName', 'cityId', 'cityName', 'currency', 'revision', 'own', 'country', 'defaults', 'effective',
+    'countryId', 'countryName', 'marketId', 'marketName', 'currency', 'revision', 'own', 'country', 'defaults', 'effective',
     'value', 'origin', 'bookingWindowDays', 'minNoticeMinutes', 'freeCancellationMinutes', 'travelBufferMinutes',
     'leadTimeSurcharge', 'tiers', 'fromMinutes', 'toMinutes', 'amount', 'goalkeeperPenalties', 'lateNoticeMinutes',
     'lateSuspensionDays', 'weeklyLimit', 'windowDays', 'limitSuspensionDays', 'checkInWindow', 'opensMinutesBefore',

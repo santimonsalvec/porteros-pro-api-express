@@ -28,6 +28,7 @@ export function invoicingDocumentFromDocument(doc: Document): InvoicingDocument 
     concept: doc.concept as InvoicingConcept,
     goalkeeperId: doc.goalkeeperId as string,
     countryId: doc.countryId as string,
+    marketId: doc.marketId as string,
     sourceEventId: (doc.sourceEventId as string | null | undefined) ?? null,
     sourceMovementId: doc.sourceMovementId as string,
     vatMovementId: (doc.vatMovementId as string | null | undefined) ?? null,
@@ -39,7 +40,8 @@ export function invoicingDocumentFromDocument(doc: Document): InvoicingDocument 
     total: doc.total as number,
     vatRateBps: doc.vatRateBps as number,
     currency: doc.currency as string,
-    buyer: doc.buyer as InvoicingBuyer,
+    // Documents created before spec 031 have no address.
+    buyer: { address: null, addressComplement: null, ...(doc.buyer as Partial<InvoicingBuyer>) } as InvoicingBuyer,
     status: doc.status as InvoicingDocumentStatus,
     waitingFor: (doc.waitingFor as string | null | undefined) ?? null,
     provider: (doc.provider as ProviderBinding | null | undefined) ?? null,
@@ -70,6 +72,8 @@ export class InvoicingDocumentRepository implements IInvoicingDocumentRepository
   async ensureIndexes(): Promise<void> {
     await this.collection.createIndex({ sourceMovementId: 1 }, { name: 'source_unique', unique: true });
     await this.collection.createIndex({ goalkeeperId: 1, occurredAt: -1, _id: -1 }, { name: 'goalkeeper_occurred' });
+    // Spec 031: a market's documents, which stay there when a goalkeeper leaves.
+    await this.collection.createIndex({ marketId: 1, issuedAt: -1 }, { name: 'market_issued' });
     await this.collection.createIndex({ status: 1, nextAttemptAt: 1 }, { name: 'status_next' });
   }
 

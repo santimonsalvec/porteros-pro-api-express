@@ -19,7 +19,7 @@ describe('/admin/commissions (admin spec 004, US3)', () => {
     const deleted = await editor.post(`/admin/commissions/${id}/delete`, { reason: 'Vuelve a la del país' });
 
     expect(created.status).toBe(201);
-    expect(created.body).toMatchObject({ ...NORTE, zoneName: 'Norte', cityName: 'Cali', currency: 'COP', vatRateBps: 1900, vatAmount: 1710, totalWithVat: 10710 });
+    expect(created.body).toMatchObject({ ...NORTE, zoneName: 'Norte', marketName: 'Cali', currency: 'COP', vatRateBps: 1900, vatAmount: 1710, totalWithVat: 10710 });
     expect([edited.status, edited.body.amount, edited.body.totalWithVat]).toEqual([200, 9500, 11305]);
     expect(impact.body).toEqual({ zoneCount: 0, zoneNames: [] });
     expect(deleted.status).toBe(204);
@@ -54,7 +54,7 @@ describe('/admin/commissions (admin spec 004, US3)', () => {
     const stale = await editor.patch('/admin/commissions/commission-country-co', { revision: 3, amount: 1 });
     const missing = await editor.get('/admin/commissions/nope');
 
-    expect(impact.body).toEqual({ zoneCount: 3, zoneNames: ['Norte', 'Sur', 'Centro'] });
+    expect(impact.body).toEqual({ zoneCount: 5, zoneNames: ['Norte', 'Sur', 'Centro', 'Bello', 'Copacabana'] });
     expect([duplicate.status, duplicate.body.error, duplicate.body.existingId]).toEqual([409, 'commission_already_exists', 'commission-country-co']);
     expect([unknown.status, unknown.body.error]).toEqual([404, 'country_not_found']);
     expect([levelAlone.status, levelAlone.body.fieldErrors]).toEqual([400, { level: 'level_requires_modality' }]);
@@ -70,5 +70,20 @@ describe('/admin/commissions (admin spec 004, US3)', () => {
     expect((await reader.get('/admin/commissions')).status).toBe(200);
     expect((await reader.post('/admin/commissions', NORTE)).status).toBe(403);
     expect((await as(context, client.token).get('/admin/commissions')).status).toBe(401);
+  });
+});
+
+describe('/admin/commissions by market (spec 031, US2)', () => {
+  it("takes a market's commission and refuses the old city scope", async () => {
+    const context = await buildTestApp();
+    const { editor } = await pricingStaff(context);
+
+    const market = await editor.post('/admin/commissions', { scope: 'market', refId: 'city-cali', amount: 8000 });
+    const city = await editor.post('/admin/commissions', { scope: 'city', refId: 'city-cali', amount: 8000 });
+    const listed = await editor.get('/admin/commissions?scope=market');
+
+    expect([market.status, market.body.scope, market.body.marketName]).toEqual([201, 'market', 'Cali']);
+    expect(city.status).toBe(400);
+    expect(listed.body.items.map((item: { refId: string }) => item.refId)).toEqual(['city-cali']);
   });
 });

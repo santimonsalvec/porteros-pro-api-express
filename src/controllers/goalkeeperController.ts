@@ -9,6 +9,9 @@ import { SaveIdentificationSectionCommand } from '../application/features/goalke
 import { SavePhysicalDataSectionCommand } from '../application/features/goalkeepers/commands/savePhysicalDataSection/savePhysicalDataSectionCommand.js';
 import { SaveAvailabilitySectionCommand } from '../application/features/goalkeepers/commands/saveAvailabilitySection/saveAvailabilitySectionCommand.js';
 import { UpdateGoalkeeperPhysicalDataCommand } from '../application/features/goalkeepers/commands/updateGoalkeeperPhysicalData/updateGoalkeeperPhysicalDataCommand.js';
+import { SaveBillingSectionCommand } from '../application/features/goalkeepers/commands/saveBillingSection/saveBillingSectionCommand.js';
+import { UpdateGoalkeeperBillingCommand } from '../application/features/goalkeepers/commands/updateGoalkeeperBilling/updateGoalkeeperBillingCommand.js';
+import { saveBillingSectionRequestSchema, updateGoalkeeperBillingRequestSchema } from './requests/goalkeepers/billingRequests.js';
 import { UpdateGoalkeeperAvailabilityCommand } from '../application/features/goalkeepers/commands/updateGoalkeeperAvailability/updateGoalkeeperAvailabilityCommand.js';
 import { SaveDocumentPhotoCommand } from '../application/features/goalkeepers/commands/saveDocumentPhoto/saveDocumentPhotoCommand.js';
 import { ActivateGoalkeeperCommand } from '../application/features/goalkeepers/commands/activateGoalkeeper/activateGoalkeeperCommand.js';
@@ -22,7 +25,8 @@ import { saveIdentificationSectionRequestSchema } from './requests/goalkeepers/s
 import { savePhysicalDataSectionRequestSchema } from './requests/goalkeepers/savePhysicalDataSectionRequest.js';
 import { saveAvailabilitySectionRequestSchema } from './requests/goalkeepers/saveAvailabilitySectionRequest.js';
 import { updateGoalkeeperPhysicalDataRequestSchema } from './requests/goalkeepers/updateGoalkeeperPhysicalDataRequest.js';
-import { updateGoalkeeperAvailabilityRequestSchema } from './requests/goalkeepers/updateGoalkeeperAvailabilityRequest.js';
+import { changeGoalkeeperMarketRequestSchema, updateGoalkeeperAvailabilityRequestSchema } from './requests/goalkeepers/updateGoalkeeperAvailabilityRequest.js';
+import { ChangeGoalkeeperMarketCommand } from '../application/features/goalkeepers/commands/changeGoalkeeperMarket/changeGoalkeeperMarketCommand.js';
 import { offersAvailabilityRequestSchema } from './requests/goalkeepers/offersAvailabilityRequest.js';
 import { SetOffersAvailabilityCommand } from '../application/features/notifications/commands/setOffersAvailability/setOffersAvailabilityCommand.js';
 import { ApiError } from './apiError.js';
@@ -119,18 +123,36 @@ export function createGoalkeeperController(deps: GoalkeeperControllerDependencie
   router.patch('/me/availability', async (req, res) => {
     const body = saveAvailabilitySectionRequestSchema.parse(req.body);
     const claims = req.authClaims!;
-    const result = await deps.mediator.send(new SaveAvailabilitySectionCommand(claims.sub, body.cityId, body.zoneIds));
+    const result = await deps.mediator.send(new SaveAvailabilitySectionCommand(claims.sub, body.marketId, body.zoneIds));
 
     switch (result.outcome) {
       case 'success':
         res.status(200).json(result.registration);
         return;
-      case 'invalid_city':
-        throw new ApiError(400, 'invalid_city', 'The provided city does not exist.');
+      case 'invalid_market':
+        throw new ApiError(400, 'invalid_market', 'The provided market does not exist or is not open.');
       case 'invalid_zones':
         throw new ApiError(400, 'invalid_zones', 'One or more selected zones are invalid.', undefined, {
           invalidZoneIds: result.invalidZoneIds,
         });
+      case 'already_active':
+        throw new ApiError(409, 'already_active', 'Your goalkeeper profile is already active; this data can no longer be changed here.');
+    }
+  });
+
+  // Where the goalkeeper lives, for their invoices (spec 031, contract A6).
+  router.patch('/me/billing', async (req, res) => {
+    const body = saveBillingSectionRequestSchema.parse(req.body);
+    const result = await deps.mediator.send(new SaveBillingSectionCommand(req.authClaims!.sub, body));
+
+    switch (result.outcome) {
+      case 'success':
+        res.status(200).json(result.registration);
+        return;
+      case 'validation_failed':
+        throw new ApiError(400, 'validation_failed', 'One or more fields are invalid.', result.fieldErrors);
+      case 'invalid_city':
+        throw new ApiError(400, 'invalid_city', 'The municipality does not exist or cannot be invoiced.');
       case 'already_active':
         throw new ApiError(409, 'already_active', 'Your goalkeeper profile is already active; this data can no longer be changed here.');
     }
@@ -164,18 +186,74 @@ export function createGoalkeeperController(deps: GoalkeeperControllerDependencie
   router.put('/me/profile/availability', async (req, res) => {
     const body = updateGoalkeeperAvailabilityRequestSchema.parse(req.body);
     const claims = req.authClaims!;
-    const result = await deps.mediator.send(new UpdateGoalkeeperAvailabilityCommand(claims.sub, body.cityId, body.zoneIds));
+    const result = await deps.mediator.send(new UpdateGoalkeeperAvailabilityCommand(claims.sub, body.marketId ?? null, body.zoneIds));
 
     switch (result.outcome) {
       case 'success':
         res.status(200).json(result.goalkeeper);
         return;
-      case 'invalid_city':
-        throw new ApiError(400, 'invalid_city', 'The provided city does not exist.');
+      case 'invalid_market':
+        throw new ApiError(400, 'invalid_market', 'The provided market does not exist or is not open.');
+      case 'use_market_change':
+        throw new ApiError(409, 'use_market_change', 'To play in another market, use POST /goalkeepers/me/market-change.');
       case 'invalid_zones':
         throw new ApiError(400, 'invalid_zones', 'One or more selected zones are invalid.', undefined, {
           invalidZoneIds: result.invalidZoneIds,
         });
+      case 'not_a_goalkeeper':
+        throw new ApiError(404, 'goalkeeper_not_found', 'You have not started a goalkeeper registration.');
+      case 'not_active':
+        throw new ApiError(409, 'goalkeeper_not_active', 'Your goalkeeper profile is not active yet; finish and activate your registration first.');
+    }
+  });
+
+  router.put('/me/profile/billing', async (req, res) => {
+    const body = updateGoalkeeperBillingRequestSchema.parse(req.body);
+    const result = await deps.mediator.send(
+      new UpdateGoalkeeperBillingCommand(req.authClaims!.sub, { cityId: body.cityId, address: body.address, addressComplement: body.addressComplement ?? null }),
+    );
+
+    switch (result.outcome) {
+      case 'success':
+        res.status(200).json(result.goalkeeper);
+        return;
+      case 'validation_failed':
+        throw new ApiError(400, 'validation_failed', 'One or more fields are invalid.', result.fieldErrors);
+      case 'invalid_city':
+        throw new ApiError(400, 'invalid_city', 'The municipality does not exist or cannot be invoiced.');
+      case 'not_a_goalkeeper':
+        throw new ApiError(404, 'goalkeeper_not_found', 'You have not started a goalkeeper registration.');
+      case 'not_active':
+        throw new ApiError(409, 'goalkeeper_not_active', 'Your goalkeeper profile is not active yet; finish and activate your registration first.');
+    }
+  });
+
+  // Moving to another market: only the goalkeeper, only here (spec 031, FR-025–FR-028).
+  router.post('/me/market-change', async (req, res) => {
+    const body = changeGoalkeeperMarketRequestSchema.parse(req.body);
+    const result = await deps.mediator.send(new ChangeGoalkeeperMarketCommand(req.authClaims!.sub, body.marketId, body.zoneIds));
+
+    switch (result.outcome) {
+      case 'changed':
+        res.status(200).json({ goalkeeper: result.goalkeeper });
+        return;
+      case 'invalid_zones':
+        throw new ApiError(400, 'invalid_zones', 'One or more selected zones are invalid.', undefined, { invalidZoneIds: result.invalidZoneIds });
+      case 'same_market':
+        throw new ApiError(409, 'same_market', 'You already play in that market.');
+      case 'market_not_available':
+        throw new ApiError(409, 'market_not_available', 'That market does not exist or is not open.');
+      case 'pending_bookings':
+        throw new ApiError(409, 'pending_bookings', 'You have accepted matches still to play.', undefined, { bookingIds: result.bookingIds });
+      case 'balance_not_zero':
+        throw new ApiError(409, 'balance_not_zero', 'Your operating balance must be zero to move to another country.', undefined, {
+          balance: result.balance,
+          currency: result.currency,
+        });
+      case 'deposit_pending':
+        throw new ApiError(409, 'deposit_pending', 'A deposit is still being confirmed.', undefined, { depositId: result.depositId });
+      case 'account_closure_open':
+        throw new ApiError(409, 'account_closure_open', 'Your account closure is in progress.');
       case 'not_a_goalkeeper':
         throw new ApiError(404, 'goalkeeper_not_found', 'You have not started a goalkeeper registration.');
       case 'not_active':
@@ -406,9 +484,9 @@ export function createGoalkeeperController(deps: GoalkeeperControllerDependencie
       case 'not_a_goalkeeper':
         throw goalkeeperNotFound();
       case 'operating_balance_not_configured':
-        throw operatingBalanceNotConfigured(result.cityId);
+        throw operatingBalanceNotConfigured(result.marketId);
       case 'time_zone_not_configured':
-        logger.warn({ outcome: 'time_zone_not_configured', cityId: result.cityId }, 'Goalkeeper stats refused: city time zone not configured');
+        logger.warn({ outcome: 'time_zone_not_configured', marketId: result.marketId }, 'Goalkeeper stats refused: market time zone not configured');
         throw new ApiError(422, 'time_zone_not_configured', 'The time zone of the goalkeeper city is not configured.');
     }
   });

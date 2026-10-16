@@ -134,7 +134,8 @@ export class SiigoInvoicingProvider implements IInvoicingProvider {
       vat_responsible: false,
       fiscal_responsibilities: [{ code: 'R-99-PN' }],
       address: {
-        address: buyer.cityName ?? buyer.cityId,
+        // The goalkeeper's own address; a document from before spec 031 only knows the city.
+        address: [buyer.address, buyer.addressComplement].filter(Boolean).join(', ') || buyer.cityName || buyer.cityId,
         city: { country_code: buyer.countryCode, state_code: buyer.stateCode, city_code: buyer.cityCode },
       },
       contacts: [{ first_name: buyer.firstName, last_name: buyer.lastName, email: buyer.email }],

@@ -6,7 +6,7 @@ import type { CommissionView } from '../../common/views.js';
 import { commissionViews, type CommissionViewDependencies } from './commissionViews.js';
 import { ListCommissionsQuery, type CommissionFilters } from './listCommissionsQuery.js';
 
-const SCOPE_ORDER = { country: 0, city: 1, zone: 2 } as const;
+const SCOPE_ORDER = { country: 0, market: 1, zone: 2 } as const;
 
 export class ListCommissionsQueryHandler implements IQueryHandler<ListCommissionsQuery, Page<CommissionView>> {
   constructor(private readonly deps: CommissionViewDependencies & { commissions: ICommissionAdmin }) {}
@@ -23,7 +23,7 @@ export class ListCommissionsQueryHandler implements IQueryHandler<ListCommission
         (a, b) =>
           compareNames(a.countryName, b.countryName) ||
           SCOPE_ORDER[a.scope] - SCOPE_ORDER[b.scope] ||
-          compareNames(a.cityName, b.cityName) ||
+          compareNames(a.marketName, b.marketName) ||
           order(a) - order(b) ||
           compareTiers(a, b) ||
           a.id.localeCompare(b.id),
@@ -32,13 +32,13 @@ export class ListCommissionsQueryHandler implements IQueryHandler<ListCommission
     return pageOf(rows.slice(start, start + pageSize), page, pageSize, rows.length);
   }
 
-  /** A city filter reads its own commissions and its zones'; a zone filter, only that zone's. */
-  private async refsFor({ cityId, zoneId }: CommissionFilters): Promise<RefFilter> {
+  /** A market filter reads its own commissions and its zones'; a zone filter, only that zone's. */
+  private async refsFor({ marketId, zoneId }: CommissionFilters): Promise<RefFilter> {
     if (zoneId !== undefined) return [{ scope: 'zone', refIds: [zoneId] }];
-    if (cityId === undefined) return null;
-    const zones = await this.deps.zones.summariesByCities([cityId]);
+    if (marketId === undefined) return null;
+    const zones = await this.deps.zones.summariesByMarkets([marketId]);
     return [
-      { scope: 'city', refIds: [cityId] },
+      { scope: 'market', refIds: [marketId] },
       { scope: 'zone', refIds: zones.map((zone) => zone.id) },
     ];
   }

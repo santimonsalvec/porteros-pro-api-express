@@ -14,7 +14,7 @@ const request = buildRequest('r-1', new Date('2026-09-28T20:00:00.000Z'), { goal
 const [first, second] = buildRequestBookings(request);
 const pendingDoc = bookingToDocument(first!);
 const assignedDoc = bookingToDocument(second!.assign('gk-1', new Date('2026-09-28T15:00:00.000Z')));
-const owner = { goalkeeperId: 'gk-1', currency: 'COP', invoicing: COLOMBIA_INVOICING };
+const owner = { goalkeeperId: 'gk-1', currency: 'COP', invoicing: COLOMBIA_INVOICING, marketId: 'city-cali' };
 
 function harness() {
   const bookings = createFakeCollection();

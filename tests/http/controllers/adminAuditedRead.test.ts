@@ -14,7 +14,7 @@ describe('a sensitive read is audited (spec 001, FR-023a)', () => {
     app.get(
       '/admin/__test/sensitive/:id',
       (req, _res, next) => {
-        req.adminAccess = { staffId: 'staff-1', userId: 'user-1', email: 'ana@porteros.pro', sessionId: 'sid-1', roleId: 'owner', permissions: [], isOwner: true };
+        req.adminAccess = { staffId: 'staff-1', userId: 'user-1', email: 'ana@porteros.pro', sessionId: 'sid-1', roleId: 'owner', permissions: [], isOwner: true, scopes: [{ kind: 'platform' }] };
         next();
       },
       trail.auditedRead({ permission: 'goalkeepers.read', action: 'goalkeeperDocument.view', resourceType: 'goalkeeper', resourceId: (req) => String(req.params.id) }),
@@ -33,7 +33,7 @@ describe('a sensitive read is audited (spec 001, FR-023a)', () => {
 
 describe('route() declares a sensitive read (admin spec 005, research §7)', () => {
   const member = (permissions: Permission[]) => (req: express.Request, _res: express.Response, next: express.NextFunction) => {
-    req.adminAccess = { staffId: 'staff-1', userId: 'user-1', email: 'ana@porteros.pro', sessionId: 'sid-1', roleId: 'soporte', permissions, isOwner: false };
+    req.adminAccess = { staffId: 'staff-1', userId: 'user-1', email: 'ana@porteros.pro', sessionId: 'sid-1', roleId: 'soporte', permissions, isOwner: false, scopes: [{ kind: 'platform' }] };
     next();
   };
 

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { resolveGoalkeeperOperatingBalanceContext } from '../../../../../src/application/features/operatingBalance/common/goalkeeperOperatingBalanceContext.js';
-import { FakeCityRepository } from '../../../../fakes/fakeCityRepository.js';
+import { FakeMarketRepository } from '../../../../fakes/fakeMarketRepository.js';
 import { FakeCountryRepository } from '../../../../fakes/fakeCountryRepository.js';
 import { FakeGoalkeeperProfileRepository } from '../../../../fakes/fakeGoalkeeperProfileRepository.js';
 import { FakeRegionRepository } from '../../../../fakes/fakeRegionRepository.js';
@@ -8,7 +8,7 @@ import { buildGoalkeeperProfile, COLOMBIA_INVOICING, seedOperatingBalanceWorld }
 
 let deps: {
   goalkeeperProfileRepository: FakeGoalkeeperProfileRepository;
-  cityRepository: FakeCityRepository;
+  marketRepository: FakeMarketRepository;
   regionRepository: FakeRegionRepository;
   countryLookup: FakeCountryRepository;
 };
@@ -16,11 +16,11 @@ let deps: {
 beforeEach(() => {
   deps = {
     goalkeeperProfileRepository: new FakeGoalkeeperProfileRepository(),
-    cityRepository: new FakeCityRepository(),
+    marketRepository: new FakeMarketRepository(),
     regionRepository: new FakeRegionRepository(),
     countryLookup: new FakeCountryRepository(),
   };
-  seedOperatingBalanceWorld({ cityRepository: deps.cityRepository, regionRepository: deps.regionRepository, countryRepository: deps.countryLookup });
+  seedOperatingBalanceWorld({ marketRepository: deps.marketRepository, countryRepository: deps.countryLookup });
 });
 
 describe('resolveGoalkeeperOperatingBalanceContext', () => {
@@ -40,8 +40,8 @@ describe('resolveGoalkeeperOperatingBalanceContext', () => {
   });
 
   it('reports operating_balance_not_configured when the country cannot be resolved', async () => {
-    deps.goalkeeperProfileRepository.seed(buildGoalkeeperProfile('gk-2', { cityId: 'city-orphan' }));
+    deps.goalkeeperProfileRepository.seed(buildGoalkeeperProfile('gk-2', { marketId: 'city-orphan' }));
 
-    expect(await resolveGoalkeeperOperatingBalanceContext(deps, 'gk-2')).toEqual({ kind: 'operating_balance_not_configured', cityId: 'city-orphan' });
+    expect(await resolveGoalkeeperOperatingBalanceContext(deps, 'gk-2')).toEqual({ kind: 'operating_balance_not_configured', marketId: 'city-orphan' });
   });
 });

@@ -12,7 +12,7 @@ export const listCasesQuerySchema = z
     page: z.string().regex(/^\d+$/).default('1').transform(Number).pipe(z.number().int().min(1)),
     pageSize: z.string().regex(/^\d+$/).default('20').transform(Number).pipe(z.number().int().min(1).max(50)),
     // Admin spec 006 (contracts/operations-api.md §6): optional, the list is 021's without them.
-    countryId: z.string().trim().min(1).max(100).optional(),
+    // The country and the market come from X-Scope (spec 031).
     type: z.enum(['goalkeeper_no_show', 'payment_not_received', 'late_attendance_claim']).optional(),
     from: instant.optional(),
     to: instant.optional(),

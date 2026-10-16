@@ -1,4 +1,5 @@
 import { Entity } from '../common/entity.js';
+import { EMPTY_BILLING, type BillingData } from './billing.js';
 import type { GoalkeeperRegistration } from './goalkeeperRegistration.js';
 import { PENDING_VETTING, vettingTier, type Vetting, type VettingTier } from './vetting.js';
 
@@ -6,7 +7,7 @@ import { PENDING_VETTING, vettingTier, type Vetting, type VettingTier } from './
  * The active, permanent record establishing a client as a discoverable goalkeeper
  * (spec Key Entities), created from a `GoalkeeperRegistration`'s completed data at the
  * moment of activation. Identification data (document, photos) is immutable. The
- * physical data and availability (city + zones) stay editable after activation, but
+ * physical data and availability (market + zones) stay editable after activation, but
  * only through `IGoalkeeperProfileRepository`'s targeted updates (which write straight
  * to the stored document), never by mutating this in-memory instance.
  */
@@ -20,8 +21,13 @@ export class GoalkeeperProfile extends Entity<string> {
   readonly documentPhotoBId: string;
   readonly heightCm: number;
   readonly weightKg: number;
-  readonly cityId: string;
+  /** The one market the goalkeeper plays in (spec 031, FR-022). */
+  readonly marketId: string;
   readonly zoneIds: string[];
+  /** Where the goalkeeper lives, for their invoices (spec 031, FR-023); editable from the profile. */
+  readonly billing: BillingData;
+  /** The last market change, informative (spec 031). */
+  readonly marketChangedAt: Date | null;
   readonly activatedAt: Date;
   /** While in the future, the goalkeeper sees no offers and cannot accept (read by 012, written by 018). */
   readonly suspendedUntil: Date | null;
@@ -44,8 +50,10 @@ export class GoalkeeperProfile extends Entity<string> {
     documentPhotoBId: string;
     heightCm: number;
     weightKg: number;
-    cityId: string;
+    marketId: string;
     zoneIds: string[];
+    billing?: BillingData;
+    marketChangedAt?: Date | null;
     activatedAt: Date;
     suspendedUntil?: Date | null;
     availableForOffers?: boolean;
@@ -61,8 +69,10 @@ export class GoalkeeperProfile extends Entity<string> {
     this.documentPhotoBId = params.documentPhotoBId;
     this.heightCm = params.heightCm;
     this.weightKg = params.weightKg;
-    this.cityId = params.cityId;
+    this.marketId = params.marketId;
     this.zoneIds = params.zoneIds;
+    this.billing = { ...(params.billing ?? EMPTY_BILLING) };
+    this.marketChangedAt = params.marketChangedAt ?? null;
     this.activatedAt = params.activatedAt;
     this.suspendedUntil = params.suspendedUntil ?? null;
     this.availableForOffers = params.availableForOffers ?? true;
@@ -88,8 +98,9 @@ export class GoalkeeperProfile extends Entity<string> {
       documentPhotoBId: identification.documentPhotoBId!,
       heightCm: physicalData.heightCm!,
       weightKg: physicalData.weightKg!,
-      cityId: availability.cityId!,
+      marketId: availability.marketId!,
       zoneIds: availability.zoneIds,
+      billing: { ...registration.billing },
       activatedAt: new Date(),
       // A new goalkeeper starts off offers and switches them on when ready.
       availableForOffers: false,

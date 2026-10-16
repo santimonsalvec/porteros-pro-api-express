@@ -39,7 +39,7 @@ describe('booking limits — one source of truth', () => {
 
   it('every offered duration is a duration a rate can be stored for', () => {
     for (const durationMinutes of DURATION_OPTIONS) {
-      expect(() => new RentalRate({ id: `r-${durationMinutes}`, scope: 'city', refId: 'c', durationMinutes, amount: 1 })).not.toThrow();
+      expect(() => new RentalRate({ id: `r-${durationMinutes}`, scope: 'market', refId: 'c', durationMinutes, amount: 1 })).not.toThrow();
     }
   });
 

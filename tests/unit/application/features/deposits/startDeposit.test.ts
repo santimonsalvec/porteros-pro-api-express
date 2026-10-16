@@ -47,12 +47,12 @@ describe('GetDepositOptionsQueryHandler', () => {
 
   it('refuses a user who is not a goalkeeper, and a operatingBalance without a currency', async () => {
     const harness = new PaymentsHarness();
-    harness.operatingBalance.profiles.seed(buildGoalkeeperProfile('gk-orphan', { cityId: 'city-orphan' }));
+    harness.operatingBalance.profiles.seed(buildGoalkeeperProfile('gk-orphan', { marketId: 'city-orphan' }));
 
     expect(await harness.optionsHandler().handle(new GetDepositOptionsQuery('nobody'))).toEqual({ outcome: 'not_a_goalkeeper' });
     expect(await harness.optionsHandler().handle(new GetDepositOptionsQuery('gk-orphan'))).toEqual({
       outcome: 'operating_balance_not_configured',
-      cityId: 'city-orphan',
+      marketId: 'city-orphan',
     });
   });
 });

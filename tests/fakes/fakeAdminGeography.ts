@@ -117,20 +117,8 @@ export class FakeAdminCityRepository extends MapStore<City> implements IAdminCit
   }
 
   async list(query: CityListQuery) {
-    const owners = new Set(query.zoneOwnerIds ?? []);
-    const operating = (c: City) => c.zoneCityId !== null || owners.has(c.id);
-    const items = this.values().filter(
-      (c) =>
-        (!query.regionIds || query.regionIds.includes(c.regionId)) &&
-        startsWith(c.name, query.q) &&
-        (query.anchor === undefined || (c.zoneCityId === null) === query.anchor) &&
-        (query.state === undefined || operating(c) === (query.state === 'operating')),
-    );
+    const items = this.values().filter((c) => (!query.regionIds || query.regionIds.includes(c.regionId)) && startsWith(c.name, query.q));
     return this.page(items.sort(byName), query);
-  }
-
-  async countSatellites(anchorIds: string[]) {
-    return counts(anchorIds, this.values().map((c) => c.zoneCityId));
   }
 
   async countByRegion(regionIds: string[]) {
@@ -143,29 +131,33 @@ export class FakeAdminZoneRepository extends MapStore<Zone> implements IAdminZon
     super(base.zones, (z, revision) => new Zone({ ...z, revision }));
   }
 
-  async listByCity(cityId: string) {
+  async listByMarket(marketId: string) {
     return this.values()
-      .filter((z) => z.cityId === cityId)
+      .filter((z) => z.marketId === marketId)
       .sort((a, b) => a.displayOrder - b.displayOrder || a.id.localeCompare(b.id));
   }
 
-  async summariesByCities(cityIds: string[]) {
+  async summariesByMarkets(marketIds: string[]) {
     return this.values()
-      .filter((z) => cityIds.includes(z.cityId))
+      .filter((z) => marketIds.includes(z.marketId))
       .sort((a, b) => a.displayOrder - b.displayOrder || a.id.localeCompare(b.id))
-      .map(({ id, cityId, name, slug, active, displayOrder, revision }) => ({ id, cityId, name, slug, active, displayOrder, revision }));
+      .map(({ id, marketId, name, slug, active, displayOrder, revision }) => ({ id, marketId, name, slug, active, displayOrder, revision }));
+  }
+
+  async listActive() {
+    return this.values().filter((z) => z.active);
   }
 
   async findBySlug(slug: string) {
     return this.values().find((z) => z.slug === slug) ?? null;
   }
 
-  async countByCity(cityIds: string[]) {
-    return counts(cityIds, this.values().map((z) => z.cityId));
+  async countByMarket(marketIds: string[]) {
+    return counts(marketIds, this.values().map((z) => z.marketId));
   }
 
   async zoneOwnerIds() {
-    return [...new Set(this.values().map((z) => z.cityId))];
+    return [...new Set(this.values().map((z) => z.marketId))];
   }
 }
 

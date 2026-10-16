@@ -27,10 +27,10 @@ export class RecordOperatingBalanceAdjustmentCommandHandler
   async handle(command: RecordOperatingBalanceAdjustmentCommand): Promise<RecordOperatingBalanceAdjustmentResult> {
     const context = await resolveGoalkeeperOperatingBalanceContext(this.context, command.goalkeeperId);
     if (context.kind === 'not_a_goalkeeper') return { outcome: 'not_a_goalkeeper' };
-    if (context.kind === 'operating_balance_not_configured') return { outcome: 'operating_balance_not_configured', cityId: context.cityId };
+    if (context.kind === 'operating_balance_not_configured') return { outcome: 'operating_balance_not_configured', marketId: context.marketId };
 
     const result = await this.ledger.adjust(
-      { goalkeeperId: command.goalkeeperId, currency: context.currency, invoicing: context.invoicing },
+      { goalkeeperId: command.goalkeeperId, currency: context.currency, invoicing: context.invoicing, marketId: context.profile.marketId },
       { adminUserId: command.adminUserId, amount: command.amount, reason: command.reason, operationKey: command.operationKey },
     );
     switch (result.kind) {

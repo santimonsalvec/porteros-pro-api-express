@@ -4,6 +4,8 @@ import { GoalkeeperProfile } from '../../../domain/goalkeepers/goalkeeperProfile
 import { PENDING_VETTING, type Verification, type Vetting } from '../../../domain/goalkeepers/vetting.js';
 import { MongoRepository } from './mongoRepository.js';
 import { stripNulls } from './stripNulls.js';
+import { readBilling } from './goalkeeperRegistrationRepository.js';
+import type { BillingData } from '../../../domain/goalkeepers/billing.js';
 
 export class GoalkeeperProfileRepository extends MongoRepository<GoalkeeperProfile, string> implements IGoalkeeperProfileRepository {
   constructor(db: Db) {
@@ -13,8 +15,8 @@ export class GoalkeeperProfileRepository extends MongoRepository<GoalkeeperProfi
   async ensureIndexes(): Promise<void> {
     await this.collection.createIndex({ userId: 1 }, { unique: true, name: 'userId_unique' });
     await this.collection.createIndex({ zoneIds: 1, availableForOffers: 1 }, { name: 'zone_offers' });
-    // The admin's goalkeeper list by city (admin spec 005).
-    await this.collection.createIndex({ cityId: 1, activatedAt: -1 }, { name: 'cityId_activatedAt' });
+    // The admin's goalkeeper list by market (admin spec 005).
+    await this.collection.createIndex({ marketId: 1, activatedAt: -1 }, { name: 'market_activatedAt' });
     // The admin's goalkeeper list filtered by validation state (admin spec 030).
     await this.collection.createIndex({ 'vetting.validation': 1, activatedAt: -1, _id: -1 }, { name: 'vetting_validation_activatedAt' });
   }
@@ -31,8 +33,10 @@ export class GoalkeeperProfileRepository extends MongoRepository<GoalkeeperProfi
       documentPhotoBId: entity.documentPhotoBId,
       heightCm: entity.heightCm,
       weightKg: entity.weightKg,
-      cityId: entity.cityId,
+      marketId: entity.marketId,
       zoneIds: entity.zoneIds,
+      billing: stripNulls({ ...entity.billing }),
+      marketChangedAt: entity.marketChangedAt,
       activatedAt: entity.activatedAt,
       suspendedUntil: entity.suspendedUntil,
       availableForOffers: entity.availableForOffers,
@@ -52,8 +56,10 @@ export class GoalkeeperProfileRepository extends MongoRepository<GoalkeeperProfi
       documentPhotoBId: doc.documentPhotoBId as string,
       heightCm: doc.heightCm as number,
       weightKg: doc.weightKg as number,
-      cityId: doc.cityId as string,
+      marketId: doc.marketId as string,
       zoneIds: (doc.zoneIds as string[] | undefined) ?? [],
+      billing: readBilling(doc.billing as Document | undefined),
+      marketChangedAt: doc.marketChangedAt ? new Date(doc.marketChangedAt as string | Date) : null,
       activatedAt: new Date(doc.activatedAt as string | Date),
       suspendedUntil: doc.suspendedUntil ? new Date(doc.suspendedUntil as string | Date) : null,
       // Absent on profiles activated before feature 015: on by default (FR-024).
@@ -74,8 +80,12 @@ export class GoalkeeperProfileRepository extends MongoRepository<GoalkeeperProfi
     return this.setFields(userId, changes);
   }
 
-  async updateAvailability(userId: string, cityId: string, zoneIds: string[]): Promise<GoalkeeperProfile | null> {
-    return this.setFields(userId, { cityId, zoneIds });
+  async updateAvailability(userId: string, marketId: string, zoneIds: string[]): Promise<GoalkeeperProfile | null> {
+    return this.setFields(userId, { marketId, zoneIds });
+  }
+
+  async updateBilling(userId: string, billing: BillingData): Promise<GoalkeeperProfile | null> {
+    return this.setFields(userId, { billing: stripNulls({ ...billing }) });
   }
 
   async findOfferCandidates(zoneIds: readonly string[]): Promise<GoalkeeperProfile[]> {

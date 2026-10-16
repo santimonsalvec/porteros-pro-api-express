@@ -23,7 +23,7 @@ import { FakeRentalRateRepository } from './fakeRentalRateRepository.js';
  * own fakes keep exposing no write at all.
  */
 
-const rateRecord = (rate: RentalRate): RentalRateRecord => ({ ...priceRecord<'zone' | 'city'>(rate), durationMinutes: rate.durationMinutes });
+const rateRecord = (rate: RentalRate): RentalRateRecord => ({ ...priceRecord<'zone' | 'market'>(rate), durationMinutes: rate.durationMinutes });
 
 export class FakeRentalRateAdmin implements IRentalRateAdmin {
   constructor(readonly base = new FakeRentalRateRepository()) {}
@@ -97,6 +97,8 @@ const settingsRecord = (settings: BookingSettings): BookingSettingsRecord => ({
     goalkeeperPenalties: settings.goalkeeperPenalties,
     checkInWindow: settings.checkInWindow,
     noShowGraceMinutes: settings.noShowGraceMinutes,
+    offerReminderIntervalMinutes: settings.offerReminderIntervalMinutes,
+    offerMaxReminders: settings.offerMaxReminders,
   },
   revision: settings.revision,
   invalid: false,
@@ -109,12 +111,12 @@ const compact = (value: object | null): Record<string, number> | null =>
 export class FakeBookingSettingsAdmin implements IBookingSettingsAdmin {
   constructor(readonly base = new FakeBookingSettingsRepository()) {}
 
-  async getByScope(scope: 'country' | 'city', refId: string): Promise<BookingSettingsRecord | null> {
+  async getByScope(scope: 'country' | 'market', refId: string): Promise<BookingSettingsRecord | null> {
     const found = this.base.settings.find((item) => item.scope === scope && item.refId === refId);
     return found ? settingsRecord(found) : null;
   }
 
-  async save(scope: 'country' | 'city', refId: string, expectedRevision: number | null, fields: StoredBookingSettings): Promise<UpdateResult> {
+  async save(scope: 'country' | 'market', refId: string, expectedRevision: number | null, fields: StoredBookingSettings): Promise<UpdateResult> {
     const items = this.base.settings;
     const index = items.findIndex((item) => item.scope === scope && item.refId === refId);
     const current = items[index];
@@ -133,7 +135,7 @@ export class FakeBookingSettingsAdmin implements IBookingSettingsAdmin {
     return 'saved';
   }
 
-  async listCityScoped(): Promise<BookingSettingsRecord[]> {
-    return this.base.settings.filter((item) => item.scope === 'city').map(settingsRecord);
+  async listMarketScoped(): Promise<BookingSettingsRecord[]> {
+    return this.base.settings.filter((item) => item.scope === 'market').map(settingsRecord);
   }
 }

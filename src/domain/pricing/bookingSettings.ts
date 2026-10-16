@@ -5,7 +5,7 @@ import type { GoalkeeperPenaltyConfig } from '../goalkeepers/penaltyPolicy.js';
 import { bookingSettingsIssues } from './bookingSettingsRules.js';
 import { InvalidConfigurationError } from './invalidConfigurationError.js';
 
-export type BookingSettingsScope = 'country' | 'city';
+export type BookingSettingsScope = 'country' | 'market';
 
 /** `fromMinutes` inclusive, `toMinutes` exclusive, `null` = unbounded. */
 export interface SurchargeTier {
@@ -20,13 +20,13 @@ export interface LeadTimeSurcharge {
 }
 
 /**
- * Booking rules and surcharge tiers defined at one level (country or city). Every
+ * Booking rules and surcharge tiers defined at one level (country or market). Every
  * setting is optional: an absent field means "inherit from the level above", and
  * absent at every level means the area cannot be quoted. Externally seeded, read-only here.
  */
 export class BookingSettings extends Entity<string> {
   readonly scope: BookingSettingsScope;
-  /** A `Country` id when `scope` is `'country'`; an anchor `City` id when `'city'`. */
+  /** A `Country` id when `scope` is `'country'`; a `Market` id when `'market'`. */
   readonly refId: string;
   /** Today plus the next `N − 1` local calendar days. */
   readonly bookingWindowDays: number | null;
@@ -43,14 +43,17 @@ export class BookingSettings extends Entity<string> {
    */
   readonly travelBufferMinutes: number | null;
   /**
-   * The goalkeeper penalty values (feature 018), read at the country level only. Each absent
-   * field falls back to the Colombia default.
+   * The goalkeeper penalty values (feature 018), set only at the country level (spec 031). Each
+   * absent field falls back to the Colombia default.
    */
   readonly goalkeeperPenalties: Partial<GoalkeeperPenaltyConfig> | null;
-  /** The check-in window (feature 020), read at the country level only; absent fields default. */
+  /** The check-in window (feature 020); a market may override it (spec 031); absent fields default. */
   readonly checkInWindow: Partial<CheckInWindowConfig> | null;
-  /** Minutes after the end to wait for the client's answer before a no-show (feature 021, country level). */
+  /** Minutes after the end to wait for the client's answer before a no-show (feature 021; a market may override it, spec 031). */
   readonly noShowGraceMinutes: number | null;
+  /** How often an open offer is pushed again, and how many times (spec 031, FR-017); `null` inherits. */
+  readonly offerReminderIntervalMinutes: number | null;
+  readonly offerMaxReminders: number | null;
 
   /** Optimistic-concurrency counter of the admin web (absent = 0). */
   readonly revision: number;
@@ -66,11 +69,13 @@ export class BookingSettings extends Entity<string> {
     goalkeeperPenalties?: Partial<GoalkeeperPenaltyConfig> | null;
     checkInWindow?: Partial<CheckInWindowConfig> | null;
     noShowGraceMinutes?: number | null;
+    offerReminderIntervalMinutes?: number | null;
+    offerMaxReminders?: number | null;
     revision?: number;
   }) {
     super(params.id);
     const where = `bookingSettings document ${params.id}`;
-    if (params.scope !== 'country' && params.scope !== 'city') {
+    if (params.scope !== 'country' && params.scope !== 'market') {
       throw new InvalidConfigurationError(`${where}: unknown scope '${params.scope}'`);
     }
     if (typeof params.refId !== 'string' || params.refId === '') {
@@ -84,7 +89,10 @@ export class BookingSettings extends Entity<string> {
     const goalkeeperPenalties = params.goalkeeperPenalties ?? null;
     const checkInWindow = params.checkInWindow ?? null;
     const noShowGraceMinutes = params.noShowGraceMinutes ?? null;
-    const [first] = bookingSettingsIssues({
+    const offerReminderIntervalMinutes = params.offerReminderIntervalMinutes ?? null;
+    const offerMaxReminders = params.offerMaxReminders ?? null;
+    const [first] = bookingSettingsIssues(
+      {
       bookingWindowDays,
       minNoticeMinutes,
       freeCancellationMinutes,
@@ -93,8 +101,12 @@ export class BookingSettings extends Entity<string> {
       goalkeeperPenalties,
       checkInWindow,
       noShowGraceMinutes,
-    });
-    if (first) throw new InvalidConfigurationError(`${where}: ${first.message}`);
+      offerReminderIntervalMinutes,
+      offerMaxReminders,
+      },
+      params.scope,
+    );
+    if (first) throw new InvalidConfigurationError(`${where}: ${first.path} ${first.code}: ${first.message}`);
 
     this.scope = params.scope;
     this.refId = params.refId;
@@ -106,6 +118,8 @@ export class BookingSettings extends Entity<string> {
     this.goalkeeperPenalties = goalkeeperPenalties;
     this.checkInWindow = checkInWindow;
     this.noShowGraceMinutes = noShowGraceMinutes;
+    this.offerReminderIntervalMinutes = offerReminderIntervalMinutes;
+    this.offerMaxReminders = offerMaxReminders;
     this.revision = readRevision(params.revision, where);
   }
 }

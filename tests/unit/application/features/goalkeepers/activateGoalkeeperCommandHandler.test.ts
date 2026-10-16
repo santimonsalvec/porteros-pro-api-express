@@ -25,7 +25,8 @@ function completeRegistration(id: string, userId: string): GoalkeeperRegistratio
   registration.setDocumentPhoto('A', 'img-a');
   registration.setDocumentPhoto('B', 'img-b');
   registration.savePhysicalData({ heightCm: 185, weightKg: 78 });
-  registration.saveAvailability({ cityId: 'city-envigado', zoneIds: ['zone-bello'] });
+  registration.saveAvailability({ marketId: 'city-envigado', zoneIds: ['zone-bello'] });
+  registration.saveBilling({ cityId: 'city-envigado-mun', address: 'Calle 10 # 20-30' });
   return registration;
 }
 
@@ -52,6 +53,17 @@ describe('ActivateGoalkeeperCommandHandler', () => {
     expect(result.outcome).toBe('incomplete');
     expect(result.missingSections).not.toContain('physicalData');
     expect(result.missingSections).toContain('availability');
+  });
+
+  it('needs the billing data before activating (spec 031, FR-023)', async () => {
+    const { handler, registrationRepository } = buildHandler();
+    const registration = completeRegistration('reg-1', 'user-4');
+    registration.billing = { cityId: null, address: null, addressComplement: null };
+    registrationRepository.seed(registration);
+
+    const result = await handler.handle(new ActivateGoalkeeperCommand('user-4'));
+
+    expect([result.outcome, result.missingSections]).toEqual(['incomplete', ['billing']]);
   });
 
   it('creates a GoalkeeperProfile and locks the registration on success', async () => {

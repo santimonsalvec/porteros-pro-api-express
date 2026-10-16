@@ -15,7 +15,7 @@ beforeEach(() => {
     bookingRepository: h.bookings,
     requestRepository: h.requests,
     zoneRepository: h.zones,
-    cityRepository: h.cities,
+    marketRepository: h.markets,
     userRepository: h.users,
     clock: h.clock,
   });
@@ -66,7 +66,7 @@ describe('ListGoalkeeperAgendaQueryHandler — US6: the goalkeeper\'s agenda', (
       latitude: expect.any(Number),
       longitude: expect.any(Number),
       zoneName: 'Norte',
-      cityName: 'Cali',
+      marketName: 'Cali',
       earnings: 60000,
       commission: 7000,
       client: { firstName: 'Ana', lastName: 'Cliente', whatsApp: '+57 300 111 2222' },

@@ -12,6 +12,7 @@ export function depositToDocument(deposit: Deposit): Document {
     _id: deposit.id,
     goalkeeperId: deposit.goalkeeperId,
     countryId: deposit.countryId,
+    marketId: deposit.marketId,
     gateway: deposit.gateway,
     environment: deposit.environment,
     reference: deposit.reference,
@@ -34,6 +35,7 @@ export function depositFromDocument(doc: Document): Deposit {
     id: String(doc._id),
     goalkeeperId: doc.goalkeeperId as string,
     countryId: doc.countryId as string,
+    marketId: doc.marketId as string,
     gateway: doc.gateway as GatewayName,
     environment: doc.environment as GatewayEnvironment,
     reference: doc.reference as string,
@@ -62,6 +64,8 @@ export class DepositRepository implements IDepositRepository {
   async ensureIndexes(): Promise<void> {
     await this.collection.createIndex({ reference: 1 }, { name: 'reference_unique', unique: true });
     await this.collection.createIndex({ goalkeeperId: 1, createdAt: -1, _id: -1 }, { name: 'goalkeeper_created' });
+    // Spec 031: a market's deposits, which stay there when a goalkeeper leaves.
+    await this.collection.createIndex({ marketId: 1, createdAt: -1 }, { name: 'market_created' });
     await this.collection.createIndex({ status: 1, nextCheckAt: 1 }, { name: 'status_nextCheck' });
   }
 

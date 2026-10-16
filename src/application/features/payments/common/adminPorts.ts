@@ -4,6 +4,8 @@ import type { Deposit, DepositCheck, DepositStatus } from '../../../../domain/de
 export interface DepositAdminFilter {
   status?: DepositStatus;
   countryId?: string;
+  /** Spec 031: only these markets (a member who holds just some of them, or `?marketId=`). */
+  marketIds?: readonly string[];
   goalkeeperId?: string;
   from?: Date;
   to?: Date;

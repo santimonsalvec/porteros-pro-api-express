@@ -1,3 +1,4 @@
+import { withinAllowed } from '../../../markets/common/marketRestriction.js';
 import type { IQueryHandler } from '../../../../common/mediator/types.js';
 import { pageOf } from '../../../geography/common/views.js';
 import { userName } from '../../../users/common/userViewing.js';
@@ -16,9 +17,12 @@ export class ListGoalkeepersQueryHandler implements IQueryHandler<ListGoalkeeper
       userIds = await this.deps.userReader.findIds(criteria.q, MAX_SEARCHED_USERS + 1);
       if (userIds.length > MAX_SEARCHED_USERS) return { outcome: 'search_too_broad' };
     }
+    const ofCountry = !criteria.marketId && criteria.countryId ? (await this.deps.markets.listByCountry(criteria.countryId)).map((market) => market.id) : undefined;
+    const inCountry = withinAllowed(ofCountry, criteria.marketIds);
     const { items, totalItems } = await this.deps.reader.list({
       userIds,
-      cityId: criteria.cityId,
+      marketId: criteria.marketId,
+      marketIds: inCountry,
       zoneId: criteria.zoneId,
       suspended: criteria.suspended,
       availableForOffers: criteria.availableForOffers,
@@ -31,22 +35,22 @@ export class ListGoalkeepersQueryHandler implements IQueryHandler<ListGoalkeeper
       pageSize: criteria.pageSize,
     });
     const ids = items.map((item) => item.userId);
-    const cityIds = [...new Set(items.flatMap((item) => (item.cityId ? [item.cityId] : [])))];
-    const [users, cities, ratings, blocks] = await Promise.all([
+    const marketIds = [...new Set(items.flatMap((item) => (item.marketId ? [item.marketId] : [])))];
+    const [users, markets, ratings, blocks] = await Promise.all([
       this.deps.users.getByIds(ids),
-      this.deps.cities.getByIds(cityIds),
+      this.deps.markets.getByIds(marketIds),
       this.deps.reader.ratingsFor(ids),
       this.deps.blocks.findByUserIds(ids),
     ]);
     const usersById = new Map(users.map((user) => [user.id, user]));
-    const citiesById = new Map(cities.map((city) => [city.id, city]));
+    const citiesById = new Map(markets.map((market) => [market.id, market]));
     const rows = items.map((item) => {
       const user = usersById.get(item.userId);
-      const city = item.cityId ? citiesById.get(item.cityId) : undefined;
+      const market = item.marketId ? citiesById.get(item.marketId) : undefined;
       return {
         userId: item.userId,
         name: user ? userName(user) : null,
-        city: city ? { id: city.id, name: city.name } : null,
+        market: market ? { id: market.id, name: market.name } : null,
         zoneCount: item.zoneCount,
         availableForOffers: item.availableForOffers,
         suspendedUntil: item.suspendedUntil?.toISOString() ?? null,

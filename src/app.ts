@@ -13,6 +13,7 @@ import { createHealthController } from './controllers/healthController.js';
 import { createImagesController } from './controllers/imagesController.js';
 import { createGoalkeeperController } from './controllers/goalkeeperController.js';
 import { createZonesController } from './controllers/zonesController.js';
+import { createMarketsController } from './controllers/marketsController.js';
 import { createGoalkeeperRequestsController } from './controllers/goalkeeperRequestsController.js';
 import { createAdminController } from './controllers/adminController.js';
 import { createAdminAuthController } from './controllers/adminAuthController.js';
@@ -49,6 +50,7 @@ export function createApp(deps: AppDependencies): Express {
   app.use('/images', createImagesController(deps));
   app.use('/goalkeepers', createGoalkeeperController(deps));
   app.use('/zones', createZonesController(deps));
+  app.use('/markets', createMarketsController(deps));
   app.use('/goalkeeper-requests', createGoalkeeperRequestsController(deps));
   app.use('/admin', createAdminController(deps));
   app.use('/devices', createDevicesController(deps));

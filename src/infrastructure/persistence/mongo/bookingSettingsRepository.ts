@@ -23,6 +23,8 @@ const FIELDS = [
   'goalkeeperPenalties',
   'checkInWindow',
   'noShowGraceMinutes',
+  'offerReminderIntervalMinutes',
+  'offerMaxReminders',
 ] as const satisfies readonly (keyof StoredBookingSettings)[];
 
 /** A group's subfields without the empty ones: `{ opensMinutesBefore: 30 }`, never `closesMinutesAfter: null`. */
@@ -59,6 +61,8 @@ export class BookingSettingsRepository implements IBookingSettingsRepository, IB
       goalkeeperPenalties: (doc.goalkeeperPenalties as Partial<GoalkeeperPenaltyConfig> | undefined | null) ?? null,
       checkInWindow: (doc.checkInWindow as Partial<CheckInWindowConfig> | undefined | null) ?? null,
       noShowGraceMinutes: (doc.noShowGraceMinutes as number | undefined | null) ?? null,
+      offerReminderIntervalMinutes: (doc.offerReminderIntervalMinutes as number | undefined | null) ?? null,
+      offerMaxReminders: (doc.offerMaxReminders as number | undefined | null) ?? null,
       // Only the tiers are read: the currency is the country's. A leftover `currency` key inside
       // `leadTimeSurcharge` (from an earlier layout) is ignored.
       leadTimeSurcharge: doc.leadTimeSurcharge ? { tiers: doc.leadTimeSurcharge.tiers as SurchargeTier[] } : null,
@@ -67,24 +71,24 @@ export class BookingSettingsRepository implements IBookingSettingsRepository, IB
   }
 
   async findFor(
-    cityId: string,
+    marketId: string,
     countryId: string | null,
-  ): Promise<{ city: BookingSettings | null; country: BookingSettings | null }> {
+  ): Promise<{ market: BookingSettings | null; country: BookingSettings | null }> {
     const docs = await this.collection
       .find({
-        $or: [{ scope: 'city', refId: cityId }, ...(countryId !== null ? [{ scope: 'country', refId: countryId }] : [])],
+        $or: [{ scope: 'market', refId: marketId }, ...(countryId !== null ? [{ scope: 'country', refId: countryId }] : [])],
       })
       .toArray();
     const settings = docs.map((doc) => this.fromDocument(doc));
     return {
-      city: settings.find((item) => item.scope === 'city') ?? null,
+      market: settings.find((item) => item.scope === 'market') ?? null,
       country: settings.find((item) => item.scope === 'country') ?? null,
     };
   }
 
-  async findMany(refs: { cityIds: string[]; countryIds: string[] }): Promise<BookingSettings[]> {
+  async findMany(refs: { marketIds: string[]; countryIds: string[] }): Promise<BookingSettings[]> {
     const or = [
-      ...(refs.cityIds.length > 0 ? [{ scope: 'city', refId: { $in: refs.cityIds } }] : []),
+      ...(refs.marketIds.length > 0 ? [{ scope: 'market', refId: { $in: refs.marketIds } }] : []),
       ...(refs.countryIds.length > 0 ? [{ scope: 'country', refId: { $in: refs.countryIds } }] : []),
     ];
     if (or.length === 0) return [];
@@ -101,7 +105,7 @@ export class BookingSettingsRepository implements IBookingSettingsRepository, IB
     }
     const fields = Object.fromEntries(FIELDS.map((field) => [field, (doc[field] as unknown) ?? null])) as StoredBookingSettings;
     return {
-      scope: doc.scope as 'country' | 'city',
+      scope: doc.scope as 'country' | 'market',
       refId: String(doc.refId),
       fields,
       revision: typeof doc.revision === 'number' ? doc.revision : 0,
@@ -109,12 +113,12 @@ export class BookingSettingsRepository implements IBookingSettingsRepository, IB
     };
   }
 
-  async getByScope(scope: 'country' | 'city', refId: string): Promise<BookingSettingsRecord | null> {
+  async getByScope(scope: 'country' | 'market', refId: string): Promise<BookingSettingsRecord | null> {
     const doc = await this.collection.findOne({ scope, refId });
     return doc ? this.recordOf(doc) : null;
   }
 
-  async save(scope: 'country' | 'city', refId: string, expectedRevision: number | null, fields: StoredBookingSettings): Promise<UpdateResult> {
+  async save(scope: 'country' | 'market', refId: string, expectedRevision: number | null, fields: StoredBookingSettings): Promise<UpdateResult> {
     const set = Object.fromEntries(FIELDS.filter((field) => fields[field] !== null).map((field) => [field, stored(fields[field])]));
     if (expectedRevision === null) {
       try {
@@ -134,8 +138,8 @@ export class BookingSettingsRepository implements IBookingSettingsRepository, IB
     return result.matchedCount > 0 ? 'saved' : 'stale';
   }
 
-  async listCityScoped(): Promise<BookingSettingsRecord[]> {
-    const docs = await this.collection.find({ scope: 'city' }).toArray();
+  async listMarketScoped(): Promise<BookingSettingsRecord[]> {
+    const docs = await this.collection.find({ scope: 'market' }).toArray();
     return docs.map((doc) => this.recordOf(doc));
   }
 }

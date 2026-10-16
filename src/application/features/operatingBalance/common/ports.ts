@@ -40,11 +40,11 @@ export interface IBalanceMovementRepository {
 
 /** Externally seeded commission settings. Read-only. */
 export interface ICommissionSettingRepository {
-  findFor(refs: { zoneIds: string[]; cityIds: string[]; countryIds: string[] }): Promise<CommissionSetting[]>;
+  findFor(refs: { zoneIds: string[]; marketIds: string[]; countryIds: string[] }): Promise<CommissionSetting[]>;
 }
 
 /**
- * The effective commission (zone → anchor city → country, then modality + level → modality →
+ * The effective commission (zone → market → country, then modality + level → modality →
  * general within each), `null` when none is configured.
  */
 export interface ICommissionResolver {
@@ -63,6 +63,6 @@ export interface ITaxSettingsRepository {
 /** The VAT rate charged on top of commissions and penalties in a country (0 when not configured). */
 export interface IVatRateResolver {
   forCountry(countryId: string): Promise<number>;
-  /** The rate of the country a city belongs to (city → region → country); 0 when unresolved. */
-  forCity(cityId: string): Promise<number>;
+  /** The rate of the country a market belongs to; 0 when unresolved. */
+  forMarket(marketId: string): Promise<number>;
 }

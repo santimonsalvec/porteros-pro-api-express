@@ -5,7 +5,8 @@ import type {
   ReadinessSummary,
   UsageReason,
 } from '../../src/application/features/geography/common/ports.js';
-import type { City } from '../../src/domain/locations/city.js';
+import type { ReadinessResult } from '../../src/application/features/geography/common/readiness.js';
+import type { Market } from '../../src/domain/markets/market.js';
 
 /** Uses are set by hand per id (or per code for document types). */
 export class FakeReferenceUsage implements IReferenceUsage {
@@ -39,16 +40,22 @@ export class FakeReferenceUsage implements IReferenceUsage {
 export class FakeFutureBookingsProbe implements IFutureBookingsProbe {
   readonly areasWithFutureRequests = new Set<string>();
 
-  async hasFutureRequestsInArea(anchorCityId: string): Promise<boolean> {
-    return this.areasWithFutureRequests.has(anchorCityId);
+  async hasFutureRequestsInArea(marketId: string): Promise<boolean> {
+    return this.areasWithFutureRequests.has(marketId);
   }
 }
 
-/** Every operating city is ready unless set otherwise. */
+/** Every market is ready unless set otherwise. */
 export class FakeReadinessSummary implements IReadinessSummary {
   readonly summaries = new Map<string, ReadinessSummary>();
+  /** The whole checklist of a market, for `check`. */
+  readonly results = new Map<string, ReadinessResult>();
 
-  async summarize(cities: City[]): Promise<Map<string, ReadinessSummary>> {
-    return new Map(cities.map((city) => [city.id, this.summaries.get(city.id) ?? { ready: true, missingCount: 0 }]));
+  async check(market: Market): Promise<ReadinessResult> {
+    return this.results.get(market.id) ?? { ready: true, missingCount: 0, items: [] };
+  }
+
+  async summarize(markets: Market[]): Promise<Map<string, ReadinessSummary>> {
+    return new Map(markets.map((market) => [market.id, this.summaries.get(market.id) ?? { ready: true, missingCount: 0 }]));
   }
 }

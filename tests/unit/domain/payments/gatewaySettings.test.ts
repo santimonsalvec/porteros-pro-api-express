@@ -103,3 +103,28 @@ describe('PaymentGatewaySettings revision (admin spec 007, FR-025)', () => {
     expect(PaymentGatewaySettings.create({ ...props, amounts: [500] }).ok).toBe(false);
   });
 });
+
+describe('PaymentGatewaySettings scope (spec 031, FR-032)', () => {
+  const BASE = {
+    countryId: 'country-co',
+    gateway: 'wompi' as const,
+    publicConfig: { publicKey: 'pub_test_x', environment: 'sandbox' as const },
+    currency: 'COP',
+    costs: { percentBps: 265, fixed: 700, vatBps: 1900 },
+    amounts: [20000],
+    updatedAt: new Date('2026-10-15T12:00:00.000Z'),
+    updatedBy: 'admin-1',
+  };
+
+  it("is a country's unless it overrides one of its markets", () => {
+    const country = PaymentGatewaySettings.rehydrate(BASE);
+    const market = PaymentGatewaySettings.rehydrate({ ...BASE, scope: 'market', refId: 'city-medellin' });
+
+    expect([country.scope, country.refId, country.countryId, country.id]).toEqual(['country', 'country-co', 'country-co', 'country:country-co']);
+    expect([market.scope, market.refId, market.countryId, market.id]).toEqual(['market', 'city-medellin', 'country-co', 'market:city-medellin']);
+  });
+
+  it('refuses another scope, such as a zone', () => {
+    expect(PaymentGatewaySettings.create({ ...BASE, scope: 'zone' as never, refId: 'z-1' })).toMatchObject({ ok: false, problems: [expect.stringMatching(/^scope/)] });
+  });
+});

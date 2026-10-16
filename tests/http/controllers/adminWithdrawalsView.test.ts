@@ -20,7 +20,7 @@ describe("a goalkeeper's withdrawals in the admin view (spec 005 of the admin, r
     const own = await request(context.app).get('/goalkeepers/me/withdrawals').set('Authorization', `Bearer ${g.token}`);
 
     expect(forAdmin.status).toBe(200);
-    expect(forAdmin.body.items[0]).toMatchObject({ match: { cityName: expect.any(String), timeZone: 'America/Bogota' }, commission: { amount: 7000, currency: 'COP' } });
+    expect(forAdmin.body.items[0]).toMatchObject({ match: { marketName: expect.any(String), timeZone: 'America/Bogota' }, commission: { amount: 7000, currency: 'COP' } });
     expect(own.body.items[0]).not.toHaveProperty('match');
     expect(own.body.items[0]).not.toHaveProperty('commission');
   });

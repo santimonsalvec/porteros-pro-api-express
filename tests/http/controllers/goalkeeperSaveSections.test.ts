@@ -44,10 +44,10 @@ describe('PATCH /goalkeepers/me/* section endpoints', () => {
     const response = await request(app)
       .patch('/goalkeepers/me/availability')
       .set('Authorization', `Bearer ${accessToken}`)
-      .send({ cityId: 'city-envigado', zoneIds: ['zone-bello', 'zone-copacabana'] });
+      .send({ marketId: 'city-medellin', zoneIds: ['zone-bello', 'zone-copacabana'] });
 
     expect(response.status).toBe(200);
-    expect(response.body.cityId).toBe('city-envigado');
+    expect(response.body.marketId).toBe('city-medellin');
     expect(response.body.serviceZoneIds).toEqual(['zone-bello', 'zone-copacabana']);
   });
 
@@ -103,23 +103,23 @@ describe('PATCH /goalkeepers/me/* section endpoints', () => {
     const response = await request(app)
       .patch('/goalkeepers/me/availability')
       .set('Authorization', `Bearer ${accessToken}`)
-      .send({ cityId: 'city-medellin', zoneIds: [] });
+      .send({ marketId: 'city-medellin', zoneIds: [] });
 
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('validation_failed');
   });
 
-  it('rejects a nonexistent city with 400 invalid_city', async () => {
+  it('rejects a nonexistent city with 400 invalid_market', async () => {
     const { app, googleValidator } = await buildTestApp();
     const accessToken = await signInAndComplete(app, googleValidator, 'good-token', 'sub-7');
 
     const response = await request(app)
       .patch('/goalkeepers/me/availability')
       .set('Authorization', `Bearer ${accessToken}`)
-      .send({ cityId: 'does-not-exist', zoneIds: ['zone-bello'] });
+      .send({ marketId: 'does-not-exist', zoneIds: ['zone-bello'] });
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe('invalid_city');
+    expect(response.body.error).toBe('invalid_market');
   });
 
   it('rejects a zone that does not belong to the city with 400 invalid_zones', async () => {
@@ -129,7 +129,7 @@ describe('PATCH /goalkeepers/me/* section endpoints', () => {
     const response = await request(app)
       .patch('/goalkeepers/me/availability')
       .set('Authorization', `Bearer ${accessToken}`)
-      .send({ cityId: 'city-medellin', zoneIds: ['zone-does-not-exist'] });
+      .send({ marketId: 'city-medellin', zoneIds: ['zone-does-not-exist'] });
 
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('invalid_zones');
@@ -139,7 +139,7 @@ describe('PATCH /goalkeepers/me/* section endpoints', () => {
   it('rejects requests with no token', async () => {
     const { app } = await buildTestApp();
 
-    const response = await request(app).patch('/goalkeepers/me/availability').send({ cityId: 'city-medellin', zoneIds: ['zone-bello'] });
+    const response = await request(app).patch('/goalkeepers/me/availability').send({ marketId: 'city-medellin', zoneIds: ['zone-bello'] });
 
     expect(response.status).toBe(401);
   });

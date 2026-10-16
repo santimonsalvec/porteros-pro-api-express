@@ -1,3 +1,7 @@
+import { ListGatewaySettingsQuery } from '../../src/application/features/payments/queries/listGatewaySettings/listGatewaySettingsQuery.js';
+import { ListGatewaySettingsQueryHandler } from '../../src/application/features/payments/queries/listGatewaySettings/listGatewaySettingsQueryHandler.js';
+import { DeleteMarketGatewayOverrideCommand } from '../../src/application/features/payments/commands/deleteMarketGatewayOverride/deleteMarketGatewayOverrideCommand.js';
+import { DeleteMarketGatewayOverrideCommandHandler } from '../../src/application/features/payments/commands/deleteMarketGatewayOverride/deleteMarketGatewayOverrideCommandHandler.js';
 import { ClosedAccountsService } from '../../src/application/features/accountClosures/common/closedAccounts.js';
 import { accountClosureHandlerRegistrations } from '../../src/infrastructure/accountClosureHandlers.js';
 import { FakeAccountClosureRepository } from '../fakes/fakeAccountClosureRepository.js';
@@ -83,6 +87,7 @@ import {
   FakeAdminZoneRepository,
 } from '../fakes/fakeAdminGeography.js';
 import { FakeFutureBookingsProbe, FakeReferenceUsage } from '../fakes/fakeReferenceUsage.js';
+import { FakeMarketUsage } from '../fakes/fakeMarketUsage.js';
 import { FakeAdminSecurityLog } from '../fakes/fakeAdminSecurityLog.js';
 import { FakeStaffMemberRepository } from '../fakes/fakeStaffMemberRepository.js';
 import { FakeStaffRoleRepository } from '../fakes/fakeStaffRoleRepository.js';
@@ -188,8 +193,10 @@ import { ConfirmBookingCommand } from '../../src/application/features/goalkeeper
 import { ListClientRequestsQuery } from '../../src/application/features/goalkeeperRequests/queries/listClientRequests/listClientRequestsQuery.js';
 import { ListClientRequestsQueryHandler } from '../../src/application/features/goalkeeperRequests/queries/listClientRequests/listClientRequestsQueryHandler.js';
 import { ConfirmBookingCommandHandler } from '../../src/application/features/goalkeeperRequests/commands/confirmBooking/confirmBookingCommandHandler.js';
-import { GetZonesByCityQuery } from '../../src/application/features/zones/queries/getZonesByCity/getZonesByCityQuery.js';
-import { GetZonesByCityQueryHandler } from '../../src/application/features/zones/queries/getZonesByCity/getZonesByCityQueryHandler.js';
+import { GetZonesByMarketQuery } from '../../src/application/features/zones/queries/getZonesByMarket/getZonesByMarketQuery.js';
+import { GetZonesByMarketQueryHandler } from '../../src/application/features/zones/queries/getZonesByMarket/getZonesByMarketQueryHandler.js';
+import { ListEnabledMarketsQuery } from '../../src/application/features/markets/queries/listEnabledMarkets/listEnabledMarketsQuery.js';
+import { ListEnabledMarketsQueryHandler } from '../../src/application/features/markets/queries/listEnabledMarkets/listEnabledMarketsQueryHandler.js';
 import { GetBookingConfigQuery } from '../../src/application/features/goalkeeperRequests/queries/getBookingConfig/getBookingConfigQuery.js';
 import { GetBookingConfigQueryHandler } from '../../src/application/features/goalkeeperRequests/queries/getBookingConfig/getBookingConfigQueryHandler.js';
 import { GetServiceQuoteQuery } from '../../src/application/features/goalkeeperRequests/queries/getServiceQuote/getServiceQuoteQuery.js';
@@ -198,6 +205,7 @@ import { City } from '../../src/domain/locations/city.js';
 import { Region } from '../../src/domain/locations/region.js';
 import { Zone } from '../../src/domain/zones/zone.js';
 import { FakeCityRepository } from '../fakes/fakeCityRepository.js';
+import { FakeMarketRepository, testMarket } from '../fakes/fakeMarketRepository.js';
 import { FakeRegionRepository } from '../fakes/fakeRegionRepository.js';
 import { FakeZoneRepository } from '../fakes/fakeZoneRepository.js';
 import { FixedClock } from '../fakes/fakeClock.js';
@@ -225,6 +233,13 @@ import { SaveIdentificationSectionCommand } from '../../src/application/features
 import { SaveIdentificationSectionCommandHandler } from '../../src/application/features/goalkeepers/commands/saveIdentificationSection/saveIdentificationSectionCommandHandler.js';
 import { SavePhysicalDataSectionCommand } from '../../src/application/features/goalkeepers/commands/savePhysicalDataSection/savePhysicalDataSectionCommand.js';
 import { SavePhysicalDataSectionCommandHandler } from '../../src/application/features/goalkeepers/commands/savePhysicalDataSection/savePhysicalDataSectionCommandHandler.js';
+import { SaveBillingSectionCommand } from '../../src/application/features/goalkeepers/commands/saveBillingSection/saveBillingSectionCommand.js';
+import { ChangeGoalkeeperMarketCommand } from '../../src/application/features/goalkeepers/commands/changeGoalkeeperMarket/changeGoalkeeperMarketCommand.js';
+import { ChangeGoalkeeperMarketCommandHandler } from '../../src/application/features/goalkeepers/commands/changeGoalkeeperMarket/changeGoalkeeperMarketCommandHandler.js';
+import { FakeGoalkeeperMarketChangeStore } from '../fakes/fakeGoalkeeperMarketChangeStore.js';
+import { SaveBillingSectionCommandHandler } from '../../src/application/features/goalkeepers/commands/saveBillingSection/saveBillingSectionCommandHandler.js';
+import { UpdateGoalkeeperBillingCommand } from '../../src/application/features/goalkeepers/commands/updateGoalkeeperBilling/updateGoalkeeperBillingCommand.js';
+import { UpdateGoalkeeperBillingCommandHandler } from '../../src/application/features/goalkeepers/commands/updateGoalkeeperBilling/updateGoalkeeperBillingCommandHandler.js';
 import { SaveAvailabilitySectionCommand } from '../../src/application/features/goalkeepers/commands/saveAvailabilitySection/saveAvailabilitySectionCommand.js';
 import { SaveAvailabilitySectionCommandHandler } from '../../src/application/features/goalkeepers/commands/saveAvailabilitySection/saveAvailabilitySectionCommandHandler.js';
 import { SaveDocumentPhotoCommand } from '../../src/application/features/goalkeepers/commands/saveDocumentPhoto/saveDocumentPhotoCommand.js';
@@ -333,9 +348,11 @@ export interface TestAppContext {
   unverifiedDiscountRepository: FakeUnverifiedDiscountRepository;
   cityRepository: FakeCityRepository;
   regionRepository: FakeRegionRepository;
+  marketRepository: FakeMarketRepository;
   zoneRepository: FakeZoneRepository;
   /** What points at reference data, set per test (admin spec 003). */
   referenceUsage: FakeReferenceUsage;
+  marketUsage: FakeMarketUsage;
   futureBookings: FakeFutureBookingsProbe;
   rentalRateRepository: FakeRentalRateRepository;
   matchSurfaceRepository: FakeMatchSurfaceRepository;
@@ -470,19 +487,22 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
   regionRepository.seed(new Region({ id: 'region-antioquia', name: 'Antioquia' }));
   regionRepository.seed(new Region({ id: 'region-cundinamarca', name: 'Cundinamarca' }));
   const cityRepository = new FakeCityRepository();
-  cityRepository.seed(new City({ id: 'city-medellin', name: 'Medellín', regionId: 'region-antioquia', zoneCityId: null }));
-  cityRepository.seed(new City({ id: 'city-envigado', name: 'Envigado', regionId: 'region-antioquia', zoneCityId: 'city-medellin' }));
-  cityRepository.seed(new City({ id: 'city-bogota', name: 'Bogotá', regionId: 'region-cundinamarca', zoneCityId: null }));
+  cityRepository.seed(new City({ id: 'city-medellin', name: 'Medellín', regionId: 'region-antioquia', daneStateCode: '05', daneCityCode: '05001' }));
+  cityRepository.seed(new City({ id: 'city-bogota', name: 'Bogotá', regionId: 'region-cundinamarca', daneStateCode: '11', daneCityCode: '11001' }));
+  // The markets (spec 031) reuse the old anchor ids so the HTTP suites keep their fixtures.
+  const marketRepository = new FakeMarketRepository();
+  marketRepository.seed(testMarket({ id: 'city-medellin', name: 'Medellín', countryId: 'country-co' }));
+  marketRepository.seed(testMarket({ id: 'city-bogota', name: 'Bogotá', countryId: 'country-co' }));
   const zoneRepository = new FakeZoneRepository();
-  const unverifiedDiscountResolver = new UnverifiedDiscountResolver(unverifiedDiscountRepository, zoneRepository, cityRepository, regionRepository);
+  const unverifiedDiscountResolver = new UnverifiedDiscountResolver(unverifiedDiscountRepository, zoneRepository, marketRepository);
   const zonePolygon = { type: 'Polygon' as const, coordinates: [[[0, 0]]] };
   zoneRepository.seed(
-    new Zone({ id: 'zone-bello', cityId: 'city-medellin', name: 'Bello', slug: 'medellin-co-bello', geometry: zonePolygon, active: true, displayOrder: 1 }),
+    new Zone({ id: 'zone-bello', marketId: 'city-medellin', name: 'Bello', slug: 'medellin-co-bello', geometry: zonePolygon, active: true, displayOrder: 1 }),
   );
   zoneRepository.seed(
     new Zone({
       id: 'zone-copacabana',
-      cityId: 'city-medellin',
+      marketId: 'city-medellin',
       name: 'Copacabana',
       slug: 'medellin-co-copacabana',
       geometry: zonePolygon,
@@ -498,6 +518,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
   const adminCities = new FakeAdminCityRepository(cityRepository);
   const adminZones = new FakeAdminZoneRepository(zoneRepository);
   const referenceUsage = new FakeReferenceUsage();
+  const marketUsage = new FakeMarketUsage();
   const futureBookings = new FakeFutureBookingsProbe();
   const rentalRateRepository = new FakeRentalRateRepository();
   const matchSurfaceRepository = new FakeMatchSurfaceRepository();
@@ -513,11 +534,11 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
   const operatingBalanceStore = new FakeOperatingBalanceStore(() => clock.now());
   const commissionSettingRepository = new FakeCommissionSettingRepository();
   const operatingBalanceLedger = new OperatingBalanceLedger(operatingBalanceStore, operatingBalanceStore, { newId: () => uuidv7() }, clock);
-  const operatingBalanceContext = { goalkeeperProfileRepository, cityRepository, regionRepository, countryLookup: quoteCountryRepository };
+  const operatingBalanceContext = { goalkeeperProfileRepository, marketRepository, countryLookup: quoteCountryRepository };
   // VAT on top of commissions (feature 023): 0 % until a test seeds a rate.
   const taxSettingsRepository = new FakeTaxSettingsRepository();
-  const vatRates = createVatRateResolver(taxSettingsRepository, { cityRepository, regionRepository }, { warn: () => undefined });
-  const commissionResolver = new CommissionResolver(commissionSettingRepository, zoneRepository, cityRepository, regionRepository);
+  const vatRates = createVatRateResolver(taxSettingsRepository, { marketRepository }, { warn: () => undefined });
+  const commissionResolver = new CommissionResolver(commissionSettingRepository, zoneRepository, marketRepository);
   const paymentGateway = new FakePaymentGateway();
   const paymentGatewayRegistry = new FakePaymentGatewayRegistry([paymentGateway]);
   const paymentSecrets = new FakePaymentSecrets();
@@ -586,10 +607,10 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     idGenerator: { newId: () => uuidv7() },
     requestRepository,
     zoneRepository,
-    cityRepository,
+    marketRepository,
+    bookingSettingsRepository,
     logger: offersLogger,
-    maxReminders: 3,
-    intervalMinutes: 5,
+    platformReminders: { maxReminders: 3, intervalMinutes: 5 },
   });
   const lifecycleStore = new FakeBookingLifecycleStore(bookingRepository, requestRepository, operatingBalanceStore, outboxStore, goalkeeperProfileRepository);
   const goalkeeperIncidentRepository = new FakeGoalkeeperIncidentRepository(lifecycleStore);
@@ -601,7 +622,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     requestRepository,
     bookingRepository,
     zoneRepository,
-    cityRepository,
+    marketRepository,
     notifications: notificationRepository,
     pushNotifier,
     processed: new FakeProcessedEventStore(),
@@ -621,7 +642,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
   const goalkeeperCancellationNotices = new GoalkeeperCancellationNoticeHandler({
     requestRepository,
     zoneRepository,
-    cityRepository,
+    marketRepository,
     notifications: notificationRepository,
     pushNotifier,
     processed: new FakeProcessedEventStore(),
@@ -640,7 +661,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       handler: new NoShowNoticeHandler({
         requestRepository,
         zoneRepository,
-        cityRepository,
+        marketRepository,
         notifications: notificationRepository,
         pushNotifier,
         processed: new FakeProcessedEventStore(),
@@ -654,7 +675,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       handler: new CheckInNoticeHandler({
         requestRepository,
         zoneRepository,
-        cityRepository,
+        marketRepository,
         notifications: notificationRepository,
         pushNotifier,
         processed: new FakeProcessedEventStore(),
@@ -670,7 +691,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
         bookingRepository,
         userRepository,
         zoneRepository,
-        cityRepository,
+        marketRepository,
         notifications: notificationRepository,
         pushNotifier,
         processed: new FakeProcessedEventStore(),
@@ -684,7 +705,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       handler: new WithdrawalNoticeHandler({
         requestRepository,
         zoneRepository,
-        cityRepository,
+        marketRepository,
         notifications: notificationRepository,
         pushNotifier,
         processed: new FakeProcessedEventStore(),
@@ -705,7 +726,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       }),
     })),
   ]);
-  seedQuoteWorld({ countryRepository: quoteCountryRepository, zoneRepository, cityRepository, regionRepository, rentalRateRepository, bookingSettingsRepository, commissionSettingRepository });
+  seedQuoteWorld({ countryRepository: quoteCountryRepository, zoneRepository, marketRepository, rentalRateRepository, bookingSettingsRepository, commissionSettingRepository });
 
   const ssoCatalog: ISsoProviderCatalog = {
     getProviders: (platform) =>
@@ -781,6 +802,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       securityLog: new FakeAdminSecurityLog(),
       accessResolver: staffAccessResolver,
       auditLog: adminAuditLog,
+      places: { markets: marketRepository, countries: quoteCountryRepository },
     }),
   );
   registerHandlers(
@@ -789,8 +811,10 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       countries: adminCountries,
       regions: adminRegions,
       cities: adminCities,
+      markets: marketRepository,
       zones: adminZones,
       usage: referenceUsage,
+      marketUsage,
       futureBookings,
       bookingSettings: bookingSettingsRepository,
       rentalRates: rentalRateRepository,
@@ -807,15 +831,13 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
   registerHandlers(
     mediator,
     pricingHandlerRegistrations({
-      regionRepository,
       countryLookup: quoteCountryRepository,
       rentalRateRepository,
       bookingSettingsRepository,
       commissionResolver,
       // The quote reads its own country store; prices must see the same currencies it does.
       countries: new FakeAdminCountryRepository(quoteCountryRepository),
-      regions: adminRegions,
-      cities: adminCities,
+      markets: marketRepository,
       zones: adminZones,
       rentalRates: new FakeRentalRateAdmin(rentalRateRepository),
       commissions: new FakeCommissionAdmin(commissionSettingRepository),
@@ -866,7 +888,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       staff: staffMemberRepository,
       goalkeeperReader: goalkeeperAdminReader,
       zones: zoneRepository,
-      cities: cityRepository,
+      markets: marketRepository,
       clock,
       reader: userAdminReader,
       closures: accountClosures,
@@ -880,7 +902,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       users: userRepository,
       blocks: userBlockRepository,
       profiles: goalkeeperProfileRepository,
-      cities: cityRepository,
+      markets: marketRepository,
       zones: zoneRepository,
       documentTypes: documentTypeRepository,
       monthStats: (goalkeeperId) => mediator.send(new AdminMonthStatsQuery(goalkeeperId)),
@@ -923,15 +945,14 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       ratings: ratingRepository,
       blocks: userBlockRepository,
       userReader: userAdminReader,
-      cities: cityRepository,
+      markets: marketRepository,
     }),
   );
   registerHandlers(
     mediator,
     operationsHandlerRegistrations({
       reader: new FakeRequestAdminReader({
-        regions: regionRepository,
-        cities: cityRepository,
+        markets: marketRepository,
         requests: requestRepository,
         bookings: bookingRepository,
         operatingBalance: operatingBalanceStore,
@@ -939,7 +960,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
         notifications: notificationRepository,
       }),
       users: userRepository,
-      cities: cityRepository,
+      markets: marketRepository,
       zones: zoneRepository,
       staff: staffMemberRepository,
       clock,
@@ -955,9 +976,8 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
   registerHandlers(mediator, [
     ...financeHandlerRegistrations({
       depositReader: new FakeDepositAdminReader(depositRepository),
-      operatingBalanceReader: new FakeOperatingBalanceAdminReader({ operatingBalances: operatingBalanceStore, profiles: goalkeeperProfileRepository, cities: cityRepository, regions: regionRepository }),
-      cities: cityRepository,
-      regions: regionRepository,
+      operatingBalanceReader: new FakeOperatingBalanceAdminReader({ operatingBalances: operatingBalanceStore, profiles: goalkeeperProfileRepository, markets: marketRepository }),
+      markets: marketRepository,
       documentReader: new FakeInvoicingDocumentAdminReader(invoicingDocumentRepository),
       documents: invoicingDocumentRepository,
       clock,
@@ -996,7 +1016,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       relay: eventRelay,
       idGenerator: lifecycleIds,
       clock,
-      graceResolver: () => createNoShowGraceResolver({ cityRepository, regionRepository, bookingSettingsRepository, logger: offersLogger }),
+      graceResolver: () => createNoShowGraceResolver({ marketRepository, bookingSettingsRepository, logger: offersLogger }),
     }),
     new OfferRemindersJob({ bookingRepository, eligibility: offerEligibility, sender: offerSender, logger: offersLogger, roundCap: 2000 }),
     new ContactsRevealJob({
@@ -1004,7 +1024,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       bookingRepository,
       userRepository,
       zoneRepository,
-      cityRepository,
+      marketRepository,
       notifications: notificationRepository,
       pushNotifier,
       idGenerator: lifecycleIds,
@@ -1016,13 +1036,13 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       requestRepository,
       userRepository,
       zoneRepository,
-      cityRepository,
+      marketRepository,
       notifications: notificationRepository,
       pushNotifier,
       idGenerator: lifecycleIds,
       clock,
       logger: offersLogger,
-      windowResolver: () => createCheckInWindowResolver({ cityRepository, regionRepository, bookingSettingsRepository, logger: offersLogger }),
+      windowResolver: () => createCheckInWindowResolver({ marketRepository, bookingSettingsRepository, logger: offersLogger }),
     }),
     new DepositReconcileJob({
       operatingBalanceContext,
@@ -1100,15 +1120,15 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     { requestType: GetCountriesQuery, handler: new GetCountriesQueryHandler(countryRepository) },
     {
       requestType: GetCitiesQuery,
-      handler: new GetCitiesQueryHandler(cityRepository, regionRepository, zoneRepository),
+      handler: new GetCitiesQueryHandler(cityRepository, regionRepository),
     },
-    { requestType: GetZonesByCityQuery, handler: new GetZonesByCityQueryHandler(cityRepository, zoneRepository) },
+    { requestType: GetZonesByMarketQuery, handler: new GetZonesByMarketQueryHandler(marketRepository, zoneRepository) },
+    { requestType: ListEnabledMarketsQuery, handler: new ListEnabledMarketsQueryHandler(marketRepository) },
     {
       requestType: GetBookingConfigQuery,
       handler: new GetBookingConfigQueryHandler(
         zoneRepository,
-        cityRepository,
-        regionRepository,
+        marketRepository,
         quoteCountryRepository,
         bookingSettingsRepository,
         clock,
@@ -1119,8 +1139,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       requestType: GetServiceQuoteQuery,
       handler: new GetServiceQuoteQueryHandler(
         zoneRepository,
-        cityRepository,
-        regionRepository,
+        marketRepository,
         quoteCountryRepository,
         rentalRateRepository,
         bookingSettingsRepository,
@@ -1145,6 +1164,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
         clock,
         bookingAuditLogger,
         eventRelay,
+        marketRepository,
       ),
     },
     {
@@ -1153,7 +1173,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
         requestRepository,
         bookingRepository,
         zoneRepository,
-        cityRepository,
+        marketRepository,
         userRepository,
         clock,
       ),
@@ -1209,9 +1229,14 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     { requestType: GetDepositByReferenceQuery, handler: new GetDepositByReferenceQueryHandler(depositRepository) },
     {
       requestType: SetGatewaySettingsCommand,
-      handler: new SetGatewaySettingsCommandHandler(quoteCountryRepository, paymentGatewaySettingsRepository, paymentSecrets, clock, offersLogger),
+      handler: new SetGatewaySettingsCommandHandler(quoteCountryRepository, paymentGatewaySettingsRepository, paymentSecrets, clock, offersLogger, marketRepository),
     },
     { requestType: GetGatewaySettingsQuery, handler: new GetGatewaySettingsQueryHandler(paymentGatewaySettingsRepository, paymentSecrets, quoteCountryRepository) },
+    {
+      requestType: ListGatewaySettingsQuery,
+      handler: new ListGatewaySettingsQueryHandler({ settingsRepository: paymentGatewaySettingsRepository, secrets: paymentSecrets, countryLookup: quoteCountryRepository, markets: marketRepository }),
+    },
+    { requestType: DeleteMarketGatewayOverrideCommand, handler: new DeleteMarketGatewayOverrideCommandHandler(paymentGatewaySettingsRepository) },
     { requestType: ListMyDocumentsQuery, handler: new ListMyDocumentsQueryHandler(goalkeeperProfileRepository, invoicingDocumentRepository) },
     { requestType: GetMyDocumentQuery, handler: new GetMyDocumentQueryHandler(invoicingDocumentRepository) },
     { requestType: GetDocumentFileQuery, handler: new GetDocumentFileQueryHandler(invoicingDeps) },
@@ -1252,13 +1277,13 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     {
       requestType: AcceptBookingCommand,
       handler: new AcceptBookingCommandHandler({
-        windowResolver: () => createCheckInWindowResolver({ cityRepository, regionRepository, bookingSettingsRepository, logger: offersLogger }),
+        windowResolver: () => createCheckInWindowResolver({ marketRepository, bookingSettingsRepository, logger: offersLogger }),
         operatingBalanceContext,
         operatingBalanceRepository: operatingBalanceStore,
         bookingRepository,
         requestRepository,
         zoneRepository,
-        cityRepository,
+        marketRepository,
         userRepository,
         store: new FakeBookingAcceptanceStore(bookingRepository, operatingBalanceStore, outboxStore),
         idGenerator: uuidGenerator,
@@ -1278,19 +1303,19 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
         bookingRepository,
         requestRepository: requestRepository,
         zoneRepository,
-        cityRepository,
+        marketRepository,
         clock,
       }),
     },
     {
       requestType: ListGoalkeeperAgendaQuery,
       handler: new ListGoalkeeperAgendaQueryHandler({
-        windowResolver: () => createCheckInWindowResolver({ cityRepository, regionRepository, bookingSettingsRepository, logger: offersLogger }),
+        windowResolver: () => createCheckInWindowResolver({ marketRepository, bookingSettingsRepository, logger: offersLogger }),
         goalkeeperProfileRepository,
         bookingRepository,
         requestRepository,
         zoneRepository,
-        cityRepository,
+        marketRepository,
         userRepository,
         clock,
       }),
@@ -1308,9 +1333,9 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       handler: new GetGoalkeeperRegistrationQueryHandler(
         goalkeeperRegistrationRepository,
         goalkeeperProfileRepository,
-        cityRepository,
-        regionRepository,
+        marketRepository,
         { checks: backgroundCheckRepository, clock, discounts: unverifiedDiscountResolver },
+        { cities: cityRepository, regions: regionRepository },
       ),
     },
     { requestType: GetDocumentTypesQuery, handler: new GetDocumentTypesQueryHandler(documentTypeRepository) },
@@ -1323,8 +1348,16 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       handler: new SavePhysicalDataSectionCommandHandler(goalkeeperRegistrationRepository, idGenerator),
     },
     {
+      requestType: SaveBillingSectionCommand,
+      handler: new SaveBillingSectionCommandHandler(goalkeeperRegistrationRepository, cityRepository, idGenerator),
+    },
+    {
+      requestType: UpdateGoalkeeperBillingCommand,
+      handler: new UpdateGoalkeeperBillingCommandHandler(goalkeeperProfileRepository, goalkeeperRegistrationRepository, cityRepository),
+    },
+    {
       requestType: SaveAvailabilitySectionCommand,
-      handler: new SaveAvailabilitySectionCommandHandler(goalkeeperRegistrationRepository, cityRepository, zoneRepository, idGenerator),
+      handler: new SaveAvailabilitySectionCommandHandler(goalkeeperRegistrationRepository, marketRepository, zoneRepository, idGenerator),
     },
     {
       requestType: SaveDocumentPhotoCommand,
@@ -1343,9 +1376,21 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       handler: new UpdateGoalkeeperAvailabilityCommandHandler(
         goalkeeperProfileRepository,
         goalkeeperRegistrationRepository,
-        cityRepository,
+        marketRepository,
         zoneRepository,
       ),
+    },
+    {
+      requestType: ChangeGoalkeeperMarketCommand,
+      handler: new ChangeGoalkeeperMarketCommandHandler({
+        profiles: goalkeeperProfileRepository,
+        registrations: goalkeeperRegistrationRepository,
+        markets: marketRepository,
+        zones: zoneRepository,
+        countries: quoteCountryRepository,
+        store: new FakeGoalkeeperMarketChangeStore({ profiles: goalkeeperProfileRepository, bookings: bookingRepository, balances: operatingBalanceStore, deposits: depositRepository, closures: accountClosures }),
+        clock,
+      }),
     },
     {
       requestType: CancelGoalkeeperRegistrationCommand,
@@ -1399,7 +1444,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
         goalkeeperProfileRepository,
         incidents: goalkeeperIncidentRepository,
         clock,
-        adminDetails: new WithdrawalAdminDetails({ bookings: bookingRepository, zones: zoneRepository, cities: cityRepository, movements: operatingBalanceStore }),
+        adminDetails: new WithdrawalAdminDetails({ bookings: bookingRepository, zones: zoneRepository, markets: marketRepository, movements: operatingBalanceStore }),
       }),
     },
     {
@@ -1414,9 +1459,9 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
         bookingRepository,
         requestRepository,
         zoneRepository,
-        cityRepository,
+        marketRepository,
         userRepository,
-        windowResolver: () => createCheckInWindowResolver({ cityRepository, regionRepository, bookingSettingsRepository, logger: offersLogger }),
+        windowResolver: () => createCheckInWindowResolver({ marketRepository, bookingSettingsRepository, logger: offersLogger }),
         store: lifecycleStore,
         relay: eventRelay,
         idGenerator: lifecycleIds,
@@ -1441,7 +1486,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     },
     {
       requestType: ListPendingRatingsQuery,
-      handler: new ListPendingRatingsQueryHandler({ bookingRepository, ratingRepository: ratingRepository, requestRepository, zoneRepository, cityRepository, userRepository, clock }),
+      handler: new ListPendingRatingsQueryHandler({ bookingRepository, ratingRepository: ratingRepository, requestRepository, zoneRepository, marketRepository, userRepository, clock }),
     },
     { requestType: ListCasesQuery, handler: new ListCasesQueryHandler(caseRepository) },
     { requestType: GetCaseQuery, handler: new GetCaseQueryHandler(caseRepository, ratingRepository) },
@@ -1455,7 +1500,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
         bookingRepository,
         requestRepository,
         zoneRepository,
-        cityRepository,
+        marketRepository,
         relay: eventRelay,
         idGenerator: lifecycleIds,
         clock,
@@ -1493,8 +1538,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     dashboardSystemHandlerRegistrations({
       dashboardReader,
       countries: adminCountries,
-      regions: adminRegions,
-      cities: adminCities,
+      markets: marketRepository,
       clock,
       logger: offersLogger,
       outbox: outboxStore,
@@ -1525,6 +1569,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       verifyAccessToken: (token) => adminTokenIssuer.verifyAccessToken(token),
       accessResolver: staffAccessResolver,
       auditLog: adminAuditLog,
+      scope: { markets: marketRepository, countries: quoteCountryRepository },
       allowedOrigins: [TEST_ADMIN_ORIGIN],
       sessionCookieSecure: true,
       newId: () => uuidv7(),
@@ -1534,6 +1579,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
 
   return {
     referenceUsage,
+    marketUsage,
     futureBookings,
     app: await listenOnLoopback(createApp(dependencies)),
     userRepository,
@@ -1552,6 +1598,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     unverifiedDiscountRepository,
     cityRepository,
     regionRepository,
+    marketRepository,
     zoneRepository,
     rentalRateRepository,
     matchSurfaceRepository,

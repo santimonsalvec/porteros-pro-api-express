@@ -1,7 +1,7 @@
 import type { IClock } from '../../../../common/clock.js';
 import type { IUserRepository } from '../../../auth/common/ports.js';
 import type { IQueryHandler } from '../../../../common/mediator/types.js';
-import type { ICityRepository } from '../../../locations/common/ports.js';
+import type { IMarketRepository } from '../../../markets/common/ports.js';
 import type { IZoneRepository } from '../../../zones/common/ports.js';
 import type { Booking } from '../../../../../domain/bookings/booking.js';
 import type { GoalkeeperRequest } from '../../../../../domain/bookings/goalkeeperRequest.js';
@@ -25,7 +25,7 @@ export class ListClientRequestsQueryHandler implements IQueryHandler<
     private readonly requestRepository: IGoalkeeperRequestRepository,
     private readonly bookingRepository: IBookingRepository,
     private readonly zoneRepository: IZoneRepository,
-    private readonly cityRepository: ICityRepository,
+    private readonly marketRepository: IMarketRepository,
     private readonly userRepository: IUserRepository,
     private readonly clock: IClock,
   ) {}
@@ -61,11 +61,11 @@ export class ListClientRequestsQueryHandler implements IQueryHandler<
     if (requests.length === 0) return [];
 
     const zoneIds = [...new Set(requests.map((request) => request.match.zoneId))];
-    const cityIds = [...new Set(requests.map((request) => request.match.cityId))];
-    const [bookings, zones, cities] = await Promise.all([
+    const marketIds = [...new Set(requests.map((request) => request.match.marketId))];
+    const [bookings, zones, markets] = await Promise.all([
       this.bookingRepository.findByRequestIds(requests.map((request) => request.id)),
       this.zoneRepository.getManyByIds(zoneIds),
-      this.cityRepository.getByIds(cityIds),
+      this.marketRepository.getByIds(marketIds),
     ]);
     const bookingsByRequest = new Map<string, Booking[]>();
     for (const booking of bookings) {
@@ -73,12 +73,12 @@ export class ListClientRequestsQueryHandler implements IQueryHandler<
     }
     const contacts = await loadContacts(this.userRepository, assignedGoalkeeperIds(bookings));
     const zoneNames = new Map(zones.map((zone) => [zone.id, zone.name]));
-    const cityNames = new Map(cities.map((city) => [city.id, city.name]));
+    const marketNames = new Map(markets.map((market) => [market.id, market.name]));
 
     return requests.map((request) => ({
       ...toRequestResponse(request, bookingsByRequest.get(request.id) ?? [], now, contacts),
       zoneName: zoneNames.get(request.match.zoneId) ?? null,
-      cityName: cityNames.get(request.match.cityId) ?? null,
+      marketName: marketNames.get(request.match.marketId) ?? null,
     }));
   }
 }

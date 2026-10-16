@@ -4,10 +4,12 @@ import { groupedOfferMessage, singleOfferMessage } from '../../../../domain/noti
 import type { IIdGenerator } from '../../auth/common/ports.js';
 import type { IPushNotifier } from '../../devices/common/ports.js';
 import { runWithConcurrency } from '../../devices/common/runWithConcurrency.js';
+import { createCountrySettingsResolver } from '../../bookingLifecycle/common/countrySettingsResolver.js';
 import { loadBookingItemContext, type BookingItemContext } from '../../goalkeeperRequests/common/goalkeeperBookingResponse.js';
-import type { IGoalkeeperRequestRepository } from '../../goalkeeperRequests/common/ports.js';
-import type { ICityRepository } from '../../locations/common/ports.js';
+import type { IBookingSettingsRepository, IGoalkeeperRequestRepository } from '../../goalkeeperRequests/common/ports.js';
+import type { IMarketRepository } from '../../markets/common/ports.js';
 import type { IZoneRepository } from '../../zones/common/ports.js';
+import { resolveOfferReminders, type OfferReminderValues } from './offerReminders.js';
 import type { INotificationRepository, IOfferPushState, IOffersLogger } from './ports.js';
 
 /**
@@ -35,11 +37,15 @@ export interface OfferSenderDependencies {
   idGenerator: IIdGenerator;
   requestRepository: IGoalkeeperRequestRepository;
   zoneRepository: IZoneRepository;
-  cityRepository: ICityRepository;
+  marketRepository: IMarketRepository;
+  bookingSettingsRepository: IBookingSettingsRepository;
   logger: IOffersLogger;
-  maxReminders: number;
-  intervalMinutes: number;
+  /** The environment values, used where neither the market nor its country sets one (spec 031). */
+  platformReminders: OfferReminderValues;
 }
+
+/** The reminder values of a market, read once per send. */
+type ReminderLookup = (marketId: string) => Promise<OfferReminderValues>;
 
 /** One offer to push to one goalkeeper: its request, the booking it opens, and whether it's its first push. */
 interface PendingOffer {
@@ -64,6 +70,7 @@ export class OfferSender {
     if (byGoalkeeper.size === 0) return report;
     try {
       const context = await loadBookingItemContext(this.deps, [...byGoalkeeper.values()].flat());
+      const reminders = this.reminderLookup();
       const toPush = new Map<string, PendingOffer[]>();
 
       for (const [goalkeeperId, bookings] of byGoalkeeper) {
@@ -89,10 +96,10 @@ export class OfferSender {
           if (offerId) inserted.push({ offerId, requestId: booking.requestId, booking, first: true });
         }
         report.entriesCreated += inserted.length;
-        toPush.set(goalkeeperId, mode === 'round' ? await this.openOffers(goalkeeperId, representatives) : inserted);
+        toPush.set(goalkeeperId, mode === 'round' ? await this.openOffers(goalkeeperId, representatives, context, reminders) : inserted);
       }
 
-      const recipients = await this.claim(toPush, now, mode);
+      const recipients = await this.claim(toPush, now, mode, context, reminders);
       report.pushed = recipients.length;
       await this.push(recipients, toPush, context, report);
       await this.record(recipients, toPush, now);
@@ -103,20 +110,43 @@ export class OfferSender {
     }
   }
 
+  /** Each market's values: its own, else its country's, else the platform's (research §6). */
+  private reminderLookup(): ReminderLookup {
+    const settings = createCountrySettingsResolver(this.deps);
+    return async (marketId) => {
+      const { settings: country, marketSettings: market } = await settings(marketId);
+      const resolved = resolveOfferReminders({ market, country }, this.deps.platformReminders);
+      return { maxReminders: resolved.maxReminders.value!, intervalMinutes: resolved.intervalMinutes.value! };
+    };
+  }
+
+  private marketOf(requestId: string, context: BookingItemContext): string | null {
+    return context.requests.get(requestId)?.match.marketId ?? null;
+  }
+
+  private async valuesFor(requestId: string, context: BookingItemContext, reminders: ReminderLookup): Promise<OfferReminderValues> {
+    const marketId = this.marketOf(requestId, context);
+    return marketId ? reminders(marketId) : this.deps.platformReminders;
+  }
+
   /**
    * In a round: the goalkeeper's offers for these requests that were not opened, dismissed, deleted
-   * or reminded enough.
+   * or reminded the maximum of the request's market.
    */
-  private async openOffers(goalkeeperId: string, representatives: ReadonlyMap<string, Booking>): Promise<PendingOffer[]> {
+  private async openOffers(
+    goalkeeperId: string,
+    representatives: ReadonlyMap<string, Booking>,
+    context: BookingItemContext,
+    reminders: ReminderLookup,
+  ): Promise<PendingOffer[]> {
     const offers = await this.deps.notifications.findOffers([goalkeeperId], [...representatives.keys()]);
-    return offers
-      .filter(
-        (offer) =>
-          offer.readAt === null &&
-          offer.dismissedAt === null &&
-          offer.deletedAt === null &&
-          (offer.notifiedAt === null || offer.reminderCount < this.deps.maxReminders),
-      )
+    const open: typeof offers = [];
+    for (const offer of offers) {
+      if (offer.readAt !== null || offer.dismissedAt !== null || offer.deletedAt !== null) continue;
+      if (offer.notifiedAt !== null && offer.reminderCount >= (await this.valuesFor(offer.requestId!, context, reminders)).maxReminders) continue;
+      open.push(offer);
+    }
+    return open
       .map((offer) => ({
         offerId: offer.id,
         requestId: offer.requestId!,
@@ -125,8 +155,17 @@ export class OfferSender {
       }));
   }
 
-  /** Who gets a push now: everyone with something to push, but in a round only after winning the claim. */
-  private async claim(toPush: ReadonlyMap<string, PendingOffer[]>, now: Date, mode: OfferSendMode): Promise<string[]> {
+  /**
+   * Who gets a push now: everyone with something to push, but in a round only after winning the
+   * claim, whose interval is the shortest among the markets of the goalkeeper's offers.
+   */
+  private async claim(
+    toPush: ReadonlyMap<string, PendingOffer[]>,
+    now: Date,
+    mode: OfferSendMode,
+    context: BookingItemContext,
+    reminders: ReminderLookup,
+  ): Promise<string[]> {
     const candidates = [...toPush].filter(([, offers]) => offers.length > 0).map(([goalkeeperId]) => goalkeeperId);
     if (mode !== 'round') {
       await this.deps.pushState.markPushed(candidates, now);
@@ -134,7 +173,8 @@ export class OfferSender {
     }
     const claimed: string[] = [];
     for (const goalkeeperId of candidates) {
-      if (await this.deps.pushState.tryClaim(goalkeeperId, now, this.deps.intervalMinutes)) claimed.push(goalkeeperId);
+      const intervals = await Promise.all(toPush.get(goalkeeperId)!.map(async (offer) => (await this.valuesFor(offer.requestId, context, reminders)).intervalMinutes));
+      if (await this.deps.pushState.tryClaim(goalkeeperId, now, Math.min(...intervals))) claimed.push(goalkeeperId);
     }
     return claimed;
   }
@@ -184,7 +224,7 @@ export class OfferSender {
     const { match } = request;
     return singleOfferMessage({
       zoneName: context.zoneNames.get(match.zoneId) ?? null,
-      cityName: context.cityNames.get(match.cityId) ?? null,
+      marketName: context.marketNames.get(match.marketId) ?? null,
       startsAt: match.startsAt,
       timeZone: match.timeZone,
       durationMinutes: match.durationMinutes,

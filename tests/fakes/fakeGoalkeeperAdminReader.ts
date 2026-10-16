@@ -22,13 +22,14 @@ export class FakeGoalkeeperAdminReader implements IGoalkeeperAdminReader {
     const now = filter.now.getTime();
     const records = (await this.stores.profiles.getAll())
       .filter((profile) => filter.userIds === undefined || filter.userIds.includes(profile.userId))
-      .filter((profile) => filter.cityId === undefined || profile.cityId === filter.cityId)
+      .filter((profile) => filter.marketId === undefined || profile.marketId === filter.marketId)
+      .filter((profile) => filter.marketIds === undefined || filter.marketIds.includes(profile.marketId))
       .filter((profile) => filter.zoneId === undefined || profile.zoneIds.includes(filter.zoneId))
       .filter((profile) => filter.suspended === undefined || filter.suspended === (profile.suspendedUntil !== null && profile.suspendedUntil.getTime() > now))
       .filter((profile) => filter.availableForOffers === undefined || filter.availableForOffers === profile.availableForOffers)
       .map((profile): GoalkeeperListRecord => ({
         userId: profile.userId,
-        cityId: profile.cityId,
+        marketId: profile.marketId,
         zoneCount: profile.zoneIds.length,
         availableForOffers: profile.availableForOffers,
         suspendedUntil: profile.suspendedUntil,

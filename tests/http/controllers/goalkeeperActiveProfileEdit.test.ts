@@ -28,7 +28,8 @@ async function fillDraft(ctx: TestApp, token: string, documentNumber: string): P
     .set(auth)
     .send({ documentType: 'cedula_ciudadania', documentNumber, issueDate: '2013-07-02', birthDate: '1995-03-14' });
   await request(ctx.app).patch('/goalkeepers/me/physical-data').set(auth).send({ heightCm: 185, weightKg: 78 });
-  await request(ctx.app).patch('/goalkeepers/me/availability').set(auth).send({ cityId: 'city-medellin', zoneIds: ['zone-bello'] });
+  await request(ctx.app).patch('/goalkeepers/me/availability').set(auth).send({ marketId: 'city-medellin', zoneIds: ['zone-bello'] });
+  await request(ctx.app).patch('/goalkeepers/me/billing').set(auth).send({ cityId: 'city-medellin', address: 'Calle 10 # 20-30' });
   await request(ctx.app)
     .post('/goalkeepers/me/document-photo')
     .set(auth)
@@ -188,14 +189,14 @@ describe('PUT /goalkeepers/me/profile/availability (active goalkeeper)', () => {
     const response = await request(ctx.app)
       .put('/goalkeepers/me/profile/availability')
       .set(bearer(token))
-      .send({ cityId: 'city-envigado', zoneIds: ['zone-bello', 'zone-copacabana'] });
+      .send({ marketId: 'city-medellin', zoneIds: ['zone-bello', 'zone-copacabana'] });
 
     expect(response.status).toBe(200);
-    expect(response.body).toMatchObject({ status: 'active', cityId: 'city-envigado', serviceZoneIds: ['zone-bello', 'zone-copacabana'] });
+    expect(response.body).toMatchObject({ status: 'active', marketId: 'city-medellin', serviceZoneIds: ['zone-bello', 'zone-copacabana'] });
     const view = await request(ctx.app).get('/goalkeepers/me').set(bearer(token));
-    expect(view.body.cityId).toBe('city-envigado');
+    expect(view.body.marketId).toBe('city-medellin');
     expect(view.body.serviceZoneIds).toEqual(['zone-bello', 'zone-copacabana']);
-    expect(view.body.city).toEqual({ id: 'city-envigado', name: 'Envigado', region: 'Antioquia' });
+    expect(view.body.market).toEqual({ id: 'city-medellin', name: 'Medellín' });
     expect([view.body.heightCm, view.body.weightKg]).toEqual([185, 78]);
   });
 
@@ -203,7 +204,7 @@ describe('PUT /goalkeepers/me/profile/availability (active goalkeeper)', () => {
     const ctx = await buildTestApp();
     const token = await activeGoalkeeper(ctx, 'l2');
     const send = () =>
-      request(ctx.app).put('/goalkeepers/me/profile/availability').set(bearer(token)).send({ cityId: 'city-medellin', zoneIds: ['zone-copacabana'] });
+      request(ctx.app).put('/goalkeepers/me/profile/availability').set(bearer(token)).send({ marketId: 'city-medellin', zoneIds: ['zone-copacabana'] });
 
     const first = await send();
     const second = await send();
@@ -212,19 +213,19 @@ describe('PUT /goalkeepers/me/profile/availability (active goalkeeper)', () => {
     expect(second.body.serviceZoneIds).toEqual(['zone-copacabana']);
   });
 
-  it('rejects an unknown city with 400 invalid_city and changes nothing', async () => {
+  it('sends another market to the market change with 409 use_market_change, changing nothing (spec 031)', async () => {
     const ctx = await buildTestApp();
     const token = await activeGoalkeeper(ctx, 'l3');
 
     const response = await request(ctx.app)
       .put('/goalkeepers/me/profile/availability')
       .set(bearer(token))
-      .send({ cityId: 'city-nowhere', zoneIds: ['zone-bello'] });
+      .send({ marketId: 'city-nowhere', zoneIds: ['zone-bello'] });
 
-    expect(response.status).toBe(400);
-    expect(response.body.error).toBe('invalid_city');
+    expect(response.status).toBe(409);
+    expect(response.body.error).toBe('use_market_change');
     const view = await request(ctx.app).get('/goalkeepers/me').set(bearer(token));
-    expect(view.body.cityId).toBe('city-medellin');
+    expect(view.body.marketId).toBe('city-medellin');
   });
 
   it('rejects invalid zones with 400 invalid_zones naming them, and changes nothing', async () => {
@@ -234,7 +235,7 @@ describe('PUT /goalkeepers/me/profile/availability (active goalkeeper)', () => {
     const response = await request(ctx.app)
       .put('/goalkeepers/me/profile/availability')
       .set(bearer(token))
-      .send({ cityId: 'city-medellin', zoneIds: ['zone-bello', 'zone-missing'] });
+      .send({ marketId: 'city-medellin', zoneIds: ['zone-bello', 'zone-missing'] });
 
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('invalid_zones');
@@ -248,7 +249,7 @@ describe('PUT /goalkeepers/me/profile/availability (active goalkeeper)', () => {
     const token = await activeGoalkeeper(ctx, 'l5');
     const put = (body: object) => request(ctx.app).put('/goalkeepers/me/profile/availability').set(bearer(token)).send(body);
 
-    for (const body of [{ cityId: 'city-medellin', zoneIds: [] }, { cityId: ' ', zoneIds: ['zone-bello'] }, { cityId: 'city-medellin' }, {}]) {
+    for (const body of [{ marketId: 'city-medellin', zoneIds: [] }, { marketId: ' ', zoneIds: ['zone-bello'] }, { marketId: 'city-medellin' }, {}]) {
       const response = await put(body);
       expect(response.status).toBe(400);
       expect(response.body.error).toBe('validation_failed');
@@ -262,7 +263,7 @@ describe('PUT /goalkeepers/me/profile/availability (active goalkeeper)', () => {
     const response = await request(ctx.app)
       .put('/goalkeepers/me/profile/availability')
       .set(bearer(token))
-      .send({ cityId: 'city-medellin', zoneIds: ['zone-bello'] });
+      .send({ marketId: 'city-medellin', zoneIds: ['zone-bello'] });
 
     expect(response.status).toBe(404);
     expect(response.body.error).toBe('goalkeeper_not_found');
@@ -276,7 +277,7 @@ describe('PUT /goalkeepers/me/profile/availability (active goalkeeper)', () => {
     const response = await request(ctx.app)
       .put('/goalkeepers/me/profile/availability')
       .set(bearer(token))
-      .send({ cityId: 'city-medellin', zoneIds: ['zone-bello'] });
+      .send({ marketId: 'city-medellin', zoneIds: ['zone-bello'] });
 
     expect(response.status).toBe(409);
     expect(response.body.error).toBe('goalkeeper_not_active');
@@ -293,12 +294,12 @@ describe('parallel autosave of physical data and availability', () => {
       request(ctx.app)
         .put('/goalkeepers/me/profile/availability')
         .set(bearer(token))
-        .send({ cityId: 'city-envigado', zoneIds: ['zone-copacabana'] }),
+        .send({ marketId: 'city-medellin', zoneIds: ['zone-copacabana'] }),
     ]);
 
     expect([physical.status, availability.status]).toEqual([200, 200]);
     const view = await request(ctx.app).get('/goalkeepers/me').set(bearer(token));
-    expect(view.body).toMatchObject({ heightCm: 195, weightKg: 85, cityId: 'city-envigado', serviceZoneIds: ['zone-copacabana'] });
+    expect(view.body).toMatchObject({ heightCm: 195, weightKg: 85, marketId: 'city-medellin', serviceZoneIds: ['zone-copacabana'] });
   });
 
   it('is last-write-wins for repeated edits of the same field', async () => {
@@ -322,13 +323,13 @@ describe('the draft registration flow is unchanged', () => {
     const availability = await request(ctx.app)
       .patch('/goalkeepers/me/availability')
       .set(bearer(token))
-      .send({ cityId: 'city-medellin', zoneIds: ['zone-bello'] });
+      .send({ marketId: 'city-medellin', zoneIds: ['zone-bello'] });
 
     expect(physical.status).toBe(200);
     expect(physical.body).toMatchObject({ status: 'in_progress', heightCm: 185, weightKg: 78 });
     expect(availability.status).toBe(200);
-    expect(availability.body).toMatchObject({ status: 'in_progress', cityId: 'city-medellin', serviceZoneIds: ['zone-bello'] });
-    expect(availability.body).not.toHaveProperty('city');
+    expect(availability.body).toMatchObject({ status: 'in_progress', marketId: 'city-medellin', serviceZoneIds: ['zone-bello'] });
+    expect(availability.body).not.toHaveProperty('market');
   });
 
   it('keeps the old draft routes locked with 409 already_active once the goalkeeper is active', async () => {
@@ -339,7 +340,7 @@ describe('the draft registration flow is unchanged', () => {
     const availability = await request(ctx.app)
       .patch('/goalkeepers/me/availability')
       .set(bearer(token))
-      .send({ cityId: 'city-medellin', zoneIds: ['zone-bello'] });
+      .send({ marketId: 'city-medellin', zoneIds: ['zone-bello'] });
     const identification = await request(ctx.app).patch('/goalkeepers/me/identification').set(bearer(token)).send({ documentNumber: 'changed' });
 
     for (const response of [physical, availability, identification]) {
@@ -357,7 +358,7 @@ describe('the draft registration flow is unchanged', () => {
 
     expect(response.status).toBe(409);
     expect(response.body.error).toBe('goalkeeper_profile_incomplete');
-    expect(response.body.missingSections).toEqual(['identification', 'availability']);
+    expect(response.body.missingSections).toEqual(['identification', 'availability', 'billing']);
   });
 
   it('GET /me on a draft returns the city name and region once a city is saved, and city: null before', async () => {
@@ -365,11 +366,11 @@ describe('the draft registration flow is unchanged', () => {
     const token = await signInAndComplete(ctx, 'draft4');
 
     const before = await request(ctx.app).get('/goalkeepers/me').set(bearer(token));
-    await request(ctx.app).patch('/goalkeepers/me/availability').set(bearer(token)).send({ cityId: 'city-medellin', zoneIds: ['zone-bello'] });
+    await request(ctx.app).patch('/goalkeepers/me/availability').set(bearer(token)).send({ marketId: 'city-medellin', zoneIds: ['zone-bello'] });
     const after = await request(ctx.app).get('/goalkeepers/me').set(bearer(token));
 
-    expect(before.body.city).toBeNull();
-    expect(after.body.city).toEqual({ id: 'city-medellin', name: 'Medellín', region: 'Antioquia' });
+    expect(before.body.market).toBeNull();
+    expect(after.body.market).toEqual({ id: 'city-medellin', name: 'Medellín' });
     expect(after.body.status).toBe('in_progress');
   });
 });

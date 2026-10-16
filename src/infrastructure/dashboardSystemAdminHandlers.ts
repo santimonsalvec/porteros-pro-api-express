@@ -16,14 +16,14 @@ import { GetSystemHealthQuery, type HealthReport } from '../application/features
 import { GetSystemHealthQueryHandler } from '../application/features/system/queries/getSystemHealth/getSystemHealthQueryHandler.js';
 import { GetSystemParametersQuery } from '../application/features/system/queries/getSystemParameters/getSystemParametersQuery.js';
 import { GetSystemParametersQueryHandler, type SystemParametersDependencies } from '../application/features/system/queries/getSystemParameters/getSystemParametersQueryHandler.js';
-import type { IAdminCityRepository, IAdminCountryRepository, IAdminRegionRepository } from '../application/features/geography/common/ports.js';
+import type { IAdminCountryRepository } from '../application/features/geography/common/ports.js';
+import type { IAdminMarketRepository } from '../application/features/markets/common/ports.js';
 
 /** What the admin's dashboard and system reads need (porteros-pro-admin spec 008). */
 export interface DashboardSystemHandlerDependencies {
   dashboardReader: IDashboardReader;
   countries: Pick<IAdminCountryRepository, 'getById' | 'list'>;
-  regions: Pick<IAdminRegionRepository, 'getById' | 'getByCountry' | 'list'>;
-  cities: Pick<IAdminCityRepository, 'getById' | 'list'>;
+  markets: Pick<IAdminMarketRepository, 'getById' | 'listByCountry' | 'list'>;
   clock: IClock;
   logger: IDashboardLogger;
   outbox: IOutboxAdminReader & Pick<IOutboxStore, 'pendingStats'>;

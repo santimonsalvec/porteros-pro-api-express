@@ -30,7 +30,7 @@ const format = new MatchFormat({ modality: 'futbol_11', level: 'competitive', su
 const success: Extract<GetServiceQuoteResult, { outcome: 'success' }> = {
   outcome: 'success',
   quote: priced,
-  area: { zoneId: 'zone-cali-norte', cityId: 'city-cali', freeCancellationMinutes: 60, commission: 7000, travelBufferMinutes: 30, format },
+  area: { zoneId: 'zone-cali-norte', marketId: 'city-cali', freeCancellationMinutes: 60, commission: 7000, travelBufferMinutes: 30, format },
 };
 const input: ServiceQuoteInput = {
   ...POINTS.caliNorte,
@@ -76,7 +76,7 @@ describe('IssueServiceQuoteCommandHandler — Story 3: every quote is recorded',
     expect(stored!.match).toMatchObject({
       ...POINTS.caliNorte,
       zoneId: 'zone-cali-norte',
-      cityId: 'city-cali',
+      marketId: 'city-cali',
       startsAt: new Date('2026-09-21T20:00:00.000Z'),
       startsAtLocal: '2026-09-21T15:00:00-05:00',
       timeZone: 'America/Bogota',
@@ -111,7 +111,7 @@ describe('IssueServiceQuoteCommandHandler — Story 3: every quote is recorded',
       },
       freeCancellationDefaulted: false,
       travelBufferDefaulted: false,
-      cityId: 'city-cali',
+      marketId: 'city-cali',
     });
   });
 
@@ -138,7 +138,7 @@ describe('IssueServiceQuoteCommandHandler — Story 3: every quote is recorded',
     {
       outcome: 'rate_not_configured',
       zoneId: 'zone-cali-norte',
-      cityId: 'city-cali',
+      marketId: 'city-cali',
       durationMinutes: 90,
     },
   ])('passes the refusal $outcome through and stores nothing', async (refusal) => {
@@ -183,7 +183,7 @@ describe('IssueServiceQuoteCommandHandler — Story 3: every quote is recorded',
     const result = await h.issue();
 
     expect(h.quotes.all()[0]!.freeCancellationMinutes).toBe(60);
-    expect(result).toMatchObject({ outcome: 'success', freeCancellationDefaulted: true, cityId: 'city-cali' });
+    expect(result).toMatchObject({ outcome: 'success', freeCancellationDefaulted: true, marketId: 'city-cali' });
   });
 });
 

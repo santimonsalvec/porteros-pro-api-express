@@ -1,7 +1,7 @@
 import type { IClock } from '../../../../common/clock.js';
 import type { IQueryHandler } from '../../../../common/mediator/types.js';
 import type { IGoalkeeperProfileRepository } from '../../../goalkeepers/common/ports.js';
-import type { ICityRepository } from '../../../locations/common/ports.js';
+import type { IMarketRepository } from '../../../markets/common/ports.js';
 import { OfferEligibilityService } from '../../../notifications/common/offerEligibilityService.js';
 import type { ICommissionResolver, IVatRateResolver, IOperatingBalanceRepository } from '../../../operatingBalance/common/ports.js';
 import { vatFor } from '../../../../../domain/operatingBalance/vat.js';
@@ -17,7 +17,7 @@ export interface ListAvailableBookingsDependencies {
   bookingRepository: IBookingRepository;
   requestRepository: IGoalkeeperRequestRepository;
   zoneRepository: IZoneRepository;
-  cityRepository: ICityRepository;
+  marketRepository: IMarketRepository;
   vatRates: IVatRateResolver;
   clock: IClock;
   /** Called when the candidate cap is reached (logged by infrastructure). */

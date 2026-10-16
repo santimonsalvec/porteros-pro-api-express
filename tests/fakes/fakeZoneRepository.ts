@@ -32,9 +32,9 @@ export class FakeZoneRepository implements IZoneRepository {
     this.zones.set(zone.id, zone);
   }
 
-  async getActiveByCityId(anchorCityId: string): Promise<Zone[]> {
+  async getActiveByMarketId(anchorCityId: string): Promise<Zone[]> {
     return [...this.zones.values()]
-      .filter((zone) => zone.cityId === anchorCityId && zone.active)
+      .filter((zone) => zone.marketId === anchorCityId && zone.active)
       .sort((a, b) => a.displayOrder - b.displayOrder);
   }
 
@@ -42,21 +42,29 @@ export class FakeZoneRepository implements IZoneRepository {
     return ids.map((id) => this.zones.get(id)).filter((zone): zone is Zone => zone !== undefined);
   }
 
-  async hasActiveZonesForCityIds(anchorCityIds: string[]): Promise<Set<string>> {
+  async hasActiveZonesForMarketIds(anchorCityIds: string[]): Promise<Set<string>> {
     const result = new Set<string>();
     for (const zone of this.zones.values()) {
-      if (zone.active && anchorCityIds.includes(zone.cityId)) result.add(zone.cityId);
+      if (zone.active && anchorCityIds.includes(zone.marketId)) result.add(zone.marketId);
     }
     return result;
   }
 
-  async getCityIdsWithActiveZones(): Promise<string[]> {
-    return [...new Set([...this.zones.values()].filter((zone) => zone.active).map((zone) => zone.cityId))];
+  async getMarketIdsWithActiveZones(): Promise<string[]> {
+    return [...new Set([...this.zones.values()].filter((zone) => zone.active).map((zone) => zone.marketId))];
   }
 
   async findActiveContainingPoint(latitude: number, longitude: number): Promise<Zone | null> {
+    return this.firstContaining(latitude, longitude, true);
+  }
+
+  async findAnyContainingPoint(latitude: number, longitude: number): Promise<Zone | null> {
+    return this.firstContaining(latitude, longitude, false);
+  }
+
+  private async firstContaining(latitude: number, longitude: number, active: boolean): Promise<Zone | null> {
     const matches = [...this.zones.values()]
-      .filter((zone) => zone.active && geometryContains(zone, longitude, latitude))
+      .filter((zone) => zone.active === active && geometryContains(zone, longitude, latitude))
       .sort((a, b) => a.displayOrder - b.displayOrder || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     return matches[0] ?? null;
   }

@@ -13,10 +13,10 @@ describe('UnverifiedDiscountSetting (admin spec 030)', () => {
 
   it.each([
     ['an unknown scope', { scope: 'region', refId: 'r', discountBps: 100 }],
-    ['no reference', { scope: 'city', refId: '', discountBps: 100 }],
-    ['a negative discount', { scope: 'city', refId: 'c', discountBps: -1 }],
-    ['a fraction of a basis point', { scope: 'city', refId: 'c', discountBps: 10.5 }],
-    ['a negative window', { scope: 'city', refId: 'c', verifiedPriorityMinutes: -1 }],
+    ['no reference', { scope: 'market', refId: '', discountBps: 100 }],
+    ['a negative discount', { scope: 'market', refId: 'c', discountBps: -1 }],
+    ['a fraction of a basis point', { scope: 'market', refId: 'c', discountBps: 10.5 }],
+    ['a negative window', { scope: 'market', refId: 'c', verifiedPriorityMinutes: -1 }],
   ])('refuses %s', (_label, params) => {
     expect(() => new UnverifiedDiscountSetting({ id: 'x', ...params })).toThrow(InvalidConfigurationError);
   });
@@ -30,17 +30,17 @@ describe('UnverifiedDiscountSetting (admin spec 030)', () => {
 describe('effectiveDiscount: the most specific level wins (FR-018)', () => {
   it('zone, then city, then country, then none', () => {
     const zone = setting('zone', 'z', 1500);
-    const city = setting('city', 'c', 1000);
+    const city = setting('market', 'c', 1000);
     const country = setting('country', 'co', 500);
 
     expect(effectiveDiscount([zone, city, country])).toEqual({ discountBps: 1500, origin: 'zone' });
-    expect(effectiveDiscount([undefined, city, country])).toEqual({ discountBps: 1000, origin: 'city' });
+    expect(effectiveDiscount([undefined, city, country])).toEqual({ discountBps: 1000, origin: 'market' });
     expect(effectiveDiscount([undefined, undefined, country])).toEqual({ discountBps: 500, origin: 'country' });
-    expect(effectiveDiscount([undefined, undefined, undefined])).toEqual({ discountBps: 0, origin: 'default' });
+    expect(effectiveDiscount([undefined, undefined, undefined])).toEqual({ discountBps: 0, origin: 'platform' });
   });
 
   it('a level set to 0 % is a choice, not a gap', () => {
-    expect(effectiveDiscount([setting('zone', 'z', 0), setting('city', 'c', 1000), undefined])).toEqual({ discountBps: 0, origin: 'zone' });
+    expect(effectiveDiscount([setting('zone', 'z', 0), setting('market', 'c', 1000), undefined])).toEqual({ discountBps: 0, origin: 'zone' });
   });
 });
 
@@ -50,8 +50,8 @@ describe('effectivePriority: the verified-only window, field by field (FR-015)',
     const country = new UnverifiedDiscountSetting({ id: 'c', scope: 'country', refId: 'co', verifiedPriorityMinutes: 30 });
 
     expect(effectivePriority([zoneDiscountOnly, undefined, country])).toEqual({ verifiedPriorityMinutes: 30, origin: 'country' });
-    expect(effectivePriority([zoneDiscountOnly, undefined, undefined])).toEqual({ verifiedPriorityMinutes: 15, origin: 'default' });
-    expect(effectiveDiscount([undefined, undefined, country])).toEqual({ discountBps: 0, origin: 'default' });
+    expect(effectivePriority([zoneDiscountOnly, undefined, undefined])).toEqual({ verifiedPriorityMinutes: 15, origin: 'platform' });
+    expect(effectiveDiscount([undefined, undefined, country])).toEqual({ discountBps: 0, origin: 'platform' });
   });
 });
 

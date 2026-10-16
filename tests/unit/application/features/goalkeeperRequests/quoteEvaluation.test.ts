@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { evaluateQuoteInArea, type QuoteEvaluationDependencies } from '../../../../../src/application/features/goalkeeperRequests/common/quoteEvaluation.js';
 import { parseStartsAt } from '../../../../../src/application/features/goalkeeperRequests/common/startsAt.js';
 import { CommissionResolver } from '../../../../../src/application/features/operatingBalance/common/commissionResolver.js';
-import type { City } from '../../../../../src/domain/locations/city.js';
+import type { Market } from '../../../../../src/domain/markets/market.js';
 import type { Zone } from '../../../../../src/domain/zones/zone.js';
 import { FakeBookingSettingsRepository } from '../../../../fakes/fakeBookingSettingsRepository.js';
-import { FakeCityRepository } from '../../../../fakes/fakeCityRepository.js';
+import { FakeMarketRepository } from '../../../../fakes/fakeMarketRepository.js';
 import { FakeCommissionSettingRepository } from '../../../../fakes/fakeCommissionSettingRepository.js';
 import { FakeCountryRepository } from '../../../../fakes/fakeCountryRepository.js';
 import { FakeRegionRepository } from '../../../../fakes/fakeRegionRepository.js';
@@ -15,13 +15,13 @@ import { QUOTE_NOW, seedQuoteWorld } from '../../../../fixtures/quoteFixtures.js
 
 let deps: QuoteEvaluationDependencies & { rentalRateRepository: FakeRentalRateRepository; commissionSettingRepository: FakeCommissionSettingRepository };
 let zone: Zone;
-let city: City;
+let market: Market;
 const now = new Date(QUOTE_NOW).getTime();
 
 beforeEach(async () => {
   const world = {
     zoneRepository: new FakeZoneRepository(),
-    cityRepository: new FakeCityRepository(),
+    marketRepository: new FakeMarketRepository(),
     regionRepository: new FakeRegionRepository(),
     countryRepository: new FakeCountryRepository(),
     rentalRateRepository: new FakeRentalRateRepository(),
@@ -32,16 +32,16 @@ beforeEach(async () => {
   deps = {
     ...world,
     countryLookup: world.countryRepository,
-    commissionResolver: new CommissionResolver(world.commissionSettingRepository, world.zoneRepository, world.cityRepository, world.regionRepository),
+    commissionResolver: new CommissionResolver(world.commissionSettingRepository, world.zoneRepository, world.marketRepository),
   };
   zone = (await world.zoneRepository.getManyByIds(['zone-cali-norte']))[0]!;
-  city = (await world.cityRepository.getById('city-cali'))!;
+  market = (await world.marketRepository.getById('city-cali'))!;
 });
 
 const evaluate = (startsAt: string, nowMs = now, overrides: Partial<Parameters<typeof evaluateQuoteInArea>[1]> = {}) =>
   evaluateQuoteInArea(deps, {
     zone,
-    city,
+    market,
     timeZone: 'America/Bogota',
     startsAt: parseStartsAt(startsAt)!,
     goalkeeperCount: 1,
@@ -82,11 +82,11 @@ describe('evaluateQuoteInArea (the quote steps 3–9, with the moment passed in)
 
   it('reports what is missing, and a duration with no rate', async () => {
     deps.commissionSettingRepository.clear();
-    expect(await evaluate('2026-09-21T15:00:00')).toEqual({ outcome: 'service_not_configured', cityId: 'city-cali', missing: ['commission'] });
+    expect(await evaluate('2026-09-21T15:00:00')).toEqual({ outcome: 'service_not_configured', marketId: 'city-cali', missing: ['commission'] });
   });
 
   it('refuses a duration nobody priced', async () => {
     deps.rentalRateRepository.clear();
-    expect(await evaluate('2026-09-21T15:00:00')).toEqual({ outcome: 'rate_not_configured', zoneId: 'zone-cali-norte', cityId: 'city-cali', durationMinutes: 60 });
+    expect(await evaluate('2026-09-21T15:00:00')).toEqual({ outcome: 'rate_not_configured', zoneId: 'zone-cali-norte', marketId: 'city-cali', durationMinutes: 60 });
   });
 });

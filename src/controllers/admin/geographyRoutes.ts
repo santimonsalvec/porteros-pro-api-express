@@ -38,7 +38,7 @@ import {
   updateZoneRequestSchema,
   validateZoneRequestSchema,
 } from '../requests/geography/geographyRequests.js';
-import type { createAdminRouting } from './adminRoute.js';
+import { atLevel, type createAdminRouting } from './adminRoute.js';
 
 /**
  * Countries, regions, cities and zones in the admin web (spec 003 of the admin,
@@ -91,7 +91,8 @@ export function registerGeographyRoutes(route: Route, mediator: ISender): void {
   registerCountryRoutes(route, mediator);
   registerRegionRoutes(route, mediator);
   registerCityRoutes(route, mediator);
-  registerZoneRoutes(route, mediator);
+  // Zones belong to a market (spec 031, contract B1).
+  registerZoneRoutes(atLevel(route, 'market'), mediator);
 }
 
 /** Countries (US4): their currency is locked once they operate (clarification 3). A country is never deleted. */
@@ -222,8 +223,9 @@ function registerRegionRoutes(route: Route, mediator: ISender): void {
 
 const REASON_REQUIRED = { reason: 'A reason of 3–300 characters is required.' };
 
-const zoneCityNotAnchor = (anchorCity: { id: string; name: string }) =>
-  new ApiError(409, 'zone_city_not_anchor', 'Only a city that owns its zones can have zones.', undefined, { anchorCity });
+/** An active zone that would cross or touch another active one (spec 031, FR-003). */
+const zoneConflict = (conflicts: unknown[]) =>
+  new ApiError(422, 'zone_conflict', 'The zone crosses or touches another active zone.', undefined, { conflicts });
 
 /** Zones and their polygons (US2). */
 function registerZoneRoutes(route: Route, mediator: ISender): void {
@@ -253,41 +255,37 @@ function registerZoneRoutes(route: Route, mediator: ISender): void {
         throw new ApiError(400, 'validation_failed', 'One or more fields are missing or invalid.', { geometry: 'The polygon breaks a rule.' }, { geometryErrors: result.errors });
       case 'reason_required':
         throw invalidFields(REASON_REQUIRED);
-      case 'warnings':
-        throw warningsUnacknowledged(result.warnings);
-      case 'zone_city_not_anchor':
-        throw zoneCityNotAnchor(result.anchorCity);
-      case 'city_not_found':
-        throw invalidFields({ cityId: 'City not found.' });
+      case 'zone_conflict':
+        throw zoneConflict(result.conflicts);
+      case 'zone_market_immutable':
+        throw new ApiError(409, 'zone_market_immutable', 'A zone never moves to another market.');
+      case 'market_not_found':
+        throw invalidFields({ marketId: 'Market not found.' });
     }
   };
 
   route('get', '/zones', 'geography.read', async (req, res) => {
-    const { cityId } = parse(listZonesQuerySchema, req.query);
-    const result = await mediator.send(new ListZonesQuery(cityId));
+    const { marketId } = parse(listZonesQuerySchema, req.query);
+    const result = await mediator.send(new ListZonesQuery(marketId));
     switch (result.outcome) {
       case 'ok':
-        res.status(200).json({ city: result.city, items: result.items });
+        res.status(200).json({ market: result.market, items: result.items });
         return;
-      case 'city_not_found':
-        throw notFound('city_not_found');
-      case 'zone_city_not_anchor':
-        throw zoneCityNotAnchor(result.anchorCity);
+      case 'market_not_found':
+        throw notFound('market_not_found');
     }
   });
 
   // The polygons for the map, simplified: the list above carries none (real ones weigh ~300 KB each).
   route('get', '/zones/shapes', 'geography.read', async (req, res) => {
-    const { cityId } = parse(listZonesQuerySchema, req.query);
-    const result = await mediator.send(new ListZoneShapesQuery(cityId));
+    const { marketId } = parse(listZonesQuerySchema, req.query);
+    const result = await mediator.send(new ListZoneShapesQuery(marketId));
     switch (result.outcome) {
       case 'ok':
         res.status(200).json({ items: result.items });
         return;
-      case 'city_not_found':
-        throw notFound('city_not_found');
-      case 'zone_city_not_anchor':
-        throw zoneCityNotAnchor(result.anchorCity);
+      case 'market_not_found':
+        throw notFound('market_not_found');
     }
   });
 
@@ -298,15 +296,14 @@ function registerZoneRoutes(route: Route, mediator: ISender): void {
   // Checks a polygon while it is drawn: neither saved nor audited (research §3).
   route('post', '/zones/validate', 'geography.manage', async (req, res) => {
     const body = parse(validateZoneRequestSchema, req.body);
-    const result = await mediator.send(new ValidateZoneGeometryQuery(body.cityId, body.geometry, body.zoneId ?? null, body.displayOrder ?? null));
+    const result = await mediator.send(new ValidateZoneGeometryQuery(body.marketId, body.geometry, body.zoneId ?? null, body.active ?? true));
     switch (result.outcome) {
       case 'ok':
-        res.status(200).json({ errors: result.errors, warnings: result.warnings });
+        if (result.conflicts.length > 0) throw zoneConflict(result.conflicts);
+        res.status(200).json({ errors: result.errors });
         return;
-      case 'city_not_found':
-        throw notFound('city_not_found');
-      case 'zone_city_not_anchor':
-        throw zoneCityNotAnchor(result.anchorCity);
+      case 'market_not_found':
+        throw notFound('market_not_found');
     }
   });
 
@@ -315,8 +312,8 @@ function registerZoneRoutes(route: Route, mediator: ISender): void {
     '/zones',
     { permission: 'geography.manage', audit: { action: 'zone.create', resourceType: 'zone', resourceId: () => 'new' } },
     async (req, res) => {
-      const { acknowledgeWarnings, ...fields } = parse(createZoneRequestSchema, req.body);
-      await sendSaved(res, await mediator.send(SaveZoneCommand.create(fields, acknowledgeWarnings)));
+      const fields = parse(createZoneRequestSchema, req.body);
+      await sendSaved(res, await mediator.send(SaveZoneCommand.create(fields)));
     },
   );
 
@@ -326,8 +323,8 @@ function registerZoneRoutes(route: Route, mediator: ISender): void {
   });
 
   route('patch', '/zones/:zoneId', zoneAudit('zone.update'), async (req, res) => {
-    const { revision, reason, acknowledgeWarnings, ...changes } = parse(updateZoneRequestSchema, req.body);
-    await sendSaved(res, await mediator.send(SaveZoneCommand.edit(req.params.zoneId, revision, changes, reason ?? null, acknowledgeWarnings)));
+    const { revision, reason, ...changes } = parse(updateZoneRequestSchema, req.body);
+    await sendSaved(res, await mediator.send(SaveZoneCommand.edit(req.params.zoneId, revision, changes, reason ?? null)));
   });
 
   route('post', '/zones/:zoneId/delete', zoneAudit('zone.delete'), async (req, res) => {
@@ -336,7 +333,7 @@ function registerZoneRoutes(route: Route, mediator: ISender): void {
   });
 }
 
-/** Cities and their time zones (US1). */
+/** The municipalities of the billing catalog (US1; spec 031). */
 function registerCityRoutes(route: Route, mediator: ISender): void {
   const cityView = async (cityId: string) => {
     const result = await mediator.send(new GetCityQuery(cityId));
@@ -363,10 +360,6 @@ function registerCityRoutes(route: Route, mediator: ISender): void {
         throw stale();
       case 'invalid':
         throw invalidFields(result.fieldErrors);
-      case 'city_has_zones':
-        throw conflict('city_has_zones');
-      case 'warnings':
-        throw warningsUnacknowledged(result.warnings);
     }
   };
 
@@ -376,8 +369,8 @@ function registerCityRoutes(route: Route, mediator: ISender): void {
   });
 
   route('get', '/cities', 'geography.read', async (req, res) => {
-    const { page, pageSize, readiness, ...filters } = parse(listCitiesQuerySchema, req.query);
-    res.status(200).json(await mediator.send(new ListCitiesQuery(filters, page, pageSize, readiness)));
+    const { page, pageSize, ...filters } = parse(listCitiesQuerySchema, req.query);
+    res.status(200).json(await mediator.send(new ListCitiesQuery(filters, page, pageSize)));
   });
 
   route('get', '/cities/:cityId', 'geography.read', async (req, res) => {
@@ -389,14 +382,14 @@ function registerCityRoutes(route: Route, mediator: ISender): void {
     '/cities',
     { permission: 'geography.manage', audit: { action: 'city.create', resourceType: 'city', resourceId: () => 'new' } },
     async (req, res) => {
-      const { acknowledgeWarnings, ...fields } = parse(createCityRequestSchema, req.body);
-      await sendSaved(res, await mediator.send(SaveCityCommand.create(fields, acknowledgeWarnings)));
+      const fields = parse(createCityRequestSchema, req.body);
+      await sendSaved(res, await mediator.send(SaveCityCommand.create(fields)));
     },
   );
 
   route('patch', '/cities/:cityId', cityAudit('city.update'), async (req, res) => {
-    const { revision, acknowledgeWarnings, ...changes } = parse(updateCityRequestSchema, req.body);
-    await sendSaved(res, await mediator.send(SaveCityCommand.edit(req.params.cityId, revision, changes, acknowledgeWarnings)));
+    const { revision, ...changes } = parse(updateCityRequestSchema, req.body);
+    await sendSaved(res, await mediator.send(SaveCityCommand.edit(req.params.cityId, revision, changes)));
   });
 
   route('post', '/cities/:cityId/delete', cityAudit('city.delete'), async (req, res) => {

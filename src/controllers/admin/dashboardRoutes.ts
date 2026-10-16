@@ -4,6 +4,7 @@ import { GetDashboardSummaryQuery } from '../../application/features/dashboard/q
 import { ApiError } from '../apiError.js';
 import { dashboardSummaryQuerySchema } from '../requests/dashboard/dashboardRequests.js';
 import { invalidFields, notFound, parse, type Route } from './geographyRoutes.js';
+import { marketScopeCriteria } from './scopeCriteria.js';
 
 /**
  * The dashboard's numbers (admin spec 008, contracts/dashboard-system-api.md §1): one read, the
@@ -16,8 +17,8 @@ export function registerDashboardRoutes(route: Route, mediator: ISender): void {
   });
 
   route('get', '/dashboard/summary', 'dashboard.read', async (req, res) => {
-    const filter = parse(dashboardSummaryQuerySchema, req.query);
-    const result = await mediator.send(new GetDashboardSummaryQuery(filter, req.adminAccess!.permissions));
+    parse(dashboardSummaryQuerySchema, req.query);
+    const result = await mediator.send(new GetDashboardSummaryQuery(marketScopeCriteria(req), req.adminAccess!.permissions));
 
     // Exhaustive on purpose: adding an outcome without mapping it here fails compilation.
     switch (result.outcome) {
@@ -25,13 +26,13 @@ export function registerDashboardRoutes(route: Route, mediator: ISender): void {
         res.status(200).json(result.summary);
         return;
       case 'invalid':
-        throw invalidFields({ cityId: 'A city needs its country.' });
-      case 'city_not_in_country':
-        throw new ApiError(400, 'city_not_in_country', 'This city is not in that country.');
+        throw invalidFields({ marketId: 'A market needs its country.' });
+      case 'market_not_in_country':
+        throw new ApiError(400, 'market_not_in_country', 'This market is not in that country.');
       case 'country_not_found':
         throw notFound('country_not_found');
-      case 'city_not_found':
-        throw notFound('city_not_found');
+      case 'market_not_found':
+        throw notFound('market_not_found');
     }
   });
 }

@@ -1,3 +1,6 @@
+import type { ScopePlaces } from '../application/features/staff/common/staffViews.js';
+import { ChangeStaffMemberScopesCommand } from '../application/features/staff/commands/changeStaffMemberScopes/changeStaffMemberScopesCommand.js';
+import { ChangeStaffMemberScopesCommandHandler } from '../application/features/staff/commands/changeStaffMemberScopes/changeStaffMemberScopesCommandHandler.js';
 import type { HandlerRegistration } from '../application/common/mediator/mediator.js';
 import type { IClock } from '../application/common/clock.js';
 import type { IGoogleIdTokenValidator, IIdGenerator, IUserRepository } from '../application/features/auth/common/ports.js';
@@ -61,6 +64,8 @@ export interface StaffHandlerDependencies {
   securityLog: IAdminSecurityLog;
   accessResolver: IStaffAccessResolver;
   auditLog: IAdminAuditLogReader;
+  /** Spec 031: what the members' scopes name. */
+  places?: ScopePlaces;
 }
 
 /**
@@ -74,6 +79,7 @@ export function staffHandlerRegistrations(deps: StaffHandlerDependencies): Handl
     { requestType: SignOutAdminCommand, handler: new SignOutAdminCommandHandler(deps) },
     { requestType: SeedOwnerCommand, handler: new SeedOwnerCommandHandler(deps) },
     { requestType: InviteStaffMemberCommand, handler: new InviteStaffMemberCommandHandler(deps) },
+    { requestType: ChangeStaffMemberScopesCommand, handler: new ChangeStaffMemberScopesCommandHandler(deps) },
     { requestType: GetAdminMeQuery, handler: new GetAdminMeQueryHandler(deps) },
     { requestType: ListStaffMembersQuery, handler: new ListStaffMembersQueryHandler(deps) },
     { requestType: GetStaffMemberQuery, handler: new GetStaffMemberQueryHandler(deps) },

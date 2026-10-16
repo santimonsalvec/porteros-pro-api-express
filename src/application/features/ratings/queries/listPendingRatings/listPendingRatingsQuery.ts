@@ -7,7 +7,7 @@ export interface PendingRatingItem {
   /** What to ask: the client "did your goalkeeper come?", the goalkeeper "were you paid?". */
   question: 'goalkeeper_arrived' | 'payment_received';
   zoneName: string | null;
-  cityName: string | null;
+  marketName: string | null;
   startsAt: string;
   startsAtLocal: string;
   otherParty: { firstName: string | null; lastName: string | null } | null;

@@ -1,6 +1,6 @@
 import { ALL_MATCH_TIERS, resolveTiered, type MatchTier } from '../../../../domain/pricing/tieredRate.js';
 import type { CommissionSetting } from '../../../../domain/operatingBalance/commissionSetting.js';
-import type { ICityRepository, IRegionRepository } from '../../locations/common/ports.js';
+import type { IMarketRepository } from '../../markets/common/ports.js';
 import type { IZoneRepository } from '../../zones/common/ports.js';
 import type { ICommissionResolver, ICommissionSettingRepository } from './ports.js';
 
@@ -8,7 +8,7 @@ import type { ICommissionResolver, ICommissionSettingRepository } from './ports.
 type CommissionLevels = Map<string, CommissionSetting[][]>;
 
 /**
- * A zone's effective commission: its own, else its anchor city's, else its country's (FR-009);
+ * A zone's effective commission: its own, else its anchor market's, else its country's (FR-009);
  * `null` when none is configured (FR-010). Within each level the modality/level tiers apply
  * (feature 024). Resolves any number of zones with one settings read.
  */
@@ -16,8 +16,7 @@ export class CommissionResolver implements ICommissionResolver {
   constructor(
     private readonly settings: ICommissionSettingRepository,
     private readonly zoneRepository: IZoneRepository,
-    private readonly cityRepository: ICityRepository,
-    private readonly regionRepository: IRegionRepository,
+    private readonly marketRepository: Pick<IMarketRepository, 'getByIds'>,
   ) {}
 
   /**
@@ -53,22 +52,20 @@ export class CommissionResolver implements ICommissionResolver {
     if (zoneIds.length === 0) return result;
 
     const zones = await this.zoneRepository.getManyByIds(zoneIds);
-    const cityIds = [...new Set(zones.map((zone) => zone.cityId))];
-    const cities = await this.cityRepository.getByIds(cityIds);
-    const regions = await this.regionRepository.getByIds([...new Set(cities.map((city) => city.regionId))]);
-    const countryOfRegion = new Map(regions.map((region) => [region.id, region.countryId]));
-    const countryOfCity = new Map(cities.map((city) => [city.id, countryOfRegion.get(city.regionId) ?? null]));
-    const countryIds = [...new Set([...countryOfCity.values()].filter((id): id is string => id !== null))];
+    const marketIds = [...new Set(zones.map((zone) => zone.marketId))];
+    const markets = await this.marketRepository.getByIds(marketIds);
+    const countryOfMarket = new Map<string, string | null>(markets.map((market) => [market.id, market.countryId]));
+    const countryIds = [...new Set([...countryOfMarket.values()].filter((id): id is string => id !== null))];
 
-    const settings = await this.settings.findFor({ zoneIds: zones.map((zone) => zone.id), cityIds, countryIds });
+    const settings = await this.settings.findFor({ zoneIds: zones.map((zone) => zone.id), marketIds, countryIds });
     const settingsOf = (scope: string, refId: string | null) =>
       refId === null ? [] : settings.filter((setting) => setting.scope === scope && setting.refId === refId);
 
     for (const zone of zones) {
       result.set(zone.id, [
         settingsOf('zone', zone.id),
-        settingsOf('city', zone.cityId),
-        settingsOf('country', countryOfCity.get(zone.cityId) ?? null),
+        settingsOf('market', zone.marketId),
+        settingsOf('country', countryOfMarket.get(zone.marketId) ?? null),
       ]);
     }
     return result;

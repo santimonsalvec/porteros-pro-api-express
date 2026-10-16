@@ -64,3 +64,18 @@ describe('/admin/unverified-discounts (admin spec 030, contracts D1–D4)', () =
     expect((await reader.get('/admin/unverified-discounts?countryId=nowhere')).status).toBe(404);
   });
 });
+
+describe('/admin/unverified-discounts by market (spec 031, US2)', () => {
+  it("lets a market's discount win over the country's in its zones", async () => {
+    const context = await buildTestApp();
+    const { reader, discounts } = await staff(context);
+    await discounts.post('/admin/unverified-discounts', { scope: 'country', refId: 'country-co', discountBps: 1000 });
+
+    const market = await discounts.post('/admin/unverified-discounts', { scope: 'market', refId: 'city-cali', discountBps: 2000 });
+    const city = await discounts.post('/admin/unverified-discounts', { scope: 'city', refId: 'city-cali', discountBps: 2000 });
+    const read = await reader.get('/admin/unverified-discounts?countryId=country-co');
+
+    expect([market.status, city.status]).toEqual([201, 400]);
+    expect(read.body.zones.find((item: { id: string }) => item.id === 'zone-cali-sur').effective).toMatchObject({ discountBps: 2000, discountOrigin: 'market' });
+  });
+});

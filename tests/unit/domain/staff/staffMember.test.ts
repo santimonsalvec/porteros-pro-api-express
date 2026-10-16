@@ -1,3 +1,4 @@
+import type { StaffScope } from '../../../../src/domain/staff/staffScope.js';
 import { describe, expect, it } from 'vitest';
 import { normalizeStaffEmail, StaffMember, StaffMemberTransitionError } from '../../../../src/domain/staff/staffMember.js';
 
@@ -84,5 +85,25 @@ describe('StaffMember', () => {
 
     expect(active.recordSignIn(at(DAY)).lastSignInAt).toEqual(at(DAY));
     expect(active.changeRole('owner', at(DAY)).roleIds).toEqual(['owner']);
+  });
+});
+
+describe('StaffMember scopes (spec 031)', () => {
+  const invited = (scopes?: StaffScope[]) =>
+    StaffMember.invite({ id: 's-1', email: 'ana@porteros.pro', roleId: 'operador', invitedBy: 'owner-1', scopes }, new Date('2026-10-15T12:00:00.000Z'));
+
+  it('works on the whole platform unless told otherwise', () => {
+    expect(invited().scopes).toEqual([{ kind: 'platform' }]);
+    expect(invited([{ kind: 'market', id: 'med' }]).scopes).toEqual([{ kind: 'market', id: 'med' }]);
+  });
+
+  it('refuses no scope or a repeated one', () => {
+    expect(() => invited([])).toThrow(/scope/);
+    expect(() => invited([{ kind: 'market', id: 'med' }, { kind: 'market', id: 'med' }])).toThrow(/scope/);
+  });
+
+  it('changes its scopes', () => {
+    const changed = invited().changeScopes([{ kind: 'country', id: 'co' }], new Date('2026-10-16T12:00:00.000Z'));
+    expect(changed.scopes).toEqual([{ kind: 'country', id: 'co' }]);
   });
 });

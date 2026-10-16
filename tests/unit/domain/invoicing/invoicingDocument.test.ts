@@ -4,7 +4,7 @@ import { nextAttemptAt } from '../../../../src/domain/invoicing/retrySchedule.js
 
 const NOW = new Date('2026-09-29T12:00:00.000Z');
 const minutes = (count: number) => new Date(NOW.getTime() + count * 60_000);
-const BUYER = { documentType: 'CC', documentNumber: '1020304050', firstName: 'Ana', lastName: 'Portera', email: 'ana@example.com', cityId: 'city-cali' };
+const BUYER = { documentType: 'CC', documentNumber: '1020304050', firstName: 'Ana', lastName: 'Portera', email: 'ana@example.com', cityId: 'city-cali', address: null, addressComplement: null };
 
 function invoice(overrides: Partial<Parameters<typeof InvoicingDocument.create>[0]> = {}) {
   return InvoicingDocument.create({
@@ -13,6 +13,7 @@ function invoice(overrides: Partial<Parameters<typeof InvoicingDocument.create>[
     concept: 'commission',
     goalkeeperId: 'gk-1',
     countryId: 'country-co',
+    marketId: 'city-cali',
     sourceEventId: 'e-1',
     sourceMovementId: 'm-1',
     vatMovementId: 'm-2',
@@ -75,9 +76,9 @@ describe('InvoicingDocument', () => {
 
   it('is retried by an administrator only when rejected, with fresh buyer data', () => {
     const rejected = invoice().bindProvider('siigo', {}, NOW).markRejected({ code: 'buyer_city_not_coded', message: 'x' }, NOW);
-    const retried = rejected.resetForRetry({ ...BUYER, cityId: 'city-medellin' }, minutes(5));
+    const retried = rejected.resetForRetry({ ...BUYER, cityId: 'city-medellin', address: null, addressComplement: null }, minutes(5));
 
-    expect(retried).toMatchObject({ status: 'pending', attempts: 0, nextAttemptAt: minutes(5), lastError: null, buyer: { cityId: 'city-medellin' } });
+    expect(retried).toMatchObject({ status: 'pending', attempts: 0, nextAttemptAt: minutes(5), lastError: null, buyer: { cityId: 'city-medellin', address: null, addressComplement: null } });
     expect(retried.provider?.name).toBe('siigo');
     expect(() => invoice().resetForRetry(BUYER, NOW)).toThrow(/not rejected/);
   });

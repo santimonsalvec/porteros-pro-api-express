@@ -3,8 +3,6 @@ import {
   MAX_ZONE_POSITIONS,
   previewGeometry,
   validateZoneGeometry,
-  zoneGeometryWarnings,
-  type NeighborZone,
 } from '../../../../src/domain/zones/zoneGeometry.js';
 
 /** A square ring of `size` degrees whose south-west corner is (lng, lat). */
@@ -83,57 +81,6 @@ describe('validateZoneGeometry', () => {
   });
 });
 
-describe('zoneGeometryWarnings', () => {
-  const zone = (id: string, geometry: ReturnType<typeof square>, displayOrder: number, active = true): NeighborZone => ({
-    id,
-    name: id,
-    displayOrder,
-    active,
-    geometry,
-  });
-  const laureles = zone('laureles', square(-75.6, 6.24), 1);
-
-  it('says nothing for a neighbour that only shares its border (a sliver under 1.000 m²)', () => {
-    const next = square(-75.580001, 6.24);
-    expect(zoneGeometryWarnings(next, { id: null, displayOrder: 5 }, [laureles])).toEqual([]);
-  });
-
-  it('warns about a real overlap, with the area and which zone wins there', () => {
-    const [warning] = zoneGeometryWarnings(square(-75.59, 6.24), { id: null, displayOrder: 5 }, [laureles]);
-
-    expect(warning).toMatchObject({ code: 'overlaps_zone', zoneId: 'laureles', zoneName: 'laureles', winsZoneId: 'laureles', winsZoneName: 'laureles' });
-    expect(warning!.code === 'overlaps_zone' && warning!.overlapSquareMeters).toBeGreaterThan(1_000_000);
-  });
-
-  it('the new zone wins with a lower display order, then a lower id', () => {
-    const [byOrder] = zoneGeometryWarnings(square(-75.59, 6.24), { id: 'zz', displayOrder: 0 }, [laureles]);
-    expect(byOrder).toMatchObject({ winsZoneId: 'zz' });
-    const [byId] = zoneGeometryWarnings(square(-75.59, 6.24), { id: 'aa', displayOrder: 1 }, [laureles]);
-    expect(byId).toMatchObject({ winsZoneId: 'aa' });
-  });
-
-  it('ignores the zone itself and inactive zones', () => {
-    expect(zoneGeometryWarnings(square(-75.59, 6.24), { id: 'laureles', displayOrder: 1 }, [laureles])).toEqual([]);
-    expect(zoneGeometryWarnings(square(-75.59, 6.24), { id: null, displayOrder: 1 }, [zone('old', square(-75.6, 6.24), 1, false)])).toEqual([]);
-  });
-
-  it('warns when a vertex is more than 5 km from every other zone, with the distance', () => {
-    const [warning] = zoneGeometryWarnings(square(-75.45, 6.24), { id: null, displayOrder: 5 }, [laureles]);
-
-    expect(warning).toMatchObject({ code: 'far_from_city_zones' });
-    expect(warning!.code === 'far_from_city_zones' && warning!.maxDistanceKm).toBeGreaterThan(5);
-    expect(zoneGeometryWarnings(square(-75.56, 6.24), { id: null, displayOrder: 5 }, [laureles])).toEqual([]);
-  });
-
-  it('has nothing to compare against for the first zone of a city', () => {
-    expect(zoneGeometryWarnings(square(10, 10), { id: null, displayOrder: 1 }, [])).toEqual([]);
-  });
-
-  it('skips a stored neighbour whose own polygon is broken', () => {
-    const broken = zone('broken', { type: 'Polygon', coordinates: [[[0, 0]]] } as never, 1);
-    expect(zoneGeometryWarnings(square(-75.59, 6.24), { id: null, displayOrder: 5 }, [broken, laureles]).map((w) => w.code)).toEqual(['overlaps_zone']);
-  });
-});
 
 describe('real zones (admin feedback 2026-10-08)', () => {
   it('accepts zones traced in detail: up to 20.000 positions', () => {

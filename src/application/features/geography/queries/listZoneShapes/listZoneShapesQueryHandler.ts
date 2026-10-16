@@ -1,15 +1,16 @@
 import type { IQueryHandler } from '../../../../common/mediator/types.js';
-import type { IAdminCityRepository, IAdminZoneRepository } from '../../common/ports.js';
+import type { IAdminZoneRepository } from '../../common/ports.js';
+import type { IAdminMarketRepository } from '../../../markets/common/ports.js';
 import { toZoneShape } from '../../common/views.js';
-import { checkZoneCity } from '../../common/zoneChecks.js';
+import { checkZoneMarket } from '../../common/zoneChecks.js';
 import { ListZoneShapesQuery, type ListZoneShapesResult } from './listZoneShapesQuery.js';
 
 export class ListZoneShapesQueryHandler implements IQueryHandler<ListZoneShapesQuery, ListZoneShapesResult> {
-  constructor(private readonly deps: { cities: IAdminCityRepository; zones: IAdminZoneRepository }) {}
+  constructor(private readonly deps: { markets: Pick<IAdminMarketRepository, 'getById'>; zones: IAdminZoneRepository }) {}
 
   async handle(query: ListZoneShapesQuery): Promise<ListZoneShapesResult> {
-    const city = await checkZoneCity(this.deps.cities, query.cityId);
-    if (city.outcome !== 'ok') return city;
-    return { outcome: 'ok', items: (await this.deps.zones.listByCity(query.cityId)).map(toZoneShape) };
+    const market = await checkZoneMarket(this.deps.markets, query.marketId);
+    if (market.outcome !== 'ok') return market;
+    return { outcome: 'ok', items: (await this.deps.zones.listByMarket(query.marketId)).map(toZoneShape) };
   }
 }

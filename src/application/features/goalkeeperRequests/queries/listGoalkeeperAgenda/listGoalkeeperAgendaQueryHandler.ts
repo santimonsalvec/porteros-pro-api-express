@@ -2,7 +2,7 @@ import type { IClock } from '../../../../common/clock.js';
 import type { IQueryHandler } from '../../../../common/mediator/types.js';
 import type { IUserRepository } from '../../../auth/common/ports.js';
 import type { IGoalkeeperProfileRepository } from '../../../goalkeepers/common/ports.js';
-import type { ICityRepository } from '../../../locations/common/ports.js';
+import type { IMarketRepository } from '../../../markets/common/ports.js';
 import type { IZoneRepository } from '../../../zones/common/ports.js';
 import { loadContacts } from '../../common/contacts.js';
 import type { CheckInWindowResolver } from '../../../bookingLifecycle/common/checkInWindowResolver.js';
@@ -16,7 +16,7 @@ export interface ListGoalkeeperAgendaDependencies {
   bookingRepository: IBookingRepository;
   requestRepository: IGoalkeeperRequestRepository;
   zoneRepository: IZoneRepository;
-  cityRepository: ICityRepository;
+  marketRepository: IMarketRepository;
   userRepository: IUserRepository;
   clock: IClock;
   /** The check-in window of each match's country (feature 020); a fresh one per page. */

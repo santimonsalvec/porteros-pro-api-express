@@ -31,15 +31,12 @@ function readerWith(collections: Record<string, FakeMongoCollection>) {
 }
 
 describe('RequestAdminReader (mocked driver, admin spec 006)', () => {
-  it('resolves a country into its cities, through its regions', async () => {
-    const regions = createFakeCollection();
-    const cities = createFakeCollection();
-    regions.find.mockReturnValue(toArrayResult([{ _id: 'ant' }, { _id: 'cun' }]));
-    cities.find.mockReturnValue(toArrayResult([{ _id: 'med' }, { _id: 'bello' }, { _id: 'bog' }]));
+  it('resolves a country into its markets (spec 031)', async () => {
+    const markets = createFakeCollection();
+    markets.find.mockReturnValue(toArrayResult([{ _id: 'med' }, { _id: 'bog' }]));
 
-    expect(await readerWith({ regions, cities }).cityIdsOfCountry('co')).toEqual(['med', 'bello', 'bog']);
-    expect(regions.find).toHaveBeenCalledWith({ countryId: 'co' }, { projection: { _id: 1 } });
-    expect(cities.find).toHaveBeenCalledWith({ regionId: { $in: ['ant', 'cun'] } }, { projection: { _id: 1 } });
+    expect(await readerWith({ markets }).marketIdsOfCountry('co')).toEqual(['med', 'bog']);
+    expect(markets.find).toHaveBeenCalledWith({ countryId: 'co' }, { projection: { _id: 1 } });
   });
 
   it("resolves a goalkeeper into the requests they held a booking of, up to the limit", async () => {
@@ -55,10 +52,10 @@ describe('RequestAdminReader (mocked driver, admin spec 006)', () => {
     goalkeeperRequests.find.mockReturnValue(toArrayResult([{ _id: 'r-2' }]));
     const reader = readerWith({ goalkeeperRequests });
 
-    expect(await reader.requestIdsInCities(['r-1', 'r-2'], ['med'])).toEqual(['r-2']);
-    expect(goalkeeperRequests.find).toHaveBeenCalledWith({ _id: { $in: ['r-1', 'r-2'] }, 'match.cityId': { $in: ['med'] } }, { projection: { _id: 1 } });
-    expect(await reader.requestIdsInCities([], ['med'])).toEqual([]);
-    expect(await reader.requestIdsInCities(['r-1'], [])).toEqual([]);
+    expect(await reader.requestIdsInMarkets(['r-1', 'r-2'], ['med'])).toEqual(['r-2']);
+    expect(goalkeeperRequests.find).toHaveBeenCalledWith({ _id: { $in: ['r-1', 'r-2'] }, 'match.marketId': { $in: ['med'] } }, { projection: { _id: 1 } });
+    expect(await reader.requestIdsInMarkets([], ['med'])).toEqual([]);
+    expect(await reader.requestIdsInMarkets(['r-1'], [])).toEqual([]);
     expect(goalkeeperRequests.find).toHaveBeenCalledTimes(1);
   });
 
@@ -73,7 +70,7 @@ describe('RequestAdminReader (mocked driver, admin spec 006)', () => {
               clientId: 'c-1',
               startsAt,
               zoneId: 'laureles',
-              match: { cityId: 'med', timeZone: 'America/Bogota', goalkeeperCount: 2 },
+              match: { marketId: 'med', timeZone: 'America/Bogota', goalkeeperCount: 2 },
               pricing: { total: 120000, currency: 'COP' },
               createdAt: request.createdAt,
               pending: 1,
@@ -88,7 +85,7 @@ describe('RequestAdminReader (mocked driver, admin spec 006)', () => {
       ]),
     );
 
-    const result = await readerWith({ goalkeeperRequests }).list({ cityIds: ['med'], page: 1, pageSize: 20 });
+    const result = await readerWith({ goalkeeperRequests }).list({ marketIds: ['med'], page: 1, pageSize: 20 });
 
     expect(result).toEqual({
       totalItems: 9,
@@ -98,7 +95,7 @@ describe('RequestAdminReader (mocked driver, admin spec 006)', () => {
           clientId: 'c-1',
           startsAt,
           timeZone: 'America/Bogota',
-          cityId: 'med',
+          marketId: 'med',
           zoneId: 'laureles',
           goalkeeperCount: 2,
           counts: { pending: 1, assigned: 1, completed: 0, cancelled: 0, expired: 0 },
@@ -108,14 +105,14 @@ describe('RequestAdminReader (mocked driver, admin spec 006)', () => {
         },
       ],
     });
-    expect(goalkeeperRequests.aggregate.mock.calls[0]![0][0]).toEqual({ $match: { 'match.cityId': { $in: ['med'] } } });
+    expect(goalkeeperRequests.aggregate.mock.calls[0]![0][0]).toEqual({ $match: { 'match.marketId': { $in: ['med'] } } });
   });
 
   it('answers no requests when a filter resolved to nothing, without asking Mongo', async () => {
     const goalkeeperRequests = createFakeCollection();
     const reader = readerWith({ goalkeeperRequests });
 
-    expect(await reader.list({ cityIds: [], page: 1, pageSize: 20 })).toEqual({ items: [], totalItems: 0 });
+    expect(await reader.list({ marketIds: [], page: 1, pageSize: 20 })).toEqual({ items: [], totalItems: 0 });
     expect(await reader.list({ requestIds: [], page: 1, pageSize: 20 })).toEqual({ items: [], totalItems: 0 });
     expect(goalkeeperRequests.aggregate).not.toHaveBeenCalled();
   });
@@ -127,6 +124,7 @@ describe('RequestAdminReader (mocked driver, admin spec 006)', () => {
       goalkeeperId: 'gk-2',
       bookingId: pending!.id,
       requestId: 'r-1',
+      marketId: 'city-cali',
       startsAt,
       occurredAt: new Date('2026-10-18T02:00:00.000Z'),
       noticeMinutes: 1380,

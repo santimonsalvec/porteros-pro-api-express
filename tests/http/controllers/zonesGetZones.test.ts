@@ -16,41 +16,31 @@ async function signIn(
 }
 
 describe('GET /zones', () => {
-  it('returns a city\'s active zones', async () => {
+  it('returns a market\'s active zones', async () => {
     const { app, googleValidator } = await buildTestApp();
     const accessToken = await signIn(app, googleValidator, 'good-token', 'sub-1');
 
-    const response = await request(app).get('/zones?cityId=city-medellin').set('Authorization', `Bearer ${accessToken}`);
+    const response = await request(app).get('/zones?marketId=city-medellin').set('Authorization', `Bearer ${accessToken}`);
 
     expect(response.status).toBe(200);
     expect(response.body.zones.map((z: { id: string }) => z.id)).toEqual(['zone-bello', 'zone-copacabana']);
   });
 
-  it('resolves a satellite city to its anchor\'s zones', async () => {
-    const { app, googleValidator } = await buildTestApp();
-    const accessToken = await signIn(app, googleValidator, 'good-token', 'sub-2');
-
-    const response = await request(app).get('/zones?cityId=city-envigado').set('Authorization', `Bearer ${accessToken}`);
-
-    expect(response.status).toBe(200);
-    expect(response.body.zones.map((z: { id: string }) => z.id)).toEqual(['zone-bello', 'zone-copacabana']);
-  });
-
-  it('returns 404 city_not_found for an unknown cityId', async () => {
+  it('returns 404 market_not_found for an unknown marketId', async () => {
     const { app, googleValidator } = await buildTestApp();
     const accessToken = await signIn(app, googleValidator, 'good-token', 'sub-3');
 
-    const response = await request(app).get('/zones?cityId=does-not-exist').set('Authorization', `Bearer ${accessToken}`);
+    const response = await request(app).get('/zones?marketId=does-not-exist').set('Authorization', `Bearer ${accessToken}`);
 
     expect(response.status).toBe(404);
-    expect(response.body.error).toBe('city_not_found');
+    expect(response.body.error).toBe('market_not_found');
   });
 
   it('returns 404 no_zones_configured for a city with no active zones', async () => {
     const { app, googleValidator } = await buildTestApp();
     const accessToken = await signIn(app, googleValidator, 'good-token', 'sub-4');
 
-    const response = await request(app).get('/zones?cityId=city-bogota').set('Authorization', `Bearer ${accessToken}`);
+    const response = await request(app).get('/zones?marketId=city-bogota').set('Authorization', `Bearer ${accessToken}`);
 
     expect(response.status).toBe(404);
     expect(response.body.error).toBe('no_zones_configured');
@@ -59,7 +49,7 @@ describe('GET /zones', () => {
   it('rejects requests with no token', async () => {
     const { app } = await buildTestApp();
 
-    const response = await request(app).get('/zones?cityId=city-medellin');
+    const response = await request(app).get('/zones?marketId=city-medellin');
 
     expect(response.status).toBe(401);
   });
@@ -68,12 +58,12 @@ describe('GET /zones', () => {
     const context = await buildTestApp();
     const { editor } = await geographyStaff(context);
     const accessToken = await signIn(context.app, context.googleValidator, 'good-token', 'sub-9');
-    const zones = () => request(context.app).get('/zones?cityId=city-bogota').set('Authorization', `Bearer ${accessToken}`);
+    const zones = () => request(context.app).get('/zones?marketId=city-bogota').set('Authorization', `Bearer ${accessToken}`);
     const ring = [[-74.1, 4.6], [-74.08, 4.6], [-74.08, 4.62], [-74.1, 4.62], [-74.1, 4.6]];
 
     const before = await zones();
     const created = await editor.post('/admin/zones', {
-      cityId: 'city-bogota', name: 'Chapinero', slug: 'chapinero', geometry: { type: 'Polygon', coordinates: [ring] }, active: true, displayOrder: 1,
+      marketId: 'city-bogota', name: 'Chapinero', slug: 'chapinero', geometry: { type: 'Polygon', coordinates: [ring] }, active: true, displayOrder: 1,
     });
     const opened = await zones();
     await editor.patch(`/admin/zones/${created.body.id}`, { revision: 0, active: false, reason: 'Prueba' });

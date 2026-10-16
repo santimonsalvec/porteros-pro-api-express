@@ -3,13 +3,19 @@ import { Zone } from '../../../../src/domain/zones/zone.js';
 
 const base = {
   id: 'z1',
-  cityId: 'med',
+  marketId: 'med',
   name: 'Laureles',
   slug: 'laureles',
   geometry: { type: 'Polygon' as const, coordinates: [] },
   active: true,
   displayOrder: 1,
 };
+
+describe('Zone market', () => {
+  it('belongs to one market (spec 031, FR-002)', () => {
+    expect(new Zone(base).marketId).toBe('med');
+  });
+});
 
 describe('Zone revision', () => {
   it('defaults to 0 and keeps a stored value', () => {

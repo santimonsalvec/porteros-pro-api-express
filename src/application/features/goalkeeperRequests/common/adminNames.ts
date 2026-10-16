@@ -12,18 +12,18 @@ export async function personNames(deps: Pick<RequestsAdminDependencies, 'users'>
 
 /** Cities and zones by id, as `{ id, name }`. */
 export async function placeNames(
-  deps: Pick<RequestsAdminDependencies, 'cities' | 'zones'>,
-  cityIds: readonly string[],
+  deps: Pick<RequestsAdminDependencies, 'markets' | 'zones'>,
+  marketIds: readonly string[],
   zoneIds: readonly string[],
-): Promise<{ city: (id: string) => PlaceRef; zone: (id: string) => PlaceRef }> {
-  const [cities, zones] = await Promise.all([
-    cityIds.length > 0 ? deps.cities.getByIds([...new Set(cityIds)]) : [],
+): Promise<{ market: (id: string) => PlaceRef; zone: (id: string) => PlaceRef }> {
+  const [markets, zones] = await Promise.all([
+    marketIds.length > 0 ? deps.markets.getByIds([...new Set(marketIds)]) : [],
     zoneIds.length > 0 ? deps.zones.getManyByIds([...new Set(zoneIds)]) : [],
   ]);
-  const cityNames = new Map(cities.map((city) => [city.id, city.name]));
+  const marketNames = new Map(markets.map((market) => [market.id, market.name]));
   const zoneNames = new Map(zones.map((zone) => [zone.id, zone.name]));
   return {
-    city: (id) => ({ id, name: cityNames.get(id) ?? null }),
+    market: (id) => ({ id, name: marketNames.get(id) ?? null }),
     zone: (id) => ({ id, name: zoneNames.get(id) ?? null }),
   };
 }

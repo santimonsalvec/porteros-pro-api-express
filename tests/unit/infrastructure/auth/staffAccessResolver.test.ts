@@ -41,6 +41,16 @@ describe('StaffAccessResolver', () => {
     expect(access?.role.id).toBe('soporte');
   });
 
+  it("resolves the member's scopes, and a change applies at once in this process after invalidate (spec 031)", async () => {
+    expect((await resolver.resolve('sid-1'))?.member.scopes).toEqual([{ kind: 'platform' }]);
+
+    await members.update((await members.getById('staff-1'))!.changeScopes([{ kind: 'market', id: 'med' }], clock.now()));
+    expect((await resolver.resolve('sid-1'))?.member.scopes).toEqual([{ kind: 'platform' }]);
+    resolver.invalidate();
+
+    expect((await resolver.resolve('sid-1'))?.member.scopes).toEqual([{ kind: 'market', id: 'med' }]);
+  });
+
   it('gives an owner the whole catalog', async () => {
     await members.update((await members.getById('staff-1'))!.changeRole('owner', clock.now()));
 

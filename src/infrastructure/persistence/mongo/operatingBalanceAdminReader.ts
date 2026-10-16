@@ -1,3 +1,4 @@
+import { MARKETS_COLLECTION } from './marketRepository.js';
 import type { Collection, Db, Document } from 'mongodb';
 import type { IOperatingBalanceAdminReader, OperatingBalanceAdminFilter, OperatingBalanceAdminRecord } from '../../../application/features/operatingBalance/common/adminPorts.js';
 import { operatingBalanceAdminFilter, operatingBalanceAdminSort } from './operatingBalanceAdminPipelines.js';
@@ -10,18 +11,16 @@ import { OPERATING_BALANCES_COLLECTION } from './operatingBalanceRepository.js';
 export class OperatingBalanceAdminReader implements IOperatingBalanceAdminReader {
   private readonly operatingBalances: Collection<Document>;
   private readonly profiles: Collection<Document>;
-  private readonly cities: Collection<Document>;
-  private readonly regions: Collection<Document>;
+  private readonly markets: Collection<Document>;
 
   constructor(db: Db) {
     this.operatingBalances = db.collection(OPERATING_BALANCES_COLLECTION);
     this.profiles = db.collection('goalkeeperProfiles');
-    this.cities = db.collection('cities');
-    this.regions = db.collection('regions');
+    this.markets = db.collection(MARKETS_COLLECTION);
   }
 
   async list(filter: OperatingBalanceAdminFilter & { page: number; pageSize: number }): Promise<{ items: OperatingBalanceAdminRecord[]; totalItems: number }> {
-    const goalkeeperIds = filter.countryId ? await this.goalkeepersOf(filter.countryId) : undefined;
+    const goalkeeperIds = filter.countryId || filter.marketIds ? await this.goalkeepersOf(filter.countryId, filter.marketIds) : undefined;
     if (goalkeeperIds?.length === 0) return { items: [], totalItems: 0 };
     const match = operatingBalanceAdminFilter({ goalkeeperIds, negative: filter.negative });
     const [docs, totalItems] = await Promise.all([
@@ -34,26 +33,26 @@ export class OperatingBalanceAdminReader implements IOperatingBalanceAdminReader
       this.operatingBalances.countDocuments(match),
     ]);
     const ids = docs.map((doc) => String(doc._id));
-    const profiles = ids.length > 0 ? await this.profiles.find({ userId: { $in: ids } }, { projection: { userId: 1, cityId: 1 } }).toArray() : [];
-    const cityOf = new Map(profiles.map((profile) => [profile.userId as string, (profile.cityId as string | null | undefined) ?? null]));
+    const profiles = ids.length > 0 ? await this.profiles.find({ userId: { $in: ids } }, { projection: { userId: 1, marketId: 1 } }).toArray() : [];
+    const marketOf = new Map(profiles.map((profile) => [profile.userId as string, (profile.marketId as string | null | undefined) ?? null]));
     return {
       items: docs.map((doc) => ({
         goalkeeperId: String(doc._id),
         currency: doc.currency as string,
         balance: doc.balance as number,
         lastMovementAt: new Date(doc.updatedAt as Date),
-        cityId: cityOf.get(String(doc._id)) ?? null,
+        marketId: marketOf.get(String(doc._id)) ?? null,
       })),
       totalItems,
     };
   }
 
-  private async goalkeepersOf(countryId: string): Promise<string[]> {
-    const regionIds = (await this.regions.find({ countryId }, { projection: { _id: 1 } }).toArray()).map((doc) => doc._id);
-    if (regionIds.length === 0) return [];
-    const cityIds = (await this.cities.find({ regionId: { $in: regionIds.map(String) } }, { projection: { _id: 1 } }).toArray()).map((doc) => String(doc._id));
-    if (cityIds.length === 0) return [];
-    const profiles = await this.profiles.find({ cityId: { $in: cityIds } }, { projection: { userId: 1 } }).toArray();
+  /** The goalkeepers playing now in the country's markets, or in those of `only` (spec 031: today's data). */
+  private async goalkeepersOf(countryId: string | undefined, only: readonly string[] | undefined): Promise<string[]> {
+    const ofCountry = countryId ? (await this.markets.find({ countryId }, { projection: { _id: 1 } }).toArray()).map((doc) => String(doc._id)) : undefined;
+    const marketIds = ofCountry && only ? ofCountry.filter((id) => only.includes(id)) : (ofCountry ?? [...(only ?? [])]);
+    if (marketIds.length === 0) return [];
+    const profiles = await this.profiles.find({ marketId: { $in: marketIds } }, { projection: { userId: 1 } }).toArray();
     return profiles.map((profile) => profile.userId as string);
   }
 }

@@ -1,58 +1,41 @@
 import type { Country } from '../../../../../domain/countries/country.js';
-import type { City } from '../../../../../domain/locations/city.js';
 import type { IQueryHandler } from '../../../../common/mediator/types.js';
-import { cityReadiness, countryReadiness, readinessForCities, type ReadinessDependencies } from '../../common/readiness.js';
-import { cityState } from '../../common/views.js';
-import { GetReadinessQuery, type CityReadinessView, type CountryReadinessView, type GetReadinessResult } from './getReadinessQuery.js';
+import type { IAdminMarketRepository } from '../../../markets/common/ports.js';
+import { countryReadiness, marketReadiness, readinessForMarkets, type ReadinessDependencies } from '../../common/readiness.js';
+import { GetReadinessQuery, type CountryReadinessView, type GetReadinessResult, type MarketReadinessView } from './getReadinessQuery.js';
 
-/** More operating cities than a country will ever have: the dashboard lists them all. */
-const ALL_OPERATING = 1000;
+export type GetReadinessDependencies = ReadinessDependencies & { markets: Pick<IAdminMarketRepository, 'getById' | 'listByCountry'> };
 
 export class GetReadinessQueryHandler implements IQueryHandler<GetReadinessQuery, GetReadinessResult> {
-  constructor(private readonly deps: ReadinessDependencies) {}
+  constructor(private readonly deps: GetReadinessDependencies) {}
 
   async handle(query: GetReadinessQuery): Promise<GetReadinessResult> {
-    return query.cityId !== null ? this.city(query.cityId) : this.country(query.countryId ?? '');
+    return query.marketId !== null ? this.market(query.marketId) : this.country(query.countryId ?? '');
   }
 
   private async country(countryId: string): Promise<GetReadinessResult> {
     const country = await this.deps.countries.getById(countryId);
     if (!country) return { outcome: 'country_not_found' };
-    const regions = await this.deps.regions.getByCountry(country.id);
-    const regionIds = regions.map((region) => region.id);
-    const zoneOwnerIds = await this.deps.zones.zoneOwnerIds();
-    const [operating, available] =
-      regionIds.length === 0
-        ? [{ items: [] as City[] }, { totalItems: 0 }]
-        : await Promise.all([
-            this.deps.cities.list({ regionIds, state: 'operating', zoneOwnerIds, page: 1, pageSize: ALL_OPERATING }),
-            this.deps.cities.list({ regionIds, state: 'available', zoneOwnerIds, page: 1, pageSize: 1 }),
-          ]);
-    const regionName = new Map(regions.map((region) => [region.id, region.name]));
-    // The checklists of every operating city in one batch, beside the country's own.
-    const [results, countryView] = await Promise.all([readinessForCities(this.deps, operating.items), this.countryView(country)]);
-    const cities = operating.items.map((city) => {
-      const { ready, missingCount } = results.get(city.id)!;
-      return { cityId: city.id, name: city.name, regionName: regionName.get(city.regionId) ?? '', ready, missingCount };
+    const markets = await this.deps.markets.listByCountry(country.id);
+    // The checklists of every market in one batch, beside the country's own.
+    const [results, countryView] = await Promise.all([readinessForMarkets(this.deps, markets), this.countryView(country)]);
+    const rows = markets.map((market) => {
+      const { ready, missingCount } = results.get(market.id)!;
+      return { marketId: market.id, name: market.name, status: market.status, ready, missingCount };
     });
-    return { outcome: 'country', dashboard: { country: countryView, cities, availableCityCount: available.totalItems } };
+    return { outcome: 'country', dashboard: { country: countryView, markets: rows } };
   }
 
-  private async city(cityId: string): Promise<GetReadinessResult> {
-    const city = await this.deps.cities.getById(cityId);
-    if (!city) return { outcome: 'city_not_found' };
-    const region = await this.deps.regions.getById(city.regionId);
-    const country = region?.countryId ? await this.deps.countries.getById(region.countryId) : null;
-    const zones = await this.deps.zones.countByCity([city.id]);
-    const state = cityState(city, zones.get(city.id) ?? 0);
-    const countryView = country ? this.countryView(country) : Promise.resolve(null);
-    if (state === 'available') {
-      return { outcome: 'city', readiness: { cityId: city.id, name: city.name, state, country: await countryView, ready: false, missingCount: 0, items: [] } };
-    }
-    const [{ items, ready, missingCount }, countryResult] = await Promise.all([cityReadiness(this.deps, city), countryView]);
-    const base = { cityId: city.id, name: city.name, state, country: countryResult };
-    const readiness: CityReadinessView = { ...base, items, ready, missingCount };
-    return { outcome: 'city', readiness };
+  private async market(marketId: string): Promise<GetReadinessResult> {
+    const market = await this.deps.markets.getById(marketId);
+    if (!market) return { outcome: 'market_not_found' };
+    const country = await this.deps.countries.getById(market.countryId);
+    const [{ items, ready, missingCount }, countryResult] = await Promise.all([
+      marketReadiness(this.deps, market),
+      country ? this.countryView(country) : Promise.resolve(null),
+    ]);
+    const readiness: MarketReadinessView = { marketId: market.id, name: market.name, status: market.status, country: countryResult, items, ready, missingCount };
+    return { outcome: 'market', readiness };
   }
 
   private async countryView(country: Country): Promise<CountryReadinessView> {

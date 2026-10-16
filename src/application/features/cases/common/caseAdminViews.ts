@@ -22,7 +22,7 @@ export interface CaseAdminItem {
   noShowIncidentId: string | null;
   createdAt: string;
   resolution: { by: MemberRef; at: string; note: string } | null;
-  match: { startsAt: string; timeZone: string; city: PlaceRef; zone: PlaceRef } | null;
+  match: { startsAt: string; timeZone: string; market: PlaceRef; zone: PlaceRef } | null;
   client: PersonRef;
   goalkeeper: PersonRef;
 }
@@ -40,7 +40,7 @@ export async function caseItems(deps: CasesAdminDependencies, cases: readonly Su
   const requestsById = new Map(requests.map((request) => [request.id, request]));
   const [people, places, members] = await Promise.all([
     personNames(deps, cases.flatMap((item) => [item.clientId, item.goalkeeperId])),
-    placeNames(deps, requests.map((request) => request.match.cityId), requests.map((request) => request.zoneId)),
+    placeNames(deps, requests.map((request) => request.match.marketId), requests.map((request) => request.zoneId)),
     resolvers(deps, cases),
   ]);
   return cases.map((item) => {
@@ -69,11 +69,11 @@ export function ratingView(rating: Rating | null): CaseAdminDetail['rating'] {
   return rating ? { side: rating.side, answer: rating.answer, stars: rating.stars, comment: rating.comment, createdAt: rating.createdAt.toISOString() } : null;
 }
 
-function matchOf(request: GoalkeeperRequest, places: { city: (id: string) => PlaceRef; zone: (id: string) => PlaceRef }): CaseAdminItem['match'] {
+function matchOf(request: GoalkeeperRequest, places: { market: (id: string) => PlaceRef; zone: (id: string) => PlaceRef }): CaseAdminItem['match'] {
   return {
     startsAt: request.startsAt.toISOString(),
     timeZone: request.match.timeZone,
-    city: places.city(request.match.cityId),
+    market: places.market(request.match.marketId),
     zone: places.zone(request.zoneId),
   };
 }

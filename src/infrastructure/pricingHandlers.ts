@@ -1,3 +1,4 @@
+import type { OfferReminderValues } from '../application/features/notifications/common/offerReminders.js';
 import type { HandlerRegistration } from '../application/common/mediator/mediator.js';
 import type { IClock } from '../application/common/clock.js';
 import type { IIdGenerator } from '../application/features/auth/common/ports.js';
@@ -42,12 +43,12 @@ import { GetCommissionDeleteImpactQuery } from '../application/features/pricing/
 import { GetCommissionDeleteImpactQueryHandler } from '../application/features/pricing/queries/getCommissionDeleteImpact/getCommissionDeleteImpactQueryHandler.js';
 import { GetCountryBookingSettingsQuery } from '../application/features/pricing/queries/getCountryBookingSettings/getCountryBookingSettingsQuery.js';
 import { GetCountryBookingSettingsQueryHandler } from '../application/features/pricing/queries/getCountryBookingSettings/getCountryBookingSettingsQueryHandler.js';
-import { GetCityBookingSettingsQuery } from '../application/features/pricing/queries/getCityBookingSettings/getCityBookingSettingsQuery.js';
-import { GetCityBookingSettingsQueryHandler } from '../application/features/pricing/queries/getCityBookingSettings/getCityBookingSettingsQueryHandler.js';
+import { GetMarketBookingSettingsQuery } from '../application/features/pricing/queries/getMarketBookingSettings/getMarketBookingSettingsQuery.js';
+import { GetMarketBookingSettingsQueryHandler } from '../application/features/pricing/queries/getMarketBookingSettings/getMarketBookingSettingsQueryHandler.js';
 import { SaveCountryBookingSettingsCommand } from '../application/features/pricing/commands/saveCountryBookingSettings/saveCountryBookingSettingsCommand.js';
 import { SaveCountryBookingSettingsCommandHandler } from '../application/features/pricing/commands/saveCountryBookingSettings/saveCountryBookingSettingsCommandHandler.js';
-import { SaveCityBookingSettingsCommand } from '../application/features/pricing/commands/saveCityBookingSettings/saveCityBookingSettingsCommand.js';
-import { SaveCityBookingSettingsCommandHandler } from '../application/features/pricing/commands/saveCityBookingSettings/saveCityBookingSettingsCommandHandler.js';
+import { SaveMarketBookingSettingsCommand } from '../application/features/pricing/commands/saveMarketBookingSettings/saveMarketBookingSettingsCommand.js';
+import { SaveMarketBookingSettingsCommandHandler } from '../application/features/pricing/commands/saveMarketBookingSettings/saveMarketBookingSettingsCommandHandler.js';
 
 /** The admin's stores plus, for the simulator, the very repositories and resolver the quote reads. */
 export interface PricingHandlerDependencies extends PricingGeographyDependencies, Omit<PricingPreviewDependencies, 'taxSettings' | 'clock'> {
@@ -59,6 +60,8 @@ export interface PricingHandlerDependencies extends PricingGeographyDependencies
   taxSettings: ITaxSettingsRepository;
   ids: IIdGenerator;
   clock: IClock;
+  /** The environment's offer reminder values, shown as the platform level (spec 031, research §6). */
+  platformReminders?: OfferReminderValues;
 }
 
 /**
@@ -80,9 +83,9 @@ export function pricingHandlerRegistrations(deps: PricingHandlerDependencies): H
     { requestType: UpdateCommissionCommand, handler: new UpdateCommissionCommandHandler(deps) },
     { requestType: DeleteCommissionCommand, handler: new DeleteCommissionCommandHandler(deps) },
     { requestType: GetCountryBookingSettingsQuery, handler: new GetCountryBookingSettingsQueryHandler(deps) },
-    { requestType: GetCityBookingSettingsQuery, handler: new GetCityBookingSettingsQueryHandler(deps) },
+    { requestType: GetMarketBookingSettingsQuery, handler: new GetMarketBookingSettingsQueryHandler(deps) },
     { requestType: SaveCountryBookingSettingsCommand, handler: new SaveCountryBookingSettingsCommandHandler(deps) },
-    { requestType: SaveCityBookingSettingsCommand, handler: new SaveCityBookingSettingsCommandHandler(deps) },
+    { requestType: SaveMarketBookingSettingsCommand, handler: new SaveMarketBookingSettingsCommandHandler(deps) },
     { requestType: GetPricingPreviewQuery, handler: new GetPricingPreviewQueryHandler(deps) },
     { requestType: ListPricingAreasQuery, handler: new ListPricingAreasQueryHandler(deps) },
     { requestType: ListUnverifiedDiscountsQuery, handler: new ListUnverifiedDiscountsQueryHandler(deps) },

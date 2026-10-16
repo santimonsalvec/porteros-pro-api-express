@@ -10,7 +10,7 @@ import { ListRequestsAdminQueryHandler } from '../../../../../src/application/fe
 import { Booking } from '../../../../../src/domain/bookings/booking.js';
 import { SupportCase } from '../../../../../src/domain/cases/case.js';
 import { GoalkeeperIncident } from '../../../../../src/domain/goalkeepers/goalkeeperIncident.js';
-import type { City } from '../../../../../src/domain/locations/city.js';
+import type { Market } from '../../../../../src/domain/markets/market.js';
 import { Rating } from '../../../../../src/domain/ratings/rating.js';
 import type { StaffMember } from '../../../../../src/domain/staff/staffMember.js';
 import { User } from '../../../../../src/domain/users/user.js';
@@ -69,26 +69,26 @@ function detailRecord(overrides: Partial<RequestDetailRecord> = {}): RequestDeta
 
 describe('the admin request queries (admin spec 006, US1)', () => {
   let listed: RequestListFilter[];
-  let cityIdsOfCountry: string[];
+  let marketIdsOfCountry: string[];
   let goalkeeperRequestIds: string[];
   let detail: RequestDetailRecord | null;
   let deps: RequestsAdminDependencies;
 
   beforeEach(() => {
     listed = [];
-    cityIdsOfCountry = ['med', 'bello'];
+    marketIdsOfCountry = ['med', 'bello'];
     goalkeeperRequestIds = ['r-1'];
     detail = detailRecord();
     const reader: IRequestAdminReader = {
-      cityIdsOfCountry: async () => cityIdsOfCountry,
+      marketIdsOfCountry: async () => marketIdsOfCountry,
       requestIdsOfGoalkeeper: async (_id, limit) => goalkeeperRequestIds.slice(0, limit),
-      requestIdsInCities: async (ids) => [...ids],
+      requestIdsInMarkets: async (ids) => [...ids],
       list: async (filter) => {
         listed.push(filter);
         return {
           totalItems: 1,
           items: [{
-            requestId: 'r-1', clientId: request.clientId, startsAt, timeZone: 'America/Bogota', cityId: request.match.cityId, zoneId: request.zoneId,
+            requestId: 'r-1', clientId: request.clientId, startsAt, timeZone: 'America/Bogota', marketId: request.match.marketId, zoneId: request.zoneId,
             goalkeeperCount: 2, counts: { pending: 1, assigned: 1, completed: 0, cancelled: 0, expired: 0 }, total: 120000, currency: 'COP', createdAt: request.createdAt,
           }],
         };
@@ -100,7 +100,7 @@ describe('the admin request queries (admin spec 006, US1)', () => {
     deps = {
       reader,
       users: { getByIds: async (ids) => PEOPLE.filter((user) => ids.includes(user.id)) },
-      cities: { getByIds: async (ids) => ids.map((id) => ({ id, name: id === request.match.cityId ? 'Medellín' : id }) as City) },
+      markets: { getByIds: async (ids) => ids.map((id) => ({ id, name: id === request.match.marketId ? 'Medellín' : id }) as Market) },
       zones: { getManyByIds: async (ids) => ids.map((id) => ({ id, name: 'Laureles' }) as Zone) },
       staff: { findByUserId: async (userId) => (userId === 'staff-user-1' ? ({ displayName: 'Ana Soporte', email: 'ana@porteros.pro' } as StaffMember) : null) },
       clock: { now: () => NOW },
@@ -121,7 +121,7 @@ describe('the admin request queries (admin spec 006, US1)', () => {
           totalPages: 1,
           items: [{
             requestId: 'r-1',
-            match: { startsAt: startsAt.toISOString(), timeZone: 'America/Bogota', city: { id: request.match.cityId, name: 'Medellín' }, zone: { id: request.zoneId, name: 'Laureles' } },
+            match: { startsAt: startsAt.toISOString(), timeZone: 'America/Bogota', market: { id: request.match.marketId, name: 'Medellín' }, zone: { id: request.zoneId, name: 'Laureles' } },
             client: { userId: request.clientId, name: 'Laura Gómez' },
             goalkeepersRequested: 2,
             goalkeepersAssigned: 1,
@@ -137,12 +137,12 @@ describe('the admin request queries (admin spec 006, US1)', () => {
       const from = new Date('2026-10-18T05:00:00.000Z');
       await list({ status: 'searching', zoneId: 'z', clientId: 'c', from, to: NOW });
       await list({ countryId: 'co' });
-      await list({ countryId: 'co', cityId: 'med' });
+      await list({ countryId: 'co', marketId: 'med' });
 
       expect(listed[0]).toMatchObject({ status: 'searching', zoneId: 'z', clientId: 'c', from, to: NOW, page: 1, pageSize: 20 });
-      expect(listed[0]!.cityIds).toBeUndefined();
-      expect(listed[1]!.cityIds).toEqual(['med', 'bello']);
-      expect(listed[2]!.cityIds).toEqual(['med']);
+      expect(listed[0]!.marketIds).toBeUndefined();
+      expect(listed[1]!.marketIds).toEqual(['med', 'bello']);
+      expect(listed[2]!.marketIds).toEqual(['med']);
     });
 
     it("narrows to a goalkeeper's requests, and asks to narrow when they are too many", async () => {
@@ -168,7 +168,7 @@ describe('the admin request queries (admin spec 006, US1)', () => {
         match: {
           startsAt: startsAt.toISOString(),
           timeZone: request.match.timeZone,
-          city: { id: request.match.cityId, name: 'Medellín' },
+          market: { id: request.match.marketId, name: 'Medellín' },
           zone: { id: request.zoneId, name: 'Laureles' },
           latitude: request.match.latitude,
           longitude: request.match.longitude,
@@ -215,7 +215,7 @@ describe('the admin request queries (admin spec 006, US1)', () => {
     it('gives the incidents with their penalties and reversals', async () => {
       detail = detailRecord({
         incidents: [GoalkeeperIncident.rehydrate({
-          id: 'w-1', kind: 'withdrawal', goalkeeperId: 'gk-2', bookingId: cancelled.id, requestId: 'r-1', startsAt, occurredAt: NOW, noticeMinutes: 1380, late: true,
+          id: 'w-1', kind: 'withdrawal', goalkeeperId: 'gk-2', bookingId: cancelled.id, requestId: 'r-1', marketId: 'city-cali', startsAt, occurredAt: NOW, noticeMinutes: 1380, late: true,
           reason: 'Me lesioné', replacementBookingId: 'r-1-b3',
           penalties: [{ id: 'p-1', kind: 'late', days: 3, startsAt: NOW, endsAt: new Date('2026-10-22T12:00:00.000Z'), reversal: { by: 'staff-user-1', at: NOW, reason: 'Lluvia' } }],
           moneyReversal: null, forgivenAt: null,

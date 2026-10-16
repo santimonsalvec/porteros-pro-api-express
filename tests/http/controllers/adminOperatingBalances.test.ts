@@ -25,7 +25,7 @@ describe('admin operatingBalances (spec 007 of the admin, US3)', () => {
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({ totalItems: 2, page: 1, pageSize: 20 });
     expect(response.body.items.map((row: { goalkeeper: { userId: string } }) => row.goalkeeper.userId)).toEqual([g1.userId, g2.userId]);
-    expect(response.body.items[0]).toMatchObject({ balance: 20000, currency: 'COP', cityName: 'Cali', countryName: 'Colombia' });
+    expect(response.body.items[0]).toMatchObject({ balance: 20000, currency: 'COP', marketName: 'Cali', countryName: 'Colombia' });
     expect((await adminGet(context, '/admin/operating-balances?negative=true', owner.token)).body.totalItems).toBe(0);
   });
 

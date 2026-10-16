@@ -1,3 +1,4 @@
+import type { RequireScopeDependencies } from './infrastructure/auth/middleware/requireScope.js';
 import type { IPublisher, ISender } from './application/common/mediator/types.js';
 import type { AccessTokenClaims } from './application/features/auth/common/accessTokenClaims.js';
 import type { HealthReportResponse } from './infrastructure/healthChecks/healthReport.js';
@@ -19,6 +20,8 @@ export interface AdminWebDependencies {
   sessionCookieSecure: boolean;
   newId: () => string;
   now: () => Date;
+  /** What `X-Scope` is checked against (spec 031): markets and countries. */
+  scope?: RequireScopeDependencies;
 }
 
 /**

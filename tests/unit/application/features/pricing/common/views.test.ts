@@ -7,8 +7,8 @@ const zoneTarget: PriceTarget = {
   countryId: 'co',
   countryName: 'Colombia',
   currency: 'COP',
-  cityId: 'med',
-  cityName: 'Medellín',
+  marketId: 'med',
+  marketName: 'Medellín',
   zoneId: 'bello',
   zoneName: 'Bello',
   zoneActive: true,
@@ -27,7 +27,7 @@ const rate: RentalRateRecord = {
 };
 
 const commission: CommissionRecord = { id: 'c1', scope: 'country', refId: 'co', modality: 'futbol_11', level: null, amount: 7000, revision: 0, invalid: false };
-const countryTarget: PriceTarget = { ...zoneTarget, cityId: null, cityName: null, zoneId: null, zoneName: null, zoneActive: null };
+const countryTarget: PriceTarget = { ...zoneTarget, marketId: null, marketName: null, zoneId: null, zoneName: null, zoneActive: null };
 
 describe('rentalRateView', () => {
   it('joins the rate with its target', () => {
@@ -44,8 +44,8 @@ describe('rentalRateView', () => {
       currency: 'COP',
       countryId: 'co',
       countryName: 'Colombia',
-      cityId: 'med',
-      cityName: 'Medellín',
+      marketId: 'med',
+      marketName: 'Medellín',
       zoneName: 'Bello',
       zoneActive: true,
       targetValid: true,
@@ -54,7 +54,7 @@ describe('rentalRateView', () => {
 
   it('marks a rate whose target no longer exists', () => {
     const missing: PriceTarget = { ...countryTarget, valid: false, countryId: null, countryName: null, currency: null };
-    expect(rentalRateView(rate, missing)).toMatchObject({ targetValid: false, currency: null, cityName: null });
+    expect(rentalRateView(rate, missing)).toMatchObject({ targetValid: false, currency: null, marketName: null });
   });
 });
 

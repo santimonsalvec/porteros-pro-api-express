@@ -10,15 +10,16 @@ function repositoryWith(collection: ReturnType<typeof createFakeCollection>) {
 }
 
 describe('CityRepository (mocked driver)', () => {
-  it('maps getById result, defaulting zoneCityId to null when absent', async () => {
+  it('maps getById result, ignoring the operation fields of the old catalog (spec 031)', async () => {
     const collection = createFakeCollection();
-    collection.findOne.mockResolvedValue({ _id: 'city-medellin', name: 'Medellín', regionId: 'region-antioquia' });
+    collection.findOne.mockResolvedValue({ _id: 'city-medellin', name: 'Medellín', regionId: 'region-antioquia', zoneCityId: null, timeZone: 'America/Bogota' });
     const repository = repositoryWith(collection);
 
     const found = await repository.getById('city-medellin');
 
     expect(found?.name).toBe('Medellín');
-    expect(found?.zoneCityId).toBeNull();
+    expect(found).not.toHaveProperty('zoneCityId');
+    expect(found).not.toHaveProperty('timeZone');
   });
 
   it('getByIds reads the given ids with $in and maps each city', async () => {
@@ -40,38 +41,23 @@ describe('CityRepository (mocked driver)', () => {
 
   it('searches by a case-insensitive regex on name, capped at the given limit', async () => {
     const collection = createFakeCollection();
-    collection.find.mockReturnValue(toArrayCursor([{ _id: 'city-envigado', name: 'Envigado', regionId: 'region-antioquia', zoneCityId: 'city-medellin' }]));
+    collection.find.mockReturnValue(toArrayCursor([{ _id: 'city-envigado', name: 'Envigado', regionId: 'region-antioquia' }]));
     const repository = repositoryWith(collection);
 
     const found = await repository.searchByName('envi', 15);
 
     expect(collection.find).toHaveBeenCalledWith({ name: { $regex: 'envi', $options: 'i' } });
-    expect(found[0]?.zoneCityId).toBe('city-medellin');
+    expect(found[0]?.name).toBe('Envigado');
   });
 
-  it('ensureIndexes creates the name-search and zoneCityId indexes', async () => {
+  it('ensureIndexes creates the name-search index and no anchor index', async () => {
     const collection = createFakeCollection();
     const repository = repositoryWith(collection);
 
     await repository.ensureIndexes();
 
     expect(collection.createIndex).toHaveBeenCalledWith({ name: 1 }, expect.any(Object));
-    expect(collection.createIndex).toHaveBeenCalledWith({ zoneCityId: 1 }, expect.any(Object));
-  });
-
-  it('maps timeZone when present', async () => {
-    const collection = createFakeCollection();
-    collection.findOne.mockResolvedValue({
-      _id: 'city-medellin',
-      name: 'Medellín',
-      regionId: 'region-antioquia',
-      timeZone: 'America/Bogota',
-    });
-    const repository = repositoryWith(collection);
-
-    const found = await repository.getById('city-medellin');
-
-    expect(found?.timeZone).toBe('America/Bogota');
+    expect(collection.createIndex).not.toHaveBeenCalledWith({ zoneCityId: 1 }, expect.any(Object));
   });
 
   it('maps the DANE codes as text, and null when absent (feature 023)', async () => {
@@ -83,16 +69,6 @@ describe('CityRepository (mocked driver)', () => {
     expect(await repository.getById('city-medellin')).toMatchObject({ daneStateCode: '05', daneCityCode: '5001' });
     expect(await repository.getById('city-x')).toMatchObject({ daneStateCode: null, daneCityCode: null });
   });
-
-  it('defaults timeZone to null when absent', async () => {
-    const collection = createFakeCollection();
-    collection.findOne.mockResolvedValue({ _id: 'city-medellin', name: 'Medellín', regionId: 'region-antioquia' });
-    const repository = repositoryWith(collection);
-
-    const found = await repository.getById('city-medellin');
-
-    expect(found?.timeZone).toBeNull();
-  });
 });
 
 describe('CityRepository admin methods (spec 003 of the admin)', () => {
@@ -103,13 +79,13 @@ describe('CityRepository admin methods (spec 003 of the admin)', () => {
     return cursor;
   };
 
-  it('lists by regions, name prefix and anchor, sorted and paged, with the total', async () => {
+  it('lists by regions and name prefix, sorted and paged, with the total', async () => {
     const collection = createFakeCollection();
     const cursor = listed(collection);
 
-    const found = await repositoryWith(collection).list({ regionIds: ['ant'], q: 'Me.d', anchor: true, page: 3, pageSize: 20 });
+    const found = await repositoryWith(collection).list({ regionIds: ['ant'], q: 'Me.d', page: 3, pageSize: 20 });
 
-    const filter = { $and: [{ regionId: { $in: ['ant'] } }, { name: { $regex: '^Me\\.d', $options: 'i' } }, { zoneCityId: null }] };
+    const filter = { $and: [{ regionId: { $in: ['ant'] } }, { name: { $regex: '^Me\\.d', $options: 'i' } }] };
     expect(collection.find).toHaveBeenCalledWith(filter);
     expect(collection.countDocuments).toHaveBeenCalledWith(filter);
     expect(cursor.sort).toHaveBeenCalledWith({ name: 1, _id: 1 });
@@ -119,34 +95,16 @@ describe('CityRepository admin methods (spec 003 of the admin)', () => {
     expect(found.items[0]!.revision).toBe(2);
   });
 
-  it('filters operating cities (satellite or with zones) and available ones', async () => {
+  it('lists everything without filters', async () => {
     const collection = createFakeCollection();
     listed(collection);
-    const repository = repositoryWith(collection);
-
-    await repository.list({ state: 'operating', zoneOwnerIds: ['med'], page: 1, pageSize: 20 });
-    expect(collection.find).toHaveBeenLastCalledWith({ $and: [{ $or: [{ zoneCityId: { $ne: null } }, { _id: { $in: ['med'] } }] }] });
-
-    await repository.list({ state: 'available', zoneOwnerIds: ['med'], anchor: false, page: 1, pageSize: 20 });
-    expect(collection.find).toHaveBeenLastCalledWith({
-      $and: [{ zoneCityId: { $ne: null } }, { zoneCityId: null, _id: { $nin: ['med'] } }],
-    });
-
-    await repository.list({ page: 1, pageSize: 20 });
+    await repositoryWith(collection).list({ page: 1, pageSize: 20 });
     expect(collection.find).toHaveBeenLastCalledWith({});
   });
 
-  it('counts satellites per anchor and cities per region', async () => {
+  it('counts cities per region', async () => {
     const collection = createFakeCollection();
-    collection.aggregate.mockReturnValue(toArrayResult([{ _id: 'med', count: 3 }]));
     const repository = repositoryWith(collection);
-
-    expect(await repository.countSatellites(['med', 'bog'])).toEqual(new Map([['med', 3], ['bog', 0]]));
-    expect(collection.aggregate).toHaveBeenLastCalledWith([
-      { $match: { zoneCityId: { $in: ['med', 'bog'] } } },
-      { $group: { _id: '$zoneCityId', count: { $sum: 1 } } },
-    ]);
-
     collection.aggregate.mockReturnValue(toArrayResult([{ _id: 'ant', count: 125 }]));
     expect(await repository.countByRegion(['ant'])).toEqual(new Map([['ant', 125]]));
   });
@@ -154,15 +112,13 @@ describe('CityRepository admin methods (spec 003 of the admin)', () => {
   it('creates a city at revision 0, with its codes as text', async () => {
     const collection = createFakeCollection();
     await repositoryWith(collection).create(
-      new City({ id: 'env', name: 'Envigado', regionId: 'ant', zoneCityId: 'med', timeZone: 'America/Bogota', daneStateCode: '05', daneCityCode: '05266' }),
+      new City({ id: 'env', name: 'Envigado', regionId: 'ant', daneStateCode: '05', daneCityCode: '05266' }),
     );
 
     expect(collection.insertOne).toHaveBeenCalledWith({
       _id: 'env',
       name: 'Envigado',
       regionId: 'ant',
-      zoneCityId: 'med',
-      timeZone: 'America/Bogota',
       daneStateCode: '05',
       daneCityCode: '05266',
       revision: 0,
@@ -172,13 +128,13 @@ describe('CityRepository admin methods (spec 003 of the admin)', () => {
   it('updates at the revision read and reports a stale write', async () => {
     const collection = createFakeCollection();
     collection.updateOne.mockResolvedValue({ matchedCount: 0 });
-    const city = new City({ id: 'env', name: 'Envigado', regionId: 'ant', zoneCityId: null, revision: 4 });
+    const city = new City({ id: 'env', name: 'Envigado', regionId: 'ant', revision: 4 });
 
     expect(await repositoryWith(collection).update(city)).toBe('stale');
     expect(collection.updateOne).toHaveBeenCalledWith(
       { _id: 'env', revision: 4 },
       {
-        $set: { name: 'Envigado', regionId: 'ant', zoneCityId: null, timeZone: null, daneStateCode: null, daneCityCode: null },
+        $set: { name: 'Envigado', regionId: 'ant', daneStateCode: null, daneCityCode: null },
         $inc: { revision: 1 },
       },
     );

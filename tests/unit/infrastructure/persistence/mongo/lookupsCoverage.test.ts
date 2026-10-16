@@ -14,7 +14,7 @@ describe('single lookups the admin relies on (admin spec 005)', () => {
     collection.find.mockReturnValue(
       toArrayResult([{
         _id: 'gp', userId: 'g1', documentType: 'CC', documentNumber: '1', issueDate: AT, birthDate: AT, documentPhotoAId: 'a', documentPhotoBId: 'b',
-        heightCm: 180, weightKg: 80, cityId: 'med', zoneIds: ['z1'], activatedAt: AT,
+        heightCm: 180, weightKg: 80, marketId: 'med', zoneIds: ['z1'], activatedAt: AT,
       }]),
     );
 

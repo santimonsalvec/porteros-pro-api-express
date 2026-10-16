@@ -11,6 +11,7 @@ export class FakeDepositAdminReader implements IDepositAdminReader {
       .all()
       .filter((deposit) => !filter.status || deposit.status === filter.status)
       .filter((deposit) => !filter.countryId || deposit.countryId === filter.countryId)
+      .filter((deposit) => !filter.marketIds || filter.marketIds.includes(deposit.marketId))
       .filter((deposit) => !filter.goalkeeperId || deposit.goalkeeperId === filter.goalkeeperId)
       .filter((deposit) => !filter.from || deposit.createdAt >= filter.from)
       .filter((deposit) => !filter.to || deposit.createdAt < filter.to)

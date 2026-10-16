@@ -24,8 +24,8 @@ export interface PriceRecord<Scope extends string> {
   invalid: boolean;
 }
 
-export type RentalRateRecord = PriceRecord<'zone' | 'city'> & { durationMinutes: number };
-export type CommissionRecord = PriceRecord<'country' | 'city' | 'zone'>;
+export type RentalRateRecord = PriceRecord<'zone' | 'market'> & { durationMinutes: number };
+export type CommissionRecord = PriceRecord<'country' | 'market' | 'zone'>;
 
 /** Which refs to read, per scope; `null` = every document. */
 export type RefFilter = { scope: string; refIds: string[] }[] | null;
@@ -61,7 +61,7 @@ export type StoredBookingSettings = Required<{
 }>;
 
 export interface BookingSettingsRecord {
-  scope: 'country' | 'city';
+  scope: 'country' | 'market';
   refId: string;
   fields: StoredBookingSettings;
   revision: number;
@@ -69,11 +69,11 @@ export interface BookingSettingsRecord {
 }
 
 export interface IBookingSettingsAdmin {
-  getByScope(scope: 'country' | 'city', refId: string): Promise<BookingSettingsRecord | null>;
+  getByScope(scope: 'country' | 'market', refId: string): Promise<BookingSettingsRecord | null>;
   /** Creates the level when `expectedRevision` is `null`; replaces its values otherwise. */
-  save(scope: 'country' | 'city', refId: string, expectedRevision: number | null, fields: StoredBookingSettings): Promise<UpdateResult>;
-  /** Every city-level document: a few dozen at most, one per anchor city that overrides something. */
-  listCityScoped(): Promise<BookingSettingsRecord[]>;
+  save(scope: 'country' | 'market', refId: string, expectedRevision: number | null, fields: StoredBookingSettings): Promise<UpdateResult>;
+  /** Every market-level document: a few dozen at most, one per market that overrides something. */
+  listMarketScoped(): Promise<BookingSettingsRecord[]>;
 }
 
 /** The commission document that applies to one match in a zone (the quote's resolver, admin spec 004 simulator). */
@@ -92,8 +92,8 @@ export interface UnverifiedFields {
 
 /** The unverified discount and priority window by level (admin spec 030). Read by the quote and written by the admin. */
 export interface IUnverifiedDiscountRepository {
-  /** Every setting for any of these zones, anchor cities or countries, in one read. */
-  findFor(refs: { zoneIds: string[]; cityIds: string[]; countryIds: string[] }): Promise<UnverifiedDiscountSetting[]>;
+  /** Every setting for any of these zones, markets or countries, in one read. */
+  findFor(refs: { zoneIds: string[]; marketIds: string[]; countryIds: string[] }): Promise<UnverifiedDiscountSetting[]>;
   getById(id: string): Promise<UnverifiedDiscountSetting | null>;
   create(setting: { id: string; scope: string; refId: string } & UnverifiedFields): Promise<DiscountCreateResult>;
   update(id: string, expectedRevision: number, fields: UnverifiedFields): Promise<'saved' | 'stale'>;

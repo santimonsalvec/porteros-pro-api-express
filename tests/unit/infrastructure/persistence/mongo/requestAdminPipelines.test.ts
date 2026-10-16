@@ -32,7 +32,7 @@ describe('requestsListPipeline (admin spec 006, research §6)', () => {
       from,
       to,
       zoneId: 'laureles',
-      cityIds: ['med', 'bello'],
+      marketIds: ['med', 'bello'],
       clientId: 'c-1',
       requestIds: ['r-1', 'r-2'],
     });
@@ -41,7 +41,7 @@ describe('requestsListPipeline (admin spec 006, research §6)', () => {
       $match: {
         startsAt: { $gte: from, $lt: to },
         zoneId: 'laureles',
-        'match.cityId': { $in: ['med', 'bello'] },
+        'match.marketId': { $in: ['med', 'bello'] },
         clientId: 'c-1',
         _id: { $in: ['r-1', 'r-2'] },
       },
@@ -65,7 +65,7 @@ describe('requestsListPipeline (admin spec 006, research §6)', () => {
       clientId: 1,
       startsAt: 1,
       zoneId: 1,
-      'match.cityId': 1,
+      'match.marketId': 1,
       'match.timeZone': 1,
       'match.goalkeeperCount': 1,
       'pricing.total': 1,

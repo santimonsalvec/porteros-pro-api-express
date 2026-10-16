@@ -31,7 +31,7 @@ const optionalId = z.string().min(1).optional();
 export const priceListQuery = {
   ...pageQuery,
   countryId: optionalId,
-  cityId: optionalId,
+  marketId: optionalId,
   zoneId: optionalId,
   modality: z.enum([...PRICED_MODALITIES, 'general']).optional(),
 };
@@ -44,7 +44,7 @@ export const listRentalRatesQuerySchema = z.object({ ...priceListQuery, duration
 /** `POST /admin/rental-rates`. */
 export const createRentalRateRequestSchema = z
   .object({
-    scope: z.enum(['zone', 'city']),
+    scope: z.enum(['zone', 'market']),
     refId: refIdField,
     durationMinutes: durationField,
     modality: modalityField.default(null),
@@ -57,12 +57,12 @@ export const createRentalRateRequestSchema = z
 export const updatePriceRequestSchema = z.object({ revision: revisionField, amount: amountField }).strict();
 
 /** `GET /admin/commissions`. */
-export const listCommissionsQuerySchema = z.object({ ...priceListQuery, scope: z.enum(['country', 'city', 'zone']).optional() }).strict();
+export const listCommissionsQuerySchema = z.object({ ...priceListQuery, scope: z.enum(['country', 'market', 'zone']).optional() }).strict();
 
 /** `POST /admin/commissions`. */
 export const createCommissionRequestSchema = z
   .object({
-    scope: z.enum(['country', 'city', 'zone']),
+    scope: z.enum(['country', 'market', 'zone']),
     refId: refIdField,
     modality: modalityField.default(null),
     level: levelField.default(null),
@@ -88,21 +88,27 @@ const surchargeField = z
   })
   .strict();
 
-/** The five rules a city may override, every one present: `null` = inherits (research §8). */
-const cityRuleFields = {
+const checkInWindowField = z.object({ opensMinutesBefore: minutes, closesMinutesAfter: minutes }).strict();
+
+/** The rules a market may override, every one present: `null` = inherits (research §8; spec 031, FR-014). */
+const marketRuleFields = {
   revision: revisionField.nullable(),
   bookingWindowDays: required(minutes.unwrap(), 'bookingWindowDays'),
   minNoticeMinutes: required(minutes.unwrap(), 'minNoticeMinutes'),
   freeCancellationMinutes: required(minutes.unwrap(), 'freeCancellationMinutes'),
   travelBufferMinutes: required(minutes.unwrap(), 'travelBufferMinutes'),
   leadTimeSurcharge: required(surchargeField, 'leadTimeSurcharge'),
+  checkInWindow: required(checkInWindowField, 'checkInWindow'),
+  noShowGraceMinutes: required(minutes.unwrap(), 'noShowGraceMinutes'),
+  offerReminderIntervalMinutes: required(minutes.unwrap(), 'offerReminderIntervalMinutes'),
+  offerMaxReminders: required(minutes.unwrap(), 'offerMaxReminders'),
   acknowledgeWarnings: acknowledgeWarningsField,
 };
 
 /** `PUT /admin/booking-settings/countries/:countryId`: every value of the country, `null` = not set. */
 export const countryBookingSettingsRequestSchema = z
   .object({
-    ...cityRuleFields,
+    ...marketRuleFields,
     goalkeeperPenalties: required(
       z
         .object({
@@ -115,17 +121,14 @@ export const countryBookingSettingsRequestSchema = z
         .strict(),
       'goalkeeperPenalties',
     ),
-    checkInWindow: required(z.object({ opensMinutesBefore: minutes, closesMinutesAfter: minutes }).strict(), 'checkInWindow'),
-    noShowGraceMinutes: required(minutes.unwrap(), 'noShowGraceMinutes'),
   })
   .strict();
 
-const countryOnly = z.undefined({ invalid_type_error: 'Only set at the country level.' });
+/** A value only a country sets (FR-014): the market's field answers `field_not_allowed_at_level`. */
+const countryOnly = z.undefined({ invalid_type_error: 'field_not_allowed_at_level' });
 
-/** `PUT /admin/booking-settings/cities/:cityId`: what the city overrides; country-only rules are refused on their field. */
-export const cityBookingSettingsRequestSchema = z
-  .object({ ...cityRuleFields, goalkeeperPenalties: countryOnly, checkInWindow: countryOnly, noShowGraceMinutes: countryOnly })
-  .strict();
+/** `PUT /admin/booking-settings/markets/:marketId`: what the market overrides; country-only rules are refused on their field. */
+export const marketBookingSettingsRequestSchema = z.object({ ...marketRuleFields, goalkeeperPenalties: countryOnly }).strict();
 
 /** `GET /admin/pricing/preview`. */
 export const pricingPreviewQuerySchema = z
