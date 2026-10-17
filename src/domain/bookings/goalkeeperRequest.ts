@@ -2,6 +2,7 @@ import { Entity } from '../common/entity.js';
 import type { MatchDetails } from './matchDetails.js';
 import type { PricingSnapshot } from './pricingSnapshot.js';
 import type { Quote } from './quote.js';
+import type { CommissionBreakdown } from '../operatingBalance/commissionRule.js';
 
 /** What happens if only some of the requested goalkeepers are confirmed (applied by a later feature). */
 export const PARTIAL_FULFILLMENT_OPTIONS = ['keep_confirmed', 'cancel_all'] as const;
@@ -17,6 +18,8 @@ interface GoalkeeperRequestProps {
   partialFulfillment: PartialFulfillment;
   freeCancellationMinutes: number;
   commission: number;
+  /** The reference breakdown copied from the quote (feature 033); `null` on older documents. */
+  commissionBreakdown?: CommissionBreakdown | null;
   travelBufferMinutes: number;
   active: boolean;
   quoteIssuedAt: Date;
@@ -51,6 +54,7 @@ export class GoalkeeperRequest extends Entity<string> {
   readonly contactsRevealedAt: Date | null;
   /** Fixed at quote time; copied to each booking (012, clarification 1). */
   readonly commission: number;
+  readonly commissionBreakdown: CommissionBreakdown | null;
   readonly travelBufferMinutes: number;
   readonly active: boolean;
   readonly quoteIssuedAt: Date;
@@ -70,7 +74,11 @@ export class GoalkeeperRequest extends Entity<string> {
     this.pricing = props.pricing;
     this.partialFulfillment = props.partialFulfillment;
     this.freeCancellationMinutes = props.freeCancellationMinutes;
+    if (props.commissionBreakdown && props.commissionBreakdown.net !== props.commission) {
+      throw new Error('GoalkeeperRequest: commission must equal commissionBreakdown.net');
+    }
     this.commission = props.commission;
+    this.commissionBreakdown = props.commissionBreakdown ?? null;
     this.travelBufferMinutes = props.travelBufferMinutes;
     this.active = props.active;
     this.quoteIssuedAt = new Date(props.quoteIssuedAt);
@@ -97,6 +105,7 @@ export class GoalkeeperRequest extends Entity<string> {
       partialFulfillment,
       freeCancellationMinutes: quote.freeCancellationMinutes,
       commission: quote.commission,
+      commissionBreakdown: quote.commissionBreakdown,
       travelBufferMinutes: quote.travelBufferMinutes,
       active: true,
       quoteIssuedAt: quote.issuedAt,

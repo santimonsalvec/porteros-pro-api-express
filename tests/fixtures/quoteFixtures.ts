@@ -14,6 +14,7 @@ import { Zone } from '../../src/domain/zones/zone.js';
 import type { FakeBookingSettingsRepository } from '../fakes/fakeBookingSettingsRepository.js';
 import type { FakeCommissionSettingRepository } from '../fakes/fakeCommissionSettingRepository.js';
 import { CommissionSetting } from '../../src/domain/operatingBalance/commissionSetting.js';
+import { CommissionBreakdown } from '../../src/domain/operatingBalance/commissionRule.js';
 import type { FakeCountryRepository } from '../fakes/fakeCountryRepository.js';
 import type { FakeRentalRateRepository } from '../fakes/fakeRentalRateRepository.js';
 import type { FakeZoneRepository } from '../fakes/fakeZoneRepository.js';
@@ -218,6 +219,18 @@ export function buildStoredQuote(
     overrides.freeCancellationMinutes ?? FREE_CANCELLATION_MINUTES_DEFAULT,
     overrides.commission ?? 7000,
     overrides.travelBufferMinutes ?? TRAVEL_BUFFER_MINUTES_DEFAULT,
+    { discountBps: 0, verifiedPriorityMinutes: 0 },
+    // Feature 033: the reference breakdown, a fixed rule of the country on the 60.000 full price.
+    new CommissionBreakdown({
+      base: 60000,
+      percentBps: 0,
+      percentAmount: 0,
+      fixedAmount: overrides.commission ?? 7000,
+      net: overrides.commission ?? 7000,
+      ruleId: 'commission-country-co',
+      origin: { scope: 'country', refId: 'country-co' },
+      modality: null,
+    }),
   );
 }
 
@@ -272,6 +285,17 @@ export function buildRequest(
     partialFulfillment: overrides.partialFulfillment ?? 'keep_confirmed',
     freeCancellationMinutes: overrides.freeCancellationMinutes ?? FREE_CANCELLATION_MINUTES_DEFAULT,
     commission: overrides.commission ?? 7000,
+    // Feature 033: the reference breakdown, a fixed rule of the country on the 60.000 full price.
+    commissionBreakdown: new CommissionBreakdown({
+      base: 60000,
+      percentBps: 0,
+      percentAmount: 0,
+      fixedAmount: overrides.commission ?? 7000,
+      net: overrides.commission ?? 7000,
+      ruleId: 'commission-country-co',
+      origin: { scope: 'country', refId: 'country-co' },
+      modality: null,
+    }),
     travelBufferMinutes: overrides.travelBufferMinutes ?? TRAVEL_BUFFER_MINUTES_DEFAULT,
     active: overrides.active ?? true,
     quoteIssuedAt: new Date('2026-09-20T12:00:00.000Z'),

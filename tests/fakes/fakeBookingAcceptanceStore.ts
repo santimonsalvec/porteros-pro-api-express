@@ -73,7 +73,7 @@ export class FakeBookingAcceptanceStore implements IBookingAcceptanceStore {
       return { kind: 'not_claimed' };
     }
 
-    const booking = original.assign(args.goalkeeperId, args.now, args.tier);
+    const booking = original.assign(args.goalkeeperId, args.now, args.tier, args.effective(original));
     const held = (await this.bookings.findAssignedToGoalkeeper(args.goalkeeperId)).filter((other) => other.id !== booking.id);
     if (holdsSameRequest(booking, held)) return { kind: 'same_request' };
     const conflict = firstConflict(booking, held);

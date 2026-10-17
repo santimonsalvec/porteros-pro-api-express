@@ -401,8 +401,10 @@ export class MongoBookingLifecycleStore implements IBookingLifecycleStore {
       await bookings.updateOne({ _id: bookingId, status: 'assigned', goalkeeperId } as Document, { $set: ended }, { session });
       const withdrawn = bookingFromDocument({ ...bookingToDocument(booking), ...ended });
 
-      // The search is still open: a new booking takes its place (clarification 3).
-      const replacement = booking.isSearchOpenAt(now) ? Booking.replacementFor(booking, args.newId(), goalkeeperId, now) : null;
+      // The search is still open: a new booking takes its place (clarification 3), at the request's
+      // reference commission (feature 033).
+      const requestDoc = booking.isSearchOpenAt(now) ? await this.db.collection(GOALKEEPER_REQUESTS_COLLECTION).findOne({ _id: booking.requestId } as Document, { session }) : null;
+      const replacement = booking.isSearchOpenAt(now) ? Booking.replacementFor(booking, args.newId(), goalkeeperId, now, requestDoc ? requestFromDocument(requestDoc) : null) : null;
       if (replacement) await bookings.insertOne(bookingToDocument(replacement), { session });
 
       const noticeMinutes = booking.withdrawalNoticeMinutes(now);

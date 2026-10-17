@@ -35,7 +35,7 @@ function harness() {
     commissionChargeDraft({ goalkeeperId: 'gk-1', currency: 'COP', invoicing: COLOMBIA_INVOICING, marketId: 'city-cali' }, { bookingId: booking.id, requestId: booking.requestId, amount: booking.commission }, 'm-1', now);
   // Verified unless a test says otherwise: the claim of before admin spec 030, unchanged.
   const accept = (tier: VettingTier = 'verified') =>
-    store.accept({ bookingId: pending!.id, goalkeeperId: 'gk-1', now, tier, chargeDrafts: (booking) => [draft(booking)], events: (booking) => [goalkeeperAssigned('ev-1', booking, now)] });
+    store.accept({ bookingId: pending!.id, goalkeeperId: 'gk-1', now, tier, effective: () => null, chargeDrafts: (booking) => [draft(booking)], events: (booking) => [goalkeeperAssigned('ev-1', booking, now)] });
   return { bookings, operatingBalances, movements, outbox, session, accept };
 }
 

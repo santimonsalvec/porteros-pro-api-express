@@ -15,13 +15,14 @@ export class FakeCommissionSettingRepository implements ICommissionSettingReposi
     this.settings.length = 0;
   }
 
-  async findFor(refs: { zoneIds: string[]; marketIds: string[]; countryIds: string[] }): Promise<CommissionSetting[]> {
+  async findFor(refs: { zoneIds: string[]; marketIds: string[]; countryIds: string[]; goalkeeperIds?: string[] }): Promise<CommissionSetting[]> {
     this.calls += 1;
     return this.settings.filter(
       (setting) =>
         (setting.scope === 'zone' && refs.zoneIds.includes(setting.refId)) ||
         (setting.scope === 'market' && refs.marketIds.includes(setting.refId)) ||
-        (setting.scope === 'country' && refs.countryIds.includes(setting.refId)),
+        (setting.scope === 'country' && refs.countryIds.includes(setting.refId)) ||
+        (setting.scope === 'goalkeeper' && (refs.goalkeeperIds ?? []).includes(setting.refId)),
     );
   }
 }

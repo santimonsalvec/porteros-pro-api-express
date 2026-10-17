@@ -2,6 +2,9 @@ import type { Collection, Db, Document } from 'mongodb';
 import type { CheckInNoticeField, IBookingRepository } from '../../../application/features/goalkeeperRequests/common/ports.js';
 import { Booking, type BookingEndedBy, type BookingEndReason, type BookingStatus, type CheckIn, type BookingAttendance } from '../../../domain/bookings/booking.js';
 import { GoalkeeperPrice } from '../../../domain/bookings/goalkeeperPrice.js';
+import { CommissionBreakdown } from '../../../domain/operatingBalance/commissionRule.js';
+import type { Modality, PricedModality } from '../../../domain/bookings/matchFormat.js';
+import type { CommissionScope } from '../../../domain/operatingBalance/commissionSetting.js';
 
 export const BOOKINGS_COLLECTION = 'bookings';
 
@@ -31,6 +34,8 @@ export function bookingToDocument(booking: Booking): Document {
     status: booking.status,
     price: priceToDocument(booking.price),
     commission: booking.commission,
+    // Feature 033: absent on documents written before it.
+    ...(booking.commissionBreakdown ? { commissionBreakdown: breakdownToDocument(booking.commissionBreakdown) } : {}),
     travelBufferMinutes: booking.travelBufferMinutes,
     searchEndsAt: booking.searchEndsAt,
     goalkeeperId: booking.goalkeeperId,
@@ -58,6 +63,38 @@ export function bookingToDocument(booking: Booking): Document {
     ...(booking.verifiedOnlyUntil.getTime() !== booking.createdAt.getTime() ? { verifiedOnlyUntil: booking.verifiedOnlyUntil } : {}),
     ...(booking.goalkeeperVerified !== null ? { goalkeeperVerified: booking.goalkeeperVerified } : {}),
   };
+}
+
+/** A commission breakdown as stored (feature 033). */
+export function breakdownToDocument(breakdown: CommissionBreakdown): Document {
+  return {
+    base: breakdown.base,
+    percentBps: breakdown.percentBps,
+    percentAmount: breakdown.percentAmount,
+    fixedAmount: breakdown.fixedAmount,
+    net: breakdown.net,
+    ruleId: breakdown.ruleId,
+    origin: { scope: breakdown.origin.scope, refId: breakdown.origin.refId },
+    modality: breakdown.modality,
+    matchModality: breakdown.matchModality,
+  };
+}
+
+/** `null` for a document written before feature 033. */
+export function breakdownFromDocument(doc: Document | null | undefined): CommissionBreakdown | null {
+  if (!doc) return null;
+  const origin = doc.origin as Document;
+  return new CommissionBreakdown({
+    base: doc.base as number,
+    percentBps: doc.percentBps as number,
+    percentAmount: doc.percentAmount as number,
+    fixedAmount: doc.fixedAmount as number,
+    net: doc.net as number,
+    ruleId: String(doc.ruleId),
+    origin: { scope: origin.scope as CommissionScope, refId: String(origin.refId) },
+    modality: (doc.modality as PricedModality | null | undefined) ?? null,
+    matchModality: (doc.matchModality as Modality | undefined) ?? 'any',
+  });
 }
 
 /** A booking's price as stored; the discount (admin spec 030) only when there is one. */
@@ -89,6 +126,7 @@ export function bookingFromDocument(doc: Document): Booking {
       currency: price.currency as string,
     }),
     commission: doc.commission as number,
+    commissionBreakdown: breakdownFromDocument(doc.commissionBreakdown as Document | undefined),
     travelBufferMinutes: doc.travelBufferMinutes as number,
     searchEndsAt: doc.searchEndsAt as Date,
     goalkeeperId: (doc.goalkeeperId as string | null | undefined) ?? null,
@@ -152,7 +190,7 @@ export class BookingRepository implements IBookingRepository {
   async findAvailableCandidates(query: {
     zoneIds: string[];
     excludeClientId: string;
-    maxCommission: number;
+    maxCommission: number | null;
     now: Date;
     cap: number;
   }): Promise<Booking[]> {
@@ -163,7 +201,7 @@ export class BookingRepository implements IBookingRepository {
         zoneId: { $in: query.zoneIds },
         searchEndsAt: { $gt: query.now },
         clientId: { $ne: query.excludeClientId },
-        commission: { $lte: query.maxCommission },
+        ...(query.maxCommission === null ? {} : { commission: { $lte: query.maxCommission } }),
       })
       .sort({ startsAt: 1, _id: 1 })
       .limit(query.cap)

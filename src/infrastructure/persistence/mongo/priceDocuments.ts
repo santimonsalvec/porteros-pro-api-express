@@ -44,9 +44,9 @@ export function priceRecordOf<Scope extends string>(doc: Document, accepts: (doc
 }
 
 /** Inserts with explicit `null` tiers; on the unique index, finds which document already holds that identity. */
-export async function createPrice(collection: Collection<Document>, id: string, identity: Document, amount: number): Promise<CreateResult> {
+export async function createPrice(collection: Collection<Document>, id: string, identity: Document, fields: Document): Promise<CreateResult> {
   try {
-    await collection.insertOne({ _id: id, ...identity, amount, revision: 0 } as Document);
+    await collection.insertOne({ _id: id, ...identity, ...fields, revision: 0 } as Document);
     return { outcome: 'created' };
   } catch (error) {
     if ((error as { code?: unknown }).code !== DUPLICATE_KEY) throw error;

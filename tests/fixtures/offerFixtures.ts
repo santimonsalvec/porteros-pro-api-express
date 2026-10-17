@@ -40,6 +40,7 @@ export function eligibleSnapshot(overrides: Partial<OfferSnapshot> = {}): OfferS
     held: [],
     // Verified, so the rules of before admin spec 030 apply unchanged.
     tier: 'verified',
+    ownRules: [],
     ...overrides,
   };
 }

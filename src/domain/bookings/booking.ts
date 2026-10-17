@@ -3,6 +3,7 @@ import { withDiscount, type GoalkeeperPrice } from './goalkeeperPrice.js';
 import type { VettingTier } from '../goalkeepers/vetting.js';
 import { discountFor } from '../pricing/unverifiedDiscount.js';
 import type { GoalkeeperRequest } from './goalkeeperRequest.js';
+import type { CommissionBreakdown } from '../operatingBalance/commissionRule.js';
 
 /**
  * Every state a booking can be in. `pending_assignment` and `assigned` are reachable today; the
@@ -82,6 +83,8 @@ export interface BookingProps {
   status: BookingStatus;
   price: GoalkeeperPrice;
   commission: number;
+  /** How the commission was built (feature 033): the request's reference, or the goalkeeper's own once assigned; `null` on older documents. */
+  commissionBreakdown?: CommissionBreakdown | null;
   travelBufferMinutes: number;
   searchEndsAt: Date;
   goalkeeperId: string | null;
@@ -133,8 +136,9 @@ export class Booking extends Entity<string> {
   readonly endsAt: Date;
   readonly status: BookingStatus;
   readonly price: GoalkeeperPrice;
-  /** The platform's commission, fixed when the quote was issued. */
+  /** The platform's commission, fixed when the quote was issued — or by the goalkeeper's own rule on acceptance (feature 033). */
   readonly commission: number;
+  readonly commissionBreakdown: CommissionBreakdown | null;
   readonly travelBufferMinutes: number;
   readonly searchEndsAt: Date;
   readonly goalkeeperId: string | null;
@@ -177,8 +181,12 @@ export class Booking extends Entity<string> {
     this.startsAt = new Date(props.startsAt);
     this.endsAt = new Date(props.endsAt);
     this.status = props.status;
+    if (props.commissionBreakdown && props.commissionBreakdown.net !== props.commission) {
+      throw new Error('Booking: commission must equal commissionBreakdown.net');
+    }
     this.price = props.price;
     this.commission = props.commission;
+    this.commissionBreakdown = props.commissionBreakdown ?? null;
     this.travelBufferMinutes = props.travelBufferMinutes;
     this.searchEndsAt = new Date(props.searchEndsAt);
     this.goalkeeperId = props.goalkeeperId;
@@ -222,6 +230,7 @@ export class Booking extends Entity<string> {
       status: 'pending_assignment',
       price: request.pricing.perGoalkeeper(),
       commission: request.commission,
+      commissionBreakdown: request.commissionBreakdown,
       travelBufferMinutes: request.travelBufferMinutes,
       searchEndsAt: new Date(searchEndsAt),
       goalkeeperId: null,
@@ -238,7 +247,17 @@ export class Booking extends Entity<string> {
    * match, price, commission and end of search, awaiting a new goalkeeper. The one who withdrew
    * (and whoever the original already excluded) can never take it.
    */
-  static replacementFor(original: Booking, id: string, withdrawingGoalkeeperId: string, now: Date): Booking {
+  static replacementFor(
+    original: Booking,
+    id: string,
+    withdrawingGoalkeeperId: string,
+    now: Date,
+    /** The request's reference commission (feature 033): the original may carry the withdrawn goalkeeper's own. */
+    reference: Pick<GoalkeeperRequest, 'commission' | 'commissionBreakdown'> | null = null,
+  ): Booking {
+    const ownRule = original.commissionBreakdown?.origin.scope === 'goalkeeper';
+    const commission = ownRule && reference ? reference.commission : original.commission;
+    const commissionBreakdown = ownRule && reference ? reference.commissionBreakdown : original.commissionBreakdown;
     return new Booking({
       id,
       requestId: original.requestId,
@@ -249,7 +268,9 @@ export class Booking extends Entity<string> {
       status: 'pending_assignment',
       // The full price again: whoever takes the replacement decides the discount (admin spec 030).
       price: withDiscount(original.price, 0),
-      commission: original.commission,
+      // The reference commission again: whoever takes it pays by their own level (feature 033).
+      commission,
+      commissionBreakdown,
       travelBufferMinutes: original.travelBufferMinutes,
       searchEndsAt: original.searchEndsAt,
       goalkeeperId: null,
@@ -287,13 +308,28 @@ export class Booking extends Entity<string> {
   /**
    * The booking once a goalkeeper has taken it. Only a pending booking can be assigned. A
    * validated goalkeeper without the seal takes it at the discounted price (admin spec 030): the
-   * commission stays as it was, so the goalkeeper absorbs the discount.
+   * commission stays as it was, so the goalkeeper absorbs the discount. When the goalkeeper has
+   * their own active rule, `effective` is its breakdown on the same base and replaces the
+   * reference one (feature 033, FR-015).
    */
-  assign(goalkeeperId: string, at: Date, tier: VettingTier = 'verified'): Booking {
+  assign(goalkeeperId: string, at: Date, tier: VettingTier = 'verified', effective: CommissionBreakdown | null = null): Booking {
     if (this.status !== 'pending_assignment') throw new Error(`Booking ${this.id} is ${this.status}, not pending`);
+    if (effective && this.commissionBreakdown && effective.base !== this.commissionBreakdown.base) {
+      throw new Error(`Booking ${this.id}: the effective commission must be built on the booking's base`);
+    }
     const verified = tier === 'verified';
+    const commission = effective?.net ?? this.commission;
     const full = this.price.unitRate + this.price.unitSurcharge;
-    const discount = verified ? 0 : discountFor(full, this.unverifiedDiscountBps, this.commission);
-    return new Booking({ ...this, status: 'assigned', goalkeeperId, assignedAt: at, price: withDiscount(this.price, discount), goalkeeperVerified: verified });
+    const discount = verified ? 0 : discountFor(full, this.unverifiedDiscountBps, commission);
+    return new Booking({
+      ...this,
+      status: 'assigned',
+      goalkeeperId,
+      assignedAt: at,
+      price: withDiscount(this.price, discount),
+      goalkeeperVerified: verified,
+      commission,
+      commissionBreakdown: effective ?? this.commissionBreakdown,
+    });
   }
 }

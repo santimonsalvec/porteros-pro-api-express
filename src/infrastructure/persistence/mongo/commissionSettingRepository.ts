@@ -1,16 +1,20 @@
 import type { Collection, Db, Document } from 'mongodb';
 import type { ICommissionSettingRepository } from '../../../application/features/operatingBalance/common/ports.js';
 import type { UpdateResult } from '../../../application/features/geography/common/ports.js';
-import type { CommissionRecord, CreateResult, ICommissionAdmin, PriceFilter } from '../../../application/features/pricing/common/ports.js';
+import type { CommissionFields, CommissionRecord, CreateResult, ICommissionAdmin, PriceFilter } from '../../../application/features/pricing/common/ports.js';
+import type { PricedModality } from '../../../domain/bookings/matchFormat.js';
 import { CommissionSetting } from '../../../domain/operatingBalance/commissionSetting.js';
 import { dropIndexIfExists } from './dropIndexIfExists.js';
-import { createPrice, findPriceById, priceFilter, priceRecordOf } from './priceDocuments.js';
-import { deleteById, updateAtRevision } from './revisionWrite.js';
+import { idFilter } from './idFilter.js';
+import { createPrice, findPriceById, priceFilter } from './priceDocuments.js';
+import { deleteById } from './revisionWrite.js';
 
 /**
- * Platform commissions (country, market or zone), one per scope, reference and tier. The
- * operating balance reads them through `ICommissionSettingRepository`; the admin web writes them through
- * `ICommissionAdmin` (spec 004 of the admin).
+ * Commission rules (country, market, zone or goalkeeper), one per scope, reference and tier
+ * (feature 033). The operating balance reads them through `ICommissionSettingRepository`; the
+ * admin web writes them through `ICommissionAdmin` (spec 004 of the admin). A document written
+ * before feature 033 carries `amount` instead of `fixedAmount`/`percentBps`; it is read as a fixed
+ * rule until `scripts/migrate-033-commission-rules.ts` rewrites it.
  */
 export class CommissionSettingRepository implements ICommissionSettingRepository, ICommissionAdmin {
   private readonly collection: Collection<Document>;
@@ -32,12 +36,14 @@ export class CommissionSettingRepository implements ICommissionSettingRepository
     );
   }
 
-  /** Every setting for any of these zones, anchor cities or countries, in one read. */
-  async findFor(refs: { zoneIds: string[]; marketIds: string[]; countryIds: string[] }): Promise<CommissionSetting[]> {
+  /** Every setting for any of these zones, markets, countries or goalkeepers, in one read. */
+  async findFor(refs: { zoneIds: string[]; marketIds: string[]; countryIds: string[]; goalkeeperIds?: string[] }): Promise<CommissionSetting[]> {
+    const goalkeeperIds = refs.goalkeeperIds ?? [];
     const or = [
       ...(refs.zoneIds.length > 0 ? [{ scope: 'zone', refId: { $in: refs.zoneIds } }] : []),
       ...(refs.marketIds.length > 0 ? [{ scope: 'market', refId: { $in: refs.marketIds } }] : []),
       ...(refs.countryIds.length > 0 ? [{ scope: 'country', refId: { $in: refs.countryIds } }] : []),
+      ...(goalkeeperIds.length > 0 ? [{ scope: 'goalkeeper', refId: { $in: goalkeeperIds } }] : []),
     ];
     if (or.length === 0) return [];
     const docs = await this.collection.find({ $or: or }).toArray();
@@ -49,14 +55,35 @@ export class CommissionSettingRepository implements ICommissionSettingRepository
       id: String(doc._id),
       scope: doc.scope as string,
       refId: String(doc.refId),
-      amount: doc.amount as number,
+      fixedAmount: (doc.fixedAmount as number | undefined) ?? (doc.amount as number | undefined),
+      percentBps: (doc.percentBps as number | undefined) ?? 0,
       modality: (doc.modality as string | undefined) ?? null,
+      countryId: (doc.countryId as string | undefined) ?? null,
+      validUntil: (doc.validUntil as Date | undefined) ?? null,
       revision: doc.revision as number | undefined,
     });
   }
 
+  /** The stored fields as they are, plus whether the domain accepts them. */
   private recordOf(doc: Document): CommissionRecord {
-    return priceRecordOf<CommissionRecord['scope']>(doc, (stored) => this.fromDocument(stored));
+    let invalid = false;
+    try {
+      this.fromDocument(doc);
+    } catch {
+      invalid = true;
+    }
+    return {
+      id: String(doc._id),
+      scope: doc.scope as CommissionRecord['scope'],
+      refId: String(doc.refId),
+      modality: (doc.modality as PricedModality | undefined) ?? null,
+      fixedAmount: (doc.fixedAmount as number | undefined) ?? (doc.amount as number | undefined) ?? 0,
+      percentBps: (doc.percentBps as number | undefined) ?? 0,
+      countryId: (doc.countryId as string | undefined) ?? null,
+      validUntil: (doc.validUntil as Date | undefined) ?? null,
+      revision: typeof doc.revision === 'number' ? doc.revision : 0,
+      invalid,
+    };
   }
 
   async find(filter: PriceFilter): Promise<CommissionRecord[]> {
@@ -72,12 +99,18 @@ export class CommissionSettingRepository implements ICommissionSettingRepository
   }
 
   create(commission: Omit<CommissionRecord, 'revision' | 'invalid'>): Promise<CreateResult> {
-    const { id, scope, refId, modality, amount } = commission;
-    return createPrice(this.collection, id, { scope, refId, modality }, amount);
+    const { id, scope, refId, modality, fixedAmount, percentBps, countryId, validUntil } = commission;
+    const goalkeeperFields = scope === 'goalkeeper' ? { countryId, validUntil } : {};
+    return createPrice(this.collection, id, { scope, refId, modality }, { fixedAmount, percentBps, ...goalkeeperFields });
   }
 
-  updateAmount(id: string, expectedRevision: number, amount: number): Promise<UpdateResult> {
-    return updateAtRevision(this.collection, id, expectedRevision, { amount });
+  /** Writes both components (and the validity when given) at the expected revision; a legacy `amount` is dropped. */
+  async update(id: string, expectedRevision: number, fields: CommissionFields): Promise<UpdateResult> {
+    const atRevision = expectedRevision === 0 ? { $or: [{ revision: 0 }, { revision: { $exists: false } }] } : { revision: expectedRevision };
+    const set: Document = { fixedAmount: fields.fixedAmount, percentBps: fields.percentBps };
+    if (fields.validUntil !== undefined) set.validUntil = fields.validUntil;
+    const result = await this.collection.updateOne({ ...idFilter(id), ...atRevision }, { $set: set, $unset: { amount: '' }, $inc: { revision: 1 } });
+    return result.matchedCount > 0 ? 'saved' : 'stale';
   }
 
   delete(id: string): Promise<boolean> {

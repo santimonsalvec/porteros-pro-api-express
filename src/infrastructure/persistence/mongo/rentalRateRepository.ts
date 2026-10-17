@@ -66,6 +66,17 @@ export class RentalRateRepository implements IRentalRateRepository, IRatePresenc
     };
   }
 
+  /** Every rate of these zones and markets, any duration: the "can see offers" threshold (feature 033). */
+  async findForZones(zoneIds: readonly string[], marketIds: readonly string[]): Promise<RentalRate[]> {
+    const or = [
+      ...(zoneIds.length > 0 ? [{ scope: 'zone', refId: { $in: [...zoneIds] } }] : []),
+      ...(marketIds.length > 0 ? [{ scope: 'market', refId: { $in: [...marketIds] } }] : []),
+    ];
+    if (or.length === 0) return [];
+    const docs = await this.collection.find({ $or: or }).toArray();
+    return docs.map((doc) => this.fromDocument(doc));
+  }
+
   /** Which durations have a rate for these refs; the indexed `scope`/`refId` pair serves it. */
   async pricedDurations(refs: { marketIds: string[]; zoneIds: string[] }): Promise<{ scope: 'market' | 'zone'; refId: string; durationMinutes: number }[]> {
     const or = [
@@ -95,7 +106,7 @@ export class RentalRateRepository implements IRentalRateRepository, IRatePresenc
 
   create(rate: Omit<RentalRateRecord, 'revision' | 'invalid'>): Promise<CreateResult> {
     const { id, scope, refId, durationMinutes, modality, amount } = rate;
-    return createPrice(this.collection, id, { scope, refId, durationMinutes, modality }, amount);
+    return createPrice(this.collection, id, { scope, refId, durationMinutes, modality }, { amount });
   }
 
   updateAmount(id: string, expectedRevision: number, amount: number): Promise<UpdateResult> {

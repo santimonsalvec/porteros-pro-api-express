@@ -59,6 +59,7 @@ describe('BookingRepository (mocked driver)', () => {
       status: 'pending_assignment',
       price: { unitRate: 55000, unitSurcharge: 5000, total: 60000, currency: 'COP' },
       commission: 7000,
+      commissionBreakdown: { base: 60000, percentBps: 0, percentAmount: 0, fixedAmount: 7000, net: 7000, ruleId: 'commission-country-co', origin: { scope: 'country', refId: 'country-co' }, modality: null, matchModality: 'any' },
       travelBufferMinutes: 30,
       searchEndsAt: new Date('2026-09-28T19:30:00.000Z'),
       goalkeeperId: null,
