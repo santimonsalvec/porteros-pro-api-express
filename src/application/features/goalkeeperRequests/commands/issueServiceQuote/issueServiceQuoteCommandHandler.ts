@@ -74,6 +74,7 @@ export class IssueServiceQuoteCommandHandler implements ICommandHandler<
       area.commission,
       area.travelBufferMinutes ?? TRAVEL_BUFFER_MINUTES_DEFAULT,
       terms,
+      area.commissionBreakdown,
     );
     await this.quoteRepository.add(quote);
     // The price per goalkeeper if one without the seal takes it (FR-017): only when there is a discount.

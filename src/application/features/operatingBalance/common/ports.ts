@@ -38,20 +38,38 @@ export interface IBalanceMovementRepository {
   listForOperatingBalance(operatingBalanceId: string, skip: number, limit: number): Promise<BalanceMovement[]>;
 }
 
-/** Externally seeded commission settings. Read-only. */
+/** Commission rules, read-only here; the admin writes them through `ICommissionAdmin`. */
 export interface ICommissionSettingRepository {
-  findFor(refs: { zoneIds: string[]; marketIds: string[]; countryIds: string[] }): Promise<CommissionSetting[]>;
+  findFor(refs: { zoneIds: string[]; marketIds: string[]; countryIds: string[]; goalkeeperIds?: string[] }): Promise<CommissionSetting[]>;
+}
+
+/** Who is asking: their own active rule (feature 033) beats every geography level. */
+export interface CommissionViewer {
+  goalkeeperId: string;
+  now: Date;
+}
+
+/** What one goalkeeper's offers depend on (feature 033). */
+export interface GoalkeeperThreshold {
+  /** Per zone, the lowest net any match there could cost them; `null` when a zone has no rule, or a percentage rule and no rate. */
+  lowest: Map<string, number | null>;
+  /** Their own rules active now in their country: what a booking really costs them (`ownCommissionFor`). */
+  ownRules: CommissionSetting[];
 }
 
 /**
- * The effective commission (zone → market → country, then modality →
- * general within each), `null` when none is configured.
+ * The rule that applies to a match (goalkeeper → zone → market → country, then modality → general
+ * within each level), `null` when none is configured (feature 033). Callers compute the amounts
+ * with `commissionFor(rule, base, match)`.
  */
 export interface ICommissionResolver {
-  /** Per zone, the lowest commission any match there could carry (the "can see offers" threshold). */
-  resolveForZones(zoneIds: string[]): Promise<Map<string, number | null>>;
-  /** The commission of one match in a zone (feature 024). */
-  resolveForMatch(zoneId: string, match: MatchTier): Promise<number | null>;
+  /** The rule of one match in a zone, for the viewer when given. */
+  resolveForMatch(zoneId: string, match: MatchTier, viewer?: CommissionViewer): Promise<CommissionSetting | null>;
+  /**
+   * Per goalkeeper, the "can see offers" threshold (FR-017): their own rule or the zone's, applied
+   * to the lowest rate of each tier, plus the own rules themselves.
+   */
+  lowestForGoalkeepers(goalkeepers: readonly { goalkeeperId: string; zoneIds: readonly string[] }[], now: Date): Promise<Map<string, GoalkeeperThreshold>>;
 }
 
 /** Each country's VAT rate (feature 023), set by administrators. */

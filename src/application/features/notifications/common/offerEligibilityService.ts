@@ -1,5 +1,5 @@
 import type { Booking } from '../../../../domain/bookings/booking.js';
-import { isEligible, type OfferSnapshot } from '../../../../domain/bookings/offerEligibility.js';
+import { commissionOf, isEligible, type OfferSnapshot } from '../../../../domain/bookings/offerEligibility.js';
 import type { GoalkeeperProfile } from '../../../../domain/goalkeepers/goalkeeperProfile.js';
 import type { VettingTier } from '../../../../domain/goalkeepers/vetting.js';
 import { offersStatus } from '../../../../domain/operatingBalance/fundsPolicy.js';
@@ -32,7 +32,7 @@ interface SnapshotWithFunds {
 export type AvailableBookingsResult =
   | { kind: 'not_a_goalkeeper' }
   | { kind: 'unavailable'; reason: UnavailableReason; missingAmount: number | null; suspendedUntil: Date | null }
-  | { kind: 'ok'; bookings: Booking[]; capReached: boolean; vatRateBps: number; tier: VettingTier };
+  | { kind: 'ok'; bookings: Booking[]; capReached: boolean; vatRateBps: number; tier: VettingTier; commissionOf: (booking: Booking) => number };
 
 /**
  * "Can this goalkeeper take this booking now", in both directions (research §1): per goalkeeper
@@ -55,7 +55,7 @@ export class OfferEligibilityService {
       return { kind: 'unavailable', reason: 'suspended', missingAmount: null, suspendedUntil: profile.suspendedUntil };
     }
 
-    const [{ snapshot, missingAmount }] = (await this.snapshotsFor([profile])) as [SnapshotWithFunds];
+    const [{ snapshot, missingAmount }] = (await this.snapshotsFor([profile], now)) as [SnapshotWithFunds];
     if (!snapshot.canSeeOffers) {
       return { kind: 'unavailable', reason: 'insufficient_funds', missingAmount, suspendedUntil: null };
     }
@@ -63,7 +63,8 @@ export class OfferEligibilityService {
     const candidates = await this.deps.bookingRepository.findAvailableCandidates({
       zoneIds: profile.zoneIds,
       excludeClientId: goalkeeperId,
-      maxCommission: snapshot.balance,
+      // With a rule of their own the stored commission says nothing about what they pay (feature 033).
+      maxCommission: snapshot.ownRules.length > 0 ? null : snapshot.balance,
       now,
       cap: AVAILABLE_CANDIDATES_CAP,
     });
@@ -73,6 +74,7 @@ export class OfferEligibilityService {
       capReached: candidates.length === AVAILABLE_CANDIDATES_CAP,
       vatRateBps: snapshot.vatRateBps,
       tier: profile.tier,
+      commissionOf: (booking) => commissionOf(snapshot, booking),
     };
   }
 
@@ -83,7 +85,7 @@ export class OfferEligibilityService {
     const profiles = await this.deps.goalkeeperProfileRepository.findOfferCandidates([
       ...new Set(bookings.map((booking) => booking.zoneId)),
     ]);
-    for (const { snapshot } of await this.snapshotsFor(profiles)) {
+    for (const { snapshot } of await this.snapshotsFor(profiles, now)) {
       const eligible = bookings.filter((booking) => isEligible(snapshot, booking, now));
       if (eligible.length > 0) result.set(snapshot.goalkeeperId, eligible);
     }
@@ -91,13 +93,13 @@ export class OfferEligibilityService {
   }
 
   /** Balance, `canSeeOffers` and held bookings of many goalkeepers in three batched reads. */
-  private async snapshotsFor(profiles: readonly GoalkeeperProfile[]): Promise<SnapshotWithFunds[]> {
+  private async snapshotsFor(profiles: readonly GoalkeeperProfile[], now: Date): Promise<SnapshotWithFunds[]> {
     if (profiles.length === 0) return [];
     const ids = profiles.map((profile) => profile.userId);
     const marketIds = [...new Set(profiles.map((profile) => profile.marketId))];
-    const [operatingBalances, commissions, held, cityRates] = await Promise.all([
+    const [operatingBalances, lowest, held, cityRates] = await Promise.all([
       this.deps.operatingBalanceRepository.findByGoalkeeperIds(ids),
-      this.deps.commissionResolver.resolveForZones([...new Set(profiles.flatMap((profile) => profile.zoneIds))]),
+      this.deps.commissionResolver.lowestForGoalkeepers(profiles.map((profile) => ({ goalkeeperId: profile.userId, zoneIds: profile.zoneIds })), now),
       this.deps.bookingRepository.findAssignedToGoalkeepers(ids),
       Promise.all(marketIds.map(async (marketId) => [marketId, await this.deps.vatRates.forMarket(marketId)] as const)),
     ]);
@@ -106,7 +108,8 @@ export class OfferEligibilityService {
     return profiles.map((profile) => {
       const balance = balances.get(profile.userId) ?? 0;
       const vatRateBps = rates.get(profile.marketId) ?? 0;
-      const funds = offersStatus(balance, profile.zoneIds.map((zoneId) => commissions.get(zoneId) ?? null), vatRateBps);
+      const threshold = lowest.get(profile.userId);
+      const funds = offersStatus(balance, profile.zoneIds.map((zoneId) => threshold?.lowest.get(zoneId) ?? null), vatRateBps);
       return {
         snapshot: {
           goalkeeperId: profile.userId,
@@ -118,6 +121,7 @@ export class OfferEligibilityService {
           vatRateBps,
           held: held.filter((booking) => booking.goalkeeperId === profile.userId),
           tier: profile.tier,
+          ownRules: threshold?.ownRules ?? [],
         },
         missingAmount: funds.missingAmount,
       };

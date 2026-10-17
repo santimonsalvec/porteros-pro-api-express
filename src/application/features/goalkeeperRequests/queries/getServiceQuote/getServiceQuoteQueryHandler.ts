@@ -83,6 +83,7 @@ export class GetServiceQuoteQueryHandler implements IQueryHandler<GetServiceQuot
         marketId: market.id,
         freeCancellationMinutes: priced.freeCancellationMinutes,
         commission: priced.commission,
+        commissionBreakdown: priced.commissionBreakdown,
         travelBufferMinutes: priced.travelBufferMinutes,
         format,
       },

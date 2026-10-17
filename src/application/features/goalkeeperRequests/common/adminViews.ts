@@ -29,6 +29,18 @@ export interface RequestListItem {
   createdAt: string;
 }
 
+/** How a booking's commission was built (feature 033); `null` on records written before it. */
+export interface CommissionBreakdownView {
+  base: number;
+  percentBps: number;
+  percentAmount: number;
+  fixedAmount: number;
+  net: number;
+  ruleId: string;
+  origin: { scope: 'country' | 'market' | 'zone' | 'goalkeeper'; refId: string; name: string | null };
+  modality: string | null;
+}
+
 export interface MoneyView {
   charged: number;
   chargedVat: number;
@@ -82,6 +94,9 @@ export interface BookingView {
   attendance: BookingAttendance | null;
   noShowAt: string | null;
   ended: { at: string | null; reason: BookingEndReason | null; by: BookingEndedBy | null; note: string | null; staff: MemberRef | null } | null;
+  /** The commission this goalkeeper pays (feature 033): the request's reference, or their own once assigned. */
+  commission: number;
+  commissionBreakdown: CommissionBreakdownView | null;
   money: MoneyView | null;
   incidents: IncidentView[];
   ratings: RatingView[];
@@ -111,6 +126,8 @@ export interface RequestDetail {
   };
   pricing: { unitRate: number; unitSurcharge: number; subtotal: number; surcharge: number; total: number; currency: string };
   commission: number;
+  /** The reference breakdown of one goalkeeper (feature 033); `null` on requests created before it. */
+  commissionBreakdown: CommissionBreakdownView | null;
   freeCancellationUntil: string;
   partialFulfillment: PartialFulfillment;
   cancelAllEvaluatedAt: string | null;

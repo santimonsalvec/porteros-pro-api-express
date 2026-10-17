@@ -1,4 +1,5 @@
 import type { Market } from '../../../../domain/markets/market.js';
+import { commissionFor, type CommissionBreakdown } from '../../../../domain/operatingBalance/commissionRule.js';
 import type { MatchTier } from '../../../../domain/pricing/tieredRate.js';
 import type { Zone } from '../../../../domain/zones/zone.js';
 import type { ICommissionResolver } from '../../operatingBalance/common/ports.js';
@@ -12,7 +13,7 @@ import { formatLocalIso, localDayNumber, resolveLocalDateTime, toLocalParts } fr
 
 export interface QuoteEvaluationDependencies {
   countryLookup: ICountryLookup;
-  rentalRateRepository: IRentalRateRepository;
+  rentalRateRepository: Pick<IRentalRateRepository, 'findForDuration'>;
   bookingSettingsRepository: IBookingSettingsRepository;
   commissionResolver: Pick<ICommissionResolver, 'resolveForMatch'>;
 }
@@ -43,7 +44,9 @@ export type AreaQuoteResult =
       currency: string;
       startEpochMs: number;
       startsAtLocal: string;
+      /** The reference commission of one goalkeeper (its net); `commissionBreakdown` says how it was built (feature 033). */
       commission: number;
+      commissionBreakdown: CommissionBreakdown;
       freeCancellationMinutes: number | null;
       travelBufferMinutes: number | null;
     }
@@ -91,17 +94,18 @@ export async function evaluateQuoteInArea(deps: QuoteEvaluationDependencies, inp
   // (3c) In the past? Needs no configuration, so it is reported even in an unconfigured area.
   if (startEpochMs < nowMs) return { outcome: 'start_time_in_past' };
 
-  // (4)(5)(6) The rates for this duration, and the area's settings + currency   //          country), in parallel. Every setting must be defined at the market or its country — no
-  //          built-in defaults — and the country must say which currency its prices are in.
-  //          The platform commission is fixed here too, for the whole flow (012): no commission, no
-  //          quote — a booking nobody could be offered must not be sold.
-  const [rates, areaSettings, commission] = await Promise.all([
+  // (4)(5)(6) The rates for this duration, the area's settings + currency and the commission rule
+  //          (zone → market → country; the goalkeeper is unknown at quote time, FR-012), in
+  //          parallel. Every setting must be defined at the market or its country — no built-in
+  //          defaults — and the country must say which currency its prices are in. No rule, no
+  //          quote (012): a booking nobody could be offered must not be sold.
+  const [rates, areaSettings, rule] = await Promise.all([
     deps.rentalRateRepository.findForDuration(zone.id, market.id, durationMinutes),
     resolveAreaSettings(deps, market),
     deps.commissionResolver.resolveForMatch(zone.id, match),
   ]);
-  if (!areaSettings.ok || commission === null) {
-    const missing: MissingSetting[] = [...(areaSettings.ok ? [] : areaSettings.missing), ...(commission === null ? ['commission' as const] : [])];
+  if (!areaSettings.ok || rule === null) {
+    const missing: MissingSetting[] = [...(areaSettings.ok ? [] : areaSettings.missing), ...(rule === null ? ['commission' as const] : [])];
     return { outcome: 'service_not_configured', marketId: market.id, missing };
   }
   const { currency, bookingWindowDays, minNoticeMinutes, leadTimeSurcharge, freeCancellationMinutes, travelBufferMinutes } = areaSettings;
@@ -123,6 +127,11 @@ export async function evaluateQuoteInArea(deps: QuoteEvaluationDependencies, inp
   const leadMinutes = (startEpochMs - nowMs) / 60_000;
   const unitSurcharge = selectSurchargeTier(leadTimeSurcharge.tiers, leadMinutes)?.amount ?? 0;
 
+  // (8b) The commission of one goalkeeper: the rule on their full price (rate + surcharge,
+  //      feature 033, clarification 2). A rule that yields nothing counts as no rule at all.
+  const commissionBreakdown = commissionFor(rule, rate.amount + unitSurcharge, match);
+  if (commissionBreakdown === null) return { outcome: 'service_not_configured', marketId: market.id, missing: ['commission'] };
+
   // (9) Totals: the rate and the surcharge are each charged once per goalkeeper.
   const { subtotal, surcharge, total } = computeAmounts(rate.amount, goalkeeperCount, unitSurcharge);
   return {
@@ -135,7 +144,8 @@ export async function evaluateQuoteInArea(deps: QuoteEvaluationDependencies, inp
     currency,
     startEpochMs,
     startsAtLocal: formatLocalIso(startEpochMs, timeZone),
-    commission,
+    commission: commissionBreakdown.net,
+    commissionBreakdown,
     freeCancellationMinutes,
     travelBufferMinutes,
   };

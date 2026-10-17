@@ -1,6 +1,7 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
+import { CommissionSetting } from '../../../src/domain/operatingBalance/commissionSetting.js';
 import { createRequestAsClient, MATCH_NOW, ownerOf, signInClient, signInGoalkeeper, type TestApp } from '../operatingBalanceTestHelpers.js';
 
 async function setUp() {
@@ -124,5 +125,29 @@ describe('POST …/accept — US3/US4: clashes and refusals over HTTP', () => {
     expect(missing.body.error).toBe('booking_not_available');
     expect(notGoalkeeper.status).toBe(404);
     expect(notGoalkeeper.body.error).toBe('goalkeeper_not_found');
+  });
+});
+
+describe('POST …/accept — feature 033: the goalkeeper’s own commission rule', () => {
+  it('charges the own rule on the booking’s base, shows it in the list and the agenda, and never leaks the breakdown', async () => {
+    const { context, client, goalkeeper } = await setUp();
+    context.commissionSettingRepository.seed(
+      new CommissionSetting({ id: 'own', scope: 'goalkeeper', refId: goalkeeper.userId, fixedAmount: 0, percentBps: 500, countryId: 'country-co' }),
+    );
+    const created = await createRequestAsClient(context, client.token);
+    const bookingId = created.bookings[0]!.bookingId;
+
+    const available = await request(context.app).get('/goalkeepers/me/available-bookings').set('Authorization', `Bearer ${goalkeeper.token}`);
+    const response = await accept(context, goalkeeper.token, bookingId);
+    const movements = await request(context.app).get('/goalkeepers/me/operating-balance/movements').set('Authorization', `Bearer ${goalkeeper.token}`);
+
+    // 5 % of the 60.000 full price: 3.000 instead of the reference 7.000.
+    expect(available.body.items[0]).toMatchObject({ bookingId, commission: 3000, totalCharge: 3000 });
+    expect(response.status).toBe(201);
+    expect(response.body).toMatchObject({ bookingId, commission: 3000 });
+    expect(movements.body.items[0]).toMatchObject({ type: 'commission_charge', amount: -3000, balanceAfter: 17000 });
+    for (const body of [available.body, response.body, movements.body]) {
+      expect(JSON.stringify(body)).not.toMatch(/commissionBreakdown|percentBps|fixedAmount/);
+    }
   });
 });

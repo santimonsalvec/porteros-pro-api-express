@@ -5,7 +5,8 @@ import type { AdminDecision, GoalkeeperIncident } from '../../../../../domain/go
 import { memberRef } from '../../../users/common/userViewing.js';
 import type { MemberRef } from '../../../users/common/views.js';
 import { personNames, placeNames } from '../../common/adminNames.js';
-import type { BookingView, DecisionView, IncidentView, PersonRef } from '../../common/adminViews.js';
+import type { BookingView, CommissionBreakdownView, DecisionView, IncidentView, PersonRef } from '../../common/adminViews.js';
+import type { CommissionBreakdown } from '../../../../../domain/operatingBalance/commissionRule.js';
 import type { RequestDetailRecord } from '../../common/adminPorts.js';
 import type { RequestsAdminDependencies } from '../../common/requestsAdminDependencies.js';
 import { GetRequestAdminQuery, type GetRequestAdminResult } from './getRequestAdminQuery.js';
@@ -25,7 +26,7 @@ export class GetRequestAdminQueryHandler implements IQueryHandler<GetRequestAdmi
 
     const goalkeeperIds = bookings.flatMap((booking) => (booking.goalkeeperId ? [booking.goalkeeperId] : []));
     const [people, places, members] = await Promise.all([
-      personNames(this.deps, [request.clientId, ...goalkeeperIds]),
+      personNames(this.deps, [request.clientId, ...goalkeeperIds, ...goalkeeperIds]),
       placeNames(this.deps, [request.match.marketId], [request.zoneId]),
       this.members(record),
     ]);
@@ -60,13 +61,36 @@ export class GetRequestAdminQueryHandler implements IQueryHandler<GetRequestAdmi
           currency: request.pricing.currency,
         },
         commission: request.commission,
+        commissionBreakdown: this.breakdownView(request.commissionBreakdown, places, people),
         freeCancellationUntil: request.freeCancellationUntil().toISOString(),
         partialFulfillment: request.partialFulfillment,
         cancelAllEvaluatedAt: iso(request.cancelAllEvaluatedAt),
         contactsRevealedAt: iso(request.contactsRevealedAt),
         offersSent: offersForgotten ? null : record.offersSent,
-        bookings: bookings.map((booking) => this.bookingView(booking, record, people, members)),
+        bookings: bookings.map((booking) => this.bookingView(booking, record, people, members, places)),
       },
+    };
+  }
+
+  /** The level's name: the zone, the market, the country (not loaded here) or the goalkeeper. */
+  private breakdownView(
+    breakdown: CommissionBreakdown | null,
+    places: Awaited<ReturnType<typeof placeNames>>,
+    people: (id: string) => PersonRef,
+  ): CommissionBreakdownView | null {
+    if (!breakdown) return null;
+    const { scope, refId } = breakdown.origin;
+    const name =
+      scope === 'zone' ? places.zone(refId).name : scope === 'market' ? places.market(refId).name : scope === 'goalkeeper' ? people(refId).name : null;
+    return {
+      base: breakdown.base,
+      percentBps: breakdown.percentBps,
+      percentAmount: breakdown.percentAmount,
+      fixedAmount: breakdown.fixedAmount,
+      net: breakdown.net,
+      ruleId: breakdown.ruleId,
+      origin: { scope, refId, name },
+      modality: breakdown.modality,
     };
   }
 
@@ -75,6 +99,7 @@ export class GetRequestAdminQueryHandler implements IQueryHandler<GetRequestAdmi
     record: RequestDetailRecord,
     people: (id: string) => PersonRef,
     members: Map<string, MemberRef>,
+    places: Awaited<ReturnType<typeof placeNames>>,
   ): BookingView {
     const ended = booking.endedAt || booking.endReason || booking.cancelledBy;
     return {
@@ -85,6 +110,8 @@ export class GetRequestAdminQueryHandler implements IQueryHandler<GetRequestAdmi
       searchEndsAt: booking.searchEndsAt.toISOString(),
       goalkeeper: booking.goalkeeperId ? people(booking.goalkeeperId) : null,
       assignedAt: iso(booking.assignedAt),
+      commission: booking.commission,
+      commissionBreakdown: this.breakdownView(booking.commissionBreakdown, places, people),
       // Admin spec 030: a goalkeeper without the seal, and what was taken off; absent otherwise.
       ...(booking.goalkeeperVerified === false ? { unverifiedGoalkeeper: true as const } : {}),
       ...(booking.price.discount > 0 ? { discount: booking.price.discount } : {}),

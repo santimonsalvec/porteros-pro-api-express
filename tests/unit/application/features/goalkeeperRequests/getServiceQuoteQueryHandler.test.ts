@@ -1,6 +1,7 @@
 import { FakeMarketRepository, testMarket } from '../../../../fakes/fakeMarketRepository.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { CommissionSetting } from '../../../../../src/domain/operatingBalance/commissionSetting.js';
+import { CommissionBreakdown } from '../../../../../src/domain/operatingBalance/commissionRule.js';
 import { MatchFormat } from '../../../../../src/domain/bookings/matchFormat.js';
 import { MatchSurface } from '../../../../../src/domain/pricing/matchSurface.js';
 import { Country } from '../../../../../src/domain/countries/country.js';
@@ -95,6 +96,7 @@ describe('GetServiceQuoteQueryHandler — Story 1: price a booking', () => {
         marketId: 'city-cali',
         freeCancellationMinutes: null,
         commission: 7000,
+        commissionBreakdown: new CommissionBreakdown({ base: 40000, percentBps: 0, percentAmount: 0, fixedAmount: 7000, net: 7000, ruleId: 'commission-country-co', origin: { scope: 'country', refId: 'country-co' }, modality: null, matchModality: 'futbol_11' }),
         travelBufferMinutes: null,
         format: new MatchFormat({ modality: 'futbol_11', surfaceId: 'synthetic_grass', surfaceName: 'Grama sintética' }),
       },

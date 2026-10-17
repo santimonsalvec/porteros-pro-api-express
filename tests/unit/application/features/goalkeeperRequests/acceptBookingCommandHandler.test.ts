@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { Booking } from '../../../../../src/domain/bookings/booking.js';
 import { AcceptBookingCommand } from '../../../../../src/application/features/goalkeeperRequests/commands/acceptBooking/acceptBookingCommand.js';
+import { CommissionSetting } from '../../../../../src/domain/operatingBalance/commissionSetting.js';
 import { AcceptBookingCommandHandler } from '../../../../../src/application/features/goalkeeperRequests/commands/acceptBooking/acceptBookingCommandHandler.js';
 import { requestStatusOf } from '../../../../../src/domain/bookings/requestStatus.js';
 import { FakeAcceptanceAuditLogger } from '../../../../fakes/fakeAcceptanceAuditLogger.js';
@@ -50,6 +51,7 @@ beforeEach(async () => {
     audit,
     relay,
     vatRates,
+    commissionResolver: h.commissionResolver,
   });
   await h.credit(20000);
 });
@@ -402,5 +404,43 @@ describe('AcceptBookingCommandHandler — a disabled market (spec 031, FR-011)',
     h.markets.seed(h.markets.markets.get('city-cali')!.disable('staff-1', h.clock.now()));
 
     expect(await accept(bookingId!)).toMatchObject({ outcome: 'accepted', booking: { bookingId, status: 'assigned' } });
+  });
+});
+
+describe('AcceptBookingCommandHandler — 033: the goalkeeper’s own commission rule', () => {
+  const ownRule = (percentBps: number, extra: Partial<ConstructorParameters<typeof CommissionSetting>[0]> = {}) =>
+    h.settings.seed(new CommissionSetting({ id: 'own-gk-1', scope: 'goalkeeper', refId: 'gk-1', fixedAmount: 0, percentBps, countryId: 'country-co', ...extra }));
+
+  it('charges the own rule on the booking’s base and records it on the booking', async () => {
+    ownRule(500); // 5 % of 60.000 = 3.000 instead of the reference 7.000
+    const [bookingId] = match(1, 3);
+
+    const result = await accept(bookingId!);
+
+    expect(result).toMatchObject({ outcome: 'accepted', booking: { commission: 3000 } });
+    expect(charges().map((movement) => movement.amount)).toEqual([-3000]);
+    const stored = await h.bookings.findById(bookingId!);
+    expect(stored?.commissionBreakdown).toMatchObject({ net: 3000, percentBps: 500, origin: { scope: 'goalkeeper', refId: 'gk-1' } });
+  });
+
+  it('judges the funds by the own commission, and says how much is missing from it', async () => {
+    ownRule(500);
+    const [bookingId] = match(1, 3);
+    await h.credit(-19000); // 1.000 left: short of 3.000
+    expect(await accept(bookingId!)).toEqual({ outcome: 'insufficient_funds', missingAmount: 2000 });
+    expect(charges()).toHaveLength(0);
+  });
+
+  it('ignores an expired rule and one from another country: the reference commission applies', async () => {
+    ownRule(500, { validUntil: new Date(h.clock.now().getTime() - 1) });
+    const [first] = match(1, 3);
+    expect(await accept(first!)).toMatchObject({ outcome: 'accepted', booking: { commission: 7000 } });
+
+    h.settings.clear();
+    h.settings.seed(new CommissionSetting({ id: 'c-co', scope: 'country', refId: 'country-co', amount: 7000 }));
+    ownRule(500, { id: 'own-mx', countryId: 'country-mx' });
+    const [second] = match(2, 5);
+    expect(await accept(second!)).toMatchObject({ outcome: 'accepted', booking: { commission: 7000 } });
+    expect(charges().map((movement) => movement.amount)).toEqual([-7000, -7000]);
   });
 });

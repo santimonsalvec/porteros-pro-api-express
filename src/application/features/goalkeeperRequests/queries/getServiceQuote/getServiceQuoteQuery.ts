@@ -42,6 +42,7 @@ export interface ServiceQuote {
 
 export type { InvalidStartTimeReason } from '../../common/quoteEvaluation.js';
 import type { InvalidStartTimeReason } from '../../common/quoteEvaluation.js';
+import type { CommissionBreakdown } from '../../../../../domain/operatingBalance/commissionRule.js';
 
 export type GetServiceQuoteResult =
   | {
@@ -55,8 +56,9 @@ export type GetServiceQuoteResult =
         zoneId: string;
         marketId: string;
         freeCancellationMinutes: number | null;
-        /** The platform commission for one goalkeeper, fixed for the whole flow (012). */
+        /** The platform commission for one goalkeeper, fixed for the whole flow (012); its breakdown (feature 033). */
         commission: number;
+        commissionBreakdown: CommissionBreakdown;
         travelBufferMinutes: number | null;
         /** The priced format, with the surface's current name as its snapshot. */
         format: MatchFormat;
