@@ -21,6 +21,7 @@ describe('GET /admin/me (spec 001, US1)', () => {
       role: { id: 'owner', name: 'Dueño', system: true },
       permissions: [...PERMISSION_CATALOG],
       session: { startedAt: expect.any(String), absoluteExpiresAt: expect.any(String) },
+      preferredLanguage: null,
     });
   });
 

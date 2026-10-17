@@ -50,8 +50,14 @@ describe('admin users (spec 005 of the admin, US1)', () => {
 
     const detail = await get(context, `/admin/users/${client.userId}`, owner.token);
     expect(detail.status).toBe(200);
-    expect(detail.body).toMatchObject({ id: client.userId, firstName: 'Ana', countryCallingCode: '+57', version: expect.any(String), block: null, requestCount: 0 });
+    expect(detail.body).toMatchObject({ id: client.userId, firstName: 'Ana', countryCallingCode: '+57', version: expect.any(String), block: null, requestCount: 0, preferredLanguage: null });
     expect(detail.body).not.toHaveProperty('whatsAppNumber');
+
+    // The language they chose in the app shows read-only (feature 032, FR-019).
+    const user = (await context.userRepository.getById(client.userId))!;
+    user.preferredLanguage = 'en';
+    await context.userRepository.update(user);
+    expect((await get(context, `/admin/users/${client.userId}`, owner.token)).body.preferredLanguage).toBe('en');
 
     const missing = await get(context, '/admin/users/nobody', owner.token);
     expect(missing.status).toBe(404);

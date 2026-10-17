@@ -25,6 +25,9 @@ import { requireAdminAuth } from '../infrastructure/auth/middleware/requireAdmin
 import { scopeOptions } from '../infrastructure/auth/scopeOptions.js';
 import { adminCors } from '../infrastructure/http/adminCors.js';
 import { GetAdminMeQuery } from '../application/features/staff/queries/getAdminMe/getAdminMeQuery.js';
+import { SetMyLanguageCommand } from '../application/features/staff/commands/setMyLanguage/setMyLanguageCommand.js';
+import { setLanguageRequestSchema } from './requests/profile/setLanguageRequest.js';
+import { requireCsrfHeader } from '../infrastructure/http/requireCsrfHeader.js';
 import { GetPermissionCatalogQuery } from '../application/features/staff/queries/getPermissionCatalog/getPermissionCatalogQuery.js';
 import { GetGoalkeeperOperatingBalanceQuery } from '../application/features/operatingBalance/queries/getGoalkeeperOperatingBalance/getGoalkeeperOperatingBalanceQuery.js';
 import { ApiError } from './apiError.js';
@@ -100,6 +103,20 @@ export function createAdminController(deps: AdminControllerDependencies): Router
     switch (result.outcome) {
       case 'ok':
         res.status(200).json(result.me);
+        return;
+      case 'not_found':
+        res.status(401).end();
+        return;
+    }
+  });
+
+  // The language the member reads the admin in (feature 032): any active member, kept on their user.
+  router.put('/me/language', requireCsrfHeader, async (req, res) => {
+    const body = setLanguageRequestSchema.parse(req.body);
+    const result = await deps.mediator.send(new SetMyLanguageCommand(req.adminAccess!.staffId, body.language));
+    switch (result.outcome) {
+      case 'saved':
+        res.status(204).end();
         return;
       case 'not_found':
         res.status(401).end();

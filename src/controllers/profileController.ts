@@ -5,6 +5,8 @@ import { AcceptCurrentTermsCommand } from '../application/features/profile/comma
 import { requireAuth } from '../infrastructure/auth/middleware/requireAuth.js';
 import type { AccessTokenClaims } from '../application/features/auth/common/accessTokenClaims.js';
 import { completeProfileRequestSchema } from './requests/profile/completeProfileRequest.js';
+import { setLanguageRequestSchema } from './requests/profile/setLanguageRequest.js';
+import { SetLanguageCommand } from '../application/features/profile/commands/setLanguage/setLanguageCommand.js';
 import { ApiError } from './apiError.js';
 
 export interface ProfileControllerDependencies {
@@ -57,6 +59,19 @@ export function createProfileController(deps: ProfileControllerDependencies): Ro
       new AcceptCurrentTermsCommand(req.authClaims!.sub, req.ip ?? null, req.header('user-agent') ?? null),
     );
     res.status(201).json(result);
+  });
+
+  // The language the person reads the app in (feature 032): any signed-in account, complete or not.
+  router.put('/language', requireAuth(deps.verifyAccessToken), async (req, res) => {
+    const body = setLanguageRequestSchema.parse(req.body);
+    const result = await deps.mediator.send(new SetLanguageCommand(req.authClaims!.sub, body.language));
+    switch (result.outcome) {
+      case 'saved':
+        res.status(204).end();
+        return;
+      case 'user_not_found':
+        throw new ApiError(401, 'unauthorized', 'The account no longer exists.');
+    }
   });
 
   return router;

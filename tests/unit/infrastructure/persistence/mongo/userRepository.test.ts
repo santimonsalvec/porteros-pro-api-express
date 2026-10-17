@@ -135,3 +135,50 @@ describe('UserRepository (mocked driver)', () => {
     });
   });
 });
+
+describe('UserRepository preferredLanguage (feature 032)', () => {
+  it('stores the chosen language and drops the field when there is none', async () => {
+    const collection = createFakeCollection();
+    collection.insertOne.mockResolvedValue({ acknowledged: true, insertedId: 'user-1' });
+    const repository = repositoryWith(collection);
+    const chosen = new User({ ...bare('user-1'), preferredLanguage: 'en' });
+    const undecided = new User(bare('user-2'));
+
+    await repository.add(chosen);
+    await repository.add(undecided);
+
+    const [first, second] = collection.insertOne.mock.calls.map((call) => call[0] as Record<string, unknown>);
+    expect(first!.preferredLanguage).toBe('en');
+    expect(Object.prototype.hasOwnProperty.call(second, 'preferredLanguage')).toBe(false);
+  });
+
+  it('reads an old document without the field as null, and ignores an unsupported value', async () => {
+    const collection = createFakeCollection();
+    collection.findOne
+      .mockResolvedValueOnce({ _id: 'user-1', email: 'a@example.com', isAdmin: false, externalIdentities: [], createdAt: new Date(), isProfileComplete: false })
+      .mockResolvedValueOnce({ _id: 'user-2', email: 'b@example.com', isAdmin: false, externalIdentities: [], createdAt: new Date(), isProfileComplete: false, preferredLanguage: 'en' })
+      .mockResolvedValueOnce({ _id: 'user-3', email: 'c@example.com', isAdmin: false, externalIdentities: [], createdAt: new Date(), isProfileComplete: false, preferredLanguage: 'fr' });
+    const repository = repositoryWith(collection);
+
+    expect((await repository.getById('user-1'))?.preferredLanguage).toBeNull();
+    expect((await repository.getById('user-2'))?.preferredLanguage).toBe('en');
+    expect((await repository.getById('user-3'))?.preferredLanguage).toBeNull();
+  });
+});
+
+function bare(id: string) {
+  return {
+    id,
+    email: `${id}@example.com`,
+    displayName: null,
+    isAdmin: false,
+    externalIdentities: [],
+    createdAt: new Date('2024-01-15T09:30:00Z'),
+    firstName: null,
+    lastName: null,
+    countryCallingCode: null,
+    whatsAppNumber: null,
+    isProfileComplete: false,
+    normalizedPhoneNumber: null,
+  };
+}

@@ -11,7 +11,7 @@ describe('GetAdminMeQueryHandler', () => {
 
   beforeEach(async () => {
     h = staffHarness();
-    handler = new GetAdminMeQueryHandler({ members: h.members, roles: h.roles, sessions: h.sessions });
+    handler = new GetAdminMeQueryHandler({ members: h.members, roles: h.roles, sessions: h.sessions, users: h.users });
     await h.sessions.add(AdminSession.start({ id: 'sid-1', staffId: 'staff-1', userId: 'user-1', refreshTokenHash: 'h', userAgent: '', ip: '' }, h.clock.now()));
   });
 
@@ -28,6 +28,7 @@ describe('GetAdminMeQueryHandler', () => {
         role: { id: 'owner', name: 'Dueño', system: true },
         permissions: [...PERMISSION_CATALOG],
         session: { startedAt: h.clock.now(), absoluteExpiresAt: new Date(h.clock.now().getTime() + 12 * 60 * 60 * 1000) },
+        preferredLanguage: null,
       },
     });
   });
