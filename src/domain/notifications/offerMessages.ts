@@ -1,13 +1,7 @@
 import type { PushMessage } from '../devices/deviceRules.js';
-import type { MatchFormat, Modality } from '../bookings/matchFormat.js';
-
-/** How a push names each modality (feature 024); `any` reads as an open match. */
-const MODALITY_LABELS: Record<Modality, string> = {
-  micro_futsal: 'Micro / Futsal',
-  futbol_medio: 'Fútbol medio',
-  futbol_11: 'Fútbol 11',
-  any: 'Abierto',
-};
+import type { MatchFormat } from '../bookings/matchFormat.js';
+import { localeOf, type Language } from '../i18n/language.js';
+import { catalog } from '../i18n/messages/catalog.js';
 
 /** An offer of one match (inbox type and push `data.type`). */
 export const OFFER_TYPE = 'booking.available';
@@ -34,33 +28,35 @@ export interface OfferMatch {
 
 /**
  * Title "Partido disponible · Fútbol 11"; body "Bello · dom 4 oct, 3:00 p. m. · 90 min ·
- * Grama sintética", in the market time zone. The inbox keeps the same text.
+ * Grama sintética", in the market time zone and the goalkeeper's language (feature 032). The
+ * inbox keeps the same text.
  */
-export function singleOfferMessage(match: OfferMatch): PushMessage {
-  const place = match.zoneName ?? match.marketName ?? 'tu zona';
+export function singleOfferMessage(language: Language, match: OfferMatch): PushMessage {
+  const texts = catalog(language);
   const { format } = match;
-  const details = format ? ` · ${format.surfaceName}` : '';
   return {
-    title: format ? `Partido disponible · ${MODALITY_LABELS[format.modality]}` : 'Partido disponible',
-    body: `${place} · ${localWhen(match.startsAt, match.timeZone)} · ${match.durationMinutes} min${details}`,
+    ...texts.singleOffer({
+      modality: format ? texts.modality(format.modality) : null,
+      place: match.zoneName ?? match.marketName ?? texts.yourZone,
+      when: localWhen(match.startsAt, match.timeZone, language),
+      durationMinutes: match.durationMinutes,
+      surfaceName: format?.surfaceName ?? null,
+    }),
     data: { type: OFFER_TYPE, requestId: match.requestId, bookingId: match.bookingId },
   };
 }
 
-export function groupedOfferMessage(count: number): PushMessage {
-  return {
-    title: 'Partidos disponibles',
-    body: `Hay ${count} partidos disponibles en tus zonas`,
-    data: { type: OFFERS_LIST_TYPE },
-  };
+export function groupedOfferMessage(language: Language, count: number): PushMessage {
+  return { ...catalog(language).groupedOffer(count), data: { type: OFFERS_LIST_TYPE } };
 }
 
 /**
- * "dom 4 oct, 3:00 p. m." (es-CO), without the dots some ICU versions add to abbreviations and
- * with plain spaces instead of ICU's non-breaking ones, so the text is stable across runtimes.
+ * "dom 4 oct, 3:00 p. m." (es-CO) or "Sun, Oct 4, 3:00 PM" (en-US), without the dots some ICU
+ * versions add to abbreviations and with plain spaces instead of ICU's non-breaking ones, so the
+ * text is stable across runtimes.
  */
-export function localWhen(at: Date, timeZone: string): string {
-  const parts = new Intl.DateTimeFormat('es-CO', {
+export function localWhen(at: Date, timeZone: string, language: Language = 'es'): string {
+  const parts = new Intl.DateTimeFormat(localeOf(language), {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
@@ -72,5 +68,8 @@ export function localWhen(at: Date, timeZone: string): string {
   const part = (type: Intl.DateTimeFormatPartTypes) =>
     (parts.find((item) => item.type === type)?.value ?? '').replace(/\s/g, ' ');
   const bare = (value: string) => value.replace(/\.$/, '');
-  return `${bare(part('weekday'))} ${part('day')} ${bare(part('month'))}, ${part('hour')}:${part('minute')} ${part('dayPeriod')}`;
+  const time = `${part('hour')}:${part('minute')} ${part('dayPeriod')}`;
+  return language === 'en'
+    ? `${bare(part('weekday'))}, ${bare(part('month'))} ${part('day')}, ${time}`
+    : `${bare(part('weekday'))} ${part('day')} ${bare(part('month'))}, ${time}`;
 }

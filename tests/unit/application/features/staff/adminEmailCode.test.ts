@@ -42,6 +42,18 @@ describe('RequestAdminEmailCodeCommandHandler (admin spec 009, US3)', () => {
     expect(h.codes.mailer.sent.map((email) => email.to)).toEqual(['ana@porteros.pro', 'luis@porteros.pro']);
   });
 
+  it("sends the email in the member's language, from their linked user (feature 032)", async () => {
+    const h = adminHarness();
+    await h.activeMember('staff-1', 'ana@porteros.pro', 'owner', 'user-1');
+    const user = User.createFromExternalIdentity({ id: 'user-1', email: 'ana@porteros.pro', displayName: null, provider: 'google', subject: 'sub-user-1' });
+    user.preferredLanguage = 'en';
+    await h.users.add(user);
+
+    await h.ask('ana@porteros.pro');
+
+    expect(h.codes.mailer.sent.map((email) => [email.to, email.language])).toEqual([['ana@porteros.pro', 'en']]);
+  });
+
   it('answers the same to an address without access, and sends nothing', async () => {
     const h = adminHarness();
     await h.activeMember('staff-1', 'ana@porteros.pro', 'owner', 'user-1');

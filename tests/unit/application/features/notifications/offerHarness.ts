@@ -21,6 +21,7 @@ import { FakePushSender } from '../../../../fakes/fakePushSender.js';
 import { buildRequest, buildRequestBookings } from '../../../../fixtures/quoteFixtures.js';
 import { fixedVatRates } from '../../../../fakes/fakeVatRates.js';
 import { FakeBookingSettingsRepository } from '../../../../fakes/fakeBookingSettingsRepository.js';
+import { FakeUserLanguages } from '../../../../fakes/fakeUserLanguages.js';
 
 /** 13:00 in Bogotá on a Sunday; matches start later that day or the next. */
 export const OFFERS_NOW = '2026-10-04T18:00:00.000Z';
@@ -51,6 +52,8 @@ export function offerHarness() {
   const marketRepository = new FakeMarketRepository();
   marketRepository.seed(testMarket({ id: 'city-medellin', name: 'Medellín', countryId: 'country-co' }));
   const bookingSettingsRepository = new FakeBookingSettingsRepository();
+  /** The languages goalkeepers chose (feature 032): none by default. */
+  const userLanguages = new FakeUserLanguages();
   let counter = 0;
   const sender = new OfferSender({
     notifications,
@@ -62,6 +65,7 @@ export function offerHarness() {
     marketRepository,
     bookingSettingsRepository,
     logger: silent,
+    userLanguages,
     platformReminders: { maxReminders: 3, intervalMinutes: 5 },
   });
 
@@ -125,6 +129,7 @@ export function offerHarness() {
     zoneRepository,
     marketRepository,
     bookingSettingsRepository,
+    userLanguages,
     bookingRepository,
     goalkeeperProfileRepository,
     eligibility,

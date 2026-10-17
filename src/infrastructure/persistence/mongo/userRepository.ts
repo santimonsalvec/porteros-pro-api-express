@@ -1,4 +1,5 @@
 import type { Db, Document } from 'mongodb';
+import { parseLanguage } from '../../../domain/i18n/language.js';
 import type { ContactFields, ContactWriteResult, IUserContactWriter } from '../../../application/features/users/common/ports.js';
 import { EmailKeyTakenError, type IUserRepository } from '../../../application/features/auth/common/ports.js';
 import { ExternalIdentity } from '../../../domain/users/externalIdentity.js';
@@ -72,6 +73,7 @@ export class UserRepository extends MongoRepository<User, string> implements IUs
       isProfileComplete: entity.isProfileComplete,
       normalizedPhoneNumber: entity.normalizedPhoneNumber,
       emailKey: entity.emailKey,
+      preferredLanguage: entity.preferredLanguage,
     });
   }
 
@@ -91,6 +93,7 @@ export class UserRepository extends MongoRepository<User, string> implements IUs
       isProfileComplete: Boolean(doc.isProfileComplete),
       normalizedPhoneNumber: (doc.normalizedPhoneNumber as string | undefined) ?? null,
       emailKey: (doc.emailKey as string | undefined) ?? null,
+      preferredLanguage: parseLanguage(doc.preferredLanguage),
     });
   }
 

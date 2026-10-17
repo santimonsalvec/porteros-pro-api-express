@@ -1,3 +1,4 @@
+import type { Language } from '../../../../domain/i18n/language.js';
 /**
  * What the admin web sees of a user (admin spec 005, contracts/users-goalkeepers-api.md §1–§2).
  * The WhatsApp number is never part of these views: it has its own audited read.
@@ -48,6 +49,8 @@ export interface UserDetail extends UserRow {
   accountState: 'active' | 'closing' | 'closed';
   /** The open request, to link to it; `null` unless `closing`. */
   openClosureId: string | null;
+  /** The language the person reads the app in (feature 032); null until they choose one. */
+  preferredLanguage: Language | null;
 }
 
 /** A request or booking listed before blocking someone, on its city's clock. */

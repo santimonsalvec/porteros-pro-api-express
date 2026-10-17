@@ -18,7 +18,7 @@ describe('sign-in code for the app — /auth/email-code (admin spec 009, US1)', 
       expiryMinutes: 2,
       resendAfterSeconds: 60,
     });
-    expect(context.loginCodeMailer.sent).toEqual([{ to: 'juana@gmail.com', code: '100001', expiryMinutes: 2, idempotencyKey: expect.any(String) }]);
+    expect(context.loginCodeMailer.sent).toEqual([{ to: 'juana@gmail.com', code: '100001', expiryMinutes: 2, idempotencyKey: expect.any(String), language: 'es' }]);
   });
 
   it('refuses a missing or invalid address', async () => {

@@ -17,6 +17,16 @@ export const openapiSpec = {
   },
   servers: [{ url: '/' }],
   components: {
+    parameters: {
+      AcceptLanguage: {
+        name: 'Accept-Language',
+        in: 'header',
+        required: false,
+        schema: { type: 'string', example: 'en' },
+        description:
+          'The caller’s current language (feature 032): `es` or `en`, or a full header such as `en-US,en;q=0.9`. Used when the account has no saved preference, for the sign-in code email, the test push and the payment return page. Unsupported or absent means Spanish.',
+      },
+    },
     securitySchemes: {
       bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
       adminBearerAuth: {
@@ -850,6 +860,7 @@ export const openapiSpec = {
           accessToken: { type: 'string' },
           expiresInSeconds: { type: 'integer', example: 300 },
           session: { type: 'object', properties: { startedAt: { type: 'string', format: 'date-time' }, absoluteExpiresAt: { type: 'string', format: 'date-time' } } },
+          preferredLanguage: { type: 'string', enum: ['es', 'en'], nullable: true, description: 'The language saved on the member’s account (feature 032); null until chosen.' },
         },
       },
       StaffMember: {
@@ -962,6 +973,7 @@ export const openapiSpec = {
           role: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' }, system: { type: 'boolean' } } },
           permissions: { type: 'array', items: { type: 'string' } },
           session: { type: 'object', properties: { startedAt: { type: 'string', format: 'date-time' }, absoluteExpiresAt: { type: 'string', format: 'date-time' } } },
+          preferredLanguage: { type: 'string', enum: ['es', 'en'], nullable: true, description: 'The language saved on the member’s account (feature 032); null until chosen.' },
         },
       },
       MeResponse: {
@@ -971,6 +983,7 @@ export const openapiSpec = {
           email: { type: 'string' },
           isAdmin: { type: 'boolean', description: 'Always false: admin rights live in staff members (admin web). Kept for the app.' },
           isProfileComplete: { type: 'boolean' },
+          preferredLanguage: { type: 'string', enum: ['es', 'en'], nullable: true, description: 'The language the person chose (feature 032); null until they choose one.' },
         },
       },
       ClientProfileResponse: {
@@ -1151,6 +1164,8 @@ export const openapiSpec = {
     '/auth/email-code': {
       post: {
         summary: 'App: email a six-digit sign-in code to an address (admin spec 009)',
+        description: 'The email’s template renders in the account’s saved language, else the request’s `Accept-Language`, else Spanish (feature 032): the provider always receives `LANGUAGE`.',
+        parameters: [{ $ref: '#/components/parameters/AcceptLanguage' }],
         tags: ['Auth'],
         requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { email: { type: 'string', maxLength: 254 } }, required: ['email'] } } } },
         responses: {
@@ -1243,9 +1258,10 @@ export const openapiSpec = {
     },
     '/auth/me': {
       get: {
-        summary: 'Read the authenticated caller’s claims',
+        summary: 'Read the authenticated caller’s claims and language',
         tags: ['Auth'],
         security: [{ bearerAuth: [] }],
+        parameters: [{ $ref: '#/components/parameters/AcceptLanguage' }],
         responses: {
           '200': {
             description: 'Claims from the validated access token',
@@ -1908,6 +1924,8 @@ export const openapiSpec = {
     '/auth/admin/email-code': {
       post: {
         summary: 'Admin web: email a sign-in code to a member; the same answer, no sooner than 800 ms, for any address (admin spec 009)',
+        description: 'The email’s template renders in the member’s linked user’s language, else the request’s `Accept-Language`, else Spanish (feature 032).',
+        parameters: [{ $ref: '#/components/parameters/AcceptLanguage' }],
         tags: ['Admin web session'],
         requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { email: { type: 'string', maxLength: 254 } }, required: ['email'] } } } },
         responses: {
@@ -1988,6 +2006,24 @@ export const openapiSpec = {
         security: [{ adminBearerAuth: [] }],
         responses: {
           '200': { description: 'Member', content: { 'application/json': { schema: { $ref: '#/components/schemas/AdminMeResponse' } } } },
+          '401': { description: 'No admin session' },
+        },
+      },
+    },
+    '/admin/me/language': {
+      put: {
+        summary: 'Saves the language the member reads the admin in (feature 032)',
+        description: 'Kept on the member’s linked user, the same field `PUT /profile/language` writes. Needs the admin web’s `X-Requested-With` header. Idempotent; read back by `GET /admin/me` as `preferredLanguage`.',
+        tags: ['Admin web session'],
+        security: [{ adminBearerAuth: [] }],
+        parameters: [{ $ref: '#/components/parameters/AcceptLanguage' }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { type: 'object', properties: { language: { type: 'string', enum: ['es', 'en'] } }, required: ['language'] } } },
+        },
+        responses: {
+          '204': { description: 'Saved' },
+          '400': { description: 'Missing or unsupported language (`validation_failed`), or no `X-Requested-With` header (`missing_csrf_header`)' },
           '401': { description: 'No admin session' },
         },
       },
@@ -2387,6 +2423,24 @@ export const openapiSpec = {
               },
             },
           },
+          '401': { description: 'Not signed in' },
+        },
+      },
+    },
+    '/profile/language': {
+      put: {
+        summary: 'Saves the language the person reads the app in (feature 032)',
+        description: 'Any signed-in account, complete or not, blocked or not. Idempotent. Also read back by `GET /auth/me` as `preferredLanguage`.',
+        tags: ['Profile'],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ $ref: '#/components/parameters/AcceptLanguage' }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { type: 'object', properties: { language: { type: 'string', enum: ['es', 'en'] } }, required: ['language'] } } },
+        },
+        responses: {
+          '204': { description: 'Saved' },
+          '400': { description: 'Missing or unsupported language (`validation_failed`)' },
           '401': { description: 'Not signed in' },
         },
       },
@@ -4083,7 +4137,8 @@ export const openapiSpec = {
     '/devices/test-push': {
       post: {
         summary: "Send a test push to the caller's own devices",
-        description: 'data.type is "test". Limited per user (default 5 per minute).',
+        description: 'data.type is "test". Limited per user (default 5 per minute). Worded in the account’s saved language, else the request’s `Accept-Language`, else Spanish (feature 032).',
+        parameters: [{ $ref: '#/components/parameters/AcceptLanguage' }],
         tags: ['Devices'],
         security: [{ adminBearerAuth: [] }],
         responses: {

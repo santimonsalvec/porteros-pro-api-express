@@ -6,7 +6,7 @@ const match = { zoneName: 'Bello', marketName: 'Medellín', startsAt: new Date('
 
 describe('no-show message (feature 021)', () => {
   it('tells the goalkeeper the no-show and until when they are suspended', () => {
-    const message = noShowMessage(match, 'r-1', 'b-1', new Date('2026-10-07T23:00:00.000Z'));
+    const message = noShowMessage('es', match, 'r-1', 'b-1', new Date('2026-10-07T23:00:00.000Z'));
 
     expect(message).toEqual({
       title: 'Inasistencia registrada',
@@ -15,6 +15,6 @@ describe('no-show message (feature 021)', () => {
     });
     expect(message.body).not.toMatch(/\.\.| | /);
     expect(validatePushMessage(message)).toMatchObject({ ok: true });
-    expect(noShowMessage(match, 'r-1', 'b-1', null).body).toMatch(/inasistencia\.$/);
+    expect(noShowMessage('es', match, 'r-1', 'b-1', null).body).toMatch(/inasistencia\.$/);
   });
 });

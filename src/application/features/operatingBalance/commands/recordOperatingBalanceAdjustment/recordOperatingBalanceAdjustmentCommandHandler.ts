@@ -37,7 +37,7 @@ export class RecordOperatingBalanceAdjustmentCommandHandler
       case 'recorded':
         await notifyOnce(this.notices, {
           userId: command.goalkeeperId,
-          message: operatingBalanceAdjustedMessage(command.amount, command.reason, result.operatingBalance.balance, context.currency),
+          message: (language) => operatingBalanceAdjustedMessage(language, command.amount, command.reason, result.operatingBalance.balance, context.currency),
           dedupeKey: `operatingBalance-adjustment:${result.movement.id}`,
         });
         return { outcome: 'recorded', movement: toAdminMovementItem(result.movement), balance: result.operatingBalance.balance };

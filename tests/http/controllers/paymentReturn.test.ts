@@ -1,6 +1,7 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { Deposit } from '../../../src/domain/deposits/deposit.js';
+import { User } from '../../../src/domain/users/user.js';
 import { buildTestApp } from '../testAppFactory.js';
 
 function seedDeposit(context: Awaited<ReturnType<typeof buildTestApp>>, status: Deposit['status'] = 'pending') {
@@ -39,6 +40,31 @@ describe('GET /pagos/retorno/{reference} — the page the gateway returns to', (
     expect(response.text).toContain('href="https://app.porterospro.co/saldo-operativo">Volver a PorterosPRO</a>');
     expect(response.text).not.toContain('gk-private-id');
     expect(response.text).not.toContain(deposit.id);
+  });
+
+  it("speaks the owner's language, else the browser's, else Spanish (feature 032)", async () => {
+    const context = await buildTestApp({ paymentReturn: { appOpenUrl: 'https://app.porterospro.co/saldo-operativo' } });
+    const deposit = seedDeposit(context, 'approved');
+    const owner = User.createFromExternalIdentity({ id: 'gk-private-id', email: 'gk@example.com', displayName: null, provider: 'google', subject: 'sub-gk' });
+    owner.preferredLanguage = 'en';
+    await context.userRepository.add(owner);
+
+    const chosen = await request(context.app).get(`/pagos/retorno/${deposit.reference}`).set('Accept-Language', 'es');
+    owner.preferredLanguage = null;
+    await context.userRepository.update(owner);
+    const browser = await request(context.app).get(`/pagos/retorno/${deposit.reference}`).set('Accept-Language', 'en-US,en;q=0.9');
+    const neither = await request(context.app).get(`/pagos/retorno/${deposit.reference}`);
+    const unknown = await request(context.app).get('/pagos/retorno/nope').set('Accept-Language', 'en');
+
+    expect(chosen.text).toContain('<html lang="en">');
+    expect(chosen.text).toContain('<h1>Deposit approved</h1>');
+    expect(chosen.text).toContain('We added 18.536 COP to your operating balance.');
+    expect(chosen.text).toContain('Amount: 20.000 COP · You receive: 18.536 COP');
+    expect(chosen.text).toContain('>Back to PorterosPRO</a>');
+    expect(browser.text).toContain('<h1>Deposit approved</h1>');
+    expect(neither.text).toContain('<html lang="es">');
+    expect(neither.text).toContain('<h1>Depósito aprobado</h1>');
+    expect(unknown.text).toContain('We could not find this deposit');
   });
 
   it('never credits: the deposit stays pending', async () => {

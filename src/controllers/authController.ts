@@ -9,6 +9,7 @@ import type { AccessTokenClaims } from '../application/features/auth/common/acce
 import { exchangeSsoCredentialRequestSchema } from './requests/auth/exchangeSsoCredentialRequest.js';
 import { refreshAccessTokenRequestSchema } from './requests/auth/refreshAccessTokenRequest.js';
 import type { MeResponse } from './responses/auth/meResponse.js';
+import { GetPreferredLanguageQuery } from '../application/features/profile/queries/getPreferredLanguage/getPreferredLanguageQuery.js';
 import { ApiError } from './apiError.js';
 import { RequestEmailCodeCommand } from '../application/features/auth/commands/requestEmailCode/requestEmailCodeCommand.js';
 import { VerifyEmailCodeCommand } from '../application/features/auth/commands/verifyEmailCode/verifyEmailCodeCommand.js';
@@ -76,7 +77,7 @@ export function createAuthController(deps: AuthControllerDependencies): Router {
   // Sign-in with a code sent by email (porteros-pro-admin spec 009, contracts/email-code-api.md).
   router.post('/email-code', async (req, res) => {
     const body = parseEmailCodeBody(emailCodeRequestSchema, req);
-    answerCodeRequest(res, await deps.mediator.send(new RequestEmailCodeCommand(body.email, req.ip ?? '')));
+    answerCodeRequest(res, await deps.mediator.send(new RequestEmailCodeCommand(body.email, req.ip ?? '', req.language ?? null)));
   });
 
   router.post('/email-code/verify', async (req, res) => {
@@ -97,7 +98,7 @@ export function createAuthController(deps: AuthControllerDependencies): Router {
     }
   });
 
-  router.get('/me', requireAuth(deps.verifyAccessToken), (req, res) => {
+  router.get('/me', requireAuth(deps.verifyAccessToken), async (req, res) => {
     const claims = req.authClaims!;
     const response: MeResponse = {
       userId: claims.sub,
@@ -105,6 +106,8 @@ export function createAuthController(deps: AuthControllerDependencies): Router {
       // Kept for the app, which reads it as a required boolean; nothing grants admin rights here anymore (spec 001).
       isAdmin: false,
       isProfileComplete: claims.profileComplete === 'true',
+      // The account's language, so a new phone adopts it at sign-in (feature 032, FR-008).
+      preferredLanguage: await deps.mediator.send(new GetPreferredLanguageQuery(claims.sub)),
     };
     res.status(200).json(response);
   });

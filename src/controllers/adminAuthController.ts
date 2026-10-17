@@ -74,7 +74,7 @@ export function createAdminAuthController(deps: AdminAuthControllerDependencies)
   // address, and the same session and cookie as Google's.
   router.post('/email-code', async (req, res) => {
     const body = parseEmailCodeBody(emailCodeRequestSchema, req);
-    answerCodeRequest(res, await deps.mediator.send(new RequestAdminEmailCodeCommand(body.email, req.ip ?? '')));
+    answerCodeRequest(res, await deps.mediator.send(new RequestAdminEmailCodeCommand(body.email, req.ip ?? '', req.language ?? null)));
   });
 
   router.post('/email-code/verify', async (req, res) => {

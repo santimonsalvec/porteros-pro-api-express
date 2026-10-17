@@ -19,6 +19,8 @@ import type { IMarketRepository } from '../../markets/common/ports.js';
 import type { INotificationRepository } from '../../notifications/common/ports.js';
 import type { IZoneRepository } from '../../zones/common/ports.js';
 import type { ILifecycleLogger } from '../common/ports.js';
+import { resolveLanguage } from '../../../../domain/i18n/language.js';
+import type { IUserLanguages } from '../../users/common/userLanguages.js';
 
 export const CLIENT_OUTCOME_EVENT_TYPES = ['booking.expired', 'booking.cancelled'] as const;
 
@@ -32,6 +34,7 @@ export interface ClientOutcomeNoticeDependencies {
   processed: IProcessedEventStore;
   idGenerator: IIdGenerator;
   clock: IClock;
+  userLanguages: IUserLanguages;
   logger: ILifecycleLogger;
 }
 
@@ -81,11 +84,12 @@ export class ClientOutcomeNoticeHandler implements INotificationHandler<DomainEv
       timeZone: request.match.timeZone,
     };
     const assigned = bookings.filter((booking) => booking.status === 'assigned').length;
+    const language = resolveLanguage(await this.deps.userLanguages.languageOf(request.clientId), null);
     const message = bookings.some((booking) => booking.status === 'cancelled')
-      ? requestCancelledMessage(match, requestId)
+      ? requestCancelledMessage(language, match, requestId)
       : assigned === 0
-        ? requestExpiredMessage(match, requestId)
-        : requestPartiallyExpiredMessage(match, requestId, assigned, bookings.length);
+        ? requestExpiredMessage(language, match, requestId)
+        : requestPartiallyExpiredMessage(language, match, requestId, assigned, bookings.length);
 
     const created = await this.deps.notifications.createIfAbsent({
       id: this.deps.idGenerator.newId(),
@@ -118,7 +122,9 @@ export class ClientOutcomeNoticeHandler implements INotificationHandler<DomainEv
       this.deps.zoneRepository.getManyByIds([request.match.zoneId]),
       this.deps.marketRepository.getByIds([request.match.marketId]),
     ]);
+    const language = resolveLanguage(await this.deps.userLanguages.languageOf(request.clientId), null);
     const message = adminCancelledMessage(
+      language,
       { zoneName: zones[0]?.name ?? null, marketName: markets[0]?.name ?? null, startsAt: request.match.startsAt, timeZone: request.match.timeZone },
       event.requestId,
       event.bookingId,

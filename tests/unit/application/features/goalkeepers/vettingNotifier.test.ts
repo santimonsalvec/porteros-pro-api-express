@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { IPushNotifier } from '../../../../../src/application/features/devices/common/ports.js';
 import { VettingNotifier } from '../../../../../src/application/features/goalkeepers/common/vettingNotifier.js';
 import { FakeNotificationRepository } from '../../../../fakes/fakeNotificationRepository.js';
+import { FakeUserLanguages } from '../../../../fakes/fakeUserLanguages.js';
 
 const NOW = new Date('2026-10-15T15:00:00.000Z');
 
@@ -12,6 +13,7 @@ function setup(push: IPushNotifier['sendToUsers'] = vi.fn(async () => ({ totals:
   const notifier = new VettingNotifier({
     notifications,
     pushNotifier: { sendToUsers: push },
+    userLanguages: new FakeUserLanguages(),
     idGenerator: { newId: () => `n-${++ids}` },
     clock: { now: () => NOW },
     logger: { info: () => undefined, warn: (entry) => warnings.push(entry) },

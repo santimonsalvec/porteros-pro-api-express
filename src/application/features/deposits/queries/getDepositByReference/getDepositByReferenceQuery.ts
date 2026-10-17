@@ -1,3 +1,4 @@
+import type { Language } from '../../../../../domain/i18n/language.js';
 import { IQuery } from '../../../../common/mediator/types.js';
 import type { DepositStatus } from '../../../../../domain/deposits/deposit.js';
 
@@ -7,6 +8,8 @@ export interface DepositReturnView {
   amount: number;
   net: number;
   currency: string;
+  /** The language the deposit's owner chose (feature 032); null when none. The page never names them. */
+  ownerLanguage: Language | null;
 }
 
 export type GetDepositByReferenceResult = { outcome: 'success'; deposit: DepositReturnView } | { outcome: 'not_found' };

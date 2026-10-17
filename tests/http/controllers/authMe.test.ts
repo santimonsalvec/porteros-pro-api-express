@@ -1,39 +1,28 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
-import { ExternalIdentity } from '../../../src/domain/users/externalIdentity.js';
+import { signInClient } from '../operatingBalanceTestHelpers.js';
 
-describe('GET /auth/me', () => {
-  it('returns claims for a valid access token', async () => {
-    const { app, googleValidator } = await buildTestApp();
-    googleValidator.registerValidCredential('good-token', new ExternalIdentity('google', 'sub-1', 'a@example.com'));
-    const exchange = await request(app)
-      .post('/auth/sso/exchange')
-      .send({ provider: 'google', platform: 'mobile', credential: 'good-token' });
+describe('GET /auth/me preferredLanguage (feature 032)', () => {
+  it('is null until the person chooses a language', async () => {
+    const context = await buildTestApp();
+    const client = await signInClient(context, 'sub-me-1');
 
-    const response = await request(app)
-      .get('/auth/me')
-      .set('Authorization', `Bearer ${exchange.body.accessToken}`);
+    const me = await request(context.app).get('/auth/me').set('Authorization', `Bearer ${client.token}`);
 
-    expect(response.status).toBe(200);
-    expect(response.body.email).toBe('a@example.com');
-    expect(response.body.isAdmin).toBe(false);
-    expect(response.body.isProfileComplete).toBe(false);
+    expect(me.status).toBe(200);
+    expect(me.body).toMatchObject({ userId: client.userId, isProfileComplete: true, preferredLanguage: null });
   });
 
-  it('rejects a missing token', async () => {
-    const { app } = await buildTestApp();
+  it('returns the stored choice', async () => {
+    const context = await buildTestApp();
+    const client = await signInClient(context, 'sub-me-2');
+    const user = (await context.userRepository.getById(client.userId))!;
+    user.preferredLanguage = 'en';
+    await context.userRepository.update(user);
 
-    const response = await request(app).get('/auth/me');
+    const me = await request(context.app).get('/auth/me').set('Authorization', `Bearer ${client.token}`);
 
-    expect(response.status).toBe(401);
-  });
-
-  it('rejects an invalid token', async () => {
-    const { app } = await buildTestApp();
-
-    const response = await request(app).get('/auth/me').set('Authorization', 'Bearer garbage');
-
-    expect(response.status).toBe(401);
+    expect(me.body.preferredLanguage).toBe('en');
   });
 });

@@ -3,7 +3,7 @@ import type { INotificationHandler } from '../../../common/mediator/types.js';
 import type { PushMessage } from '../../../../domain/devices/deviceRules.js';
 import type { GoalkeeperWithdrewPayload } from '../../../../domain/events/bookingEvents.js';
 import type { DomainEvent } from '../../../../domain/events/domainEvent.js';
-import { goalkeeperSuspendedMessage, goalkeeperWithdrewMessage } from '../../../../domain/notifications/withdrawalMessages.js';
+import { GOALKEEPER_SUSPENDED_TYPE, GOALKEEPER_WITHDREW_TYPE, goalkeeperSuspendedMessage, goalkeeperWithdrewMessage } from '../../../../domain/notifications/withdrawalMessages.js';
 import type { IIdGenerator } from '../../auth/common/ports.js';
 import type { IPushNotifier } from '../../devices/common/ports.js';
 import type { IProcessedEventStore } from '../../events/common/ports.js';
@@ -14,6 +14,8 @@ import type { INotificationRepository } from '../../notifications/common/ports.j
 import type { IZoneRepository } from '../../zones/common/ports.js';
 import { notifyOnce } from '../common/notifyOnce.js';
 import type { ILifecycleLogger } from '../common/ports.js';
+import type { Language } from '../../../../domain/i18n/language.js';
+import type { IUserLanguages } from '../../users/common/userLanguages.js';
 
 export const WITHDRAWAL_NOTICE_EVENT_TYPES = ['goalkeeper.withdrew'] as const;
 
@@ -26,6 +28,7 @@ export interface WithdrawalNoticeDependencies {
   processed: IProcessedEventStore;
   idGenerator: IIdGenerator;
   clock: IClock;
+  userLanguages: IUserLanguages;
   logger: ILifecycleLogger;
 }
 
@@ -53,17 +56,18 @@ export class WithdrawalNoticeHandler implements INotificationHandler<DomainEvent
     ]);
     const match = { zoneName: zones[0]?.name ?? null, marketName: markets[0]?.name ?? null, startsAt: request.match.startsAt, timeZone: request.match.timeZone };
 
-    const toClient = goalkeeperWithdrewMessage(match, event.requestId, event.bookingId, payload.replacementBookingId !== null);
-    await this.send(payload.clientId, toClient, `withdrawal-client:${event.bookingId}`, event.bookingId);
+    const toClient = (language: Language) => goalkeeperWithdrewMessage(language, match, event.requestId, event.bookingId, payload.replacementBookingId !== null);
+    await this.send(payload.clientId, GOALKEEPER_WITHDREW_TYPE, toClient, `withdrawal-client:${event.bookingId}`, event.bookingId);
     if (payload.suspendedUntil) {
-      const toGoalkeeper = goalkeeperSuspendedMessage(payload.suspendedUntil, request.match.timeZone, event.requestId, event.bookingId);
-      await this.send(payload.goalkeeperId, toGoalkeeper, `withdrawal-suspension:${event.bookingId}`, event.bookingId);
+      const until = payload.suspendedUntil;
+      const toGoalkeeper = (language: Language) => goalkeeperSuspendedMessage(language, until, request.match.timeZone, event.requestId, event.bookingId);
+      await this.send(payload.goalkeeperId, GOALKEEPER_SUSPENDED_TYPE, toGoalkeeper, `withdrawal-suspension:${event.bookingId}`, event.bookingId);
     }
   }
 
-  private async send(userId: string, message: PushMessage, dedupeKey: string, bookingId: string): Promise<void> {
+  private async send(userId: string, type: string, message: (language: Language) => PushMessage, dedupeKey: string, bookingId: string): Promise<void> {
     const reached = await notifyOnce(this.deps, { userId, message, dedupeKey });
     if (reached === null) return;
-    this.deps.logger.info({ outcome: 'withdrawal_notice_sent', type: message.data.type, bookingId, reached }, 'Withdrawal notice sent');
+    this.deps.logger.info({ outcome: 'withdrawal_notice_sent', type, bookingId, reached }, 'Withdrawal notice sent');
   }
 }

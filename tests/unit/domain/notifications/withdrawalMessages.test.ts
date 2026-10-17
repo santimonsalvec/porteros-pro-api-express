@@ -6,7 +6,7 @@ const match = { zoneName: 'Bello', marketName: 'Medellín', startsAt: new Date('
 
 describe('withdrawal messages (feature 018)', () => {
   it('tells the client another goalkeeper is being searched', () => {
-    expect(goalkeeperWithdrewMessage(match, 'r-1', 'b-1', true)).toEqual({
+    expect(goalkeeperWithdrewMessage('es', match, 'r-1', 'b-1', true)).toEqual({
       title: 'Tu portero se retiró',
       body: 'Tu portero se retiró del partido en Bello · dom 4 oct, 3:00 p. m. Ya estamos buscando otro portero.',
       data: { type: 'booking.goalkeeper_withdrew', requestId: 'r-1', bookingId: 'b-1' },
@@ -14,13 +14,13 @@ describe('withdrawal messages (feature 018)', () => {
   });
 
   it('tells the client when no replacement could be searched', () => {
-    expect(goalkeeperWithdrewMessage(match, 'r-1', 'b-1', false).body).toBe(
+    expect(goalkeeperWithdrewMessage('es', match, 'r-1', 'b-1', false).body).toBe(
       'Tu portero se retiró del partido en Bello · dom 4 oct, 3:00 p. m. No alcanzamos a buscar otro portero.',
     );
   });
 
   it('tells the goalkeeper until when they are suspended, in local time', () => {
-    const message = goalkeeperSuspendedMessage(new Date('2026-10-07T18:30:00.000Z'), 'America/Bogota', 'r-1', 'b-1');
+    const message = goalkeeperSuspendedMessage('es', new Date('2026-10-07T18:30:00.000Z'), 'America/Bogota', 'r-1', 'b-1');
 
     expect(message.body).toBe(
       'Quedaste suspendido hasta el mié 7 oct, 1:30 p. m. por retirarte de un partido. Mientras tanto no verás partidos ni recibirás ofertas.',
@@ -30,9 +30,9 @@ describe('withdrawal messages (feature 018)', () => {
 
   it('never has a double period or a non-breaking space, and is a valid push', () => {
     for (const message of [
-      goalkeeperWithdrewMessage(match, 'r-1', 'b-1', true),
-      goalkeeperWithdrewMessage(match, 'r-1', 'b-1', false),
-      goalkeeperSuspendedMessage(new Date('2026-10-07T18:30:00.000Z'), 'America/Bogota', 'r-1', 'b-1'),
+      goalkeeperWithdrewMessage('es', match, 'r-1', 'b-1', true),
+      goalkeeperWithdrewMessage('es', match, 'r-1', 'b-1', false),
+      goalkeeperSuspendedMessage('es', new Date('2026-10-07T18:30:00.000Z'), 'America/Bogota', 'r-1', 'b-1'),
     ]) {
       expect(message.body).not.toMatch(/\.\.| | /);
       expect(validatePushMessage(message)).toMatchObject({ ok: true });

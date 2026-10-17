@@ -1,3 +1,4 @@
+import type { Language } from '../../../../../src/domain/i18n/language.js';
 import type { LoginCodeDependencies, LoginCodeLogEntry } from '../../../../../src/application/features/auth/common/requestLoginCode.js';
 import { HmacLoginCodeHasher } from '../../../../../src/infrastructure/auth/hmacLoginCodeHasher.js';
 import { FakeAccessSettingsRepository } from '../../../../fakes/fakeAccessSettingsRepository.js';
@@ -16,6 +17,8 @@ export function loginCodeHarness() {
   const limiter = new FakeDurableRateLimiter();
   const settings = new FakeAccessSettingsRepository();
   const logs: LoginCodeLogEntry[] = [];
+  /** The language the account of each normalized address chose (feature 032). */
+  const languages: Record<string, Language> = {};
   let codeCounter = 100_000;
   let idCounter = 0;
   const deps: LoginCodeDependencies = {
@@ -28,6 +31,7 @@ export function loginCodeHarness() {
     ids: { newId: () => `code-${++idCounter}` },
     clock,
     log: (entry) => logs.push(entry),
+    languageOfEmail: async (email) => languages[email] ?? null,
   };
-  return { deps, clock, codes, mailer, limiter, settings, logs };
+  return { deps, clock, codes, mailer, limiter, settings, logs, languages };
 }

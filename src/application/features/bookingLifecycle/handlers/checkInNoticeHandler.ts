@@ -13,6 +13,8 @@ import type { INotificationRepository } from '../../notifications/common/ports.j
 import type { IZoneRepository } from '../../zones/common/ports.js';
 import { notifyOnce } from '../common/notifyOnce.js';
 import type { ILifecycleLogger } from '../common/ports.js';
+import type { Language } from '../../../../domain/i18n/language.js';
+import type { IUserLanguages } from '../../users/common/userLanguages.js';
 
 export const CHECK_IN_NOTICE_EVENT_TYPES = ['goalkeeper.checked_in'] as const;
 
@@ -25,6 +27,7 @@ export interface CheckInNoticeDependencies {
   processed: IProcessedEventStore;
   idGenerator: IIdGenerator;
   clock: IClock;
+  userLanguages: IUserLanguages;
   logger: ILifecycleLogger;
 }
 
@@ -46,7 +49,7 @@ export class CheckInNoticeHandler implements INotificationHandler<DomainEvent> {
       this.deps.marketRepository.getByIds([request.match.marketId]),
     ]);
     const match = { zoneName: zones[0]?.name ?? null, marketName: markets[0]?.name ?? null, startsAt: request.match.startsAt, timeZone: request.match.timeZone };
-    const message = goalkeeperArrivedMessage(match, event.requestId, event.bookingId);
+    const message = (language: Language) => goalkeeperArrivedMessage(language, match, event.requestId, event.bookingId);
     const reached = await notifyOnce(this.deps, { userId: payload.clientId, message, dedupeKey: `goalkeeper-arrived:${event.bookingId}` });
     if (reached === null) return;
     this.deps.logger.info({ outcome: 'arrival_notice_sent', bookingId: event.bookingId, reached }, 'Client told their goalkeeper arrived');

@@ -1,4 +1,6 @@
 import type { PushMessage } from '../devices/deviceRules.js';
+import type { Language } from '../i18n/language.js';
+import { catalog } from '../i18n/messages/catalog.js';
 import { where, type OutcomeMatch } from './outcomeMessages.js';
 
 /** Inbox and push types of feature 019. */
@@ -20,27 +22,20 @@ export function describeContact(contact: PersonContact, fallback: string): strin
   return contact.whatsApp ? `${name} · WhatsApp ${contact.whatsApp}` : name;
 }
 
-/** "A y B", "A, B y C". */
-function list(items: readonly string[]): string {
-  return items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} y ${items[items.length - 1]}`;
-}
-
 /**
  * A goalkeeper took one booking and others are still searching. `contact` only when the booking
  * was taken in the last hour, where contacts are already visible (clarification 4).
  */
 export function goalkeeperAssignedMessage(
+  language: Language,
   match: OutcomeMatch,
   requestId: string,
   bookingId: string,
   options: { replacement: boolean; contact: PersonContact | null },
 ): PushMessage {
-  // The time already ends in "a. m." / "p. m.", so no extra period after it.
-  const lead = options.replacement ? `Encontramos otro portero para tu partido ${where(match)}` : `Un portero tomó tu partido ${where(match)}`;
-  const who = options.contact ? ` Es ${describeContact(options.contact, 'tu portero')}.` : '';
+  const texts = catalog(language);
   return {
-    title: options.replacement ? 'Encontramos otro portero' : 'Portero confirmado',
-    body: `${lead}${who} Seguimos buscando el otro.`,
+    ...texts.goalkeeperAssigned(where(match, language), options.replacement, options.contact ? describeContact(options.contact, texts.yourGoalkeeper) : null),
     data: { type: GOALKEEPER_ASSIGNED_TYPE, requestId, bookingId },
   };
 }
@@ -50,39 +45,34 @@ export function goalkeeperAssignedMessage(
  * the goalkeepers taken in the last hour (clarification 4).
  */
 export function requestCompleteMessage(
+  language: Language,
   match: OutcomeMatch,
   requestId: string,
   bookingId: string,
   goalkeeperCount: number,
   contacts: readonly PersonContact[] | null,
 ): PushMessage {
-  const lead = goalkeeperCount > 1 ? `¡Listo! Tus ${goalkeeperCount} porteros están confirmados` : '¡Listo! Tu portero está confirmado';
-  const tail =
-    contacts && contacts.length > 0
-      ? ` ${goalkeeperCount > 1 ? 'Son' : 'Es'} ${list(contacts.map((contact) => describeContact(contact, 'tu portero')))}.`
-      : ` Verás sus datos 1 hora antes.`;
+  const texts = catalog(language);
   return {
-    title: 'Solicitud completa',
-    body: `${lead} para el partido ${where(match)}${tail}`,
+    ...texts.requestComplete(where(match, language), goalkeeperCount, contacts?.map((contact) => describeContact(contact, texts.yourGoalkeeper)) ?? null),
     data: { type: REQUEST_COMPLETE_TYPE, requestId, bookingId },
   };
 }
 
 /** One hour before: to the client, who their goalkeepers are. */
-export function contactsVisibleMessage(match: OutcomeMatch, requestId: string, contacts: readonly PersonContact[]): PushMessage {
-  const many = contacts.length > 1;
+export function contactsVisibleMessage(language: Language, match: OutcomeMatch, requestId: string, contacts: readonly PersonContact[]): PushMessage {
+  const texts = catalog(language);
   return {
-    title: many ? 'Tus porteros' : 'Tu portero',
-    body: `${many ? 'Tus porteros' : 'Tu portero'} para el partido ${where(match)}: ${list(contacts.map((contact) => describeContact(contact, 'tu portero')))}.`,
+    ...texts.contactsVisible(where(match, language), contacts.map((contact) => describeContact(contact, texts.yourGoalkeeper))),
     data: { type: CONTACTS_VISIBLE_TYPE, requestId },
   };
 }
 
 /** One hour before: to a goalkeeper, who the client is. */
-export function clientContactVisibleMessage(match: OutcomeMatch, requestId: string, bookingId: string, contact: PersonContact): PushMessage {
+export function clientContactVisibleMessage(language: Language, match: OutcomeMatch, requestId: string, bookingId: string, contact: PersonContact): PushMessage {
+  const texts = catalog(language);
   return {
-    title: 'Tu cliente',
-    body: `Tu cliente para el partido ${where(match)}: ${describeContact(contact, 'el cliente')}.`,
+    ...texts.clientContactVisible(where(match, language), describeContact(contact, texts.theClient)),
     data: { type: CLIENT_CONTACT_VISIBLE_TYPE, requestId, bookingId },
   };
 }

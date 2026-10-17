@@ -42,7 +42,7 @@ export class RequestAccountClosureCommandHandler implements ICommandHandler<Requ
     if (role === 'goalkeeper') await this.deps.profiles.setAvailableForOffers(userId, false);
     await notifyOnce(this.deps.notices, {
       userId,
-      message: closureRequestedMessage(closure.id),
+      message: (language) => closureRequestedMessage(language, closure.id),
       dedupeKey: `account-closure-requested:${closure.id}`,
     });
     return { outcome: 'requested', current: toMyClosureView(closure, state, null) };

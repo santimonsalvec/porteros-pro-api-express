@@ -176,6 +176,11 @@ import { GetDepositOptionsQuery } from '../../src/application/features/deposits/
 import { GetDepositOptionsQueryHandler } from '../../src/application/features/deposits/queries/getDepositOptions/getDepositOptionsQueryHandler.js';
 import { StartDepositCommand } from '../../src/application/features/deposits/commands/startDeposit/startDepositCommand.js';
 import { StartDepositCommandHandler } from '../../src/application/features/deposits/commands/startDeposit/startDepositCommandHandler.js';
+import { SetLanguageCommand } from '../../src/application/features/profile/commands/setLanguage/setLanguageCommand.js';
+import { SetLanguageCommandHandler } from '../../src/application/features/profile/commands/setLanguage/setLanguageCommandHandler.js';
+import { GetPreferredLanguageQuery } from '../../src/application/features/profile/queries/getPreferredLanguage/getPreferredLanguageQuery.js';
+import { GetPreferredLanguageQueryHandler } from '../../src/application/features/profile/queries/getPreferredLanguage/getPreferredLanguageQueryHandler.js';
+import { UserLanguages } from '../../src/application/features/users/common/userLanguages.js';
 import { AcceptCurrentTermsCommand } from '../../src/application/features/profile/commands/acceptCurrentTerms/acceptCurrentTermsCommand.js';
 import { AcceptCurrentTermsCommandHandler } from '../../src/application/features/profile/commands/acceptCurrentTerms/acceptCurrentTermsCommandHandler.js';
 import { FakePaymentGateway, FakePaymentGatewayRegistry } from '../fakes/fakePaymentGateway.js';
@@ -590,6 +595,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
   const pushSender = new FakePushSender();
   const deviceLogger = { info: () => undefined, warn: () => undefined, error: () => undefined };
   const pushNotifier = new PushNotifier({ devices: deviceRepository, sender: pushSender, logger: deviceLogger, fingerprint: sha256TokenFingerprint });
+  const userLanguages = new UserLanguages(userRepository);
   const notificationRepository = new FakeNotificationRepository();
   const offerPushState = new FakeOfferPushState();
   const offersLogger = { info: () => undefined, warn: () => undefined };
@@ -601,6 +607,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     vatRates,
   });
   const offerSender = new OfferSender({
+    userLanguages,
     notifications: notificationRepository,
     pushState: offerPushState,
     pushNotifier,
@@ -619,6 +626,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
   const lifecycleIds = { newId: () => uuidv7() };
   const bookingExpiryJob = new BookingExpiryJob({ bookingRepository, store: lifecycleStore, relay: eventRelay, idGenerator: lifecycleIds, logger: offersLogger });
   const clientOutcomeNotices = new ClientOutcomeNoticeHandler({
+    userLanguages,
     requestRepository,
     bookingRepository,
     zoneRepository,
@@ -640,6 +648,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     logger: offersLogger,
   });
   const goalkeeperCancellationNotices = new GoalkeeperCancellationNoticeHandler({
+    userLanguages,
     requestRepository,
     zoneRepository,
     marketRepository,
@@ -659,6 +668,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     ...NO_SHOW_NOTICE_EVENT_TYPES.map((type) => ({
       type,
       handler: new NoShowNoticeHandler({
+        userLanguages,
         requestRepository,
         zoneRepository,
         marketRepository,
@@ -673,6 +683,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     ...CHECK_IN_NOTICE_EVENT_TYPES.map((type) => ({
       type,
       handler: new CheckInNoticeHandler({
+        userLanguages,
         requestRepository,
         zoneRepository,
         marketRepository,
@@ -687,6 +698,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     ...CLIENT_ASSIGNMENT_EVENT_TYPES.map((type) => ({
       type,
       handler: new ClientAssignmentNoticeHandler({
+        userLanguages,
         requestRepository,
         bookingRepository,
         userRepository,
@@ -703,6 +715,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     ...WITHDRAWAL_NOTICE_EVENT_TYPES.map((type) => ({
       type,
       handler: new WithdrawalNoticeHandler({
+        userLanguages,
         requestRepository,
         zoneRepository,
         marketRepository,
@@ -870,7 +883,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       movements: operatingBalanceStore,
       ledger: operatingBalanceLedger,
       blockers: closureBlockers,
-      notices: { notifications: notificationRepository, pushNotifier, idGenerator, clock },
+      notices: { notifications: notificationRepository, pushNotifier, idGenerator, clock, userLanguages },
       devices: deviceRepository,
       suggestDepositAmount: async () => 40000,
       idGenerator,
@@ -913,6 +926,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     }),
   );
   const vettingNotifier = new VettingNotifier({
+    userLanguages,
     notifications: notificationRepository,
     pushNotifier,
     idGenerator,
@@ -990,7 +1004,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       handler: new ReconcileDepositCommandHandler({
         operatingBalanceContext,
         store: depositStore,
-        notices: { notifications: notificationRepository, pushNotifier, idGenerator: lifecycleIds, clock },
+        notices: { notifications: notificationRepository, pushNotifier, idGenerator: lifecycleIds, clock, userLanguages },
         logger: offersLogger,
         depositRepository,
         gateways: paymentGatewayRegistry,
@@ -1020,6 +1034,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     }),
     new OfferRemindersJob({ bookingRepository, eligibility: offerEligibility, sender: offerSender, logger: offersLogger, roundCap: 2000 }),
     new ContactsRevealJob({
+      userLanguages,
       requestRepository,
       bookingRepository,
       userRepository,
@@ -1032,6 +1047,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       logger: offersLogger,
     }),
     new CheckInWatchJob({
+      userLanguages,
       bookingRepository,
       requestRepository,
       userRepository,
@@ -1047,7 +1063,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     new DepositReconcileJob({
       operatingBalanceContext,
       store: depositStore,
-      notices: { notifications: notificationRepository, pushNotifier, idGenerator: lifecycleIds, clock },
+      notices: { notifications: notificationRepository, pushNotifier, idGenerator: lifecycleIds, clock, userLanguages },
       logger: offersLogger,
       depositRepository,
       gateways: paymentGatewayRegistry,
@@ -1215,7 +1231,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       handler: new ApplyGatewayEventCommandHandler({
         operatingBalanceContext,
         store: depositStore,
-        notices: { notifications: notificationRepository, pushNotifier, idGenerator: lifecycleIds, clock },
+        notices: { notifications: notificationRepository, pushNotifier, idGenerator: lifecycleIds, clock, userLanguages },
         logger: offersLogger,
         gateways: paymentGatewayRegistry,
         secrets: paymentSecrets,
@@ -1226,7 +1242,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     },
     { requestType: ListDepositsQuery, handler: new ListDepositsQueryHandler(goalkeeperProfileRepository, depositRepository) },
     { requestType: GetDepositQuery, handler: new GetDepositQueryHandler(depositRepository) },
-    { requestType: GetDepositByReferenceQuery, handler: new GetDepositByReferenceQueryHandler(depositRepository) },
+    { requestType: GetDepositByReferenceQuery, handler: new GetDepositByReferenceQueryHandler(depositRepository, userLanguages) },
     {
       requestType: SetGatewaySettingsCommand,
       handler: new SetGatewaySettingsCommandHandler(quoteCountryRepository, paymentGatewaySettingsRepository, paymentSecrets, clock, offersLogger, marketRepository),
@@ -1261,6 +1277,8 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
         privacyPolicyVersion: '1.0',
       }),
     },
+    { requestType: SetLanguageCommand, handler: new SetLanguageCommandHandler(userRepository) },
+    { requestType: GetPreferredLanguageQuery, handler: new GetPreferredLanguageQueryHandler(userLanguages) },
     {
       requestType: RecordOperatingBalanceAdjustmentCommand,
       handler: new RecordOperatingBalanceAdjustmentCommandHandler(operatingBalanceContext, operatingBalanceLedger, operatingBalanceStore, {
@@ -1268,6 +1286,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
         pushNotifier,
         idGenerator: lifecycleIds,
         clock,
+        userLanguages,
       }),
     },
     {
@@ -1528,7 +1547,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
     },
     {
       requestType: SendTestPushCommand,
-      handler: new SendTestPushCommandHandler({ notifier: pushNotifier, limiter: new InMemoryRateLimiter(), clock, limitPerMinute: 5 }),
+      handler: new SendTestPushCommandHandler({ notifier: pushNotifier, limiter: new InMemoryRateLimiter(), clock, limitPerMinute: 5, userLanguages }),
     },
   ]);
   // Dashboard and system (admin spec 008).

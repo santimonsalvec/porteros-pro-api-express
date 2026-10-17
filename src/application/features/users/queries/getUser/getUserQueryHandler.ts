@@ -43,6 +43,7 @@ export class GetUserQueryHandler implements IQueryHandler<GetUserQuery, GetUserR
         requestCount,
         accountState: closing ? 'closing' : closure?.status === 'closed' ? 'closed' : 'active',
         openClosureId: closing ? closure.id : null,
+        preferredLanguage: user.preferredLanguage,
       },
     };
   }
