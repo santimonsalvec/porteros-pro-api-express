@@ -2,8 +2,7 @@ import type { UnverifiedDiscountSetting } from '../../../../domain/pricing/unver
 import type { PricedModality } from '../../../../domain/bookings/matchFormat.js';
 import type { BookingSettingsFields } from '../../../../domain/pricing/bookingSettingsRules.js';
 import type { UpdateResult } from '../../geography/common/ports.js';
-import type { MatchTier } from '../../../../domain/pricing/tieredRate.js';
-import type { CommissionSetting } from '../../../../domain/operatingBalance/commissionSetting.js';
+import type { CommissionScope } from '../../../../domain/operatingBalance/commissionSetting.js';
 
 /**
  * The admin's write side of prices and booking rules (admin spec 004). Separate from the read-only
@@ -24,7 +23,30 @@ export interface PriceRecord<Scope extends string> {
 }
 
 export type RentalRateRecord = PriceRecord<'zone' | 'market'> & { durationMinutes: number };
-export type CommissionRecord = PriceRecord<'country' | 'market' | 'zone'>;
+
+/** A commission rule as the admin sees it (feature 033): both components, and the goalkeeper fields when they apply. */
+export interface CommissionRecord {
+  id: string;
+  scope: CommissionScope;
+  refId: string;
+  modality: PricedModality | null;
+  fixedAmount: number;
+  percentBps: number;
+  /** Goalkeeper rules only; `null` otherwise. */
+  countryId: string | null;
+  /** Goalkeeper rules only; `null` = never expires (and for geography rules). */
+  validUntil: Date | null;
+  revision: number;
+  /** The domain refuses the stored document (a seeded mistake): shown marked, fixed by editing it. */
+  invalid: boolean;
+}
+
+/** What an edit of a rule may change (feature 033); `validUntil` only for goalkeeper rules. */
+export interface CommissionFields {
+  fixedAmount: number;
+  percentBps: number;
+  validUntil?: Date | null;
+}
 
 /** Which refs to read, per scope; `null` = every document. */
 export type RefFilter = { scope: string; refIds: string[] }[] | null;
@@ -50,7 +72,7 @@ export interface ICommissionAdmin {
   find(filter: PriceFilter): Promise<CommissionRecord[]>;
   getById(id: string): Promise<CommissionRecord | null>;
   create(commission: Omit<CommissionRecord, 'revision' | 'invalid'>): Promise<CreateResult>;
-  updateAmount(id: string, expectedRevision: number, amount: number): Promise<UpdateResult>;
+  update(id: string, expectedRevision: number, fields: CommissionFields): Promise<UpdateResult>;
   delete(id: string): Promise<boolean>;
 }
 
@@ -73,11 +95,6 @@ export interface IBookingSettingsAdmin {
   save(scope: 'country' | 'market', refId: string, expectedRevision: number | null, fields: StoredBookingSettings): Promise<UpdateResult>;
   /** Every market-level document: a few dozen at most, one per market that overrides something. */
   listMarketScoped(): Promise<BookingSettingsRecord[]>;
-}
-
-/** The commission document that applies to one match in a zone (the quote's resolver, admin spec 004 simulator). */
-export interface ICommissionSettingResolver {
-  resolveSettingForMatch(zoneId: string, match: MatchTier): Promise<CommissionSetting | null>;
 }
 
 export type DiscountCreateResult = { outcome: 'created' } | { outcome: 'duplicate'; existingId: string | null };

@@ -10,6 +10,8 @@ export interface PricingPreviewInput {
   startsAtLocal: string;
   /** The moment to quote from, same form; `null` = now (FR-013a). */
   quoteFromLocal: string | null;
+  /** Feature 033: simulate for this goalkeeper, so their own active rule shows when it applies. */
+  goalkeeperId?: string | null;
 }
 
 export type NotQuotableOutcome =
@@ -28,9 +30,22 @@ export interface PreviewTarget {
 }
 
 export interface PriceOrigin {
-  scope: 'zone' | 'market' | 'country';
+  scope: 'zone' | 'market' | 'country' | 'goalkeeper';
   refId: string;
   name: string;
+  /** Goalkeeper rules only: `YYYY-MM-DDTHH:mm` in the market's time zone, `null` = never expires. */
+  validUntilLocal?: string | null;
+}
+
+/** The commission of one goalkeeper, as the rule built it (feature 033): `amount` is the net. */
+export interface PreviewCommission {
+  base: number;
+  percentBps: number;
+  percentAmount: number;
+  fixedAmount: number;
+  amount: number;
+  origin: PriceOrigin;
+  tier: Tier;
 }
 
 type Tier = { modality: string | null };
@@ -47,7 +62,7 @@ export interface PricingPreview {
   quotable: { ok: true } | { ok: false; outcome: NotQuotableOutcome; detail: string; target: PreviewTarget | null };
   rate: { amount: number; origin: PriceOrigin; tier: Tier } | null;
   surcharge: { amount: number; tier: { fromMinutes: number; toMinutes: number | null } | null } | null;
-  commission: { amount: number; origin: PriceOrigin; tier: Tier } | null;
+  commission: PreviewCommission | null;
   vat: { rateBps: number; amount: number } | null;
   totalForGoalkeeper: number | null;
   rules: {

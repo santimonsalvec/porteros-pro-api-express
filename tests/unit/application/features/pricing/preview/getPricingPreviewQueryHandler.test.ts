@@ -41,7 +41,7 @@ describe('GetPricingPreviewQuery (admin spec 004, US4)', () => {
         quotable: { ok: true },
         rate: { amount: 40000, origin: { scope: 'zone', refId: 'zone-cali-norte', name: 'Norte' }, tier: { modality: null } },
         surcharge: { amount: 5000, tier: { fromMinutes: 60, toMinutes: 120 } },
-        commission: { amount: 7000, origin: { scope: 'country', refId: 'country-co', name: 'Colombia' }, tier: { modality: null } },
+        commission: { base: 45000, percentBps: 0, percentAmount: 0, fixedAmount: 7000, amount: 7000, origin: { scope: 'country', refId: 'country-co', name: 'Colombia' }, tier: { modality: null } },
         vat: { rateBps: 1900, amount: 1330 },
         totalForGoalkeeper: 8330,
         rules: {
@@ -62,6 +62,37 @@ describe('GetPricingPreviewQuery (admin spec 004, US4)', () => {
     expect(sur).toMatchObject({ preview: { rate: { amount: 45000, origin: { scope: 'zone' } }, commission: { amount: 9000, origin: { scope: 'zone', name: 'Sur' } } } });
     expect((await preview({ zoneId: 'zone-cali-centro' }))).toMatchObject({ preview: { rate: { amount: 50000, origin: { scope: 'market', name: 'Cali' }, tier: { modality: 'futbol_11' } } } });
     expect(any).toMatchObject({ preview: { rate: { amount: 45000, tier: { modality: null } } } });
+  });
+
+  it('breaks a percent and a mixed rule down on the goalkeeper’s full price (feature 033)', async () => {
+    world.commissionSettingRepository.clear();
+    world.commissionSettingRepository.seed(new CommissionSetting({ id: 'c-pct', scope: 'market', refId: 'city-cali', fixedAmount: 0, percentBps: 1000 }));
+    expect(await preview()).toMatchObject({
+      preview: { commission: { base: 45000, percentBps: 1000, percentAmount: 4500, fixedAmount: 0, amount: 4500, origin: { scope: 'market', name: 'Cali' } }, vat: { amount: 855 }, totalForGoalkeeper: 5355 },
+    });
+    world.commissionSettingRepository.seed(new CommissionSetting({ id: 'c-mixed', scope: 'zone', refId: 'zone-cali-norte', fixedAmount: 3000, percentBps: 1000 }));
+    expect(await preview()).toMatchObject({ preview: { commission: { amount: 7500, fixedAmount: 3000, percentAmount: 4500, origin: { scope: 'zone' } } } });
+  });
+
+  it('a rule that yields nothing is not quotable and points at the commissions screen', async () => {
+    world.commissionSettingRepository.clear();
+    world.commissionSettingRepository.seed(new CommissionSetting({ id: 'c-tiny', scope: 'country', refId: 'country-co', fixedAmount: 0, percentBps: 1 }));
+    world.rentalRateRepository.clear();
+    world.rentalRateRepository.seed(new RentalRate({ id: 'r-tiny', scope: 'zone', refId: 'zone-cali-norte', durationMinutes: 60, amount: 100 }));
+    expect(await preview({ quoteFromLocal: '2026-09-21T11:00' })).toMatchObject({
+      preview: { commission: null, quotable: { ok: false, outcome: 'service_not_configured', target: { screen: 'commissions', id: 'city-cali' } } },
+    });
+  });
+
+  it('simulated for a goalkeeper, shows their own active rule and until when it applies (feature 033)', async () => {
+    world.commissionSettingRepository.seed(new CommissionSetting({ id: 'own', scope: 'goalkeeper', refId: 'gk-1', fixedAmount: 0, percentBps: 500, countryId: 'country-co', validUntil: new Date('2026-11-01T04:59:00.000Z') }));
+    expect(await preview({ goalkeeperId: 'gk-1' })).toMatchObject({
+      preview: { commission: { amount: 2250, percentBps: 500, origin: { scope: 'goalkeeper', refId: 'gk-1', name: 'Juan Pérez', validUntilLocal: '2026-10-31T23:59' } } },
+    });
+    expect(await preview()).toMatchObject({ preview: { commission: { amount: 7000, origin: { scope: 'country' } } } });
+    world.commissionSettingRepository.seed(new CommissionSetting({ id: 'own-old', scope: 'goalkeeper', refId: 'gk-1', fixedAmount: 1, percentBps: 0, modality: 'futbol_11', countryId: 'country-co', validUntil: new Date('2026-09-01T00:00:00.000Z') }));
+    expect(await preview({ goalkeeperId: 'gk-1' })).toMatchObject({ preview: { commission: { amount: 2250 } } });
+    expect(await preview({ goalkeeperId: 'nobody' })).toEqual({ outcome: 'invalid', fieldErrors: { goalkeeperId: 'goalkeeper_not_found' } });
   });
 
   it('quotes from the chosen moment, read in the city time zone', async () => {

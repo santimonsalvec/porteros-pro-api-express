@@ -2,6 +2,7 @@ import type { Request } from 'express';
 import type { ISender } from '../../application/common/mediator/types.js';
 import { ListGoalkeepersQuery } from '../../application/features/goalkeepers/queries/listGoalkeepers/listGoalkeepersQuery.js';
 import { GetGoalkeeperAdminQuery } from '../../application/features/goalkeepers/queries/getGoalkeeperAdmin/getGoalkeeperAdminQuery.js';
+import { GetGoalkeeperCommissionRulesQuery } from '../../application/features/pricing/queries/getGoalkeeperCommissionRules/getGoalkeeperCommissionRulesQuery.js';
 import { GetGoalkeeperDocumentQuery } from '../../application/features/goalkeepers/queries/getGoalkeeperDocument/getGoalkeeperDocumentQuery.js';
 import { CorrectGoalkeeperDocumentCommand } from '../../application/features/goalkeepers/commands/correctGoalkeeperDocument/correctGoalkeeperDocumentCommand.js';
 import { ApiError } from '../apiError.js';
@@ -31,6 +32,13 @@ export function registerGoalkeeperAdminRoutes(route: Route, mediator: ISender): 
     const result = await mediator.send(new GetGoalkeeperAdminQuery(userIdOf(req)));
     if (result.outcome === 'not_a_goalkeeper' || !canSeeMarket(req, result.goalkeeper.market?.id)) throw goalkeeperNotFound();
     res.status(200).json(result.goalkeeper);
+  });
+
+  // Feature 033: the goalkeeper's own commission rules; written through /admin/commissions with scope goalkeeper.
+  route('get', '/goalkeepers/:userId/commission-rules', 'pricing.read', async (req, res) => {
+    const result = await mediator.send(new GetGoalkeeperCommissionRulesQuery(userIdOf(req)));
+    if (result.outcome === 'not_found' || !canSeeMarket(req, result.rules.goalkeeper.marketId)) throw goalkeeperNotFound();
+    res.status(200).json(result.rules);
   });
 
   route(

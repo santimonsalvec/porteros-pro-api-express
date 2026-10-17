@@ -5,9 +5,19 @@ export interface ImpactZone {
   active: boolean;
 }
 
+/** The general rule that would apply to a goalkeeper's tier once their own rule goes (feature 033). */
+export interface FallbackRule {
+  fixedAmount: number;
+  percentBps: number;
+  kind: 'fixed' | 'percent' | 'mixed';
+  origin: { scope: 'market' | 'country'; refId: string; name: string | null };
+}
+
 export interface DeleteImpact {
   zoneCount: number;
   zoneNames: string[];
+  /** Goalkeeper rules only: `null` when no general rule covers that tier. */
+  fallback?: FallbackRule | null;
 }
 
 /**

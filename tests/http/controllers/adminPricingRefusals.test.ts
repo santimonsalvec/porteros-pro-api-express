@@ -49,14 +49,14 @@ describe('admin pricing routes — every refusal answers its code (admin spec 00
   it('commissions', async () => {
     const { editor } = await world();
 
-    const noZone = await editor.post('/admin/commissions', { scope: 'zone', refId: 'nope', amount: 1 });
-    const aboveLimit = await editor.patch('/admin/commissions/commission-country-co', { revision: 0, amount: 100_000_001 });
-    const unknownPatch = await editor.patch('/admin/commissions/nope', { revision: 0, amount: 1 });
+    const noZone = await editor.post('/admin/commissions', { scope: 'zone', refId: 'nope', fixedAmount: 1, percentBps: 0 });
+    const aboveLimit = await editor.patch('/admin/commissions/commission-country-co', { revision: 0, fixedAmount: 100_000_001, percentBps: 0 });
+    const unknownPatch = await editor.patch('/admin/commissions/nope', { revision: 0, fixedAmount: 1, percentBps: 0 });
     const unknownImpact = await editor.get('/admin/commissions/nope/delete-impact');
     const unknownDelete = await editor.post('/admin/commissions/nope/delete', { reason: 'Prueba' });
 
     expect([noZone.status, noZone.body.error]).toEqual([404, 'zone_not_found']);
-    expect([aboveLimit.status, aboveLimit.body.fieldErrors]).toEqual([400, { amount: 'above_limit' }]);
+    expect([aboveLimit.status, aboveLimit.body.fieldErrors]).toEqual([400, { fixedAmount: 'above_limit' }]);
     expect([unknownPatch.status, unknownPatch.body.error]).toEqual([404, 'commission_not_found']);
     expect([unknownImpact.status, unknownImpact.body.error]).toEqual([404, 'commission_not_found']);
     expect([unknownDelete.status, unknownDelete.body.error]).toEqual([404, 'commission_not_found']);

@@ -25,7 +25,7 @@ const rate: RentalRateRecord = {
   invalid: false,
 };
 
-const commission: CommissionRecord = { id: 'c1', scope: 'country', refId: 'co', modality: 'futbol_11', amount: 7000, revision: 0, invalid: false };
+const commission: CommissionRecord = { id: 'c1', scope: 'country', refId: 'co', modality: 'futbol_11', fixedAmount: 7000, percentBps: 0, countryId: null, validUntil: null, revision: 0, invalid: false };
 const countryTarget: PriceTarget = { ...zoneTarget, marketId: null, marketName: null, zoneId: null, zoneName: null, zoneActive: null };
 
 describe('rentalRateView', () => {
@@ -60,7 +60,9 @@ describe('commissionView', () => {
   it('adds the VAT and the total at the country rate', () => {
     expect(commissionView(commission, countryTarget, 1900)).toMatchObject({
       id: 'c1',
-      amount: 7000,
+      fixedAmount: 7000,
+      percentBps: 0,
+      kind: 'fixed',
       currency: 'COP',
       vatRateBps: 1900,
       vatAmount: 1330,
@@ -74,10 +76,15 @@ describe('commissionView', () => {
   });
 
   it('leaves the VAT empty for a stored amount the domain refuses', () => {
-    expect(commissionView({ ...commission, amount: 70.5, invalid: true }, countryTarget, 1900)).toMatchObject({
+    expect(commissionView({ ...commission, fixedAmount: 70.5, invalid: true }, countryTarget, 1900)).toMatchObject({
       invalid: true,
       vatAmount: null,
       totalWithVat: null,
     });
+  });
+
+  it('leaves the VAT empty for a percent or mixed rule, since it depends on the booking (feature 033)', () => {
+    expect(commissionView({ ...commission, fixedAmount: 0, percentBps: 1000 }, countryTarget, 1900)).toMatchObject({ kind: 'percent', vatAmount: null, totalWithVat: null });
+    expect(commissionView({ ...commission, fixedAmount: 3000, percentBps: 1000 }, countryTarget, 1900)).toMatchObject({ kind: 'mixed', vatAmount: null, totalWithVat: null });
   });
 });

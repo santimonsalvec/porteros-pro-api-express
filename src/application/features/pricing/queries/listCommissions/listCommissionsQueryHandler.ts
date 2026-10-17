@@ -6,14 +6,15 @@ import type { CommissionView } from '../../common/views.js';
 import { commissionViews, type CommissionViewDependencies } from './commissionViews.js';
 import { ListCommissionsQuery, type CommissionFilters } from './listCommissionsQuery.js';
 
-const SCOPE_ORDER = { country: 0, market: 1, zone: 2 } as const;
+const SCOPE_ORDER = { country: 0, market: 1, zone: 2, goalkeeper: 3 } as const;
 
 export class ListCommissionsQueryHandler implements IQueryHandler<ListCommissionsQuery, Page<CommissionView>> {
   constructor(private readonly deps: CommissionViewDependencies & { commissions: ICommissionAdmin }) {}
 
   async handle({ filters, page, pageSize }: ListCommissionsQuery): Promise<Page<CommissionView>> {
+    // Without a scope, the geography levels only: goalkeeper rules are managed from the goalkeeper's page (feature 033).
     const records = (await this.deps.commissions.find({ refs: await this.refsFor(filters), modality: filters.modality })).filter(
-      (record) => filters.scope === undefined || record.scope === filters.scope,
+      (record) => (filters.scope === undefined ? record.scope !== 'goalkeeper' : record.scope === filters.scope),
     );
     const { views, geography } = await commissionViews(this.deps, records);
     const order = (view: CommissionView) => (view.scope === 'zone' ? (geography.zone(view.refId)?.displayOrder ?? 0) : -1);

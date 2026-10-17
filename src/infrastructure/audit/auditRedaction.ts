@@ -72,7 +72,7 @@ const ALLOWED_FIELDS: Readonly<Record<string, readonly string[]>> = {
   invoicingDocuments: ['status', 'kind', 'countryId', 'marketId', 'goalkeeperId', 'from', 'to', 'stale', 'rows'],
   // Prices and booking rules (spec 004 of the admin): configuration values, nothing personal or secret.
   rentalRate: [...PRICE_FIELDS, 'durationMinutes'],
-  commissionSetting: [...PRICE_FIELDS, 'vatRateBps', 'vatAmount', 'totalWithVat'],
+  commissionSetting: [...PRICE_FIELDS, 'fixedAmount', 'percentBps', 'kind', 'countryId', 'validUntil', 'validUntilLocal', 'timeZone', 'validity', 'vatRateBps', 'vatAmount', 'totalWithVat'],
   bookingSettings: [
     'countryId', 'countryName', 'marketId', 'marketName', 'currency', 'revision', 'own', 'country', 'defaults', 'effective',
     'value', 'origin', 'bookingWindowDays', 'minNoticeMinutes', 'freeCancellationMinutes', 'travelBufferMinutes',
