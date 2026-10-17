@@ -22,7 +22,24 @@ describe('requestLoginCode (admin spec 009, research §3)', () => {
     const result = await ask(h);
 
     expect(result).toEqual({ outcome: 'sent', email: 'juana@gmail.com', expiresAt: at(2 * MINUTE), expiryMinutes: 2, resendAfterSeconds: 60 });
-    expect(h.mailer.sent).toEqual([{ to: 'juana@gmail.com', code: '100001', expiryMinutes: 2, idempotencyKey: 'code-1' }]);
+    expect(h.mailer.sent).toEqual([{ to: 'juana@gmail.com', code: '100001', expiryMinutes: 2, idempotencyKey: 'code-1', language: 'es' }]);
+  });
+
+  it("sends the email in the account's language, else the caller's, else Spanish (feature 032)", async () => {
+    const h = loginCodeHarness();
+    h.languages['juana@gmail.com'] = 'en';
+
+    await ask(h);
+    h.clock.advance(2 * MINUTE);
+    await ask(h, { email: 'nueva@gmail.com', language: 'en' });
+    h.clock.advance(2 * MINUTE);
+    await ask(h, { email: 'otra@gmail.com', language: null });
+
+    expect(h.mailer.sent.map((email) => [email.to, email.language])).toEqual([
+      ['juana@gmail.com', 'en'],
+      ['nueva@gmail.com', 'en'],
+      ['otra@gmail.com', 'es'],
+    ]);
   });
 
   it('stores the hash, never the code', async () => {

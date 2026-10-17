@@ -1,4 +1,5 @@
 import type { EmailSendResult } from '../../../common/email.js';
+import type { Language } from '../../../../domain/i18n/language.js';
 import type { IRepository } from '../../../common/persistence/repository.js';
 import type { ExternalIdentity } from '../../../../domain/users/externalIdentity.js';
 import type { RefreshToken } from '../../../../domain/users/refreshToken.js';
@@ -101,6 +102,8 @@ export interface LoginCodeEmail {
   /** The minutes the code was issued with; the email shows this number (FR-011). */
   expiryMinutes: number;
   idempotencyKey: string;
+  /** The language the template renders in (feature 032): always sent, the provider hosts the texts. */
+  language: Language;
 }
 
 /** Sends a sign-in code (admin spec 009, FR-003): the rules only know this port, not the template. */

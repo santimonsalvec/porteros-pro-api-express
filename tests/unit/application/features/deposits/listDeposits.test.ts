@@ -6,6 +6,7 @@ import { GetDepositByReferenceQueryHandler } from '../../../../../src/applicatio
 import { ListDepositsQuery } from '../../../../../src/application/features/deposits/queries/listDeposits/listDepositsQuery.js';
 import { ListDepositsQueryHandler } from '../../../../../src/application/features/deposits/queries/listDeposits/listDepositsQueryHandler.js';
 import { PaymentsHarness } from '../payments/paymentsHarness.js';
+import { FakeUserLanguages } from '../../../../fakes/fakeUserLanguages.js';
 
 async function threeDeposits(harness: PaymentsHarness) {
   harness.goalkeeper('gk-1');
@@ -63,11 +64,11 @@ describe('GetDepositByReferenceQueryHandler', () => {
     const harness = new PaymentsHarness();
     harness.goalkeeper();
     const { deposit } = await harness.start();
-    const handler = new GetDepositByReferenceQueryHandler(harness.deposits);
+    const handler = new GetDepositByReferenceQueryHandler(harness.deposits, new FakeUserLanguages());
 
     expect(await handler.handle(new GetDepositByReferenceQuery(deposit.reference))).toEqual({
       outcome: 'success',
-      deposit: { status: 'pending', amount: 20000, net: 18536, currency: 'COP' },
+      deposit: { status: 'pending', amount: 20000, net: 18536, currency: 'COP', ownerLanguage: null },
     });
     expect(await handler.handle(new GetDepositByReferenceQuery('PPR-unknown'))).toEqual({ outcome: 'not_found' });
   });

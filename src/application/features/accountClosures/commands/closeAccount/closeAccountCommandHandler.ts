@@ -25,7 +25,7 @@ export class CloseAccountCommandHandler implements ICommandHandler<CloseAccountC
 
     await notifyOnce(deps.notices, {
       userId: closure.userId,
-      message: closureClosedMessage(closure.id),
+      message: (language) => closureClosedMessage(language, closure.id),
       dedupeKey: `account-closure-closed:${closure.id}`,
     });
     const devices = await deps.devices.findByUserIds([closure.userId]);

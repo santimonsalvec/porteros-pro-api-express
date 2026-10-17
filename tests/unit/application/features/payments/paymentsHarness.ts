@@ -15,6 +15,7 @@ import { FakePaymentGatewaySettingsRepository } from '../../../../fakes/fakePaym
 import { FakePaymentSecrets, TEST_GATEWAY_SECRETS } from '../../../../fakes/fakePaymentSecrets.js';
 import { FakePushSender } from '../../../../fakes/fakePushSender.js';
 import { FakeTermsAcceptanceRepository } from '../../../../fakes/fakeTermsAcceptanceRepository.js';
+import { FakeUserLanguages } from '../../../../fakes/fakeUserLanguages.js';
 import { FakeDepositRepository } from '../../../../fakes/fakeDepositRepository.js';
 import { FakeDepositStore } from '../../../../fakes/fakeDepositStore.js';
 import { buildGoalkeeperProfile } from '../../../../fixtures/operatingBalanceFixtures.js';
@@ -50,6 +51,8 @@ export class PaymentsHarness {
   readonly devices = new FakeDeviceRepository();
   readonly pushSender = new FakePushSender();
   readonly logger = recordingLogger();
+  /** The languages goalkeepers chose (feature 032): none by default. */
+  readonly userLanguages = new FakeUserLanguages();
   readonly pushNotifier = new PushNotifier({
     devices: this.devices,
     sender: this.pushSender,
@@ -68,7 +71,7 @@ export class PaymentsHarness {
   }
 
   get noticeDeps() {
-    return { notifications: this.notifications, pushNotifier: this.pushNotifier, idGenerator: this.idGenerator, clock: this.clock };
+    return { notifications: this.notifications, pushNotifier: this.pushNotifier, idGenerator: this.idGenerator, clock: this.clock, userLanguages: this.userLanguages };
   }
 
   /** An active goalkeeper of Cali who accepted the current terms, with Colombia's gateway configured. */

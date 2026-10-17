@@ -16,6 +16,8 @@ import type { IZoneRepository } from '../../zones/common/ports.js';
 import type { CheckInWindowResolver } from '../common/checkInWindowResolver.js';
 import { notifyOnce } from '../common/notifyOnce.js';
 import type { ILifecycleLogger } from '../common/ports.js';
+import type { Language } from '../../../../domain/i18n/language.js';
+import type { IUserLanguages } from '../../users/common/userLanguages.js';
 
 export interface CheckInWatchDependencies {
   bookingRepository: IBookingRepository;
@@ -27,6 +29,7 @@ export interface CheckInWatchDependencies {
   pushNotifier: IPushNotifier;
   idGenerator: IIdGenerator;
   clock: IClock;
+  userLanguages: IUserLanguages;
   logger: ILifecycleLogger;
   /** A fresh resolver per run (it caches per city). */
   windowResolver: () => CheckInWindowResolver;
@@ -62,14 +65,14 @@ export class CheckInWatchJob implements IScheduledJob {
         const window = checkInWindow(request.startsAt, await resolve(request));
         const t = now.getTime();
         if (isCheckInOpen(window, now) && !booking.checkInOpenNoticeAt) {
-          if (await this.send(booking, request, 'checkInOpenNoticeAt', now, (match) => ({ userId: booking.goalkeeperId!, message: checkInOpenMessage(match, request.id, booking.id), key: `check-in-open:${booking.id}` }))) counts.opened += 1;
+          if (await this.send(booking, request, 'checkInOpenNoticeAt', now, (match) => ({ userId: booking.goalkeeperId!, message: (language) => checkInOpenMessage(language, match, request.id, booking.id), key: `check-in-open:${booking.id}` }))) counts.opened += 1;
         }
         if (t >= window.lastCallAt.getTime() && t <= window.closesAt.getTime() && !booking.checkIn && !booking.checkInLastCallAt) {
-          if (await this.send(booking, request, 'checkInLastCallAt', now, (match) => ({ userId: booking.goalkeeperId!, message: checkInLastCallMessage(match, request.id, booking.id), key: `check-in-last-call:${booking.id}` }))) counts.lastCalls += 1;
+          if (await this.send(booking, request, 'checkInLastCallAt', now, (match) => ({ userId: booking.goalkeeperId!, message: (language) => checkInLastCallMessage(language, match, request.id, booking.id), key: `check-in-last-call:${booking.id}` }))) counts.lastCalls += 1;
         }
         if (t > window.closesAt.getTime() && t < booking.endsAt.getTime() && !booking.checkIn && !booking.checkInMissedAt) {
           const contact = (await loadContacts(this.deps.userRepository, [booking.goalkeeperId!])).get(booking.goalkeeperId!) ?? null;
-          if (await this.send(booking, request, 'checkInMissedAt', now, (match) => ({ userId: request.clientId, message: checkInMissedMessage(match, request.id, booking.id, contact), key: `check-in-missed:${booking.id}` }))) counts.missed += 1;
+          if (await this.send(booking, request, 'checkInMissedAt', now, (match) => ({ userId: request.clientId, message: (language) => checkInMissedMessage(language, match, request.id, booking.id, contact), key: `check-in-missed:${booking.id}` }))) counts.missed += 1;
         }
       } catch (err) {
         counts.failed += 1;
@@ -88,7 +91,7 @@ export class CheckInWatchJob implements IScheduledJob {
     request: GoalkeeperRequest,
     field: CheckInNoticeField,
     now: Date,
-    build: (match: OutcomeMatch) => { userId: string; message: PushMessage; key: string },
+    build: (match: OutcomeMatch) => { userId: string; message: (language: Language) => PushMessage; key: string },
   ): Promise<boolean> {
     const { userId, message, key } = build(await this.matchOf(request));
     const reached = await notifyOnce(this.deps, { userId, message, dedupeKey: key });

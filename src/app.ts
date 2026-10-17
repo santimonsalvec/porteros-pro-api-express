@@ -2,6 +2,7 @@ import express, { type Express } from 'express';
 import { pinoHttp } from 'pino-http';
 import { serve as swaggerServe, setup as swaggerSetup } from 'swagger-ui-express';
 import { errorHandler } from './controllers/errorHandler.js';
+import { languageMiddleware } from './controllers/language.js';
 import { logger } from './infrastructure/observability/logger.js';
 import type { AppDependencies } from './appDependencies.js';
 import { createAuthController } from './controllers/authController.js';
@@ -38,6 +39,8 @@ export function createApp(deps: AppDependencies): Express {
 
   app.use(pinoHttp({ logger }));
   app.use(express.json());
+  // The caller's language, for every route (feature 032).
+  app.use(languageMiddleware);
 
   // Before `/auth`: the admin web's sessions, with CORS for its origins only (porteros-pro-admin spec 001).
   app.use('/auth/admin', adminCors({ allowedOrigins: deps.admin.allowedOrigins, credentials: true }), createAdminAuthController(deps));

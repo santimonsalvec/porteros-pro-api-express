@@ -136,6 +136,11 @@ import { GetDepositOptionsQuery } from '../application/features/deposits/queries
 import { GetDepositOptionsQueryHandler } from '../application/features/deposits/queries/getDepositOptions/getDepositOptionsQueryHandler.js';
 import { StartDepositCommand } from '../application/features/deposits/commands/startDeposit/startDepositCommand.js';
 import { StartDepositCommandHandler } from '../application/features/deposits/commands/startDeposit/startDepositCommandHandler.js';
+import { SetLanguageCommand } from '../application/features/profile/commands/setLanguage/setLanguageCommand.js';
+import { SetLanguageCommandHandler } from '../application/features/profile/commands/setLanguage/setLanguageCommandHandler.js';
+import { GetPreferredLanguageQuery } from '../application/features/profile/queries/getPreferredLanguage/getPreferredLanguageQuery.js';
+import { GetPreferredLanguageQueryHandler } from '../application/features/profile/queries/getPreferredLanguage/getPreferredLanguageQueryHandler.js';
+import { UserLanguages } from '../application/features/users/common/userLanguages.js';
 import { AcceptCurrentTermsCommand } from '../application/features/profile/commands/acceptCurrentTerms/acceptCurrentTermsCommand.js';
 import { AcceptCurrentTermsCommandHandler } from '../application/features/profile/commands/acceptCurrentTerms/acceptCurrentTermsCommandHandler.js';
 import { GetGoalkeeperOperatingBalanceQuery } from '../application/features/operatingBalance/queries/getGoalkeeperOperatingBalance/getGoalkeeperOperatingBalanceQuery.js';
@@ -332,6 +337,8 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   const db = connectionProvider.getDb();
 
   const userRepository = new UserRepository(db);
+  // The language each person chose (feature 032), for notices, emails and the return page.
+  const userLanguages = new UserLanguages(userRepository);
   const userBlockRepository = new UserBlockRepository(db);
   await userRepository.ensureIndexes();
   const refreshTokenRepository = new RefreshTokenRepository(db);
@@ -572,6 +579,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   const offerPushState = new MongoOfferPushStateStore(db);
   const offerEligibility = new OfferEligibilityService({ goalkeeperProfileRepository, operatingBalanceRepository, commissionResolver, bookingRepository, vatRates });
   const offerSender = new OfferSender({
+    userLanguages,
     notifications: notificationRepository,
     pushState: offerPushState,
     pushNotifier,
@@ -589,6 +597,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   const lifecycleStore = new MongoBookingLifecycleStore(() => connectionProvider.startSession(), db);
   const bookingExpiryJob = new BookingExpiryJob({ bookingRepository, store: lifecycleStore, relay: eventRelay, idGenerator, logger });
   const clientOutcomeNotices = new ClientOutcomeNoticeHandler({
+    userLanguages,
     requestRepository,
     bookingRepository,
     zoneRepository,
@@ -610,6 +619,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     logger: logger,
   });
   const goalkeeperCancellationNotices = new GoalkeeperCancellationNoticeHandler({
+    userLanguages,
     requestRepository,
     zoneRepository,
     marketRepository,
@@ -630,6 +640,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   );
   // Withdrawal notices to the client and the suspended goalkeeper (feature 018).
   const withdrawalNotices = new WithdrawalNoticeHandler({
+    userLanguages,
     requestRepository,
     zoneRepository,
     marketRepository,
@@ -650,6 +661,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     CHECK_IN_NOTICE_EVENT_TYPES.map((type) => ({
       type,
       handler: new CheckInNoticeHandler({
+        userLanguages,
         requestRepository,
         zoneRepository,
         marketRepository,
@@ -668,6 +680,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     NO_SHOW_NOTICE_EVENT_TYPES.map((type) => ({
       type,
       handler: new NoShowNoticeHandler({
+        userLanguages,
         requestRepository,
         zoneRepository,
         marketRepository,
@@ -682,6 +695,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   );
   // Assignment and completion notices to the client (feature 019).
   const clientAssignmentNotices = new ClientAssignmentNoticeHandler({
+    userLanguages,
       requestRepository,
       bookingRepository,
       userRepository,
@@ -801,7 +815,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         cases: caseRepository,
         clock,
       }),
-      notices: { notifications: notificationRepository, pushNotifier, idGenerator, clock },
+      notices: { notifications: notificationRepository, pushNotifier, idGenerator, clock, userLanguages },
       devices: deviceRepository,
       suggestDepositAmount: async (goalkeeperId, debt) => {
         const context = await resolveGoalkeeperOperatingBalanceContext(operatingBalanceContext, goalkeeperId);
@@ -850,7 +864,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     }),
   );
   // Validation and verification (admin spec 030): the notices and the reputation seal.
-  const vettingNotifier = new VettingNotifier({ notifications: notificationRepository, pushNotifier, idGenerator, clock, logger });
+  const vettingNotifier = new VettingNotifier({ notifications: notificationRepository, pushNotifier, idGenerator, clock, userLanguages, logger });
   const reputationVerifier = new ReputationVerifier({
     profiles: goalkeeperProfileRepository,
     checks: backgroundCheckRepository,
@@ -930,6 +944,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     }),
     new OfferRemindersJob({ bookingRepository, eligibility: offerEligibility, sender: offerSender, logger: logger, roundCap: config.offers.roundCap }),
     new ContactsRevealJob({
+      userLanguages,
       requestRepository,
       bookingRepository,
       userRepository,
@@ -942,6 +957,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       logger: logger,
     }),
     new CheckInWatchJob({
+      userLanguages,
       bookingRepository,
       requestRepository,
       userRepository,
@@ -957,7 +973,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     new DepositReconcileJob({
       operatingBalanceContext,
       store: depositStore,
-      notices: { notifications: notificationRepository, pushNotifier, idGenerator: idGenerator, clock },
+      notices: { notifications: notificationRepository, pushNotifier, idGenerator: idGenerator, clock, userLanguages },
       logger: logger,
       depositRepository,
       gateways: paymentGatewayRegistry,
@@ -1111,7 +1127,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       handler: new ApplyGatewayEventCommandHandler({
         operatingBalanceContext,
         store: depositStore,
-        notices: { notifications: notificationRepository, pushNotifier, idGenerator: idGenerator, clock },
+        notices: { notifications: notificationRepository, pushNotifier, idGenerator: idGenerator, clock, userLanguages },
         logger: logger,
         gateways: paymentGatewayRegistry,
         secrets: paymentSecrets,
@@ -1122,7 +1138,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
     },
     { requestType: ListDepositsQuery, handler: new ListDepositsQueryHandler(goalkeeperProfileRepository, depositRepository) },
     { requestType: GetDepositQuery, handler: new GetDepositQueryHandler(depositRepository) },
-    { requestType: GetDepositByReferenceQuery, handler: new GetDepositByReferenceQueryHandler(depositRepository) },
+    { requestType: GetDepositByReferenceQuery, handler: new GetDepositByReferenceQueryHandler(depositRepository, userLanguages) },
     {
       requestType: SetGatewaySettingsCommand,
       handler: new SetGatewaySettingsCommandHandler(countryRepository, paymentGatewaySettingsRepository, paymentSecrets, clock, logger, marketRepository),
@@ -1152,7 +1168,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       handler: new ReconcileDepositCommandHandler({
         operatingBalanceContext,
         store: depositStore,
-        notices: { notifications: notificationRepository, pushNotifier, idGenerator: idGenerator, clock },
+        notices: { notifications: notificationRepository, pushNotifier, idGenerator: idGenerator, clock, userLanguages },
         logger: logger,
         depositRepository,
         gateways: paymentGatewayRegistry,
@@ -1169,6 +1185,8 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       requestType: AcceptCurrentTermsCommand,
       handler: new AcceptCurrentTermsCommandHandler(termsAcceptanceRepository, idGenerator, clock, config.legal),
     },
+    { requestType: SetLanguageCommand, handler: new SetLanguageCommandHandler(userRepository) },
+    { requestType: GetPreferredLanguageQuery, handler: new GetPreferredLanguageQueryHandler(userLanguages) },
     {
       requestType: RecordOperatingBalanceAdjustmentCommand,
       handler: new RecordOperatingBalanceAdjustmentCommandHandler(operatingBalanceContext, operatingBalanceLedger, operatingBalanceRepository, {
@@ -1176,6 +1194,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         pushNotifier,
         idGenerator,
         clock,
+        userLanguages,
       }),
     },
     {
@@ -1454,6 +1473,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         limiter: new InMemoryRateLimiter(),
         clock,
         limitPerMinute: config.push.testLimitPerMinute,
+        userLanguages,
       }),
     },
     {

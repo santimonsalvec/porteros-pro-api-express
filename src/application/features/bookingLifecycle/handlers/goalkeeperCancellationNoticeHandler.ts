@@ -12,6 +12,8 @@ import type { IMarketRepository } from '../../markets/common/ports.js';
 import type { INotificationRepository } from '../../notifications/common/ports.js';
 import type { IZoneRepository } from '../../zones/common/ports.js';
 import type { ILifecycleLogger } from '../common/ports.js';
+import { resolveLanguage } from '../../../../domain/i18n/language.js';
+import type { IUserLanguages } from '../../users/common/userLanguages.js';
 
 export const GOALKEEPER_CANCELLATION_EVENT_TYPES = ['booking.cancelled'] as const;
 
@@ -24,6 +26,7 @@ export interface GoalkeeperCancellationNoticeDependencies {
   processed: IProcessedEventStore;
   idGenerator: IIdGenerator;
   clock: IClock;
+  userLanguages: IUserLanguages;
   logger: ILifecycleLogger;
 }
 
@@ -49,7 +52,9 @@ export class GoalkeeperCancellationNoticeHandler implements INotificationHandler
       this.deps.zoneRepository.getManyByIds([request.match.zoneId]),
       this.deps.marketRepository.getByIds([request.match.marketId]),
     ]);
+    const language = resolveLanguage(await this.deps.userLanguages.languageOf(payload.goalkeeperId!), null);
     const message = bookingCancelledMessage(
+      language,
       { zoneName: zones[0]?.name ?? null, marketName: markets[0]?.name ?? null, startsAt: request.match.startsAt, timeZone: request.match.timeZone },
       event.requestId,
       event.bookingId,

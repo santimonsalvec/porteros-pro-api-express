@@ -17,6 +17,7 @@ export class RequestAdminEmailCodeCommandHandler implements ICommandHandler<Requ
         audience: 'admin',
         email: command.email,
         ip: command.ip,
+        language: command.requestLanguage,
         deliver: async (email) => {
           const member = await this.deps.members.findByEmail(email);
           return member !== null && (member.hasAccess() || member.isInvitationValid(this.deps.clock.now()));

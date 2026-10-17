@@ -8,6 +8,8 @@ import { createCountrySettingsResolver } from '../../bookingLifecycle/common/cou
 import { loadBookingItemContext, type BookingItemContext } from '../../goalkeeperRequests/common/goalkeeperBookingResponse.js';
 import type { IBookingSettingsRepository, IGoalkeeperRequestRepository } from '../../goalkeeperRequests/common/ports.js';
 import type { IMarketRepository } from '../../markets/common/ports.js';
+import { resolveLanguage, type Language } from '../../../../domain/i18n/language.js';
+import type { IUserLanguages } from '../../users/common/userLanguages.js';
 import type { IZoneRepository } from '../../zones/common/ports.js';
 import { resolveOfferReminders, type OfferReminderValues } from './offerReminders.js';
 import type { INotificationRepository, IOfferPushState, IOffersLogger } from './ports.js';
@@ -40,6 +42,8 @@ export interface OfferSenderDependencies {
   marketRepository: IMarketRepository;
   bookingSettingsRepository: IBookingSettingsRepository;
   logger: IOffersLogger;
+  /** The language each goalkeeper chose (feature 032): read once per send. */
+  userLanguages: IUserLanguages;
   /** The environment values, used where neither the market nor its country sets one (spec 031). */
   platformReminders: OfferReminderValues;
 }
@@ -71,13 +75,15 @@ export class OfferSender {
     try {
       const context = await loadBookingItemContext(this.deps, [...byGoalkeeper.values()].flat());
       const reminders = this.reminderLookup();
+      const languages = await this.deps.userLanguages.languagesOf([...byGoalkeeper.keys()]);
+      const languageOf = (goalkeeperId: string): Language => resolveLanguage(languages.get(goalkeeperId), null);
       const toPush = new Map<string, PendingOffer[]>();
 
       for (const [goalkeeperId, bookings] of byGoalkeeper) {
         const representatives = representativeByRequest(bookings);
         const inserted: PendingOffer[] = [];
         for (const booking of representatives.values()) {
-          const message = this.offerMessage(booking, context);
+          const message = this.offerMessage(booking, context, languageOf(goalkeeperId));
           const offer = {
             id: this.deps.idGenerator.newId(),
             userId: goalkeeperId,
@@ -101,7 +107,7 @@ export class OfferSender {
 
       const recipients = await this.claim(toPush, now, mode, context, reminders);
       report.pushed = recipients.length;
-      await this.push(recipients, toPush, context, report);
+      await this.push(recipients, toPush, context, languageOf, report);
       await this.record(recipients, toPush, now);
       return report;
     } catch (err) {
@@ -179,17 +185,19 @@ export class OfferSender {
     return claimed;
   }
 
-  /** One push per goalkeeper; goalkeepers who get the identical message share one send. */
+  /** One push per goalkeeper, in their language; goalkeepers who get the identical message share one send. */
   private async push(
     recipients: readonly string[],
     toPush: ReadonlyMap<string, PendingOffer[]>,
     context: BookingItemContext,
+    languageOf: (goalkeeperId: string) => Language,
     report: OfferSendReport,
   ): Promise<void> {
     const groups = new Map<string, { message: PushMessage; userIds: string[] }>();
     for (const goalkeeperId of recipients) {
       const offers = toPush.get(goalkeeperId)!;
-      const message = offers.length === 1 ? this.offerMessage(offers[0]!.booking, context) : groupedOfferMessage(offers.length);
+      const language = languageOf(goalkeeperId);
+      const message = offers.length === 1 ? this.offerMessage(offers[0]!.booking, context, language) : groupedOfferMessage(language, offers.length);
       const key = JSON.stringify(message);
       const group = groups.get(key) ?? { message, userIds: [] };
       group.userIds.push(goalkeeperId);
@@ -218,11 +226,11 @@ export class OfferSender {
     );
   }
 
-  private offerMessage(booking: Booking, context: BookingItemContext): PushMessage {
+  private offerMessage(booking: Booking, context: BookingItemContext, language: Language): PushMessage {
     const request = context.requests.get(booking.requestId);
     if (!request) throw new Error(`Booking ${booking.id} references missing request ${booking.requestId}`);
     const { match } = request;
-    return singleOfferMessage({
+    return singleOfferMessage(language, {
       zoneName: context.zoneNames.get(match.zoneId) ?? null,
       marketName: context.marketNames.get(match.marketId) ?? null,
       startsAt: match.startsAt,

@@ -39,9 +39,10 @@ export class ResolveClosureDebtCommandHandler implements ICommandHandler<Resolve
     if (!(await deps.closures.save(transition.closure, 'requested'))) return { outcome: 'invalid_transition' };
 
     if (!waived && state.currency) {
+      const currency = state.currency;
       await notifyOnce(deps.notices, {
         userId: closure.userId,
-        message: closureDebtDepositMessage(-balance, state.currency, closure.id),
+        message: (language) => closureDebtDepositMessage(language, -balance, currency, closure.id),
         dedupeKey: `account-closure-debt-deposit:${closure.id}`,
       });
     }

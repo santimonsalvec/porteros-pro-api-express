@@ -23,7 +23,7 @@ export class RejectAccountClosureCommandHandler implements ICommandHandler<Rejec
 
     await notifyOnce(deps.notices, {
       userId: closure.userId,
-      message: closureRejectedMessage(command.reason.trim(), closure.id),
+      message: (language) => closureRejectedMessage(language, command.reason.trim(), closure.id),
       dedupeKey: `account-closure-rejected:${closure.id}`,
     });
     return { outcome: 'ok', detail: await buildDetail(deps, transition.closure) };

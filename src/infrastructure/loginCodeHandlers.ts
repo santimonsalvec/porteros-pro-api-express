@@ -18,7 +18,7 @@ import { VerifyAdminEmailCodeCommandHandler } from '../application/features/staf
 
 export interface LoginCodeHandlerDependencies {
   /** The code's store, mailer, hash, limits and expiry; the log is per product. */
-  loginCodes: Omit<LoginCodeDependencies, 'log'>;
+  loginCodes: Omit<LoginCodeDependencies, 'log' | 'languageOfEmail'>;
   appLog: ILoginCodeAuditLogger;
   users: IUserRepository;
   appSession: AppSessionDependencies;
@@ -33,7 +33,12 @@ export interface LoginCodeHandlerDependencies {
  * HTTP tests' fake-backed one so both register exactly the same set.
  */
 export function loginCodeHandlerRegistrations(deps: LoginCodeHandlerDependencies): HandlerRegistration[] {
-  const app: LoginCodeDependencies = { ...deps.loginCodes, log: (entry) => deps.appLog.logEmailCodeEvent(entry) };
+  const app: LoginCodeDependencies = {
+    ...deps.loginCodes,
+    log: (entry) => deps.appLog.logEmailCodeEvent(entry),
+    // The account of the address, if any, says which language the email speaks (feature 032).
+    languageOfEmail: async (email) => (await deps.users.findByEmailKey(email))?.preferredLanguage ?? null,
+  };
   const admin: AdminLoginCodeDependencies = { ...deps.admin, loginCodes: deps.loginCodes, users: deps.users };
   return [
     { requestType: GetAccessSettingsQuery, handler: new GetAccessSettingsQueryHandler(deps.accessSettings) },

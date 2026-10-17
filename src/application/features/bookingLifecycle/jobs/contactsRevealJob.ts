@@ -12,6 +12,8 @@ import type { INotificationRepository } from '../../notifications/common/ports.j
 import type { IZoneRepository } from '../../zones/common/ports.js';
 import { notifyOnce } from '../common/notifyOnce.js';
 import type { ILifecycleLogger } from '../common/ports.js';
+import type { Language } from '../../../../domain/i18n/language.js';
+import type { IUserLanguages } from '../../users/common/userLanguages.js';
 
 export interface ContactsRevealDependencies {
   requestRepository: IGoalkeeperRequestRepository;
@@ -23,6 +25,7 @@ export interface ContactsRevealDependencies {
   pushNotifier: IPushNotifier;
   idGenerator: IIdGenerator;
   clock: IClock;
+  userLanguages: IUserLanguages;
   logger: ILifecycleLogger;
   /** At most this many requests per run; the rest go to the next sweep. */
   cap?: number;
@@ -79,11 +82,12 @@ export class ContactsRevealJob implements IScheduledJob {
     const none = { firstName: null, lastName: null, whatsApp: null };
 
     let written = 0;
-    const toClient = contactsVisibleMessage(match, request.id, held.map((booking) => contacts.get(booking.goalkeeperId!) ?? none));
+    const goalkeepers = held.map((booking) => contacts.get(booking.goalkeeperId!) ?? none);
+    const toClient = (language: Language) => contactsVisibleMessage(language, match, request.id, goalkeepers);
     if ((await notifyOnce(this.deps, { userId: request.clientId, message: toClient, dedupeKey: `contacts-visible:${request.id}` })) !== null) written += 1;
     const client = contacts.get(request.clientId) ?? none;
     for (const booking of held) {
-      const message = clientContactVisibleMessage(match, request.id, booking.id, client);
+      const message = (language: Language) => clientContactVisibleMessage(language, match, request.id, booking.id, client);
       if ((await notifyOnce(this.deps, { userId: booking.goalkeeperId!, message, dedupeKey: `client-contact-visible:${booking.id}` })) !== null) written += 1;
     }
     return written;

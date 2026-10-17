@@ -11,14 +11,14 @@ export async function notifyDepositOutcome(deps: NotifyOnceDependencies, deposit
   if (deposit.status === 'approved') {
     await notifyOnce(deps, {
       userId: deposit.goalkeeperId,
-      message: depositApprovedMessage(deposit.net, balance ?? deposit.net, deposit.currency, deposit.id),
+      message: (language) => depositApprovedMessage(language, deposit.net, balance ?? deposit.net, deposit.currency, deposit.id),
       dedupeKey: `deposit:${deposit.id}:approved`,
     });
     return;
   }
   await notifyOnce(deps, {
     userId: deposit.goalkeeperId,
-    message: depositFailedMessage(deposit.amount, deposit.currency, deposit.id),
+    message: (language) => depositFailedMessage(language, deposit.amount, deposit.currency, deposit.id),
     dedupeKey: `deposit:${deposit.id}:failed`,
   });
 }

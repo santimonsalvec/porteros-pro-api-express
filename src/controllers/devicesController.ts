@@ -57,7 +57,7 @@ export function createDevicesController(deps: DevicesControllerDependencies): Ro
   });
 
   router.post('/test-push', async (req, res) => {
-    const result = await deps.mediator.send(new SendTestPushCommand(req.authClaims!.sub));
+    const result = await deps.mediator.send(new SendTestPushCommand(req.authClaims!.sub, req.language ?? null));
 
     switch (result.outcome) {
       case 'sent':

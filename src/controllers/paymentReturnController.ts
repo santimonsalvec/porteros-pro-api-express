@@ -4,6 +4,8 @@ import {
   GetDepositByReferenceQuery,
   type DepositReturnView,
 } from '../application/features/deposits/queries/getDepositByReference/getDepositByReferenceQuery.js';
+import { resolveLanguage, type Language } from '../domain/i18n/language.js';
+import { catalog, type MessageCatalog } from '../domain/i18n/messages/catalog.js';
 import { formatAmount } from '../domain/notifications/outcomeMessages.js';
 
 /** Where the return page's button goes, and the app link association (research.md §8). Empty = not configured. */
@@ -25,26 +27,27 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
 }
 
-function describe(deposit: DepositReturnView): { title: string; detail: string } {
+function describe(texts: MessageCatalog, deposit: DepositReturnView): { title: string; detail: string } {
   switch (deposit.status) {
     case 'approved':
-      return { title: 'Depósito aprobado', detail: `Sumamos ${formatAmount(deposit.net, deposit.currency)} a tu saldo operativo.` };
+      return texts.depositApprovedPage(formatAmount(deposit.net, deposit.currency));
     case 'pending':
-      return { title: 'Depósito pendiente', detail: 'Estamos esperando la confirmación del pago. Te avisaremos cuando se acredite.' };
+      return texts.depositPendingPage();
     case 'declined':
     case 'voided':
     case 'error':
     case 'expired':
-      return { title: 'Depósito no completado', detail: 'El pago no se completó. Puedes intentar con otro medio de pago.' };
+      return texts.depositFailedPage();
   }
 }
 
-function page(settings: PaymentReturnSettings, title: string, paragraphs: string[]): string {
+function page(settings: PaymentReturnSettings, language: Language, title: string, paragraphs: string[]): string {
+  const texts = catalog(language);
   const button = settings.appOpenUrl
-    ? `<a class="button" href="${escapeHtml(settings.appOpenUrl)}">Volver a PorterosPRO</a>`
-    : '<p>Ya puedes volver a la aplicación de PorterosPRO.</p>';
+    ? `<a class="button" href="${escapeHtml(settings.appOpenUrl)}">${escapeHtml(texts.backToApp)}</a>`
+    : `<p>${escapeHtml(texts.backToAppNoButton)}</p>`;
   return `<!doctype html>
-<html lang="es">
+<html lang="${language}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -81,7 +84,8 @@ function sendPage(res: Response, html: string): void {
 }
 
 /**
- * The page a payment gateway returns to (clarification 1): public, read-only, in Spanish. It shows
+ * The page a payment gateway returns to (clarification 1): public, read-only, in the owner's
+ * language, else the browser's, else Spanish (feature 032). It shows
  * the status and amounts only — never who paid — and never credits: only the gateway's
  * confirmation or the reconciliation does. The `.well-known` files let the app open it directly.
  */
@@ -92,15 +96,19 @@ export function createPaymentReturnController(deps: PaymentReturnControllerDepen
   router.get(`${RETURN_PATH}/:reference`, async (req, res) => {
     const result = await deps.mediator.send(new GetDepositByReferenceQuery(req.params.reference));
     if (result.outcome === 'not_found') {
-      sendPage(res, page(settings, 'No encontramos este depósito', ['Revisa el estado de tus depósitos en la aplicación.']));
+      const language = resolveLanguage(null, req.language);
+      const { title, detail } = catalog(language).depositNotFoundPage();
+      sendPage(res, page(settings, language, title, [detail]));
       return;
     }
-    const { title, detail } = describe(result.deposit);
+    const language = resolveLanguage(result.deposit.ownerLanguage, req.language);
+    const texts = catalog(language);
+    const { title, detail } = describe(texts, result.deposit);
     sendPage(
       res,
-      page(settings, title, [
+      page(settings, language, title, [
         detail,
-        `Monto: ${formatAmount(result.deposit.amount, result.deposit.currency)} · Recibes: ${formatAmount(result.deposit.net, result.deposit.currency)}`,
+        texts.amountsLine(formatAmount(result.deposit.amount, result.deposit.currency), formatAmount(result.deposit.net, result.deposit.currency)),
       ]),
     );
   });

@@ -7,6 +7,6 @@ export class RequestEmailCodeCommandHandler implements ICommandHandler<RequestEm
   constructor(private readonly deps: LoginCodeDependencies) {}
 
   handle(command: RequestEmailCodeCommand): Promise<RequestLoginCodeResult> {
-    return requestLoginCode(this.deps, { audience: 'app', email: command.email, ip: command.ip, deliver: async () => true });
+    return requestLoginCode(this.deps, { audience: 'app', email: command.email, ip: command.ip, language: command.requestLanguage, deliver: async () => true });
   }
 }

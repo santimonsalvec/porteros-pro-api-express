@@ -3,7 +3,13 @@ import type { INotificationHandler } from '../../../common/mediator/types.js';
 import { completionRound, contactsVisibleFrom, isRequestComplete } from '../../../../domain/bookings/contactVisibility.js';
 import type { GoalkeeperAssignedPayload } from '../../../../domain/events/bookingEvents.js';
 import type { DomainEvent } from '../../../../domain/events/domainEvent.js';
-import { goalkeeperAssignedMessage, requestCompleteMessage } from '../../../../domain/notifications/assignmentMessages.js';
+import type { PushMessage } from '../../../../domain/devices/deviceRules.js';
+import {
+  GOALKEEPER_ASSIGNED_TYPE,
+  REQUEST_COMPLETE_TYPE,
+  goalkeeperAssignedMessage,
+  requestCompleteMessage,
+} from '../../../../domain/notifications/assignmentMessages.js';
 import type { IIdGenerator, IUserRepository } from '../../auth/common/ports.js';
 import type { IPushNotifier } from '../../devices/common/ports.js';
 import type { IProcessedEventStore } from '../../events/common/ports.js';
@@ -15,6 +21,8 @@ import type { INotificationRepository } from '../../notifications/common/ports.j
 import type { IZoneRepository } from '../../zones/common/ports.js';
 import { notifyOnce } from '../common/notifyOnce.js';
 import type { ILifecycleLogger } from '../common/ports.js';
+import type { Language } from '../../../../domain/i18n/language.js';
+import type { IUserLanguages } from '../../users/common/userLanguages.js';
 
 export const CLIENT_ASSIGNMENT_EVENT_TYPES = ['goalkeeper.assigned'] as const;
 
@@ -29,6 +37,7 @@ export interface ClientAssignmentNoticeDependencies {
   processed: IProcessedEventStore;
   idGenerator: IIdGenerator;
   clock: IClock;
+  userLanguages: IUserLanguages;
   logger: ILifecycleLogger;
 }
 
@@ -71,26 +80,30 @@ export class ClientAssignmentNoticeHandler implements INotificationHandler<Domai
     ]);
     const match = { zoneName: zones[0]?.name ?? null, marketName: markets[0]?.name ?? null, startsAt: request.match.startsAt, timeZone: request.match.timeZone };
 
-    let message;
+    let message: (language: Language) => PushMessage;
+    let type: string;
     let dedupeKey: string;
     if (complete) {
       const round = completionRound(bookings);
       // The goalkeepers the client ends up with (one may have been cancelled by the client, 017).
       const assignedCount = bookings.filter((item) => item.status === 'assigned').length;
-      message = requestCompleteMessage(match, request.id, booking.id, assignedCount, revealedContacts.length > 0 ? revealedContacts : null);
+      message = (language) => requestCompleteMessage(language, match, request.id, booking.id, assignedCount, revealedContacts.length > 0 ? revealedContacts : null);
+      type = REQUEST_COMPLETE_TYPE;
       dedupeKey = round ? `request-complete:${request.id}:${round}` : `request-complete:${request.id}`;
     } else {
-      message = goalkeeperAssignedMessage(match, request.id, booking.id, {
-        replacement: booking.replacesBookingId !== null,
-        contact: revealedContacts[0] ?? null,
-      });
+      message = (language) =>
+        goalkeeperAssignedMessage(language, match, request.id, booking.id, {
+          replacement: booking.replacesBookingId !== null,
+          contact: revealedContacts[0] ?? null,
+        });
+      type = GOALKEEPER_ASSIGNED_TYPE;
       dedupeKey = `goalkeeper-assigned:${booking.id}`;
     }
 
     const reached = await notifyOnce(this.deps, { userId: request.clientId, message, dedupeKey });
     if (reached === null) return;
     this.deps.logger.info(
-      { outcome: 'assignment_notice_sent', type: message.data.type, requestId: request.id, bookingId: booking.id, reached },
+      { outcome: 'assignment_notice_sent', type, requestId: request.id, bookingId: booking.id, reached },
       'Client told a goalkeeper took their match',
     );
   }

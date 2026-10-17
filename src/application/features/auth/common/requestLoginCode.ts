@@ -8,6 +8,7 @@ import {
   revertFailedSend,
   type LoginCodeAudience,
 } from '../../../../domain/auth/loginCode.js';
+import { resolveLanguage, type Language } from '../../../../domain/i18n/language.js';
 import { currentLoginCodeExpiryMinutes } from './loginCodeExpiry.js';
 import type {
   IAccessSettingsRepository,
@@ -42,6 +43,8 @@ export interface LoginCodeDependencies {
   ids: IIdGenerator;
   clock: IClock;
   log: (entry: LoginCodeLogEntry) => void;
+  /** The language the account of a normalized address chose (feature 032); null when none or no account. */
+  languageOfEmail: (email: string) => Promise<Language | null>;
 }
 
 export interface LoginCodeRequest {
@@ -53,6 +56,8 @@ export interface LoginCodeRequest {
    * records a request without a code for an address with no access (research §7).
    */
   deliver: (email: string) => Promise<boolean>;
+  /** The caller's `Accept-Language`: the email's language when the account has none (feature 032). */
+  language?: Language | null;
 }
 
 export type RequestLoginCodeResult =
@@ -106,7 +111,8 @@ export async function requestLoginCode(deps: LoginCodeDependencies, request: Log
   }
 
   if (deliver) {
-    const sent = await deps.mailer.sendLoginCode({ to: email, code, expiryMinutes, idempotencyKey: codeId });
+    const language = resolveLanguage(await deps.languageOfEmail(email), request.language);
+    const sent = await deps.mailer.sendLoginCode({ to: email, code, expiryMinutes, idempotencyKey: codeId, language });
     if (sent.outcome === 'failed') {
       const reverted = revertFailedSend(issued, codeId, previous?.lastSentAt ?? null, deps.clock.now());
       if (reverted) await deps.codes.replaceAtRevision(reverted, issued.revision);

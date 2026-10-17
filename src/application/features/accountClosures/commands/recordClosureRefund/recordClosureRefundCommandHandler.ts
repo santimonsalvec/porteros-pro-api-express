@@ -74,7 +74,7 @@ export class RecordClosureRefundCommandHandler implements ICommandHandler<Record
 
     await notifyOnce(deps.notices, {
       userId: closure.userId,
-      message: closureRefundMessage(balance, state.currency ?? closure.currency, closure.id),
+      message: (language) => closureRefundMessage(language, balance, state.currency ?? closure.currency, closure.id),
       dedupeKey: `account-closure-refund:${closure.id}`,
     });
     return { outcome: 'ok', detail: await buildDetail(deps, transition.closure) };

@@ -45,6 +45,8 @@ import { SeedOwnerCommand } from '../application/features/staff/commands/seedOwn
 import { SeedOwnerCommandHandler } from '../application/features/staff/commands/seedOwner/seedOwnerCommandHandler.js';
 import { GetAdminMeQuery } from '../application/features/staff/queries/getAdminMe/getAdminMeQuery.js';
 import { GetAdminMeQueryHandler } from '../application/features/staff/queries/getAdminMe/getAdminMeQueryHandler.js';
+import { SetMyLanguageCommand } from '../application/features/staff/commands/setMyLanguage/setMyLanguageCommand.js';
+import { SetMyLanguageCommandHandler } from '../application/features/staff/commands/setMyLanguage/setMyLanguageCommandHandler.js';
 import { GetPermissionCatalogQuery } from '../application/features/staff/queries/getPermissionCatalog/getPermissionCatalogQuery.js';
 import { GetPermissionCatalogQueryHandler } from '../application/features/staff/queries/getPermissionCatalog/getPermissionCatalogQueryHandler.js';
 import { SetStaffMemberStatusCommand } from '../application/features/staff/commands/setStaffMemberStatus/setStaffMemberStatusCommand.js';
@@ -81,6 +83,7 @@ export function staffHandlerRegistrations(deps: StaffHandlerDependencies): Handl
     { requestType: InviteStaffMemberCommand, handler: new InviteStaffMemberCommandHandler(deps) },
     { requestType: ChangeStaffMemberScopesCommand, handler: new ChangeStaffMemberScopesCommandHandler(deps) },
     { requestType: GetAdminMeQuery, handler: new GetAdminMeQueryHandler(deps) },
+    { requestType: SetMyLanguageCommand, handler: new SetMyLanguageCommandHandler(deps) },
     { requestType: ListStaffMembersQuery, handler: new ListStaffMembersQueryHandler(deps) },
     { requestType: GetStaffMemberQuery, handler: new GetStaffMemberQueryHandler(deps) },
     { requestType: ListStaffRolesQuery, handler: new ListStaffRolesQueryHandler(deps) },
