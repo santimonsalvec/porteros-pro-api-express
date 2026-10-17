@@ -85,7 +85,7 @@ export async function loadBookingItemContext(
   };
 }
 
-export function toAvailableItem(booking: Booking, context: BookingItemContext, viewerTier: VettingTier = 'verified'): AvailableBookingItem {
+export function toAvailableItem(booking: Booking, context: BookingItemContext, viewerTier: VettingTier = 'verified', commission = booking.commission): AvailableBookingItem {
   const request = context.requests.get(booking.requestId);
   if (!request) throw new Error(`Booking ${booking.id} references missing request ${booking.requestId}`);
   const { match } = request;
@@ -102,8 +102,8 @@ export function toAvailableItem(booking: Booking, context: BookingItemContext, v
     durationMinutes: match.durationMinutes,
     goalkeeperCount: match.goalkeeperCount,
     matchFormat: toMatchFormatResponse(match.format),
-    ...earningsFor(booking, viewerTier),
-    commission: booking.commission,
+    ...earningsFor(booking, viewerTier, commission),
+    commission,
     currency: booking.price.currency,
   };
 }
@@ -113,13 +113,13 @@ export function toAvailableItem(booking: Booking, context: BookingItemContext, v
  * booking already carries its discounted price; a pending one is discounted for a viewer without
  * the seal, as accepting it would.
  */
-function earningsFor(booking: Booking, viewerTier: VettingTier): { earnings: number; discount?: { rateBps: number; amount: number } } {
+function earningsFor(booking: Booking, viewerTier: VettingTier, commission = booking.commission): { earnings: number; discount?: { rateBps: number; amount: number } } {
   if (booking.price.discount > 0) {
     return { earnings: booking.price.total, discount: { rateBps: booking.unverifiedDiscountBps, amount: booking.price.discount } };
   }
   if (booking.status === 'pending_assignment' && viewerTier === 'validated' && booking.unverifiedDiscountBps > 0) {
     const full = booking.price.unitRate + booking.price.unitSurcharge;
-    const amount = discountFor(full, booking.unverifiedDiscountBps, booking.commission);
+    const amount = discountFor(full, booking.unverifiedDiscountBps, commission);
     if (amount > 0) return { earnings: full - amount, discount: { rateBps: booking.unverifiedDiscountBps, amount } };
   }
   return { earnings: booking.price.total };

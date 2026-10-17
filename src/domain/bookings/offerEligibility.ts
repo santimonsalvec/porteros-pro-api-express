@@ -1,4 +1,6 @@
 import { canAfford } from '../operatingBalance/fundsPolicy.js';
+import { ownCommissionFor } from '../operatingBalance/commissionRule.js';
+import type { CommissionSetting } from '../operatingBalance/commissionSetting.js';
 import type { VettingTier } from '../goalkeepers/vetting.js';
 import type { Booking } from './booking.js';
 import { firstConflict, holdsSameRequest, type Commitment } from './schedulePolicy.js';
@@ -18,6 +20,13 @@ export interface OfferSnapshot {
   held: readonly Commitment[];
   /** Validation and verification (admin spec 030). */
   tier: VettingTier;
+  /** Feature 033: the goalkeeper's own active rules; a booking costs them `commissionOf`, not its stored commission. */
+  ownRules: readonly CommissionSetting[];
+}
+
+/** What taking the booking would charge this goalkeeper, before VAT (feature 033). */
+export function commissionOf(snapshot: Pick<OfferSnapshot, 'ownRules'>, booking: Booking): number {
+  return ownCommissionFor(snapshot.ownRules, booking)?.net ?? booking.commission;
 }
 
 /**
@@ -39,7 +48,7 @@ export function isEligible(snapshot: OfferSnapshot, booking: Booking, now: Date)
   if (!isOpenToTier(booking, snapshot.tier, now)) return false;
   if (!snapshot.availableForOffers) return false;
   if (snapshot.suspendedUntil && snapshot.suspendedUntil > now) return false;
-  if (!snapshot.canSeeOffers || !canAfford(snapshot.balance, booking.commission, snapshot.vatRateBps)) return false;
+  if (!snapshot.canSeeOffers || !canAfford(snapshot.balance, commissionOf(snapshot, booking), snapshot.vatRateBps)) return false;
   if (!snapshot.zoneIds.includes(booking.zoneId)) return false;
   if (booking.status !== 'pending_assignment' || !booking.isSearchOpenAt(now)) return false;
   if (booking.clientId === snapshot.goalkeeperId) return false;

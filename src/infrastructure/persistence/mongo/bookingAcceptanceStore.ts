@@ -4,12 +4,13 @@ import type {
   IBookingAcceptanceStore,
 } from '../../../application/features/goalkeeperRequests/common/ports.js';
 import type { MovementDraft } from '../../../application/features/operatingBalance/common/ports.js';
+import type { CommissionBreakdown } from '../../../domain/operatingBalance/commissionRule.js';
 import { Booking } from '../../../domain/bookings/booking.js';
 import type { DomainEvent } from '../../../domain/events/domainEvent.js';
 import type { VettingTier } from '../../../domain/goalkeepers/vetting.js';
 import type { BalanceMovement } from '../../../domain/operatingBalance/balanceMovement.js';
 import { firstConflict, holdsSameRequest } from '../../../domain/bookings/schedulePolicy.js';
-import { BOOKINGS_COLLECTION, bookingFromDocument, priceToDocument } from './bookingRepository.js';
+import { BOOKINGS_COLLECTION, bookingFromDocument, breakdownToDocument, priceToDocument } from './bookingRepository.js';
 import { appendEventsInSession } from './outboxStore.js';
 import { appendMovementInSession } from './operatingBalanceStore.js';
 
@@ -42,6 +43,7 @@ export class MongoBookingAcceptanceStore implements IBookingAcceptanceStore {
     goalkeeperId: string;
     now: Date;
     tier: VettingTier;
+    effective: (booking: Booking) => CommissionBreakdown | null;
     chargeDrafts: (booking: Booking) => MovementDraft[];
     events: (booking: Booking, charged: readonly BalanceMovement[]) => DomainEvent[];
   }): Promise<AcceptanceResult> {
@@ -63,12 +65,21 @@ export class MongoBookingAcceptanceStore implements IBookingAcceptanceStore {
             { returnDocument: 'after', session },
           );
           if (!claimed) return { kind: 'not_claimed' };
-          // Admin spec 030: the price of whoever took it, and whether they had the seal.
+          // Admin spec 030: the price of whoever took it, and whether they had the seal. Feature 033:
+          // their own commission when they have a rule of their own.
           const claimedBooking = bookingFromDocument(claimed);
-          const booking = Booking.rehydrate({ ...claimedBooking, status: 'pending_assignment', goalkeeperId: null, assignedAt: null }).assign(goalkeeperId, now, args.tier);
+          const pending = Booking.rehydrate({ ...claimedBooking, status: 'pending_assignment', goalkeeperId: null, assignedAt: null });
+          const booking = pending.assign(goalkeeperId, now, args.tier, args.effective(pending));
           await bookings.updateOne(
             { _id: bookingId } as Document,
-            { $set: { price: priceToDocument(booking.price), goalkeeperVerified: booking.goalkeeperVerified } },
+            {
+              $set: {
+                price: priceToDocument(booking.price),
+                goalkeeperVerified: booking.goalkeeperVerified,
+                commission: booking.commission,
+                ...(booking.commissionBreakdown ? { commissionBreakdown: breakdownToDocument(booking.commissionBreakdown) } : {}),
+              },
+            },
             { session },
           );
 

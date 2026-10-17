@@ -4,6 +4,7 @@ import type { IQuoteRepository } from '../../../application/features/goalkeeperR
 import { MatchDetails } from '../../../domain/bookings/matchDetails.js';
 import { MatchFormat } from '../../../domain/bookings/matchFormat.js';
 import { PricingSnapshot } from '../../../domain/bookings/pricingSnapshot.js';
+import { breakdownFromDocument, breakdownToDocument } from './bookingRepository.js';
 import { Quote } from '../../../domain/bookings/quote.js';
 
 export const QUOTES_COLLECTION = 'quotes';
@@ -91,6 +92,7 @@ export function quoteToDocument(quote: Quote): Document {
     expiresAt: quote.expiresAt,
     freeCancellationMinutes: quote.freeCancellationMinutes,
     commission: quote.commission,
+    ...(quote.commissionBreakdown ? { commissionBreakdown: breakdownToDocument(quote.commissionBreakdown) } : {}),
     travelBufferMinutes: quote.travelBufferMinutes,
     // Admin spec 030: written only when set, so other quotes keep their shape.
     ...(quote.unverifiedDiscountBps > 0 ? { unverifiedDiscountBps: quote.unverifiedDiscountBps } : {}),
@@ -110,6 +112,7 @@ export function quoteFromDocument(doc: Document): Quote {
     // Quotes issued before the field existed read as the default (research.md §5).
     freeCancellationMinutes: (doc.freeCancellationMinutes as number | undefined) ?? FREE_CANCELLATION_MINUTES_DEFAULT,
     commission: doc.commission as number,
+    commissionBreakdown: breakdownFromDocument(doc.commissionBreakdown as Document | undefined),
     travelBufferMinutes: doc.travelBufferMinutes as number,
     unverifiedDiscountBps: (doc.unverifiedDiscountBps as number | undefined) ?? 0,
     verifiedPriorityMinutes: (doc.verifiedPriorityMinutes as number | undefined) ?? 0,

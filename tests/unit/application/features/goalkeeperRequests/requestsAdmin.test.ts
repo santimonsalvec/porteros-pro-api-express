@@ -199,6 +199,14 @@ describe('the admin request queries (admin spec 006, US1)', () => {
       expect(JSON.stringify(result)).not.toContain('cloudinary');
     });
 
+    it('gives the reference breakdown of the request and the breakdown of each booking, with the level named (feature 033)', async () => {
+      const result = await get();
+      if (result.outcome !== 'ok') throw new Error(result.outcome);
+      expect(result.request.commissionBreakdown).toMatchObject({ net: request.commission, fixedAmount: request.commission, percentBps: 0, origin: { scope: 'country', refId: 'country-co', name: null } });
+      const [played] = result.request.bookings;
+      expect(played).toMatchObject({ commission: held.commission, commissionBreakdown: { net: held.commission, origin: { scope: 'country' } } });
+    });
+
     it('names who cancelled as an administrator, with the internal reason', async () => {
       const result = await get();
       if (result.outcome !== 'ok') throw new Error(result.outcome);

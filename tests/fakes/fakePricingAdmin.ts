@@ -1,6 +1,7 @@
 import type { UpdateResult } from '../../src/application/features/geography/common/ports.js';
 import type {
   BookingSettingsRecord,
+  CommissionFields,
   CommissionRecord,
   IBookingSettingsAdmin,
   ICommissionAdmin,
@@ -56,16 +57,29 @@ export class FakeRentalRateAdmin implements IRentalRateAdmin {
   }
 }
 
+const commissionRecord = (setting: CommissionSetting): CommissionRecord => ({
+  id: setting.id,
+  scope: setting.scope,
+  refId: setting.refId,
+  modality: setting.modality,
+  fixedAmount: setting.fixedAmount,
+  percentBps: setting.percentBps,
+  countryId: setting.countryId,
+  validUntil: setting.validUntil,
+  revision: setting.revision,
+  invalid: false,
+});
+
 export class FakeCommissionAdmin implements ICommissionAdmin {
   constructor(readonly base = new FakeCommissionSettingRepository()) {}
 
   async find(filter: PriceFilter): Promise<CommissionRecord[]> {
-    return this.base.settings.filter((setting) => matchesPriceFilter(setting, filter)).map((setting) => priceRecord(setting));
+    return this.base.settings.filter((setting) => matchesPriceFilter(setting, filter)).map(commissionRecord);
   }
 
   async getById(id: string): Promise<CommissionRecord | null> {
     const setting = this.base.settings.find((item) => item.id === id);
-    return setting ? priceRecord(setting) : null;
+    return setting ? commissionRecord(setting) : null;
   }
 
   async create(input: Omit<CommissionRecord, 'revision' | 'invalid'>) {
@@ -76,8 +90,20 @@ export class FakeCommissionAdmin implements ICommissionAdmin {
     );
   }
 
-  async updateAmount(id: string, expectedRevision: number, amount: number) {
-    return updateIn(this.base.settings, id, expectedRevision, (setting) => new CommissionSetting({ ...setting, amount, revision: setting.revision + 1 }));
+  async update(id: string, expectedRevision: number, fields: CommissionFields) {
+    return updateIn(
+      this.base.settings,
+      id,
+      expectedRevision,
+      (setting) =>
+        new CommissionSetting({
+          ...setting,
+          fixedAmount: fields.fixedAmount,
+          percentBps: fields.percentBps,
+          validUntil: setting.scope === 'goalkeeper' ? (fields.validUntil === undefined ? setting.validUntil : fields.validUntil) : null,
+          revision: setting.revision + 1,
+        }),
+    );
   }
 
   async delete(id: string) {

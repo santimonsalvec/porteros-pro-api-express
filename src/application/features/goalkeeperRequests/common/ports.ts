@@ -6,6 +6,7 @@ import type { MovementDraft } from '../../operatingBalance/common/ports.js';
 import type { Quote } from '../../../../domain/bookings/quote.js';
 import type { Country } from '../../../../domain/countries/country.js';
 import type { BookingSettings } from '../../../../domain/pricing/bookingSettings.js';
+import type { CommissionBreakdown } from '../../../../domain/operatingBalance/commissionRule.js';
 import type { RentalRate } from '../../../../domain/pricing/rentalRate.js';
 import type { MatchSurface } from '../../../../domain/pricing/matchSurface.js';
 import type { VettingTier } from '../../../../domain/goalkeepers/vetting.js';
@@ -26,6 +27,8 @@ export interface IRentalRateRepository {
     marketId: string,
     durationMinutes: number,
   ): Promise<{ zone: RentalRate[]; market: RentalRate[] }>;
+  /** Every zone-scope rate of these zones and market-scope rate of these markets, any duration (feature 033 threshold). */
+  findForZones(zoneIds: readonly string[], marketIds: readonly string[]): Promise<RentalRate[]>;
 }
 
 /** Minimal, read-only. `countryId` may be `null` when it cannot be determined. */
@@ -91,7 +94,8 @@ export interface IBookingRepository {
   findAvailableCandidates(query: {
     zoneIds: string[];
     excludeClientId: string;
-    maxCommission: number;
+    /** `null` = no bound (feature 033: the goalkeeper has a rule of their own). */
+    maxCommission: number | null;
     now: Date;
     cap: number;
   }): Promise<Booking[]>;
@@ -156,6 +160,8 @@ export interface IBookingAcceptanceStore {
      * goalkeepers without the seal, checked again inside the transaction.
      */
     tier: VettingTier;
+    /** Feature 033: the goalkeeper's own breakdown on the booking's base when their rule applies, else `null`. */
+    effective: (booking: Booking) => CommissionBreakdown | null;
     /** The commission and, when VAT applies, its VAT (feature 023), all appended or none. */
     chargeDrafts: (booking: Booking) => MovementDraft[];
     /**

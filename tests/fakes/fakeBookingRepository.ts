@@ -32,7 +32,7 @@ export class FakeBookingRepository implements IBookingRepository {
   async findAvailableCandidates(query: {
     zoneIds: string[];
     excludeClientId: string;
-    maxCommission: number;
+    maxCommission: number | null;
     now: Date;
     cap: number;
   }): Promise<Booking[]> {
@@ -43,7 +43,7 @@ export class FakeBookingRepository implements IBookingRepository {
           query.zoneIds.includes(booking.zoneId) &&
           booking.searchEndsAt > query.now &&
           booking.clientId !== query.excludeClientId &&
-          booking.commission <= query.maxCommission,
+          (query.maxCommission === null || booking.commission <= query.maxCommission),
       )
       .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime() || compare(a.id, b.id))
       .slice(0, query.cap);

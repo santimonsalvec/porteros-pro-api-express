@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { OfferEligibilityService } from '../../../../../src/application/features/notifications/common/offerEligibilityService.js';
 import type { IOperatingBalanceRepository } from '../../../../../src/application/features/operatingBalance/common/ports.js';
 import type { Booking } from '../../../../../src/domain/bookings/booking.js';
+import { CommissionBreakdown } from '../../../../../src/domain/operatingBalance/commissionRule.js';
+import { CommissionSetting } from '../../../../../src/domain/operatingBalance/commissionSetting.js';
 import { OperatingBalance } from '../../../../../src/domain/operatingBalance/operatingBalance.js';
 import { FakeBookingRepository } from '../../../../fakes/fakeBookingRepository.js';
 import { FakeGoalkeeperProfileRepository } from '../../../../fakes/fakeGoalkeeperProfileRepository.js';
@@ -21,18 +23,25 @@ function world() {
     findByGoalkeeperId: async (id) => (balances.has(id) ? operatingBalance(id, balances.get(id)!) : null),
     findByGoalkeeperIds: async (ids) => ids.filter((id) => balances.has(id)).map((id) => operatingBalance(id, balances.get(id)!)),
   };
-  // Bello and Copacabana cost 7.000; an unconfigured zone is never offered.
+  // Bello and Copacabana cost 7.000; an unconfigured zone is never offered. Feature 033: a goalkeeper may have rules of their own.
+  const ownRules = new Map<string, CommissionSetting[]>();
+  const ownRulesOf = (goalkeeperId: string) => ownRules.get(goalkeeperId) ?? [];
   const commissionResolver = {
-    resolveForZones: async (zoneIds: string[]) =>
-      new Map(zoneIds.map((zoneId) => [zoneId, zoneId === 'zone-unconfigured' ? null : 7000] as const)),
-    resolveForMatch: async (zoneId: string) => (zoneId === 'zone-unconfigured' ? null : 7000),
+    lowestForGoalkeepers: async (goalkeepers: readonly { goalkeeperId: string; zoneIds: readonly string[] }[]) =>
+      new Map(
+        goalkeepers.map((goalkeeper) => [
+          goalkeeper.goalkeeperId,
+          { lowest: new Map(goalkeeper.zoneIds.map((zoneId) => [zoneId, zoneId === 'zone-unconfigured' ? null : ownRulesOf(goalkeeper.goalkeeperId).length > 0 ? 2000 : 7000] as const)), ownRules: ownRulesOf(goalkeeper.goalkeeperId) },
+        ]),
+      ),
+    resolveForMatch: async () => null,
   };
   const service = new OfferEligibilityService({ goalkeeperProfileRepository: profiles, operatingBalanceRepository, commissionResolver, bookingRepository: bookings, vatRates: fixedVatRates(0) });
   const goalkeeper = (id: string, balance: number, overrides: Parameters<typeof buildGoalkeeperProfile>[1] = {}) => {
     profiles.seed(buildGoalkeeperProfile(id, { zoneIds: ['zone-bello'], ...overrides }));
     balances.set(id, balance);
   };
-  return { profiles, bookings, service, goalkeeper };
+  return { profiles, bookings, service, goalkeeper, ownRules };
 }
 
 function operatingBalance(goalkeeperId: string, balance: number): OperatingBalance {
@@ -145,5 +154,41 @@ describe('OfferEligibilityService by vetting tier (admin spec 030)', () => {
     w.goalkeeper('validated', 20000, { vetting: VALIDATED_VETTING });
 
     expect(await w.service.availableBookingsFor('validated', OFFER_NOW)).toMatchObject({ kind: 'ok', bookings: [] });
+  });
+});
+
+describe('OfferEligibilityService — a goalkeeper with a rule of their own (feature 033)', () => {
+  const ownRule = (goalkeeperId: string, percentBps: number) =>
+    new CommissionSetting({ id: `own-${goalkeeperId}`, scope: 'goalkeeper', refId: goalkeeperId, fixedAmount: 0, percentBps, countryId: 'country-co' });
+  // The booking fixture carries no breakdown; a priced one lets the own rule apply (40.000 base).
+  const pricedBooking = () =>
+    buildBooking({
+      commissionBreakdown: new CommissionBreakdown({ base: 40000, percentBps: 0, percentAmount: 0, fixedAmount: 7000, net: 7000, ruleId: 'c-co', origin: { scope: 'country', refId: 'country-co' }, modality: null, matchModality: 'any' }),
+    });
+
+  it('skips the stored-commission prefilter and judges the booking by what it really costs them', async () => {
+    const w = world();
+    w.bookings.seed(pricedBooking());
+    // 7.000 stored, but 5 % of 40.000 = 2.000 for this goalkeeper: affordable with 2.500.
+    w.goalkeeper('special', 2500);
+    w.ownRules.set('special', [ownRule('special', 500)]);
+    w.goalkeeper('plain', 2500);
+
+    const special = await w.service.availableBookingsFor('special', OFFER_NOW);
+    const plain = await w.service.availableBookingsFor('plain', OFFER_NOW);
+
+    expect(special).toMatchObject({ kind: 'ok', bookings: [expect.objectContaining({ id: 'booking-1' })] });
+    expect(special.kind === 'ok' && special.commissionOf(special.bookings[0]!)).toBe(2000);
+    // The plain goalkeeper's threshold is the zone's 7.000.
+    expect(plain).toMatchObject({ kind: 'unavailable', reason: 'insufficient_funds', missingAmount: 4500 });
+  });
+
+  it('a booking written before the breakdowns costs its stored commission even with an own rule', async () => {
+    const w = world();
+    w.bookings.seed(buildBooking());
+    w.goalkeeper('special', 20000);
+    w.ownRules.set('special', [ownRule('special', 500)]);
+    const result = await w.service.availableBookingsFor('special', OFFER_NOW);
+    expect(result.kind === 'ok' && result.commissionOf(result.bookings[0]!)).toBe(7000);
   });
 });

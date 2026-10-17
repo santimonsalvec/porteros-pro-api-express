@@ -7,7 +7,8 @@ import {
   resolveGoalkeeperOperatingBalanceContext,
   type GoalkeeperOperatingBalanceContextDependencies,
 } from '../../../operatingBalance/common/goalkeeperOperatingBalanceContext.js';
-import type { IOperatingBalanceRepository } from '../../../operatingBalance/common/ports.js';
+import type { ICommissionResolver, IOperatingBalanceRepository } from '../../../operatingBalance/common/ports.js';
+import { commissionFor, type CommissionBreakdown } from '../../../../../domain/operatingBalance/commissionRule.js';
 import { commissionChargeDraft, commissionVatDraft } from '../../../operatingBalance/common/operatingBalanceLedger.js';
 import { commissionCharged } from '../../../../../domain/events/billingEvents.js';
 import type { IVatRateResolver } from '../../../operatingBalance/common/ports.js';
@@ -47,6 +48,8 @@ export interface AcceptBookingDependencies {
   relay: IEventRelay;
   /** The goalkeeper's country VAT rate, charged on top of the commission (feature 023). */
   vatRates: IVatRateResolver;
+  /** Feature 033: the goalkeeper's own rule, when they have one, decides what they pay. */
+  commissionResolver: Pick<ICommissionResolver, 'resolveForMatch'>;
 }
 
 /**
@@ -83,13 +86,15 @@ export class AcceptBookingCommandHandler implements ICommandHandler<AcceptBookin
     if (unclaimable) return this.finish(command, unclaimable, booking);
     if (context.kind === 'operating_balance_not_configured') return this.finish(command, { outcome: 'not_available' }, booking);
 
-    const [operatingBalance, vatRateBps] = await Promise.all([
+    const [operatingBalance, vatRateBps, effective] = await Promise.all([
       this.deps.operatingBalanceRepository.findByGoalkeeperId(goalkeeperId),
       this.deps.vatRates.forCountry(context.countryId),
+      this.ownCommission(booking, goalkeeperId, now),
     ]);
     const balance = operatingBalance?.balance ?? 0;
-    if (!canAfford(balance, booking.commission, vatRateBps)) {
-      return this.finish(command, { outcome: 'insufficient_funds', missingAmount: missingFor(balance, booking.commission, vatRateBps) }, booking);
+    const commission = effective?.net ?? booking.commission;
+    if (!canAfford(balance, commission, vatRateBps)) {
+      return this.finish(command, { outcome: 'insufficient_funds', missingAmount: missingFor(balance, commission, vatRateBps) }, booking);
     }
 
     // The booking's zone is one of the goalkeeper's, so its market is theirs (spec 031).
@@ -99,6 +104,7 @@ export class AcceptBookingCommandHandler implements ICommandHandler<AcceptBookin
       goalkeeperId,
       now,
       tier,
+      effective: () => effective,
       chargeDrafts: (claimed) => {
         const refs = { bookingId: claimed.id, requestId: claimed.requestId };
         const commission = commissionChargeDraft(owner, { ...refs, amount: claimed.commission }, this.deps.idGenerator.newId(), now);
@@ -131,7 +137,7 @@ export class AcceptBookingCommandHandler implements ICommandHandler<AcceptBookin
       case 'schedule_conflict':
         return this.finish(command, { outcome: 'schedule_conflict', conflictingBookingId: result.conflictingBookingId }, booking);
       case 'insufficient_funds':
-        return this.finish(command, { outcome: 'insufficient_funds', missingAmount: missingFor(result.balance, booking.commission, vatRateBps) }, booking);
+        return this.finish(command, { outcome: 'insufficient_funds', missingAmount: missingFor(result.balance, commission, vatRateBps) }, booking);
       case 'not_claimed': {
         // A concurrent change won the race: look again to say which.
         const current = await this.deps.bookingRepository.findById(bookingId);
@@ -139,6 +145,17 @@ export class AcceptBookingCommandHandler implements ICommandHandler<AcceptBookin
         return this.finish(command, (current && this.classify(current, goalkeeperId, now, tier)) ?? { outcome: 'not_available' }, booking);
       }
     }
+  }
+
+  /**
+   * The goalkeeper's own commission for this booking (feature 033, FR-015): their active rule for
+   * the match's modality on the booking's base; `null` when the reference commission applies.
+   */
+  private async ownCommission(booking: Booking, goalkeeperId: string, now: Date): Promise<CommissionBreakdown | null> {
+    if (!booking.commissionBreakdown) return null;
+    const match = { modality: booking.commissionBreakdown.matchModality };
+    const rule = await this.deps.commissionResolver.resolveForMatch(booking.zoneId, match, { goalkeeperId, now });
+    return rule?.scope === 'goalkeeper' ? commissionFor(rule, booking.commissionBreakdown.base, match) : null;
   }
 
   /** Why a booking cannot be claimed by this goalkeeper right now, or null when it can. */

@@ -402,7 +402,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
   await balanceMovementRepository.ensureIndexes();
   const commissionSettingRepository = new CommissionSettingRepository(db);
   await commissionSettingRepository.ensureIndexes();
-  const commissionResolver = new CommissionResolver(commissionSettingRepository, zoneRepository, marketRepository);
+  const commissionResolver = new CommissionResolver(commissionSettingRepository, zoneRepository, marketRepository, rentalRateRepository);
   const operatingBalanceContext = { goalkeeperProfileRepository, marketRepository, countryLookup: countryRepository };
   // VAT on top of commissions (feature 023).
   const taxSettingsRepository = new TaxSettingsRepository(db);
@@ -786,6 +786,8 @@ export async function buildDependencies(): Promise<CompositionRoot> {
       zones: zoneRepository,
       rentalRates: rentalRateRepository,
       commissions: commissionSettingRepository,
+      goalkeeperProfiles: goalkeeperProfileRepository,
+      users: userRepository,
       bookingSettings: bookingSettingsRepository,
       platformReminders: { maxReminders: config.offers.maxReminders, intervalMinutes: config.offers.reminderIntervalMinutes },
       discounts: unverifiedDiscountRepository,
@@ -1217,6 +1219,7 @@ export async function buildDependencies(): Promise<CompositionRoot> {
         audit: auditLogger,
         relay: eventRelay,
         vatRates,
+        commissionResolver,
         windowResolver: () => createCheckInWindowResolver({ marketRepository, bookingSettingsRepository, logger: logger }),
       }),
     },

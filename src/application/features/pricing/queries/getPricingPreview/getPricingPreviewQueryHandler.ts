@@ -9,9 +9,12 @@ import { resolveBookingSettingsWithOrigin } from '../../../goalkeeperRequests/co
 import { parseStartsAt } from '../../../goalkeeperRequests/common/startsAt.js';
 import { formatLocalIso, isValidTimeZone } from '../../../goalkeeperRequests/common/zonedTime.js';
 import type { ITaxSettingsRepository } from '../../../operatingBalance/common/ports.js';
+import { commissionFor, type CommissionBreakdown } from '../../../../../domain/operatingBalance/commissionRule.js';
+import type { CommissionViewer } from '../../../operatingBalance/common/ports.js';
+import type { IGoalkeeperProfileRepository } from '../../../goalkeepers/common/ports.js';
+import type { IUserRepository } from '../../../auth/common/ports.js';
 import type { CommissionSetting } from '../../../../../domain/operatingBalance/commissionSetting.js';
 import type { PricingGeographyDependencies } from '../../common/pricingGeography.js';
-import type { ICommissionSettingResolver } from '../../common/ports.js';
 import {
   GetPricingPreviewQuery,
   type GetPricingPreviewResult,
@@ -19,15 +22,24 @@ import {
   type PreviewTarget,
   type PriceOrigin,
   type PricingPreview,
+  type PreviewCommission,
 } from './getPricingPreviewQuery.js';
 
 export interface PricingPreviewDependencies extends PricingGeographyDependencies, QuoteEvaluationDependencies {
-  commissionResolver: QuoteEvaluationDependencies['commissionResolver'] & ICommissionSettingResolver;
+  commissionResolver: QuoteEvaluationDependencies['commissionResolver'];
+  /** Feature 033: the goalkeeper the simulation is for, when one is chosen. */
+  goalkeeperProfiles?: Pick<IGoalkeeperProfileRepository, 'getByUserId'>;
+  users?: Pick<IUserRepository, 'getById'>;
   taxSettings: ITaxSettingsRepository;
   clock: IClock;
 }
 
 type Names = { zone: string; market: string; country: string };
+
+type Viewer =
+  | { kind: 'nobody'; viewer: undefined }
+  | { kind: 'unknown'; viewer: undefined }
+  | { kind: 'goalkeeper'; viewer: CommissionViewer; name: string };
 
 /** The moment as typed, read in the market's time zone; `null` when it does not exist there. */
 function instantOf(local: string, timeZone: string): number | null {
@@ -38,11 +50,23 @@ function instantOf(local: string, timeZone: string): number | null {
 }
 
 function originOf(document: { scope: string; refId: string }, names: Names): PriceOrigin {
-  const scope = document.scope as PriceOrigin['scope'];
+  const scope = document.scope as keyof Names;
   return { scope, refId: document.refId, name: names[scope] };
 }
 
 const tierOf = (document: RentalRate | CommissionSetting) => ({ modality: document.modality });
+
+function previewCommission(breakdown: CommissionBreakdown, origin: PriceOrigin, rule: CommissionSetting): PreviewCommission {
+  return {
+    base: breakdown.base,
+    percentBps: breakdown.percentBps,
+    percentAmount: breakdown.percentAmount,
+    fixedAmount: breakdown.fixedAmount,
+    amount: breakdown.net,
+    origin,
+    tier: tierOf(rule),
+  };
+}
 
 const DETAILS: Record<NotQuotableOutcome, string> = {
   invalid_start_time: 'La hora debe ser en punto o y media',
@@ -92,7 +116,9 @@ export class GetPricingPreviewQueryHandler implements IQueryHandler<GetPricingPr
 
     const match: MatchTier = { modality: input.modality };
     const countryId = market.countryId;
-    const [evaluation, rates, settingsDocs, commission, country, tax] = await Promise.all([
+    const viewer = await this.viewerOf(input.goalkeeperId ?? null, nowMs);
+    if (viewer.kind === 'unknown') return { outcome: 'invalid', fieldErrors: { goalkeeperId: 'goalkeeper_not_found' } };
+    const [evaluation, rates, settingsDocs, rule, country, tax] = await Promise.all([
       evaluateQuoteInArea(this.deps, {
         zone,
         market,
@@ -105,7 +131,7 @@ export class GetPricingPreviewQueryHandler implements IQueryHandler<GetPricingPr
       }),
       this.deps.rentalRateRepository.findForDuration(zone.id, market.id, input.durationMinutes),
       this.deps.bookingSettingsRepository.findFor(market.id, countryId),
-      this.deps.commissionResolver.resolveSettingForMatch(zone.id, match),
+      this.deps.commissionResolver.resolveForMatch(zone.id, match, viewer.viewer),
       countryId ? this.deps.countries.getById(countryId) : null,
       countryId ? this.deps.taxSettings.getByCountry(countryId) : null,
     ]);
@@ -117,6 +143,9 @@ export class GetPricingPreviewQueryHandler implements IQueryHandler<GetPricingPr
     const surchargeTiers = rules.leadTimeSurcharge.value?.tiers ?? null;
     const surchargeTier = surchargeTiers ? selectSurchargeTier(surchargeTiers, (startMs - nowMs) / 60_000) : null;
     const vatRateBps = tax?.vatRateBps ?? 0;
+    // The rule on one goalkeeper's full price (rate + surcharge), as the quote charges it (feature 033).
+    const breakdown = rule && rate ? commissionFor(rule, rate.amount + (surchargeTier?.amount ?? 0), match) : null;
+    const commission = rule && breakdown ? previewCommission(breakdown, this.originOf(rule, names, viewer, timeZone), rule) : null;
     const vatAmount = commission ? vatFor(commission.amount, vatRateBps) : null;
 
     const preview: PricingPreview = {
@@ -134,7 +163,7 @@ export class GetPricingPreviewQueryHandler implements IQueryHandler<GetPricingPr
         surchargeTiers === null
           ? null
           : { amount: surchargeTier?.amount ?? 0, tier: surchargeTier ? { fromMinutes: surchargeTier.fromMinutes, toMinutes: surchargeTier.toMinutes } : null },
-      commission: commission ? { amount: commission.amount, origin: originOf(commission, names), tier: tierOf(commission) } : null,
+      commission,
       vat: commission && vatAmount !== null ? { rateBps: vatRateBps, amount: vatAmount } : null,
       totalForGoalkeeper: commission && vatAmount !== null ? commission.amount + vatAmount : null,
       rules: {
@@ -145,6 +174,27 @@ export class GetPricingPreviewQueryHandler implements IQueryHandler<GetPricingPr
       },
     };
     return { outcome: 'ok', preview };
+  }
+
+  /** The rule's level by name; a goalkeeper's rule names the goalkeeper and says until when it applies. */
+  private originOf(rule: CommissionSetting, names: Names, viewer: Viewer, timeZone: string): PriceOrigin {
+    if (rule.scope !== 'goalkeeper') return originOf(rule, names);
+    return {
+      scope: 'goalkeeper',
+      refId: rule.refId,
+      name: viewer.kind === 'goalkeeper' ? viewer.name : '',
+      validUntilLocal: rule.validUntil ? formatLocalIso(rule.validUntil.getTime(), timeZone).slice(0, 16) : null,
+    };
+  }
+
+  /** Who the simulation is for: nobody, a known goalkeeper (with their name), or an id that is not one. */
+  private async viewerOf(goalkeeperId: string | null, nowMs: number): Promise<Viewer> {
+    if (goalkeeperId === null) return { kind: 'nobody', viewer: undefined };
+    const profile = await this.deps.goalkeeperProfiles?.getByUserId(goalkeeperId);
+    if (!profile) return { kind: 'unknown', viewer: undefined };
+    const user = await this.deps.users?.getById(goalkeeperId);
+    const name = user?.displayName ?? [user?.firstName, user?.lastName].filter(Boolean).join(' ');
+    return { kind: 'goalkeeper', viewer: { goalkeeperId, now: new Date(nowMs) }, name };
   }
 
   /** An inactive zone never quotes; otherwise the quote's own verdict. */

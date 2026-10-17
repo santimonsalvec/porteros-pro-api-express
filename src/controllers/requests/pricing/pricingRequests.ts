@@ -51,21 +51,51 @@ export const createRentalRateRequestSchema = z
   })
   .strict();
 
-/** `PATCH /admin/rental-rates/:id` and `/admin/commissions/:id`: only the amount changes (research §6). */
+/** `PATCH /admin/rental-rates/:id`: only the amount changes (research §6). */
 export const updatePriceRequestSchema = z.object({ revision: revisionField, amount: amountField }).strict();
 
-/** `GET /admin/commissions`. */
-export const listCommissionsQuerySchema = z.object({ ...priceListQuery, scope: z.enum(['country', 'market', 'zone']).optional() }).strict();
+/** `GET /admin/commissions`: without `scope`, the geography levels only (goalkeeper rules live on the goalkeeper's page). */
+export const listCommissionsQuerySchema = z.object({ ...priceListQuery, scope: z.enum(['country', 'market', 'zone', 'goalkeeper']).optional() }).strict();
+
+/** A commission rule's components (feature 033): a fixed amount, a percentage in basis points, or both. */
+export const fixedAmountField = z
+  .number({ required_error: 'fixedAmount is required', invalid_type_error: 'fixedAmount must be a number' })
+  .int('fixedAmount must be a whole number')
+  .nonnegative('fixedAmount must be 0 or more');
+export const percentBpsField = z
+  .number({ required_error: 'percentBps is required', invalid_type_error: 'percentBps must be a number' })
+  .int('percentBps must be a whole number')
+  .min(0, 'percentBps must be 0 or more')
+  .max(10_000, 'percentBps must be at most 10000');
+/** Goalkeeper rules only: the expiry in the market's time zone; `null` = never. */
+export const validUntilLocalField = localDateTimeField.nullable();
+
+const atLeastOneComponent = (value: { fixedAmount: number; percentBps: number }, context: z.RefinementCtx) => {
+  if (value.fixedAmount === 0 && value.percentBps === 0) {
+    const message = 'Indica un valor fijo, un porcentaje o ambos';
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['fixedAmount'], message });
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['percentBps'], message });
+  }
+};
 
 /** `POST /admin/commissions`. */
 export const createCommissionRequestSchema = z
   .object({
-    scope: z.enum(['country', 'market', 'zone']),
+    scope: z.enum(['country', 'market', 'zone', 'goalkeeper']),
     refId: refIdField,
     modality: modalityField.default(null),
-    amount: amountField,
+    fixedAmount: fixedAmountField,
+    percentBps: percentBpsField,
+    validUntilLocal: validUntilLocalField.optional(),
   })
-  .strict();
+  .strict()
+  .superRefine(atLeastOneComponent);
+
+/** `PATCH /admin/commissions/:id`: both components, and for a goalkeeper rule its validity. */
+export const updateCommissionRequestSchema = z
+  .object({ revision: revisionField, fixedAmount: fixedAmountField, percentBps: percentBpsField, validUntilLocal: validUntilLocalField.optional() })
+  .strict()
+  .superRefine(atLeastOneComponent);
 
 const minutes = z.number({ invalid_type_error: 'Must be a number.' }).nullable();
 const required = <T extends z.ZodTypeAny>(schema: T, field: string) =>
@@ -135,5 +165,7 @@ export const pricingPreviewQuerySchema = z
     modality: z.enum([...PRICED_MODALITIES, 'any']),
     startsAtLocal: localDateTimeField,
     quoteFromLocal: localDateTimeField.optional(),
+    /** Feature 033: simulate for this goalkeeper, so their own rule shows when it applies. */
+    goalkeeperId: optionalId,
   })
   .strict();

@@ -543,7 +543,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
   // VAT on top of commissions (feature 023): 0 % until a test seeds a rate.
   const taxSettingsRepository = new FakeTaxSettingsRepository();
   const vatRates = createVatRateResolver(taxSettingsRepository, { marketRepository }, { warn: () => undefined });
-  const commissionResolver = new CommissionResolver(commissionSettingRepository, zoneRepository, marketRepository);
+  const commissionResolver = new CommissionResolver(commissionSettingRepository, zoneRepository, marketRepository, rentalRateRepository);
   const paymentGateway = new FakePaymentGateway();
   const paymentGatewayRegistry = new FakePaymentGatewayRegistry([paymentGateway]);
   const paymentSecrets = new FakePaymentSecrets();
@@ -850,6 +850,8 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       commissionResolver,
       // The quote reads its own country store; prices must see the same currencies it does.
       countries: new FakeAdminCountryRepository(quoteCountryRepository),
+      goalkeeperProfiles: goalkeeperProfileRepository,
+      users: userRepository,
       markets: marketRepository,
       zones: adminZones,
       rentalRates: new FakeRentalRateAdmin(rentalRateRepository),
@@ -1297,6 +1299,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}): Promise<T
       requestType: AcceptBookingCommand,
       handler: new AcceptBookingCommandHandler({
         windowResolver: () => createCheckInWindowResolver({ marketRepository, bookingSettingsRepository, logger: offersLogger }),
+        commissionResolver,
         operatingBalanceContext,
         operatingBalanceRepository: operatingBalanceStore,
         bookingRepository,

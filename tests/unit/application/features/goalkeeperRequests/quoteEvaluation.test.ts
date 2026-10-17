@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { evaluateQuoteInArea, type QuoteEvaluationDependencies } from '../../../../../src/application/features/goalkeeperRequests/common/quoteEvaluation.js';
 import { parseStartsAt } from '../../../../../src/application/features/goalkeeperRequests/common/startsAt.js';
+import { RentalRate } from '../../../../../src/domain/pricing/rentalRate.js';
+import { CommissionSetting } from '../../../../../src/domain/operatingBalance/commissionSetting.js';
 import { CommissionResolver } from '../../../../../src/application/features/operatingBalance/common/commissionResolver.js';
 import type { Market } from '../../../../../src/domain/markets/market.js';
 import type { Zone } from '../../../../../src/domain/zones/zone.js';
@@ -32,7 +34,7 @@ beforeEach(async () => {
   deps = {
     ...world,
     countryLookup: world.countryRepository,
-    commissionResolver: new CommissionResolver(world.commissionSettingRepository, world.zoneRepository, world.marketRepository),
+    commissionResolver: new CommissionResolver(world.commissionSettingRepository, world.zoneRepository, world.marketRepository, world.rentalRateRepository),
   };
   zone = (await world.zoneRepository.getManyByIds(['zone-cali-norte']))[0]!;
   market = (await world.marketRepository.getById('city-cali'))!;
@@ -60,8 +62,29 @@ describe('evaluateQuoteInArea (the quote steps 3–9, with the moment passed in)
       total: 45000,
       currency: 'COP',
       commission: 7000,
+      commissionBreakdown: { base: 45000, percentBps: 0, percentAmount: 0, fixedAmount: 7000, net: 7000, origin: { scope: 'country', refId: 'country-co' }, modality: null },
       startsAtLocal: '2026-09-21T14:00:00-05:00',
     });
+  });
+
+  it('builds a percent or mixed commission on one goalkeeper’s full price, rate plus surcharge (feature 033)', async () => {
+    deps.commissionSettingRepository.clear();
+    deps.commissionSettingRepository.seed(new CommissionSetting({ id: 'c-mixed', scope: 'country', refId: 'country-co', fixedAmount: 3000, percentBps: 1000 }));
+    expect(await evaluate('2026-09-21T14:00:00', now, { goalkeeperCount: 2 })).toMatchObject({
+      outcome: 'priced',
+      total: 90000,
+      commission: 7500,
+      commissionBreakdown: { base: 45000, percentBps: 1000, percentAmount: 4500, fixedAmount: 3000, net: 7500, ruleId: 'c-mixed' },
+    });
+  });
+
+  it('treats a rule that yields nothing like a missing commission', async () => {
+    deps.commissionSettingRepository.clear();
+    deps.commissionSettingRepository.seed(new CommissionSetting({ id: 'c-tiny', scope: 'country', refId: 'country-co', fixedAmount: 0, percentBps: 1 }));
+    deps.rentalRateRepository.clear();
+    deps.rentalRateRepository.seed(new RentalRate({ id: 'r-tiny', scope: 'zone', refId: 'zone-cali-norte', durationMinutes: 60, amount: 100 }));
+    // Quoted three hours ahead, so no surcharge: 100 × 0,01 % rounds to nothing.
+    expect(await evaluate('2026-09-21T14:00:00', now - 2 * 60 * 60_000)).toEqual({ outcome: 'service_not_configured', marketId: 'city-cali', missing: ['commission'] });
   });
 
   it.each([

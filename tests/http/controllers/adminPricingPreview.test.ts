@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { buildTestApp } from '../testAppFactory.js';
 import { as } from '../geographyTestHelpers.js';
 import { pricingStaff } from '../pricingTestHelpers.js';
-import { signInClient } from '../operatingBalanceTestHelpers.js';
+import { signInClient, signInGoalkeeper } from '../operatingBalanceTestHelpers.js';
+import { CommissionSetting } from '../../../src/domain/operatingBalance/commissionSetting.js';
 
 const query = (params: Record<string, string>) =>
   `/admin/pricing/preview?${new URLSearchParams({ zoneId: 'zone-cali-norte', durationMinutes: '60', modality: 'any', startsAtLocal: '2026-09-21T14:00', ...params })}`;
@@ -70,5 +71,26 @@ describe('GET /admin/pricing/preview (admin spec 004, US4)', () => {
     const context = await buildTestApp();
     const client = await signInClient(context, 'sub-0411');
     expect((await as(context, client.token).get(query({}))).status).toBe(401);
+  });
+});
+
+describe('GET /admin/pricing/preview for a goalkeeper (feature 033)', () => {
+  it('shows the goalkeeper’s own rule and refuses an unknown goalkeeper', async () => {
+    const context = await buildTestApp();
+    const { reader } = await pricingStaff(context);
+    const goalkeeper = await signInGoalkeeper(context, 'sub-033p');
+    context.commissionSettingRepository.seed(
+      new CommissionSetting({ id: 'own', scope: 'goalkeeper', refId: goalkeeper.userId, fixedAmount: 1000, percentBps: 1000, countryId: 'country-co' }),
+    );
+    const base = '/admin/pricing/preview?zoneId=zone-cali-norte&durationMinutes=60&modality=any&startsAtLocal=2026-09-21T14:00';
+
+    const own = await reader.get(`${base}&goalkeeperId=${goalkeeper.userId}`);
+    const plain = await reader.get(base);
+    const unknown = await reader.get(`${base}&goalkeeperId=nobody`);
+
+    expect(own.status).toBe(200);
+    expect(own.body.commission).toMatchObject({ base: 45000, percentBps: 1000, percentAmount: 4500, fixedAmount: 1000, amount: 5500, origin: { scope: 'goalkeeper', refId: goalkeeper.userId, validUntilLocal: null } });
+    expect(plain.body.commission).toMatchObject({ amount: 7000, origin: { scope: 'country' } });
+    expect([unknown.status, unknown.body.fieldErrors]).toEqual([400, { goalkeeperId: 'goalkeeper_not_found' }]);
   });
 });

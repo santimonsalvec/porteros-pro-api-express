@@ -1,8 +1,10 @@
+import type { IUserRepository } from '../application/features/auth/common/ports.js';
 import type { OfferReminderValues } from '../application/features/notifications/common/offerReminders.js';
 import type { HandlerRegistration } from '../application/common/mediator/mediator.js';
 import type { IClock } from '../application/common/clock.js';
 import type { IIdGenerator } from '../application/features/auth/common/ports.js';
 import type { PricingGeographyDependencies } from '../application/features/pricing/common/pricingGeography.js';
+import type { GoalkeeperTargetDependencies } from '../application/features/pricing/common/goalkeeperTarget.js';
 import type { IBookingSettingsAdmin, ICommissionAdmin, IRentalRateAdmin, IUnverifiedDiscountRepository } from '../application/features/pricing/common/ports.js';
 import { ListUnverifiedDiscountsQuery } from '../application/features/pricing/queries/listUnverifiedDiscounts/listUnverifiedDiscountsQuery.js';
 import { ListUnverifiedDiscountsQueryHandler } from '../application/features/pricing/queries/listUnverifiedDiscounts/listUnverifiedDiscountsQueryHandler.js';
@@ -40,6 +42,8 @@ import { ListCommissionsQueryHandler } from '../application/features/pricing/que
 import { GetCommissionQuery } from '../application/features/pricing/queries/getCommission/getCommissionQuery.js';
 import { GetCommissionQueryHandler } from '../application/features/pricing/queries/getCommission/getCommissionQueryHandler.js';
 import { GetCommissionDeleteImpactQuery } from '../application/features/pricing/queries/getCommissionDeleteImpact/getCommissionDeleteImpactQuery.js';
+import { GetGoalkeeperCommissionRulesQuery } from '../application/features/pricing/queries/getGoalkeeperCommissionRules/getGoalkeeperCommissionRulesQuery.js';
+import { GetGoalkeeperCommissionRulesQueryHandler } from '../application/features/pricing/queries/getGoalkeeperCommissionRules/getGoalkeeperCommissionRulesQueryHandler.js';
 import { GetCommissionDeleteImpactQueryHandler } from '../application/features/pricing/queries/getCommissionDeleteImpact/getCommissionDeleteImpactQueryHandler.js';
 import { GetCountryBookingSettingsQuery } from '../application/features/pricing/queries/getCountryBookingSettings/getCountryBookingSettingsQuery.js';
 import { GetCountryBookingSettingsQueryHandler } from '../application/features/pricing/queries/getCountryBookingSettings/getCountryBookingSettingsQueryHandler.js';
@@ -52,6 +56,9 @@ import { SaveMarketBookingSettingsCommandHandler } from '../application/features
 
 /** The admin's stores plus, for the simulator, the very repositories and resolver the quote reads. */
 export interface PricingHandlerDependencies extends PricingGeographyDependencies, Omit<PricingPreviewDependencies, 'taxSettings' | 'clock'> {
+  /** Feature 033: goalkeeper rules hang from the goalkeeper's market and country. */
+  goalkeeperProfiles: GoalkeeperTargetDependencies['goalkeeperProfiles'];
+  users: Pick<IUserRepository, 'getByIds' | 'getById'>;
   rentalRates: IRentalRateAdmin;
   commissions: ICommissionAdmin;
   bookingSettings: IBookingSettingsAdmin;
@@ -79,6 +86,7 @@ export function pricingHandlerRegistrations(deps: PricingHandlerDependencies): H
     { requestType: ListCommissionsQuery, handler: new ListCommissionsQueryHandler(deps) },
     { requestType: GetCommissionQuery, handler: new GetCommissionQueryHandler(deps) },
     { requestType: GetCommissionDeleteImpactQuery, handler: new GetCommissionDeleteImpactQueryHandler(deps) },
+    { requestType: GetGoalkeeperCommissionRulesQuery, handler: new GetGoalkeeperCommissionRulesQueryHandler(deps) },
     { requestType: CreateCommissionCommand, handler: new CreateCommissionCommandHandler(deps) },
     { requestType: UpdateCommissionCommand, handler: new UpdateCommissionCommandHandler(deps) },
     { requestType: DeleteCommissionCommand, handler: new DeleteCommissionCommandHandler(deps) },

@@ -7,7 +7,6 @@ interface PriceEntity {
   scope: string;
   refId: string;
   modality: string | null;
-  amount: number;
   revision: number;
 }
 
@@ -17,7 +16,7 @@ export function matchesPriceFilter(entity: PriceEntity, filter: PriceFilter): bo
   return true;
 }
 
-export function priceRecord<Scope extends string>(entity: PriceEntity): PriceRecord<Scope> {
+export function priceRecord<Scope extends string>(entity: PriceEntity & { amount: number }): PriceRecord<Scope> {
   return {
     id: entity.id,
     scope: entity.scope as Scope,

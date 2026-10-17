@@ -82,8 +82,9 @@ export function offerHarness() {
     goalkeeperProfileRepository,
     operatingBalanceRepository,
     commissionResolver: {
-      resolveForZones: async (zoneIds: string[]) => new Map(zoneIds.map((zoneId) => [zoneId, 7000] as const)),
-      resolveForMatch: async () => 7000,
+      lowestForGoalkeepers: async (goalkeepers: readonly { goalkeeperId: string; zoneIds: readonly string[] }[]) =>
+        new Map(goalkeepers.map((goalkeeper) => [goalkeeper.goalkeeperId, { lowest: new Map(goalkeeper.zoneIds.map((zoneId) => [zoneId, 7000] as const)), ownRules: [] }])),
+      resolveForMatch: async () => null,
     },
     bookingRepository,
     vatRates: fixedVatRates(0),

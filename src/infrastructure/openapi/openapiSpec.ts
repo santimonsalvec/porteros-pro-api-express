@@ -129,7 +129,7 @@ export const openapiSpec = {
             type: 'object',
             properties: {
               canSeeOffers: { type: 'boolean', description: 'false → the goalkeeper sees no matches and receives no offers' },
-              lowestCommission: { type: 'integer', nullable: true, example: 7000, description: 'Lowest configured commission among the enabled zones' },
+              lowestCommission: { type: 'integer', nullable: true, example: 7000, description: 'Lowest commission any match in the enabled zones could cost this goalkeeper (their own rule when they have one, feature 033)' },
               lowestCharge: { type: 'integer', nullable: true, example: 8330, description: 'That commission plus its VAT: what accepting such a match debits (feature 023)' },
               vatRateBps: { type: 'integer', example: 1900, description: "The goalkeeper's country VAT rate, in basis points" },
               missingAmount: { type: 'integer', example: 0, description: 'max(0, lowestCharge − balance)' },
@@ -221,7 +221,7 @@ export const openapiSpec = {
           goalkeeperCount: { type: 'integer', description: 'How many goalkeepers the request asked for' },
           matchFormat: { allOf: [{ $ref: '#/components/schemas/MatchFormat' }], nullable: true, description: 'Feature 024; null for requests created before it' },
           earnings: { type: 'integer', example: 60000, description: 'What the client pays the goalkeeper for this booking (rate + surcharge)' },
-          commission: { type: 'integer', example: 7000, description: 'The platform commission charged on acceptance, fixed when the quote was issued' },
+          commission: { type: 'integer', example: 7000, description: 'The platform commission this goalkeeper pays on acceptance (net, before VAT): the one fixed when the quote was issued, or their own rule applied to the same price (feature 033). Never broken down for the goalkeeper.' },
           vat: { type: 'integer', example: 1330, description: 'Available list only (feature 023): the VAT charged on top of the commission, at the current rate' },
           totalCharge: { type: 'integer', example: 8330, description: 'Available list only: commission + VAT, what accepting debits' },
           currency: { type: 'string', example: 'COP' },

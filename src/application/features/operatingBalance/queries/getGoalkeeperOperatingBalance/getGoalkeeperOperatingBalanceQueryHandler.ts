@@ -11,7 +11,8 @@ import { GetGoalkeeperOperatingBalanceQuery, type GetGoalkeeperOperatingBalanceR
 
 /**
  * The operating balance as the goalkeeper needs it to understand what they see: the balance, and whether it
- * covers the lowest commission of the zones they have enabled right now (funds rule a).
+ * covers the lowest commission the zones they have enabled could cost them right now (funds rule a;
+ * their own rule when they have one, feature 033).
  */
 export class GetGoalkeeperOperatingBalanceQueryHandler implements IQueryHandler<GetGoalkeeperOperatingBalanceQuery, GetGoalkeeperOperatingBalanceResult> {
   constructor(
@@ -27,11 +28,12 @@ export class GetGoalkeeperOperatingBalanceQueryHandler implements IQueryHandler<
     if (context.kind === 'not_a_goalkeeper') return { outcome: 'not_a_goalkeeper' };
     if (context.kind === 'operating_balance_not_configured') return { outcome: 'operating_balance_not_configured', marketId: context.marketId };
 
-    const [stored, commissions, vatRateBps] = await Promise.all([
+    const [stored, lowest, vatRateBps] = await Promise.all([
       this.operatingBalanceRepository.findByGoalkeeperId(query.goalkeeperId),
-      this.commissionResolver.resolveForZones(context.profile.zoneIds),
+      this.commissionResolver.lowestForGoalkeepers([{ goalkeeperId: query.goalkeeperId, zoneIds: context.profile.zoneIds }], this.clock.now()),
       this.vatRates.forCountry(context.countryId),
     ]);
+    const commissions = lowest.get(query.goalkeeperId)?.lowest ?? new Map<string, number | null>();
     const operatingBalance = stored ?? OperatingBalance.empty(query.goalkeeperId, context.currency, this.clock.now());
 
     return {

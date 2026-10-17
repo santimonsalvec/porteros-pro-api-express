@@ -27,6 +27,10 @@ export class FakeRentalRateRepository implements IRentalRateRepository, IRatePre
     };
   }
 
+  async findForZones(zoneIds: readonly string[], marketIds: readonly string[]): Promise<RentalRate[]> {
+    return this.rates.filter((rate) => (rate.scope === 'zone' ? zoneIds : marketIds).includes(rate.refId));
+  }
+
   async pricedDurations(refs: { marketIds: string[]; zoneIds: string[] }) {
     return this.rates
       .filter((rate) => (rate.scope === 'market' ? refs.marketIds : refs.zoneIds).includes(rate.refId))

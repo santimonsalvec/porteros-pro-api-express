@@ -11,6 +11,7 @@ import { FixedClock } from '../../../../fakes/fakeClock.js';
 import { FakeQuoteRepository } from '../../../../fakes/fakeQuoteRepository.js';
 import { FakeSender } from '../../../../fakes/fakeSender.js';
 import { POINTS, QUOTE_FORMAT_FIELDS, QUOTE_NOW } from '../../../../fixtures/quoteFixtures.js';
+import { CommissionBreakdown } from '../../../../../src/domain/operatingBalance/commissionRule.js';
 import { MatchFormat } from '../../../../../src/domain/bookings/matchFormat.js';
 
 const priced = {
@@ -30,7 +31,15 @@ const format = new MatchFormat({ modality: 'futbol_11', surfaceId: 'synthetic_gr
 const success: Extract<GetServiceQuoteResult, { outcome: 'success' }> = {
   outcome: 'success',
   quote: priced,
-  area: { zoneId: 'zone-cali-norte', marketId: 'city-cali', freeCancellationMinutes: 60, commission: 7000, travelBufferMinutes: 30, format },
+  area: {
+    zoneId: 'zone-cali-norte',
+    marketId: 'city-cali',
+    freeCancellationMinutes: 60,
+    commission: 7000,
+    commissionBreakdown: new CommissionBreakdown({ base: 45000, percentBps: 0, percentAmount: 0, fixedAmount: 7000, net: 7000, ruleId: 'commission-country-co', origin: { scope: 'country', refId: 'country-co' }, modality: null }),
+    travelBufferMinutes: 30,
+    format,
+  },
 };
 const input: ServiceQuoteInput = {
   ...POINTS.caliNorte,

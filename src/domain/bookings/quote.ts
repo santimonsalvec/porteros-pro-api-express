@@ -1,6 +1,7 @@
 import { Entity } from '../common/entity.js';
 import type { MatchDetails } from './matchDetails.js';
 import type { PricingSnapshot } from './pricingSnapshot.js';
+import type { CommissionBreakdown } from '../operatingBalance/commissionRule.js';
 
 export type QuoteStatus = 'pending';
 
@@ -15,6 +16,8 @@ interface QuoteProps {
   freeCancellationMinutes: number;
   /** The platform's commission for one goalkeeper, fixed for the whole flow (012, clarification 1). */
   commission: number;
+  /** How that commission was built (feature 033); `null` on quotes stored before it. */
+  commissionBreakdown?: CommissionBreakdown | null;
   /** Minutes a goalkeeper needs to travel between matches here (012, FR-010). */
   travelBufferMinutes: number;
   /** Admin spec 030: the zone's discount for a goalkeeper without the seal (basis points); absent = 0. */
@@ -38,6 +41,8 @@ export class Quote extends Entity<string> {
   /** Resolved from the booking settings when quoting, so confirmation never re-reads them. */
   readonly freeCancellationMinutes: number;
   readonly commission: number;
+  /** The reference breakdown, from the geography levels (the goalkeeper is unknown here, FR-012). */
+  readonly commissionBreakdown: CommissionBreakdown | null;
   readonly travelBufferMinutes: number;
   /** Fixed with the price, so what the client saw is what applies (FR-019). */
   readonly unverifiedDiscountBps: number;
@@ -58,6 +63,9 @@ export class Quote extends Entity<string> {
     if (!Number.isInteger(props.travelBufferMinutes) || props.travelBufferMinutes < 0) {
       throw new Error('Quote: travelBufferMinutes must be an integer of at least 0');
     }
+    if (props.commissionBreakdown && props.commissionBreakdown.net !== props.commission) {
+      throw new Error('Quote: commission must equal commissionBreakdown.net');
+    }
     this.clientId = props.clientId;
     this.match = props.match;
     this.pricing = props.pricing;
@@ -65,6 +73,7 @@ export class Quote extends Entity<string> {
     this.expiresAt = new Date(props.expiresAt);
     this.freeCancellationMinutes = props.freeCancellationMinutes;
     this.commission = props.commission;
+    this.commissionBreakdown = props.commissionBreakdown ?? null;
     this.travelBufferMinutes = props.travelBufferMinutes;
     this.unverifiedDiscountBps = props.unverifiedDiscountBps ?? 0;
     this.verifiedPriorityMinutes = props.verifiedPriorityMinutes ?? 0;
@@ -81,6 +90,7 @@ export class Quote extends Entity<string> {
     commission: number,
     travelBufferMinutes: number,
     unverified: { discountBps: number; verifiedPriorityMinutes: number } = { discountBps: 0, verifiedPriorityMinutes: 0 },
+    commissionBreakdown: CommissionBreakdown | null = null,
   ): Quote {
     const expiresAt = new Date(issuedAt.getTime() + validityMinutes * 60_000);
     return new Quote({
@@ -92,6 +102,7 @@ export class Quote extends Entity<string> {
       expiresAt,
       freeCancellationMinutes,
       commission,
+      commissionBreakdown,
       travelBufferMinutes,
       unverifiedDiscountBps: unverified.discountBps,
       verifiedPriorityMinutes: unverified.verifiedPriorityMinutes,

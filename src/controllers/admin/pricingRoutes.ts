@@ -29,7 +29,7 @@ import {
   listCommissionsQuerySchema,
   listRentalRatesQuerySchema,
   pricingPreviewQuerySchema,
-  updatePriceRequestSchema,
+  updatePriceRequestSchema, updateCommissionRequestSchema,
 } from '../requests/pricing/pricingRequests.js';
 import { conflict, invalidFields, notFound, parse, sendDeleted, stale, warningsUnacknowledged, type Route } from './geographyRoutes.js';
 import {
@@ -181,6 +181,8 @@ function registerCommissionRoutes(route: Route, mediator: ISender): void {
         throw new ApiError(409, 'commission_already_exists', 'A commission already exists for this combination.', undefined, {
           existingId: result.existingId,
         });
+      case 'goalkeeper_not_found':
+        throw notFound('goalkeeper_not_found');
       default:
         throw targetError(result);
     }
@@ -224,8 +226,8 @@ function registerCommissionRoutes(route: Route, mediator: ISender): void {
   );
 
   route('patch', '/commissions/:commissionId', audit('commission.update'), async (req, res) => {
-    const { revision, amount } = parse(updatePriceRequestSchema, req.body);
-    await sendUpdated(res, await mediator.send(new UpdateCommissionCommand(req.params.commissionId, revision, amount)));
+    const { revision, ...input } = parse(updateCommissionRequestSchema, req.body);
+    await sendUpdated(res, await mediator.send(new UpdateCommissionCommand(req.params.commissionId, revision, input)));
   });
 
   route('post', '/commissions/:commissionId/delete', audit('commission.delete'), async (req, res) => {
@@ -325,8 +327,8 @@ function registerPreviewRoute(route: Route, mediator: ISender): void {
   });
 
   route('get', '/pricing/preview', 'pricing.read', async (req, res) => {
-    const { quoteFromLocal, ...input } = parse(pricingPreviewQuerySchema, req.query);
-    const result = await mediator.send(new GetPricingPreviewQuery({ ...input, quoteFromLocal: quoteFromLocal ?? null }));
+    const { quoteFromLocal, goalkeeperId, ...input } = parse(pricingPreviewQuerySchema, req.query);
+    const result = await mediator.send(new GetPricingPreviewQuery({ ...input, quoteFromLocal: quoteFromLocal ?? null, goalkeeperId: goalkeeperId ?? null }));
     switch (result.outcome) {
       case 'ok':
         res.status(200).json(result.preview);

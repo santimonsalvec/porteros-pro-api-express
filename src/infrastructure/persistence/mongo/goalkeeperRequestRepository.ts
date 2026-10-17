@@ -3,6 +3,7 @@ import type { IGoalkeeperRequestRepository } from '../../../application/features
 import { GoalkeeperRequest, type PartialFulfillment } from '../../../domain/bookings/goalkeeperRequest.js';
 import { contactsVisibleAt } from '../../../domain/bookings/contactVisibility.js';
 import { matchFromDocument, matchToDocument, pricingFromDocument, pricingToDocument } from './quoteRepository.js';
+import { breakdownFromDocument, breakdownToDocument } from './bookingRepository.js';
 
 export const GOALKEEPER_REQUESTS_COLLECTION = 'goalkeeperRequests';
 /** Longer than any free-cancellation period: "cancel all" requests due now start within it. */
@@ -22,6 +23,7 @@ export function requestToDocument(request: GoalkeeperRequest): Document {
     partialFulfillment: request.partialFulfillment,
     freeCancellationMinutes: request.freeCancellationMinutes,
     commission: request.commission,
+    ...(request.commissionBreakdown ? { commissionBreakdown: breakdownToDocument(request.commissionBreakdown) } : {}),
     travelBufferMinutes: request.travelBufferMinutes,
     active: request.active,
     quoteIssuedAt: request.quoteIssuedAt,
@@ -45,6 +47,7 @@ export function requestFromDocument(doc: Document): GoalkeeperRequest {
     partialFulfillment: doc.partialFulfillment as PartialFulfillment,
     freeCancellationMinutes: doc.freeCancellationMinutes as number,
     commission: doc.commission as number,
+    commissionBreakdown: breakdownFromDocument(doc.commissionBreakdown as Document | undefined),
     travelBufferMinutes: doc.travelBufferMinutes as number,
     active: doc.active as boolean,
     quoteIssuedAt: doc.quoteIssuedAt as Date,

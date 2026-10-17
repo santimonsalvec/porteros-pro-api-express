@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { isEligible } from '../../../../src/domain/bookings/offerEligibility.js';
+import { commissionOf, isEligible } from '../../../../src/domain/bookings/offerEligibility.js';
+import { CommissionBreakdown } from '../../../../src/domain/operatingBalance/commissionRule.js';
+import { CommissionSetting } from '../../../../src/domain/operatingBalance/commissionSetting.js';
 import { buildBooking, eligibleSnapshot, OFFER_NOW } from '../../../fixtures/offerFixtures.js';
 
 const booking = buildBooking();
@@ -68,5 +70,28 @@ describe('isEligible by vetting tier (admin spec 030)', () => {
   it('a verified goalkeeper is offered as before, window or not', () => {
     expect(isEligible(eligibleSnapshot({ tier: 'verified' }), openToUnverified, OFFER_NOW)).toBe(true);
     expect(isEligible(eligibleSnapshot({ tier: 'verified' }), booking, OFFER_NOW)).toBe(true);
+  });
+});
+
+describe('commissionOf — what the booking costs this goalkeeper (feature 033)', () => {
+  const priced = buildBooking({
+    commissionBreakdown: new CommissionBreakdown({ base: 40000, percentBps: 0, percentAmount: 0, fixedAmount: 7000, net: 7000, ruleId: 'c-co', origin: { scope: 'country', refId: 'country-co' }, modality: null, matchModality: 'futbol_11' }),
+  });
+  const own = (percentBps: number, modality: string | null = null) =>
+    new CommissionSetting({ id: `own-${percentBps}-${modality}`, scope: 'goalkeeper', refId: 'goalkeeper-1', fixedAmount: 0, percentBps, modality, countryId: 'country-co' });
+
+  it('is the stored commission without own rules, and the own rule on the base with them', () => {
+    expect(commissionOf(eligibleSnapshot(), priced)).toBe(7000);
+    expect(commissionOf(eligibleSnapshot({ ownRules: [own(500)] }), priced)).toBe(2000);
+  });
+
+  it('prefers the own rule of the match modality, then the general one', () => {
+    expect(commissionOf(eligibleSnapshot({ ownRules: [own(500), own(300, 'futbol_11')] }), priced)).toBe(1200);
+    expect(commissionOf(eligibleSnapshot({ ownRules: [own(300, 'micro_futsal')] }), priced)).toBe(7000);
+  });
+
+  it('makes an otherwise unaffordable booking eligible when the own rule is cheaper', () => {
+    expect(isEligible(eligibleSnapshot({ balance: 6999 }), priced, OFFER_NOW)).toBe(false);
+    expect(isEligible(eligibleSnapshot({ balance: 6999, ownRules: [own(500)] }), priced, OFFER_NOW)).toBe(true);
   });
 });

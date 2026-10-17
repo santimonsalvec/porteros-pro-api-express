@@ -1,3 +1,5 @@
+import { kindOf } from '../../../../domain/operatingBalance/commissionRule.js';
+import type { CommissionKind } from '../../../../domain/operatingBalance/commissionSetting.js';
 import { vatFor } from '../../../../domain/operatingBalance/vat.js';
 import type { CommissionRecord, PriceRecord, RentalRateRecord } from './ports.js';
 
@@ -18,15 +20,8 @@ export interface PriceTarget {
   zoneActive: boolean | null;
 }
 
-function priceView<Scope extends string>(record: PriceRecord<Scope>, target: PriceTarget) {
+function targetPart(target: PriceTarget) {
   return {
-    id: record.id,
-    scope: record.scope,
-    refId: record.refId,
-    modality: record.modality,
-    amount: record.amount,
-    revision: record.revision,
-    invalid: record.invalid,
     currency: target.currency,
     countryId: target.countryId,
     countryName: target.countryName,
@@ -38,6 +33,19 @@ function priceView<Scope extends string>(record: PriceRecord<Scope>, target: Pri
   };
 }
 
+function priceView<Scope extends string>(record: PriceRecord<Scope>, target: PriceTarget) {
+  return {
+    id: record.id,
+    scope: record.scope,
+    refId: record.refId,
+    modality: record.modality,
+    amount: record.amount,
+    revision: record.revision,
+    invalid: record.invalid,
+    ...targetPart(target),
+  };
+}
+
 export type RentalRateView = ReturnType<typeof rentalRateView>;
 export type CommissionView = ReturnType<typeof commissionView>;
 
@@ -45,13 +53,37 @@ export function rentalRateView(record: RentalRateRecord, target: PriceTarget) {
   return { ...priceView(record, target), durationMinutes: record.durationMinutes };
 }
 
-/** With the VAT a goalkeeper pays on top, computed like the operating balance does (never re-rounded here). */
-export function commissionView(record: CommissionRecord, target: PriceTarget, vatRateBps: number) {
-  const vatAmount = record.invalid ? null : vatFor(record.amount, vatRateBps);
+/** A goalkeeper rule as the admin sees it (feature 033): whose it is and whether it still applies. */
+export interface GoalkeeperRulePart {
+  goalkeeper: { userId: string; name: string | null };
+  validUntil: string | null;
+  /** `YYYY-MM-DDTHH:mm` in the goalkeeper's market time zone; `null` = never expires. */
+  validUntilLocal: string | null;
+  timeZone: string | null;
+  validity: 'active' | 'expired' | 'other_country';
+}
+
+/**
+ * With the VAT a goalkeeper pays on top, computed like the operating balance does (never re-rounded
+ * here) — only for a fixed rule: a percentage depends on the booking (feature 033).
+ */
+export function commissionView(record: CommissionRecord, target: PriceTarget, vatRateBps: number, goalkeeper: GoalkeeperRulePart | null = null) {
+  const kind: CommissionKind = kindOf(record);
+  const vatAmount = record.invalid || kind !== 'fixed' ? null : vatFor(record.fixedAmount, vatRateBps);
   return {
-    ...priceView(record, target),
+    id: record.id,
+    scope: record.scope,
+    refId: record.refId,
+    modality: record.modality,
+    fixedAmount: record.fixedAmount,
+    percentBps: record.percentBps,
+    kind,
+    revision: record.revision,
+    invalid: record.invalid,
+    ...targetPart(target),
     vatRateBps,
     vatAmount,
-    totalWithVat: vatAmount === null ? null : record.amount + vatAmount,
+    totalWithVat: vatAmount === null ? null : record.fixedAmount + vatAmount,
+    ...(goalkeeper ?? {}),
   };
 }

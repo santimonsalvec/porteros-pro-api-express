@@ -8,7 +8,7 @@ export interface CommissionFilters {
   /** An anchor market: its own commissions and its zones'. */
   marketId?: string;
   zoneId?: string;
-  scope?: 'country' | 'market' | 'zone';
+  scope?: 'country' | 'market' | 'zone' | 'goalkeeper';
   modality?: PricedModality | 'general';
 }
 

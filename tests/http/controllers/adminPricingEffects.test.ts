@@ -67,10 +67,10 @@ describe('admin commission writes reach the bookings (admin spec 004)', () => {
     await context.operatingBalanceLedger.adjust(ownerOf(goalkeeper.userId), { adminUserId: 'admin-1', amount: 30000, reason: 'Saldo de pruebas', operationKey: 'k-e1' });
     const available = () => request(context.app).get('/goalkeepers/me/available-bookings').set('Authorization', `Bearer ${goalkeeper.token}`);
 
-    const created = await editor.post('/admin/commissions', { scope: 'zone', refId: 'zone-cali-norte', amount: 9000 });
+    const created = await editor.post('/admin/commissions', { scope: 'zone', refId: 'zone-cali-norte', fixedAmount: 9000, percentBps: 0 });
     await createRequestAsClient(context, client.token);
     const first = await available();
-    await editor.patch(`/admin/commissions/${created.body.id}`, { revision: 0, amount: 9500 });
+    await editor.patch(`/admin/commissions/${created.body.id}`, { revision: 0, fixedAmount: 9500, percentBps: 0 });
     const afterChange = await available();
 
     expect(first.body.items[0].commission).toBe(9000);
