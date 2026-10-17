@@ -1,6 +1,7 @@
 import { Entity } from '../common/entity.js';
 import { normalizeEmail } from '../common/email.js';
 import { ExternalIdentity } from './externalIdentity.js';
+import type { Language } from '../i18n/language.js';
 
 /**
  * The central identity record for anyone who can sign in. Shared by mobile clients
@@ -24,6 +25,8 @@ export class User extends Entity<string> {
   isProfileComplete: boolean;
   normalizedPhoneNumber: string | null;
   emailKey: string | null;
+  /** The language the person chose for the product (feature 032); null until they choose one. */
+  preferredLanguage: Language | null;
 
   constructor(params: {
     id: string;
@@ -39,6 +42,7 @@ export class User extends Entity<string> {
     isProfileComplete: boolean;
     normalizedPhoneNumber: string | null;
     emailKey?: string | null;
+    preferredLanguage?: Language | null;
   }) {
     super(params.id);
     this.email = params.email;
@@ -53,6 +57,7 @@ export class User extends Entity<string> {
     this.isProfileComplete = params.isProfileComplete;
     this.normalizedPhoneNumber = params.normalizedPhoneNumber;
     this.emailKey = params.emailKey ?? null;
+    this.preferredLanguage = params.preferredLanguage ?? null;
   }
 
   /** Factory for mobile auto-provisioning (FR-014) and out-of-band admin provisioning. */

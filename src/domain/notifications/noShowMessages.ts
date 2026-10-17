@@ -1,4 +1,6 @@
 import type { PushMessage } from '../devices/deviceRules.js';
+import type { Language } from '../i18n/language.js';
+import { catalog } from '../i18n/messages/catalog.js';
 import { localWhen } from './offerMessages.js';
 import { where, type OutcomeMatch } from './outcomeMessages.js';
 
@@ -6,13 +8,9 @@ import { where, type OutcomeMatch } from './outcomeMessages.js';
 export const NO_SHOW_TYPE = 'goalkeeper.no_show';
 
 /** To the goalkeeper: they were marked as a no-show, and until when they're suspended. */
-export function noShowMessage(match: OutcomeMatch, requestId: string, bookingId: string, suspendedUntil: Date | null): PushMessage {
-  // The time from `where` already ends in "a. m." / "p. m.", so no extra period after it.
-  // `localWhen` also ends in "a. m." / "p. m.": no period after the suspension end either.
-  const suspension = suspendedUntil ? ` Quedaste suspendido hasta el ${localWhen(suspendedUntil, match.timeZone)}` : '';
+export function noShowMessage(language: Language, match: OutcomeMatch, requestId: string, bookingId: string, suspendedUntil: Date | null): PushMessage {
   return {
-    title: 'Inasistencia registrada',
-    body: `No confirmaste tu llegada al partido ${where(match)} y quedó registrado como inasistencia.${suspension}`,
+    ...catalog(language).noShow(where(match, language), suspendedUntil ? localWhen(suspendedUntil, match.timeZone, language) : null),
     data: { type: NO_SHOW_TYPE, requestId, bookingId },
   };
 }
